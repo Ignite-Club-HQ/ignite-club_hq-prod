@@ -168,8 +168,26 @@ Deno.serve(async (req) => {
           .eq('group_id', groupId)
           .neq('user_id', authorId);
         memberIds = (members || []).map(m => m.user_id);
+      } else if (groupData.mini_league_id) {
+        // Mini league group — admins/coaches from club + parents with children in the league
+        const [roleMembers, parentMembers] = await Promise.all([
+          supabase
+            .from('user_roles')
+            .select('user_id')
+            .eq('club_id', groupData.club_id!)
+            .in('role', ['league_admin', 'coach', 'club_admin', 'app_admin'])
+            .neq('user_id', authorId),
+          supabase
+            .from('mini_league_players')
+            .select('parent_user_id')
+            .eq('mini_league_id', groupData.mini_league_id)
+            .neq('parent_user_id', authorId),
+        ]);
+        const roleIds = (roleMembers.data || []).map(m => m.user_id);
+        const parentIds = (parentMembers.data || []).map(m => m.parent_user_id);
+        memberIds = [...new Set([...roleIds, ...parentIds])];
       } else {
-        // Club/team/league group — use role-based membership
+        // Club/team group — use role-based membership
         let query = supabase
           .from('user_roles')
           .select('user_id')
