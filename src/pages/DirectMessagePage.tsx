@@ -869,7 +869,7 @@ export default function DirectMessagePage() {
                   >
                     <ChatMessage
                       id={msg.id}
-                      text={searchQuery ? highlightText(msg.text, searchQuery) as string : msg.text}
+                      text={msg.text}
                       imageUrl={msg.image_url}
                       authorId={msg.author_id}
                       authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
