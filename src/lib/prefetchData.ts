@@ -15,15 +15,13 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     // Check for cached roles first
     const cachedRoles = getCachedRoles();
     
-    // Fetch all initial data in parallel - including media access check
-    const [rolesResult, chatGroupsResult, broadcastResult] = await Promise.all([
+    // Fetch roles and broadcast messages in parallel
+    // Note: chat_groups are fetched AFTER roles so we can filter server-side
+    const [rolesResult, broadcastResult] = await Promise.all([
       supabase
         .from("user_roles")
         .select("id, role, club_id, team_id")
         .eq("user_id", userId),
-      supabase
-        .from("chat_groups")
-        .select("id, name, club_id, team_id, allowed_roles"),
       supabase
         .from("broadcast_messages")
         .select("id, text, image_url, created_at, author_id, reply_to_id")
@@ -32,7 +30,6 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     ]);
 
     const roles = rolesResult.data || [];
-    const chatGroups = chatGroupsResult.data || [];
     
     // Cache roles in localStorage for quick access
     cacheRoles(roles);
@@ -50,14 +47,45 @@ async function doPrefetch(queryClient: QueryClient, userId: string) {
     const isAppAdmin = roles.some(r => r.role === "app_admin");
     prefetchMediaAccess(queryClient, userId, roles, isAppAdmin, clubIds, teamIds);
 
-    // Determine accessible groups
-    const accessibleGroups = chatGroups.filter(group => {
-      const userRolesForGroup = roles.filter(r =>
-        (group.club_id && r.club_id === group.club_id) ||
-        (group.team_id && r.team_id === group.team_id)
-      );
-      return userRolesForGroup.some(r => (group.allowed_roles as string[]).includes(r.role));
-    });
+    // Fetch chat groups scoped to user's clubs/teams (server-side filter)
+    // instead of fetching ALL groups and filtering client-side
+    let accessibleGroups: Array<{ id: string; name: string; club_id: string | null; team_id: string | null; allowed_roles: string[] }> = [];
+    
+    if (clubIds.length > 0 || teamIds.length > 0) {
+      const filters: string[] = [];
+      if (clubIds.length > 0) filters.push(`club_id.in.(${clubIds.join(",")})`);
+      if (teamIds.length > 0) filters.push(`team_id.in.(${teamIds.join(",")})`);
+      
+      const { data: chatGroups } = await supabase
+        .from("chat_groups")
+        .select("id, name, club_id, team_id, allowed_roles")
+        .or(filters.join(","));
+      
+      // Further filter by the user's specific roles in each club/team
+      accessibleGroups = (chatGroups || []).filter(group => {
+        const userRolesForGroup = roles.filter(r =>
+          (group.club_id && r.club_id === group.club_id) ||
+          (group.team_id && r.team_id === group.team_id)
+        );
+        return userRolesForGroup.some(r => (group.allowed_roles as string[]).includes(r.role));
+      });
+    }
+    
+    // Also fetch personal groups (no club/team)
+    const { data: personalGroups } = await supabase
+      .from("group_members")
+      .select("group_id, chat_groups:group_id(id, name, club_id, team_id, allowed_roles)")
+      .eq("user_id", userId)
+      .limit(10);
+    
+    if (personalGroups) {
+      for (const pg of personalGroups) {
+        const group = (pg as any).chat_groups;
+        if (group && !group.club_id && !group.team_id) {
+          accessibleGroups.push(group);
+        }
+      }
+    }
 
     // Cache broadcast messages (simplified - no nested fetches)
     if (broadcastResult.data) {
