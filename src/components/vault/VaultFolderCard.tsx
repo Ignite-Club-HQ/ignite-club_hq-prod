@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
 
 interface VaultFolderCardProps {
   folder: { id: string; name: string };
@@ -27,9 +28,28 @@ export function VaultFolderCard({
   onExport,
   canEdit = false,
 }: VaultFolderCardProps) {
-  const hasActions = onShare || onExport || (canEdit && onRename) || (canEdit && onDelete);
+  const hasMenuActions = onShare || onExport;
+  
+  // Build swipe actions for edit/delete
+  const swipeActions = [];
+  if (canEdit && onRename) {
+    swipeActions.push({
+      label: "Rename",
+      icon: <Pencil className="h-4 w-4" />,
+      onClick: onRename,
+      className: "bg-blue-500 text-white",
+    });
+  }
+  if (canEdit && onDelete) {
+    swipeActions.push({
+      label: "Delete",
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: onDelete,
+      className: "bg-destructive text-destructive-foreground",
+    });
+  }
 
-  return (
+  const cardContent = (
     <Card
       className="cursor-pointer hover:bg-accent/50 transition-colors group"
       onClick={onNavigate}
@@ -44,8 +64,8 @@ export function VaultFolderCard({
           <p className="font-medium">{folder.name}</p>
         </div>
         
-        {/* Three-dot menu for actions */}
-        {hasActions && (
+        {/* Three-dot menu only for non-edit actions (Share, Export) */}
+        {hasMenuActions && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -76,27 +96,6 @@ export function VaultFolderCard({
                   Share
                 </DropdownMenuItem>
               )}
-              {canEdit && onRename && (
-                <DropdownMenuItem onClick={(e) => {
-                  e.stopPropagation();
-                  onRename();
-                }}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Rename
-                </DropdownMenuItem>
-              )}
-              {canEdit && onDelete && (
-                <DropdownMenuItem 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                  }}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -105,4 +104,18 @@ export function VaultFolderCard({
       </CardContent>
     </Card>
   );
+
+  if (swipeActions.length > 0) {
+    return (
+      <SwipeableRow
+        enabled={canEdit}
+        actions={swipeActions}
+        actionsWidth={swipeActions.length * 70}
+      >
+        {cardContent}
+      </SwipeableRow>
+    );
+  }
+
+  return cardContent;
 }
