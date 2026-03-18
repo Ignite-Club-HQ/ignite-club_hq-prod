@@ -459,9 +459,14 @@ workflows:
           ls -la ios/App/App/Assets.xcassets/AppIcon.appiconset/
       - name: Set up code signing
         script: xcode-project use-profiles
-      - name: Increment build number
+      - name: Set marketing version and increment build number
         script: |
           cd ios/App
+          # Set the marketing version from package.json
+          APP_VERSION=$(node -p "require('../../package.json').version")
+          echo "=== Setting MARKETING_VERSION to $APP_VERSION ==="
+          agvtool new-marketing-version "$APP_VERSION"
+          # Increment the build number
           LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number 6758928691 || echo 0)
           agvtool new-version -all $((LATEST_BUILD_NUMBER + 1))
       - name: Add Crashlytics run script to Xcode project
