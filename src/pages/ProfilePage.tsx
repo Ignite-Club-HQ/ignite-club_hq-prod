@@ -34,7 +34,6 @@ export default function ProfilePage() {
   const [myClubsTeamsOpen, setMyClubsTeamsOpen] = useState(true);
   
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
-  const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('app-theme') : 'light';
 
   // Auto-scroll to points history when navigated from notification
   useEffect(() => {
