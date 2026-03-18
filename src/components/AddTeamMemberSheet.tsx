@@ -398,6 +398,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 to: member.email.trim(),
                 subject: `You're invited to join ${teamName}`,
                 template: "team-invite",
+                senderName: clubBranding?.name || undefined,
+                replyTo: (clubBranding as any)?.contact_email || undefined,
                 templateData: {
                   recipientName: member.name.trim(),
                   invitedEmail: member.email.trim(),
