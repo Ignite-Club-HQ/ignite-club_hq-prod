@@ -495,21 +495,54 @@ export default function GlobalSubMonitor() {
     ) || [];
 
     if (dueSubs.length > 0) {
-      // Auto-skip older time groups — only present the latest due sub
+      // Auto-skip older time groups, then rebuild future subs from the current game state.
       const dueTimes = [...new Set(dueSubs.map(s => s.time))].sort((a, b) => a - b);
+      let nextPitchState = pitchState;
+      let latestTime = Math.max(...dueSubs.map(s => s.time));
+
       if (dueTimes.length > 1) {
-        const latestTime = dueTimes[dueTimes.length - 1];
+        latestTime = dueTimes[dueTimes.length - 1];
         const olderSubs = dueSubs.filter(s => s.time < latestTime);
         const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-        const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
+        const latestMissedSub = olderSubs[olderSubs.length - 1];
+
+        let updatedPlan = (pitchState.autoSubPlan || []).map(s =>
           olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
         );
-        savePitchState({ ...pitchState, autoSubPlan: updatedPlan });
+
+        if (latestMissedSub) {
+          const executedSubs = updatedPlan.filter(s => s.executed);
+          const currentDueSubs = updatedPlan.filter(s => !s.executed && s.half === currentHalf && s.time === latestTime);
+          const futureSubsExist = updatedPlan.some(s => !s.executed && !(s.half === currentHalf && s.time === latestTime));
+
+          if (futureSubsExist) {
+            const recalculated = recalculateRemainingPlan(
+              pitchState.players,
+              getTeamSizeNumber(pitchState.teamSize),
+              timerState.minutesPerHalf * 60,
+              currentElapsed,
+              currentHalf,
+              latestMissedSub,
+              true
+            );
+
+            updatedPlan = [...executedSubs, ...currentDueSubs, ...recalculated];
+          }
+        }
+
+        nextPitchState = { ...pitchState, autoSubPlan: updatedPlan };
+        savePitchState(nextPitchState);
+        window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       }
-      const latestTime = Math.max(...dueSubs.map(s => s.time));
-      const batchSubs = dueSubs.filter(s => s.time === latestTime);
-      const [primarySub, ...additionalSubs] = batchSubs;
-      setCurrentPlayers(pitchState.players);
+
+      const refreshedDueSubs = nextPitchState.autoSubPlan?.filter(sub =>
+        !sub.executed &&
+        sub.half === currentHalf &&
+        currentElapsed >= sub.time &&
+        sub.time === latestTime
+      ) || [];
+      const [primarySub, ...additionalSubs] = refreshedDueSubs;
+      setCurrentPlayers(nextPitchState.players);
       setPendingAutoSub(primarySub);
       setPendingBatchSubs(additionalSubs);
       setSubConfirmDialogOpen(true);

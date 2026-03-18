@@ -21,6 +21,7 @@ import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundChec
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
+import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
 
 
 // Storage keys
@@ -203,26 +204,56 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
-          // Auto-skip older due subs when a newer sub is also due
+          // Auto-skip older due subs when a newer sub is also due,
+          // then recalculate the remaining future plan from the current state.
           const dueSubs = unexecuted.filter(sub => {
             const subTotal = getTotalSeconds(sub.time, sub.half, mph);
             return currentTotal >= subTotal;
           });
-          const dueTimes = [...new Set(dueSubs.map(s => `${s.half}-${s.time}`))].sort();
+          const dueTimes = [...new Set(dueSubs.map(s => `${s.half}-${s.time}`))].sort((a, b) => {
+            const [halfA, timeA] = a.split('-').map(Number);
+            const [halfB, timeB] = b.split('-').map(Number);
+            return halfA !== halfB ? halfA - halfB : timeA - timeB;
+          });
           
           if (dueTimes.length > 1) {
-            // Multiple time groups are due — skip all but the latest
             const latestKey = dueTimes[dueTimes.length - 1];
             const olderSubs = dueSubs.filter(s => `${s.half}-${s.time}` !== latestKey);
             const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-            const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
+            const latestMissedSub = [...olderSubs].sort((a, b) => {
+              if (a.half !== b.half) return a.half - b.half;
+              return a.time - b.time;
+            })[olderSubs.length - 1];
+
+            let updatedPlan = (pitchState.autoSubPlan || []).map(s =>
               olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
             );
+
+            if (latestMissedSub) {
+              const executedSubs = updatedPlan.filter(s => s.executed);
+              const currentDueSubs = updatedPlan.filter(s => !s.executed && `${s.half}-${s.time}` === latestKey);
+              const futureSubsExist = updatedPlan.some(s => !s.executed && `${s.half}-${s.time}` !== latestKey);
+
+              if (futureSubsExist) {
+                const recalculated = recalculateRemainingPlan(
+                  pitchState.players,
+                  parseInt(pitchState.teamSize),
+                  mph * 60,
+                  currentElapsed,
+                  saved.currentHalf,
+                  latestMissedSub,
+                  true
+                );
+
+                updatedPlan = [...executedSubs, ...currentDueSubs, ...recalculated];
+              }
+            }
+
             localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
             window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
             return; // Will pick up updated state on next poll tick
           }
-          
+
           const sorted = [...unexecuted].sort((a, b) => {
             if (a.half !== b.half) return a.half - b.half;
             return a.time - b.time;
