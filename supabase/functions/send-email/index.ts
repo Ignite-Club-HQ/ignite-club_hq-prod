@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
 import * as React from "npm:react@18.3.1";
 import { TeamInviteEmail } from "./_templates/team-invite.tsx";
+import { ChildAddedEmail } from "./_templates/child-added.tsx";
 import { EventReminderEmail } from "./_templates/event-reminder.tsx";
 import { MembershipConfirmationEmail } from "./_templates/membership-confirmation.tsx";
 import { MagicLinkEmail } from "./_templates/magic-link.tsx";
@@ -347,10 +348,37 @@ async function checkRateLimit(
 const IGNITE_BRAND_COLOR = "#10b981";
 
 // Render email template
-async function renderEmailTemplate(template: TemplateType, data: any): Promise<string> {
+async function renderEmailTemplate(template: TemplateType, data: any, supabaseAdmin?: any): Promise<string> {
   switch (template) {
     case "team-invite":
-    case "invite-reminder":
+    case "invite-reminder": {
+      // Check if the invited email belongs to an existing user
+      // If so, send the shorter "child added" email instead of full onboarding
+      let isExistingUser = false;
+      if (supabaseAdmin && data.invitedEmail && data.childrenNames?.length > 0) {
+        try {
+          const { data: authUser } = await supabaseAdmin.auth.admin.getUserByEmail(data.invitedEmail);
+          isExistingUser = !!authUser?.user;
+        } catch (e) {
+          console.warn("Could not check existing user, using default template");
+        }
+      }
+
+      if (isExistingUser) {
+        return await renderAsync(
+          React.createElement(ChildAddedEmail, {
+            recipientName: data.recipientName,
+            teamName: data.teamName,
+            clubName: data.clubName,
+            inviteLink: data.inviteLink,
+            clubLogoUrl: data.clubLogoUrl,
+            primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+            childrenNames: data.childrenNames || [],
+            customMessage: data.customMessage,
+          })
+        );
+      }
+
       return await renderAsync(
         React.createElement(TeamInviteEmail, {
           recipientName: data.recipientName,
@@ -365,6 +393,7 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           customMessage: data.customMessage,
         })
       );
+    }
     
     case "event-reminder":
       return await renderAsync(
@@ -699,7 +728,7 @@ serve(async (req: Request): Promise<Response> => {
     let emailHtml = html;
     if (template && templateData) {
       try {
-        emailHtml = await renderEmailTemplate(template, templateData);
+        emailHtml = await renderEmailTemplate(template, templateData, adminClient);
         console.log(`Rendered ${template} template successfully`);
       } catch (templateError) {
         console.error("Template rendering error:", sanitizeError(templateError));
