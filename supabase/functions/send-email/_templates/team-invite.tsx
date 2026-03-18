@@ -62,7 +62,11 @@ export const TeamInviteEmail = ({
   childrenNames = [],
   customMessage,
 }: TeamInviteEmailProps) => {
-  const previewText = `You've been added to your team for this season ⚽`;
+  const hasChildren = childrenNames.length > 0;
+  const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
+  const previewText = hasChildren
+    ? `${childLabel} has been added to their team for this season ⚽`
+    : `Your child has been added to their team for this season ⚽`;
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
   const deepLinkUrl = `https://igniteclubhq.app${deepLinkPath}`;
@@ -109,7 +113,9 @@ export const TeamInviteEmail = ({
               /* Default verbatim copy */
               <>
                 <Text style={headingText}>
-                  You've been added to your team for this season ⚽
+                  {hasChildren
+                    ? `${childLabel} has been added to their team for this season ⚽`
+                    : `Your child has been added to their team for this season ⚽`}
                 </Text>
 
                 <Text style={bodyText}>
@@ -121,8 +127,8 @@ export const TeamInviteEmail = ({
 
                 <Text style={sectionLabel}>👀 Jump in to see:</Text>
 
-                <Text style={bulletItem}>• What team you're in</Text>
-                <Text style={bulletItem}>• Who your teammates are</Text>
+                <Text style={bulletItem}>• What team they're in</Text>
+                <Text style={bulletItem}>• Who their teammates are</Text>
                 <Text style={bulletItem}>• Your club space for updates as the season gets underway</Text>
 
                 <Text style={subtleNote}>
@@ -131,10 +137,12 @@ export const TeamInviteEmail = ({
               </>
             )}
 
-            {childrenNames.length > 0 && (
+            {hasChildren && (
               <Section style={childrenSection}>
                 <Text style={childrenText}>
-                  Your {childrenNames.length === 1 ? 'child' : 'children'} will also be registered: <strong>{childrenNames.join(', ')}</strong>
+                  {childrenNames.length === 1
+                    ? <>Registered: <strong>{childrenNames[0]}</strong></>
+                    : <>Registered: <strong>{childrenNames.join(', ')}</strong></>}
                 </Text>
               </Section>
             )}
@@ -164,11 +172,11 @@ export const TeamInviteEmail = ({
             </Section>
 
             {/* Step 2: View team */}
-            <Text style={stepLabel}>2. Tap below to see your team</Text>
+            <Text style={stepLabel}>2. Tap below to see their team</Text>
 
             <Section style={mainCtaSection}>
               <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                View My Team
+                View Their Team
               </Button>
             </Section>
 
