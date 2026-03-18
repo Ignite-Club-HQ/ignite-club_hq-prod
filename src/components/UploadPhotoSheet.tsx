@@ -531,93 +531,22 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const handleNativePhotoPick = async () => {
     if (!shouldUseNativePhotoPicker || uploading || isPickingNativePhoto) return;
 
-    setIsPickingNativePhoto(true);
+    // CRITICAL: Do NOT set isPickingNativePhoto before pickNativePhoto —
+    // the state update triggers a re-render that breaks the iOS gesture chain.
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     try {
-      // Let Camera.getPhoto handle permissions natively on iOS to preserve
-      // the gesture-chain context. Explicit checkPermissions/requestPermissions
-      // before getPhoto breaks the gesture on first attempt.
-      let photo: Awaited<ReturnType<typeof CapacitorCamera.getPhoto>>;
-      const isLoadingError = (err: unknown) => {
-        const msg = getReadableUploadError(err).toLowerCase();
-        return msg.includes("error loading image") || msg.includes("loading image");
-      };
+      const result = await pickNativePhoto({ quality: 80 });
+      console.log("[UploadPhotoSheet] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
 
-      try {
-        console.log("[UploadPhotoSheet] calling getPhoto (Base64 mode, attempt 1)...");
-        photo = await CapacitorCamera.getPhoto({
-          resultType: CameraResultType.Base64,
-          source: CameraSource.Photos,
-          allowEditing: false,
-          quality: 80,
-        });
-      } catch (firstAttemptError: unknown) {
-        if (isCancelledSelectionError(firstAttemptError)) {
-          throw firstAttemptError;
-        }
+      // NOW safe to set state — native picker has closed
+      setIsPickingNativePhoto(true);
 
-        // "error loading image" often means the iOS plugin couldn't encode
-        // the photo as Base64 (iCloud, large HEIC, etc). Fall back to URI mode.
-        if (isLoadingError(firstAttemptError)) {
-          console.warn("[UploadPhotoSheet] Base64 mode failed with loading error, retrying with URI mode:", firstAttemptError);
-          photo = await CapacitorCamera.getPhoto({
-            resultType: CameraResultType.Uri,
-            source: CameraSource.Photos,
-            allowEditing: false,
-            quality: 80,
-          });
-        } else {
-          // Permission dialog / gesture-chain break — retry once with same mode
-          console.warn("[UploadPhotoSheet] getPhoto attempt 1 failed, retrying:", firstAttemptError);
-          try {
-            photo = await CapacitorCamera.getPhoto({
-              resultType: CameraResultType.Base64,
-              source: CameraSource.Photos,
-              allowEditing: false,
-              quality: 80,
-            });
-          } catch (secondAttemptError: unknown) {
-            // If retry also fails with loading error, try URI mode as last resort
-            if (!isCancelledSelectionError(secondAttemptError) && isLoadingError(secondAttemptError)) {
-              console.warn("[UploadPhotoSheet] Base64 retry also failed, falling back to URI:", secondAttemptError);
-              photo = await CapacitorCamera.getPhoto({
-                resultType: CameraResultType.Uri,
-                source: CameraSource.Photos,
-                allowEditing: false,
-                quality: 80,
-              });
-            } else {
-              throw secondAttemptError;
-            }
-          }
-        }
-      }
-      console.log("[UploadPhotoSheet] getPhoto OK", {
-        webPath: photo.webPath,
-        path: photo.path,
-        format: photo.format,
-        hasBase64: !!photo.base64String,
-      });
-
-      // Trigger viewport stabilization immediately after the native picker closes,
-      // before blob conversion/compression work can delay the reset.
+      // Trigger viewport stabilization immediately after the native picker closes
       requestAnimationFrame(() => {
         restoreNativeLayout();
       });
 
-      if (!hasCameraPhotoSource(photo)) {
-        throw new Error("No photo selected (missing base64String/webPath/path)");
-      }
-
-      console.log("[UploadPhotoSheet] calling cameraPhotoToBlob...");
-      const result = await cameraPhotoToBlob(photo);
-      const blobResult: { blob: Blob; mimeType: string; extension: string } = {
-        blob: result.blob,
-        mimeType: result.mimeType,
-        extension: result.extension,
-      };
-      const { blob, mimeType, extension } = blobResult;
-      console.log("[UploadPhotoSheet] blob ready, size:", blob.size, "mime:", mimeType);
+      const { blob, mimeType, extension } = result;
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
         type: mimeType,
         lastModified: Date.now(),
