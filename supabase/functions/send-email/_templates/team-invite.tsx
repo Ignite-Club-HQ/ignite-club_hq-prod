@@ -113,7 +113,9 @@ export const TeamInviteEmail = ({
               /* Default verbatim copy */
               <>
                 <Text style={headingText}>
-                  You've been added to your team for this season ⚽
+                  {hasChildren
+                    ? `${childLabel} has been added to their team for this season ⚽`
+                    : `Your child has been added to their team for this season ⚽`}
                 </Text>
 
                 <Text style={bodyText}>
@@ -125,8 +127,8 @@ export const TeamInviteEmail = ({
 
                 <Text style={sectionLabel}>👀 Jump in to see:</Text>
 
-                <Text style={bulletItem}>• What team you're in</Text>
-                <Text style={bulletItem}>• Who your teammates are</Text>
+                <Text style={bulletItem}>• What team they're in</Text>
+                <Text style={bulletItem}>• Who their teammates are</Text>
                 <Text style={bulletItem}>• Your club space for updates as the season gets underway</Text>
 
                 <Text style={subtleNote}>
