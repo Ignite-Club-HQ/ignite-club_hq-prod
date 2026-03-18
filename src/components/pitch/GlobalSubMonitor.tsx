@@ -491,8 +491,8 @@ export default function GlobalSubMonitor() {
 
   // Force-open sub confirmation from notification click
   const forceOpenSubConfirmation = useCallback(() => {
-    const pitchState = loadPitchState();
     const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState || !timerState) return;
 
     // Calculate current elapsed time
