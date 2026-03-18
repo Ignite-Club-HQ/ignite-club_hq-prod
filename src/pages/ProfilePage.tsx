@@ -470,7 +470,7 @@ export default function ProfilePage() {
             {activeThemeData?.logoUrl ? (
               <img src={activeThemeData.logoUrl} alt={activeThemeData.clubName} className="h-14 w-14 object-contain" />
             ) : (
-              <img src={storedTheme === 'light' ? igniteIconLight : igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
+              <img src={igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
             )}
           </AvatarFallback>
         </Avatar>

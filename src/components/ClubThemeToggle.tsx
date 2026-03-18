@@ -154,7 +154,7 @@ export function ClubThemeToggle() {
           className="flex items-center gap-3 py-2"
         >
           <img 
-            src="/icon-192.png" 
+            src={igniteIcon} 
             alt="Ignite" 
             className="h-8 w-8 rounded-full object-contain"
           />
