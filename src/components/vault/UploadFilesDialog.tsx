@@ -5,10 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
-import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { toast } from "sonner";
-import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
-import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
+import { pickNativePhoto } from "@/lib/nativePhotoPicker";
 import {
   emitIOSLayoutReset as dispatchIOSLayoutReset,
   emitIOSNavGuard as dispatchIOSNavGuard,
@@ -218,84 +217,15 @@ export function UploadFilesDialog({
     nativePickerInFlightRef.current = true;
     console.log("[UploadFilesDialog] handleNativePhotoPick START");
     try {
-      // Let Camera.getPhoto handle permissions natively on iOS to preserve
-      // the gesture-chain context. Explicit checkPermissions/requestPermissions
-      // before getPhoto breaks the gesture on first attempt.
-      let photo: Awaited<ReturnType<typeof Camera.getPhoto>>;
-      const isLoadingError = (err: unknown) => {
-        const msg = getReadableUploadError(err).toLowerCase();
-        return msg.includes("error loading image") || msg.includes("loading image");
-      };
-
-      try {
-        console.log("[UploadFilesDialog] calling getPhoto (Base64 mode, attempt 1)...");
-        photo = await Camera.getPhoto({
-          resultType: CameraResultType.Base64,
-          source: CameraSource.Photos,
-          allowEditing: false,
-          quality: 80,
-        });
-      } catch (firstAttemptError: unknown) {
-        if (isCancelledSelectionError(firstAttemptError)) {
-          throw firstAttemptError;
-        }
-
-        if (isLoadingError(firstAttemptError)) {
-          console.warn("[UploadFilesDialog] Base64 mode failed with loading error, retrying with URI mode:", firstAttemptError);
-          photo = await Camera.getPhoto({
-            resultType: CameraResultType.Uri,
-            source: CameraSource.Photos,
-            allowEditing: false,
-            quality: 80,
-          });
-        } else {
-          console.warn("[UploadFilesDialog] getPhoto attempt 1 failed, retrying:", firstAttemptError);
-          try {
-            photo = await Camera.getPhoto({
-              resultType: CameraResultType.Base64,
-              source: CameraSource.Photos,
-              allowEditing: false,
-              quality: 80,
-            });
-          } catch (secondAttemptError: unknown) {
-            if (!isCancelledSelectionError(secondAttemptError) && isLoadingError(secondAttemptError)) {
-              console.warn("[UploadFilesDialog] Base64 retry also failed, falling back to URI:", secondAttemptError);
-              photo = await Camera.getPhoto({
-                resultType: CameraResultType.Uri,
-                source: CameraSource.Photos,
-                allowEditing: false,
-                quality: 80,
-              });
-            } else {
-              throw secondAttemptError;
-            }
-          }
-        }
-      }
-      console.log("[UploadFilesDialog] getPhoto OK", {
-        webPath: photo.webPath,
-        path: photo.path,
-        format: photo.format,
-        hasBase64: !!photo.base64String,
-      });
+      // Use shared native picker with resilient Base64 → URI fallback
+      const result = await pickNativePhoto({ quality: 80 });
+      console.log("[UploadFilesDialog] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
 
       // Stabilize BottomNav immediately once picker returns, before blob work.
       queueNativeLayoutRecovery([0, 260, 900, 1700]);
       setIsPickingNativePhoto(true);
 
-      if (!hasCameraPhotoSource(photo)) {
-        throw new Error("No photo selected (missing base64String/webPath/path)");
-      }
-
-      console.log("[UploadFilesDialog] calling cameraPhotoToBlob...");
-      const result = await cameraPhotoToBlob(photo);
-      const blobResult: { blob: Blob; mimeType: string; extension: string } = {
-        blob: result.blob,
-        mimeType: result.mimeType,
-        extension: result.extension,
-      };
-      const { blob, mimeType, extension } = blobResult;
-      console.log("[UploadFilesDialog] blob ready, size:", blob.size, "mime:", mimeType);
+      const { blob, mimeType, extension } = result;
       const file = new File([blob], `photo-${Date.now()}.${extension}`, {
         type: mimeType,
         lastModified: Date.now(),

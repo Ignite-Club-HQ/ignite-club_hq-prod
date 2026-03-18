@@ -73,6 +73,8 @@ interface PitchBoardState {
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 const PITCH_BOARD_OPEN_KEY = "ignite-pitch-board-open";
 
 const loadTimerState = (): TimerState | null => {
@@ -89,8 +91,14 @@ const loadTimerState = (): TimerState | null => {
   }
 };
 
-const loadPitchState = (): PitchBoardState | null => {
+const loadPitchState = (teamId?: string): PitchBoardState | null => {
   try {
+    // Try team-specific key first for isolation
+    if (teamId) {
+      const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
+      if (teamSaved) return JSON.parse(teamSaved) as PitchBoardState;
+    }
+    // Fallback to active key
     const saved = localStorage.getItem(PITCH_STATE_KEY);
     if (!saved) return null;
     return JSON.parse(saved) as PitchBoardState;
@@ -101,7 +109,13 @@ const loadPitchState = (): PitchBoardState | null => {
 
 const savePitchState = (state: PitchBoardState) => {
   try {
-    localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(state));
+    const json = JSON.stringify(state);
+    // Write to team-specific key if teamId available
+    if (state.teamId) {
+      localStorage.setItem(getPitchStateKeyForTeam(state.teamId), json);
+    }
+    // Also write to active key
+    localStorage.setItem(PITCH_STATE_KEY, json);
   } catch (e) {
     console.error("Failed to save pitch state:", e);
   }
@@ -149,7 +163,7 @@ export default function GlobalSubMonitor() {
     }
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     console.log('[SYNC] Timer state:', timerState ? {
       isRunning: timerState.isRunning,
@@ -288,7 +302,7 @@ export default function GlobalSubMonitor() {
     if (gameFinishedShownRef.current) return;
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     if (!timerState || !pitchState) return;
 
@@ -383,7 +397,7 @@ export default function GlobalSubMonitor() {
     if (isPitchBoardOpen) return;
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     if (!timerState || !pitchState) return;
     if (!timerState.isRunning) return;
@@ -462,7 +476,7 @@ export default function GlobalSubMonitor() {
   // Check if there's an active game that needs monitoring
   const hasActiveGame = useCallback(() => {
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
     
     if (!timerState || !pitchState) return false;
     
@@ -477,8 +491,8 @@ export default function GlobalSubMonitor() {
 
   // Force-open sub confirmation from notification click
   const forceOpenSubConfirmation = useCallback(() => {
-    const pitchState = loadPitchState();
     const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState || !timerState) return;
 
     // Calculate current elapsed time
@@ -495,21 +509,69 @@ export default function GlobalSubMonitor() {
     ) || [];
 
     if (dueSubs.length > 0) {
-      // Auto-skip older time groups — only present the latest due sub
+      // Auto-skip older time groups, then rebuild future subs from the current game state.
       const dueTimes = [...new Set(dueSubs.map(s => s.time))].sort((a, b) => a - b);
+      let nextPitchState = pitchState;
+      let latestTime = Math.max(...dueSubs.map(s => s.time));
+
       if (dueTimes.length > 1) {
-        const latestTime = dueTimes[dueTimes.length - 1];
+        latestTime = dueTimes[dueTimes.length - 1];
         const olderSubs = dueSubs.filter(s => s.time < latestTime);
         const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-        const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
+        const latestMissedSub = olderSubs[olderSubs.length - 1];
+
+        let updatedPlan = (pitchState.autoSubPlan || []).map(s =>
           olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
         );
-        savePitchState({ ...pitchState, autoSubPlan: updatedPlan });
+
+        if (latestMissedSub) {
+          const executedSubs = updatedPlan.filter(s => s.executed);
+          const currentDueSubs = updatedPlan.filter(s => !s.executed && s.half === currentHalf && s.time === latestTime);
+          const futureSubsExist = updatedPlan.some(s => !s.executed && !(s.half === currentHalf && s.time === latestTime));
+
+          if (futureSubsExist) {
+                // Simulate currentDueSubs on the players array so recalculation
+                // doesn't re-use players already queued in current due subs
+                let simulatedPlayers = [...pitchState.players];
+                currentDueSubs.forEach(dueSub => {
+                  const outPlayer = simulatedPlayers.find(p => p.id === dueSub.playerOut.id);
+                  const inPlayer = simulatedPlayers.find(p => p.id === dueSub.playerIn.id);
+                  if (outPlayer && inPlayer && outPlayer.position) {
+                    simulatedPlayers = simulatedPlayers.map(p => {
+                      if (p.id === dueSub.playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
+                      if (p.id === dueSub.playerIn.id) return { ...p, position: outPlayer.position, currentPitchPosition: outPlayer.currentPitchPosition };
+                      return p;
+                    });
+                  }
+                });
+
+                const recalculated = recalculateRemainingPlan(
+                  simulatedPlayers,
+                  getTeamSizeNumber(pitchState.teamSize),
+                  timerState.minutesPerHalf * 60,
+                  currentElapsed,
+                  currentHalf,
+                  latestMissedSub,
+                  true
+                );
+
+                updatedPlan = [...executedSubs, ...currentDueSubs, ...recalculated];
+              }
+        }
+
+        nextPitchState = { ...pitchState, autoSubPlan: updatedPlan };
+        savePitchState(nextPitchState);
+        window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       }
-      const latestTime = Math.max(...dueSubs.map(s => s.time));
-      const batchSubs = dueSubs.filter(s => s.time === latestTime);
-      const [primarySub, ...additionalSubs] = batchSubs;
-      setCurrentPlayers(pitchState.players);
+
+      const refreshedDueSubs = nextPitchState.autoSubPlan?.filter(sub =>
+        !sub.executed &&
+        sub.half === currentHalf &&
+        currentElapsed >= sub.time &&
+        sub.time === latestTime
+      ) || [];
+      const [primarySub, ...additionalSubs] = refreshedDueSubs;
+      setCurrentPlayers(nextPitchState.players);
       setPendingAutoSub(primarySub);
       setPendingBatchSubs(additionalSubs);
       setSubConfirmDialogOpen(true);
@@ -579,7 +641,7 @@ export default function GlobalSubMonitor() {
     
     // Listen for storage changes to detect game state changes
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === TIMER_STATE_KEY || e.key === PITCH_STATE_KEY || e.key === PITCH_BOARD_OPEN_KEY) {
+      if (e.key === TIMER_STATE_KEY || e.key?.startsWith(PITCH_STATE_KEY) || e.key === PITCH_BOARD_OPEN_KEY) {
         startPolling();
         syncToDatabase(); // Sync on state change
       }
@@ -607,7 +669,8 @@ export default function GlobalSubMonitor() {
   const handleConfirmAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
 
-    const pitchState = loadPitchState();
+    const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState) return;
 
     // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
@@ -686,7 +749,7 @@ export default function GlobalSubMonitor() {
     });
     
     // Recalculate remaining sub timings
-    const timerState = loadTimerState();
+    // timerState already loaded above
     const executedPlan = updatedPlan.filter(sub => sub.executed);
     let finalPlan = updatedPlan;
     
@@ -728,7 +791,8 @@ export default function GlobalSubMonitor() {
   const handleSkipAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
 
-    const pitchState = loadPitchState();
+    const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState) return;
 
     const subsToSkip = [pendingAutoSub, ...pendingBatchSubs];
@@ -742,7 +806,7 @@ export default function GlobalSubMonitor() {
     });
 
     // Recalculate remaining plan after skip
-    const timerState = loadTimerState();
+    // timerState already loaded above
     let finalPlan = updatedPlan;
     
     if (timerState && updatedPlan.some(sub => !sub.executed)) {

@@ -607,11 +607,11 @@ export default function HomePage() {
   });
 
   // Fetch the minimum reward threshold across user's clubs
-  const { data: minRewardThreshold = 20 } = useQuery({
+  const { data: minRewardThreshold = null } = useQuery<number | null>({
     queryKey: ["min-reward-threshold", rewardClubs.map((c: any) => c.id)],
     queryFn: async () => {
       const proClubIds = rewardClubs.filter((c: any) => isAppAdmin || c.hasPro).map((c: any) => c.id);
-      if (proClubIds.length === 0) return 20;
+      if (proClubIds.length === 0) return null;
       const { data } = await supabase
         .from("club_rewards")
         .select("points_required")
@@ -620,7 +620,7 @@ export default function HomePage() {
         .neq("reward_type", "player_of_match")
         .order("points_required", { ascending: true })
         .limit(1);
-      return data?.[0]?.points_required || 20;
+      return data?.[0]?.points_required ?? null;
     },
     enabled: rewardClubs.length > 0,
   });
@@ -1573,7 +1573,7 @@ export default function HomePage() {
                   <CheckCircle2 className="h-4 w-4" />
                   Mark as Claimed
                 </Button>
-              ) : (profile?.ignite_points || 0) >= minRewardThreshold ? (
+              ) : minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold ? (
                 <Button
                   size="sm"
                   variant="secondary"
@@ -1586,7 +1586,7 @@ export default function HomePage() {
               ) : null}
             </div>
           </div>
-          {!latestPendingRedemption && (profile?.ignite_points || 0) < minRewardThreshold && (
+          {!latestPendingRedemption && minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
             <div className="flex items-center justify-between mt-2">
               <p className="text-primary-foreground/70 text-sm">
                 💡 {minRewardThreshold - (profile?.ignite_points || 0)} more points to unlock rewards!
@@ -1607,7 +1607,7 @@ export default function HomePage() {
               🎁 You have a reward ready to claim: {latestPendingRedemption.club_rewards?.name}
             </p>
           )}
-          {!latestPendingRedemption && (profile?.ignite_points || 0) >= minRewardThreshold && (
+          {!latestPendingRedemption && minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
             <p className="text-primary-foreground/80 text-sm mt-2">
               🎁 You have rewards available! Tap to browse and redeem.
             </p>

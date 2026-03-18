@@ -23,10 +23,13 @@ import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
 import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
 
+
 // Storage keys
 const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
 const TIMER_STORAGE_KEY_BASE = 'pitch-board-timer-state-team';
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 
 interface TimerState {
   minutesPerHalf: number;
@@ -106,6 +109,27 @@ const saveTimerState = (state: TimerState) => {
   } catch { /* ignore */ }
 };
 
+// Read pitch state: prefer team-specific key, fall back to active key
+const readPitchState = (teamId?: string): PitchBoardState | null => {
+  try {
+    if (teamId) {
+      const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
+      if (teamSaved) return JSON.parse(teamSaved);
+    }
+    const saved = localStorage.getItem(PITCH_STATE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch { return null; }
+};
+
+// Write pitch state: write to both team-specific and active keys
+const writePitchState = (state: PitchBoardState) => {
+  try {
+    const json = JSON.stringify(state);
+    if (state.teamId) localStorage.setItem(getPitchStateKeyForTeam(state.teamId), json);
+    localStorage.setItem(PITCH_STATE_KEY, json);
+  } catch { /* ignore */ }
+};
+
 const getCurrentElapsed = (timer: TimerState): number => {
   let elapsed = timer.elapsedSeconds;
   if (timer.isRunning && timer.lastUpdateTime) {
@@ -181,12 +205,11 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       setDisplaySeconds(currentElapsed);
 
       try {
-        const pitchRaw = localStorage.getItem(PITCH_STATE_KEY);
-        if (!pitchRaw) {
+        const pitchState = readPitchState(saved.teamId);
+        if (!pitchState) {
           setHomeGoals(0); setAwayGoals(0); setAllSubs([]); setAllPlayers([]);
           return;
         }
-        const pitchState: PitchBoardState = JSON.parse(pitchRaw);
         
         // Score
         const goals = pitchState.goals || [];
@@ -203,26 +226,71 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
-          // Auto-skip older due subs when a newer sub is also due
+          // Auto-skip older due subs when a newer sub is also due,
+          // then recalculate the remaining future plan from the current state.
           const dueSubs = unexecuted.filter(sub => {
             const subTotal = getTotalSeconds(sub.time, sub.half, mph);
             return currentTotal >= subTotal;
           });
-          const dueTimes = [...new Set(dueSubs.map(s => `${s.half}-${s.time}`))].sort();
+          const dueTimes = [...new Set(dueSubs.map(s => `${s.half}-${s.time}`))].sort((a, b) => {
+            const [halfA, timeA] = a.split('-').map(Number);
+            const [halfB, timeB] = b.split('-').map(Number);
+            return halfA !== halfB ? halfA - halfB : timeA - timeB;
+          });
           
           if (dueTimes.length > 1) {
-            // Multiple time groups are due — skip all but the latest
             const latestKey = dueTimes[dueTimes.length - 1];
             const olderSubs = dueSubs.filter(s => `${s.half}-${s.time}` !== latestKey);
             const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-            const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
+            const latestMissedSub = [...olderSubs].sort((a, b) => {
+              if (a.half !== b.half) return a.half - b.half;
+              return a.time - b.time;
+            })[olderSubs.length - 1];
+
+            let updatedPlan = (pitchState.autoSubPlan || []).map(s =>
               olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
             );
-            localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+
+            if (latestMissedSub) {
+              const executedSubs = updatedPlan.filter(s => s.executed);
+              const currentDueSubs = updatedPlan.filter(s => !s.executed && `${s.half}-${s.time}` === latestKey);
+              const futureSubsExist = updatedPlan.some(s => !s.executed && `${s.half}-${s.time}` !== latestKey);
+
+              if (futureSubsExist) {
+                // Simulate currentDueSubs on the players array so recalculation
+                // doesn't re-use players already queued in current due subs
+                let simulatedPlayers = [...pitchState.players];
+                currentDueSubs.forEach(dueSub => {
+                  const outPlayer = simulatedPlayers.find(p => p.id === dueSub.playerOut.id);
+                  const inPlayer = simulatedPlayers.find(p => p.id === dueSub.playerIn.id);
+                  if (outPlayer && inPlayer && outPlayer.position) {
+                    simulatedPlayers = simulatedPlayers.map(p => {
+                      if (p.id === dueSub.playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
+                      if (p.id === dueSub.playerIn.id) return { ...p, position: outPlayer.position, currentPitchPosition: outPlayer.currentPitchPosition };
+                      return p;
+                    });
+                  }
+                });
+
+                const recalculated = recalculateRemainingPlan(
+                  simulatedPlayers,
+                  parseInt(pitchState.teamSize),
+                  mph * 60,
+                  currentElapsed,
+                  saved.currentHalf,
+                  latestMissedSub,
+                  true
+                );
+
+                updatedPlan = [...executedSubs, ...currentDueSubs, ...recalculated];
+              }
+            }
+
+            writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
             window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
             return; // Will pick up updated state on next poll tick
           }
-          
+
           const sorted = [...unexecuted].sort((a, b) => {
             if (a.half !== b.half) return a.half - b.half;
             return a.time - b.time;
@@ -282,13 +350,13 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     localStorage.removeItem(ACTIVE_TIMER_KEY);
     if (timerState?.teamId) localStorage.removeItem(getTeamTimerStorageKey(timerState.teamId));
     try {
-      const raw = localStorage.getItem(PITCH_STATE_KEY);
-      if (raw) {
-        const ps = JSON.parse(raw);
+      const ps = readPitchState(timerState?.teamId);
+      if (ps) {
         ps.autoSubPlan = []; ps.autoSubActive = false; ps.autoSubPaused = false;
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(ps));
+        writePitchState(ps);
       }
     } catch { /* ignore */ }
+    if (timerState?.teamId) localStorage.removeItem(getPitchStateKeyForTeam(timerState.teamId));
     localStorage.removeItem(PITCH_STATE_KEY);
     setTimerState(null);
   };
@@ -304,11 +372,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     if (!selectedSub) return;
     const { sub } = selectedSub;
     try {
-      const pitchRaw = localStorage.getItem(PITCH_STATE_KEY);
-      const timerRaw = localStorage.getItem(ACTIVE_TIMER_KEY);
-      if (!pitchRaw) return;
-
-      const pitchState: PitchBoardState = JSON.parse(pitchRaw);
+      const pitchState = readPitchState(timerState?.teamId);
+      if (!pitchState) return;
 
       // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
       const matchingSub = pitchState.autoSubPlan?.find(s =>
@@ -320,11 +385,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         return;
       }
       let currentElapsedSeconds = 0, currentHalf: 1 | 2 = 1, minutesPerHalf = 20;
-      if (timerRaw) {
-        const ts: TimerState = JSON.parse(timerRaw);
-        minutesPerHalf = ts.minutesPerHalf || 20;
-        currentHalf = ts.currentHalf || 1;
-        currentElapsedSeconds = getCurrentElapsed(ts);
+      if (timerState) {
+        minutesPerHalf = timerState.minutesPerHalf || 20;
+        currentHalf = timerState.currentHalf || 1;
+        currentElapsedSeconds = getCurrentElapsed(timerState);
       }
 
       const playerOut = actualPlayerOut || sub.playerOut;
@@ -333,14 +397,33 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       const currentPlayerIn = pitchState.players.find(p => p.id === playerIn.id);
 
       if (!currentPlayerOut?.position || !currentPlayerIn || !!currentPlayerIn.position) {
-        // Invalid state - mark as executed but don't swap
-        const updatedPlan = pitchState.autoSubPlan.map(s =>
+        // Invalid state - skip this sub and recalculate remaining plan
+        let updatedPlan = pitchState.autoSubPlan.map(s =>
           s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
-            ? { ...s, executed: true } : s
+            ? { ...s, executed: true, skipped: true } : s
         );
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+
+        // Redistribute remaining future subs evenly
+        const halfDur = minutesPerHalf * 60;
+        const totalGameSeconds = minutesPerHalf * 2 * 60;
+        const currentTotal = getTotalSeconds(currentElapsedSeconds, currentHalf, minutesPerHalf);
+        const remaining = updatedPlan.filter(s => !s.executed);
+        if (remaining.length > 0) {
+          const remainingGameSeconds = totalGameSeconds - currentTotal;
+          const interval = Math.max(Math.floor(remainingGameSeconds / (remaining.length + 1)), 60);
+          let nextSubTime = currentTotal + interval;
+          updatedPlan = updatedPlan.map(s => {
+            if (s.executed) return s;
+            const newHalf: 1 | 2 = nextSubTime < halfDur ? 1 : 2;
+            const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDur;
+            nextSubTime += interval;
+            return { ...s, half: newHalf, time: Math.floor(newTime) };
+          });
+        }
+
+        writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
-        toast({ title: "Sub couldn't be made", description: !currentPlayerOut?.position ? `${playerOut.name} is already off the pitch` : `${playerIn.name} is already on the pitch`, variant: "destructive" });
+        toast({ title: "Sub rescheduled", description: `${playerIn.name} is already ${currentPlayerIn?.position ? 'on' : 'off'} the pitch — remaining subs recalculated`, variant: "default" });
         setShowConfirmDialog(false);
         return;
       }
@@ -362,23 +445,13 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           ? { ...s, executed: true } : s
       );
 
-      // Always recalculate remaining plan after executing a sub to update player assignments
-      const remaining = updatedPlan.filter(s => !s.executed);
-      if (remaining.length > 0) {
-        const halfDur = minutesPerHalf * 60;
-        const recalculated = recalculateRemainingPlan(
-          updatedPlayers,
-          parseInt(pitchState.teamSize || "7"),
-          halfDur,
-          currentElapsedSeconds,
-          currentHalf,
-          sub,
-          true
-        );
-        updatedPlan = [...updatedPlan.filter(s => s.executed), ...recalculated];
-      }
+      // NOTE: Do NOT recalculate the remaining plan from the widget.
+      // The widget has stale minutesPlayed values (it doesn't track real-time playing time),
+      // so recalculation would see near-equal times and generate an empty plan,
+      // wiping all remaining subs. Recalculation should only happen from PitchBoard
+      // which has accurate live data.
 
-      localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers }));
+      writePitchState({ ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers });
       window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       toast({ title: "Substitution made", description: `${playerIn.name} on for ${playerOut.name}` });
     } catch (e) {
@@ -392,17 +465,13 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     if (!selectedSub) return;
     const { sub } = selectedSub;
     try {
-      const pitchRaw = localStorage.getItem(PITCH_STATE_KEY);
-      const timerRaw = localStorage.getItem(ACTIVE_TIMER_KEY);
-      if (!pitchRaw) return;
-
-      const pitchState: PitchBoardState = JSON.parse(pitchRaw);
+      const pitchState = readPitchState(timerState?.teamId);
+      if (!pitchState) return;
       let currentElapsedSeconds = 0, currentHalf: 1 | 2 = 1, minutesPerHalf = 20;
-      if (timerRaw) {
-        const ts: TimerState = JSON.parse(timerRaw);
-        minutesPerHalf = ts.minutesPerHalf || 20;
-        currentHalf = ts.currentHalf || 1;
-        currentElapsedSeconds = getCurrentElapsed(ts);
+      if (timerState) {
+        minutesPerHalf = timerState.minutesPerHalf || 20;
+        currentHalf = timerState.currentHalf || 1;
+        currentElapsedSeconds = getCurrentElapsed(timerState);
       }
       const currentTotal = getTotalSeconds(currentElapsedSeconds, currentHalf, minutesPerHalf);
 
@@ -441,7 +510,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         });
       }
 
-      localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+      writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
       window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       toast({ title: "Substitution skipped", description: "Remaining subs have been rescheduled" });
     } catch (e) {

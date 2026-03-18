@@ -4,6 +4,8 @@ import type { Json } from "@/integrations/supabase/types";
 
 const SYNC_INTERVAL = 5000; // Sync every 5 seconds
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 const TIMER_STORAGE_KEY_BASE = "pitch-board-timer-state-team";
 
 const getTeamTimerStorageKey = (teamId: string) => {
@@ -25,7 +27,7 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
 
   const loadLocalState = useCallback(() => {
     try {
-      const pitchStateRaw = localStorage.getItem(PITCH_STATE_KEY);
+      const pitchStateRaw = localStorage.getItem(getPitchStateKeyForTeam(teamId)) || localStorage.getItem(PITCH_STATE_KEY);
       const timerStateRaw = localStorage.getItem(getTeamTimerStorageKey(teamId));
       
       return {

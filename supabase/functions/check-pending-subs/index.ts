@@ -208,7 +208,7 @@ async function notifyTeamStaff(
 
   const pushUrl = linkedEventId
     ? `/events/${linkedEventId}`
-    : '/pitch-board';
+    : '/notifications';
   const pushTag = `${notificationType}-${gameId}`;
 
   for (const userId of allRecipients) {

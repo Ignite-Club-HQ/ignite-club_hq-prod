@@ -2,6 +2,7 @@ import {
   PitchBoardState, 
   TimerState, 
   PITCH_STATE_KEY, 
+  getPitchStateKey,
   TIMER_STORAGE_KEY,
   Player,
   SubstitutionEvent,
@@ -84,6 +85,9 @@ export const savePitchState = (teamId: string, state: Omit<PitchBoardState, 'tea
       lastTimerSeconds: currentTimerSeconds,
     };
     console.log("[PitchState] SAVING state:", { teamId, playerCount: state.players.length, lastTimerSeconds: currentTimerSeconds });
+    // Write to team-specific key for isolation
+    localStorage.setItem(getPitchStateKey(teamId), JSON.stringify(fullState));
+    // Also write to active key so widgets/home page can discover the latest active game
     localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(fullState));
   } catch (e) {
     console.error("Failed to save pitch state:", e);
@@ -92,16 +96,28 @@ export const savePitchState = (teamId: string, state: Omit<PitchBoardState, 'tea
 
 export const loadPitchState = (teamId: string): PitchBoardState | null => {
   try {
-    const saved = localStorage.getItem(PITCH_STATE_KEY);
+    // First try team-specific key for isolation
+    let saved = localStorage.getItem(getPitchStateKey(teamId));
+    
+    // Fallback to active key if team-specific doesn't exist (migration path)
+    if (!saved) {
+      saved = localStorage.getItem(PITCH_STATE_KEY);
+      if (saved) {
+        const activeState = JSON.parse(saved) as PitchBoardState;
+        if (activeState.teamId !== teamId) {
+          console.log("[PitchState] LOAD - no team-specific state, active state is for different team");
+          return null;
+        }
+        // Migrate: write to team-specific key
+        localStorage.setItem(getPitchStateKey(teamId), saved);
+      }
+    }
+    
     if (!saved) {
       console.log("[PitchState] LOAD - no saved state found");
       return null;
     }
     const state = JSON.parse(saved) as PitchBoardState;
-    if (state.teamId !== teamId) {
-      console.log("[PitchState] LOAD - saved state is for different team");
-      return null;
-    }
     
     // Auto-expire stale auto-sub plans after 2 hours of inactivity
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -116,7 +132,9 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
         state.autoSubActive = false;
         state.autoSubPaused = false;
         // Persist the cleanup
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...state, lastUpdateTime: Date.now() }));
+        const cleanedState = JSON.stringify({ ...state, lastUpdateTime: Date.now() });
+        localStorage.setItem(getPitchStateKey(teamId), cleanedState);
+        localStorage.setItem(PITCH_STATE_KEY, cleanedState);
       }
     }
     
@@ -155,8 +173,11 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
   }
 };
 
-export const clearPitchState = () => {
+export const clearPitchState = (teamId?: string) => {
   try {
+    if (teamId) {
+      localStorage.removeItem(getPitchStateKey(teamId));
+    }
     localStorage.removeItem(PITCH_STATE_KEY);
   } catch (e) {
     console.error("Failed to clear pitch state:", e);
@@ -277,7 +298,7 @@ export const recalculateRemainingPlan = (
 
   for (const { time, half } of subTimes) {
     // Determine how many subs to make in this window
-    const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id));
+    const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id) && p.position === null);
     const subsThisWindow = Math.min(subsAtOnce, benchAvailable.length, currentOnPitch.size);
     
     const usedPlayerOutIds = new Set<string>();
@@ -290,7 +311,7 @@ export const recalculateRemainingPlan = (
         .sort((a, b) => b.time - a.time);
       
       const benchSorted = outfieldPlayers
-        .filter(p => !currentOnPitch.has(p.id) && !usedPlayerInIds.has(p.id))
+        .filter(p => !currentOnPitch.has(p.id) && p.position === null && !usedPlayerInIds.has(p.id))
         .map(p => ({ id: p.id, time: p.minutesPlayed || 0, player: p }))
         .sort((a, b) => a.time - b.time);
 

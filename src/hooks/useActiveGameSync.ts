@@ -6,6 +6,8 @@ import type { Json } from "@/integrations/supabase/types";
 const SYNC_INTERVAL = 10000; // Sync every 10 seconds
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 
 interface TimerState {
   elapsedSeconds: number;
@@ -42,8 +44,13 @@ export function useActiveGameSync() {
     }
   }, []);
 
-  const loadPitchState = useCallback((): PitchState | null => {
+  const loadPitchState = useCallback((teamId?: string): PitchState | null => {
     try {
+      // Try team-specific key first
+      if (teamId) {
+        const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
+        if (teamSaved) return JSON.parse(teamSaved);
+      }
       const saved = localStorage.getItem(PITCH_STATE_KEY);
       return saved ? JSON.parse(saved) : null;
     } catch {
@@ -55,7 +62,7 @@ export function useActiveGameSync() {
     if (!user?.id) return;
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     // If no active game state, deactivate any existing game
     if (!timerState || !pitchState) {
