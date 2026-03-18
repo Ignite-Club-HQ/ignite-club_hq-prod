@@ -173,7 +173,6 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
     if (checkSnoozeStatus()) return;
 
     try {
-      const pitchStateRaw = localStorage.getItem(PITCH_STATE_KEY);
       const timerStateRaw = localStorage.getItem(TIMER_STATE_KEY);
 
       // No game in progress if no timer state or timer is not running
@@ -192,13 +191,13 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         return;
       }
 
-      if (!pitchStateRaw) {
+      const pitchState = readPitchState(timerState.teamId);
+
+      if (!pitchState) {
         setSubInfo(null);
         setHasAutoSubPlan(false);
         return;
       }
-
-      const pitchState: PitchBoardState = JSON.parse(pitchStateRaw);
       
       // Store all players for editing subs
       setAllPlayers(pitchState.players || []);
