@@ -117,14 +117,18 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                 (notification: any) => {
                   console.log('[useNativePush] Early action listener fired:', JSON.stringify(notification));
                   const data = notification.notification?.data;
+                  const type = data?.notificationType || data?.type;
                   const url = data?.url || data?.link || data?.path;
-                  if (url) {
-                    try {
-                      const parsed = new URL(url, window.location.origin);
-                      navigate(parsed.pathname + parsed.search);
-                    } catch {
-                      navigate(url);
-                    }
+                  const path = url ? normalizeNotificationPath(url) : (type === 'pending_sub' ? '/notifications' : null);
+
+                  if (!path) return;
+
+                  navigate(path);
+
+                  if (type === 'pending_sub') {
+                    window.setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
+                    }, 250);
                   }
                 }
               ).then(handle => {
