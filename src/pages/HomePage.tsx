@@ -1573,7 +1573,7 @@ export default function HomePage() {
                   <CheckCircle2 className="h-4 w-4" />
                   Mark as Claimed
                 </Button>
-              ) : (profile?.ignite_points || 0) >= minRewardThreshold ? (
+              ) : minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold ? (
                 <Button
                   size="sm"
                   variant="secondary"
