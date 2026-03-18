@@ -708,17 +708,27 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Use verified domain sender
-    const sender = from || "Ignite Club HQ <support@igniteclubhq.app>";
+    // Build sender: use senderName if provided, otherwise fall back to from or default
+    let sender: string;
+    if (senderName) {
+      sender = `${senderName} <support@igniteclubhq.app>`;
+    } else {
+      sender = from || "Ignite Club HQ <support@igniteclubhq.app>";
+    }
 
-    console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)`);
+    console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)${replyTo ? ` (reply-to: ${replyTo})` : ''}`);
 
-    const emailResponse = await resend.emails.send({
+    const sendPayload: any = {
       from: sender,
       to: toArray,
       subject,
       html: emailHtml!,
-    });
+    };
+    if (replyTo && isValidEmail(replyTo)) {
+      sendPayload.reply_to = replyTo;
+    }
+
+    const emailResponse = await resend.emails.send(sendPayload);
 
     // Verify the response has an ID (successful send)
     if (!emailResponse.data?.id) {
