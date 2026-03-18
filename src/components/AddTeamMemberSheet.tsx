@@ -121,7 +121,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url")
+        .select("name, logo_url, contact_email")
         .eq("id", clubId)
         .single();
       return data;
