@@ -362,6 +362,7 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || [],
+          customMessage: data.customMessage,
         })
       );
     
