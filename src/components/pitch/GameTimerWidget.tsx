@@ -235,8 +235,23 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               const futureSubsExist = updatedPlan.some(s => !s.executed && `${s.half}-${s.time}` !== latestKey);
 
               if (futureSubsExist) {
+                // Simulate currentDueSubs on the players array so recalculation
+                // doesn't re-use players already queued in current due subs
+                let simulatedPlayers = [...pitchState.players];
+                currentDueSubs.forEach(dueSub => {
+                  const outPlayer = simulatedPlayers.find(p => p.id === dueSub.playerOut.id);
+                  const inPlayer = simulatedPlayers.find(p => p.id === dueSub.playerIn.id);
+                  if (outPlayer && inPlayer && outPlayer.position) {
+                    simulatedPlayers = simulatedPlayers.map(p => {
+                      if (p.id === dueSub.playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
+                      if (p.id === dueSub.playerIn.id) return { ...p, position: outPlayer.position, currentPitchPosition: outPlayer.currentPitchPosition };
+                      return p;
+                    });
+                  }
+                });
+
                 const recalculated = recalculateRemainingPlan(
-                  pitchState.players,
+                  simulatedPlayers,
                   parseInt(pitchState.teamSize),
                   mph * 60,
                   currentElapsed,

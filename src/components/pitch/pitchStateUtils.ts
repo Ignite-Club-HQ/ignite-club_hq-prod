@@ -277,7 +277,7 @@ export const recalculateRemainingPlan = (
 
   for (const { time, half } of subTimes) {
     // Determine how many subs to make in this window
-    const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id));
+    const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id) && p.position === null);
     const subsThisWindow = Math.min(subsAtOnce, benchAvailable.length, currentOnPitch.size);
     
     const usedPlayerOutIds = new Set<string>();
@@ -290,7 +290,7 @@ export const recalculateRemainingPlan = (
         .sort((a, b) => b.time - a.time);
       
       const benchSorted = outfieldPlayers
-        .filter(p => !currentOnPitch.has(p.id) && !usedPlayerInIds.has(p.id))
+        .filter(p => !currentOnPitch.has(p.id) && p.position === null && !usedPlayerInIds.has(p.id))
         .map(p => ({ id: p.id, time: p.minutesPlayed || 0, player: p }))
         .sort((a, b) => a.time - b.time);
 
