@@ -871,6 +871,45 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   </div>
                 )}
 
+                {customName.trim() && customEmail.trim() && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-1.5">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Custom Message
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setShowMessageEditor(!showMessageEditor);
+                          if (!showMessageEditor && !customMessage) {
+                            setCustomMessage(`Welcome to ${teamName}! We're excited to have you join us. Download the app and sign up to get started.`);
+                          }
+                        }}
+                      >
+                        {showMessageEditor ? "Hide" : "Add message"}
+                      </Button>
+                    </div>
+                    {showMessageEditor && (
+                      <div className="space-y-1.5">
+                        <Textarea
+                          placeholder="Write a personal welcome message..."
+                          value={customMessage}
+                          onChange={(e) => setCustomMessage(e.target.value)}
+                          rows={3}
+                          className="text-sm resize-none"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          This message will appear in the invite email
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Child fields for parent role in single mode */}
                 {customName.trim() && selectedRole === "parent" && (
                   <div className="space-y-3 p-4 rounded-xl bg-pink-500/5 border border-pink-500/20">
