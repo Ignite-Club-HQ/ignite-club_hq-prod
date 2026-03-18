@@ -37,9 +37,10 @@ interface PendingInvitesListProps {
   invites: PendingInvite[];
   teamId?: string;
   clubId?: string;
+  isAdmin?: boolean;
 }
 
-export default function PendingInvitesList({ invites, teamId, clubId }: PendingInvitesListProps) {
+export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = true }: PendingInvitesListProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
