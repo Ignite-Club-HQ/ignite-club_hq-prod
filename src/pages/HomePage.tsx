@@ -1586,7 +1586,7 @@ export default function HomePage() {
               ) : null}
             </div>
           </div>
-          {!latestPendingRedemption && (profile?.ignite_points || 0) < minRewardThreshold && (
+          {!latestPendingRedemption && minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
             <div className="flex items-center justify-between mt-2">
               <p className="text-primary-foreground/70 text-sm">
                 💡 {minRewardThreshold - (profile?.ignite_points || 0)} more points to unlock rewards!
