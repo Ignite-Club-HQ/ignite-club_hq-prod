@@ -669,7 +669,8 @@ export default function GlobalSubMonitor() {
   const handleConfirmAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
 
-    const pitchState = loadPitchState(pendingAutoSub.teamId);
+    const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState) return;
 
     // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
