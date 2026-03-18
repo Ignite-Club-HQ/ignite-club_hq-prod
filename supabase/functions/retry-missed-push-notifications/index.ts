@@ -129,7 +129,7 @@ serve(async (req: Request): Promise<Response> => {
         case 'game_finished':
         case 'pitch_board':
         case 'substitution':
-          return '/pitch-board';
+          return '/notifications';
         default:
           return '/notifications';
       }
