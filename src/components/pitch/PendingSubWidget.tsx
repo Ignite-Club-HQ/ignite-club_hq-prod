@@ -252,7 +252,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
             olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
           );
-          localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+          writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           return; // Will re-check on next tick
         }
