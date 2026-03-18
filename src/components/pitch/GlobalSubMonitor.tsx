@@ -790,7 +790,7 @@ export default function GlobalSubMonitor() {
   const handleSkipAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
 
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(pendingAutoSub.teamId);
     if (!pitchState) return;
 
     const subsToSkip = [pendingAutoSub, ...pendingBatchSubs];
