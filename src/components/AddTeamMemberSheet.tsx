@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare } from "lucide-react";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
