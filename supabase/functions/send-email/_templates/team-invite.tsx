@@ -57,10 +57,9 @@ const normalizeInviteLink = (link: string): string => {
   }
 };
 
-// Store links — update APP_STORE_URL when iOS listing is live
+// Store links
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
-// TODO: replace with real App Store URL when published, e.g. "https://apps.apple.com/app/ignite-club-hq/idXXXXXXXXX"
-const APP_STORE_URL = "";
+const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
 
 export const TeamInviteEmail = ({
   recipientName = "Member",
@@ -78,13 +77,17 @@ export const TeamInviteEmail = ({
   // Only use club logo if it's a valid external URL (not base64)
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
 
+  // Build deep link URL for native app (igniteclubhq:// scheme)
+  const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
+  const deepLinkUrl = `https://igniteclubhq.app${deepLinkPath}`;
+
   return (
     <Html>
       <Head />
       <Preview>{previewText}</Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Header with Logo */}
+          {/* Header with Club Logo */}
           <Section style={headerSection}>
             {validClubLogoUrl ? (
               <Img
@@ -115,7 +118,7 @@ export const TeamInviteEmail = ({
             </Text>
             
             <Text style={paragraph}>
-              <strong style={{ color: primaryColor }}>{clubName}</strong> has invited you to join <strong>{teamName}</strong> as a <strong>{roleName}</strong> on Ignite Club HQ.
+              <strong style={{ color: primaryColor }}>{clubName}</strong> has invited you to join <strong>{teamName}</strong> as a <strong>{roleName}</strong>.
             </Text>
 
             {customMessage && (
@@ -131,59 +134,71 @@ export const TeamInviteEmail = ({
                 <Text style={childrenText}>
                   Your {childrenNames.length === 1 ? 'child' : 'children'} will also be registered:
                 </Text>
-                <Text style={childrenNames as any}>
+                <Text style={childrenText}>
                   <strong>{childrenNames.join(', ')}</strong>
                 </Text>
               </Section>
             )}
 
-            {/* How to join */}
+            {/* Step 1: Download the App */}
             <Section style={stepsSection}>
-              <Text style={stepsHeading}>Here's how to get started:</Text>
-
               <Section style={stepRow}>
                 <Text style={stepNumber}>1</Text>
                 <Text style={stepText}>
-                  <strong>Download Ignite Club HQ</strong> from the Google Play Store
+                  <strong>Download Ignite Club HQ</strong>
                 </Text>
               </Section>
 
-              <Section style={buttonSection}>
-                <Button style={{ ...button, backgroundColor: primaryColor }} href={PLAY_STORE_URL}>
-                  📱 Download on Google Play
-                </Button>
+              <Text style={stepSubText}>
+                Get the app on your phone — it's free!
+              </Text>
+
+              <Section style={storeButtonsSection}>
+                <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+                  <tr>
+                    <td style={{ paddingRight: '8px' }}>
+                      <Button style={playStoreButton} href={PLAY_STORE_URL}>
+                        ▶️ Google Play
+                      </Button>
+                    </td>
+                    <td style={{ paddingLeft: '8px' }}>
+                      <Button style={appStoreButton} href={APP_STORE_URL}>
+                        🍎 App Store
+                      </Button>
+                    </td>
+                  </tr>
+                </table>
               </Section>
 
-              {/* App Store placeholder — remove condition when APP_STORE_URL is set */}
-              {APP_STORE_URL ? (
-                <Section style={{ ...buttonSection, marginTop: '-8px' }}>
-                  <Button style={{ ...button, backgroundColor: '#555555' }} href={APP_STORE_URL}>
-                    🍎 Download on the App Store
-                  </Button>
-                </Section>
-              ) : (
-                <Section style={{ ...buttonSection, marginTop: '-8px' }}>
-                  <Text style={comingSoonText}>🍎 App Store — coming soon</Text>
-                </Section>
-              )}
+              <Hr style={stepDivider} />
 
+              {/* Step 2: Accept Invite */}
               <Section style={stepRow}>
                 <Text style={stepNumber}>2</Text>
                 <Text style={stepText}>
-                  <strong>Create your account</strong> — tap <strong>"Sign up here"</strong> on the sign-in screen. Enter{invitedEmail ? <> <strong>{invitedEmail}</strong> as your email</> : ' this email address'}, set a password, then complete your profile when prompted.
+                  <strong>Accept your invitation</strong>
                 </Text>
               </Section>
 
-              <Section style={stepRow}>
-                <Text style={stepNumber}>3</Text>
-                <Text style={stepText}>
-                  <strong>You're in! 🎉</strong> — your invitation to join <strong>{teamName}</strong> is applied automatically the moment you log in. No extra steps needed.
-                </Text>
+              <Text style={stepSubText}>
+                Tap the button below to open the app, create your profile, and you'll automatically have access to <strong>{teamName}</strong>. It's that simple!
+              </Text>
+
+              <Section style={acceptButtonSection}>
+                <Button style={{ ...acceptButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
+                  ✅ Accept Invite & Join {teamName}
+                </Button>
               </Section>
+
+              {invitedEmail && (
+                <Text style={emailHintText}>
+                  Sign up using <strong>{invitedEmail}</strong> to ensure your invitation is linked correctly.
+                </Text>
+              )}
             </Section>
 
             <Text style={noteText}>
-              ✅ Your invite is applied automatically when you log in — no need to come back to this email or tap anything extra.
+              That's it — just 2 steps! Your team access is applied automatically. No codes or extra setup needed.
             </Text>
           </Section>
 
