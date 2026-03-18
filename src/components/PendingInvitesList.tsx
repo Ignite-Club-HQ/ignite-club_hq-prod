@@ -97,7 +97,7 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
       if (!targetClubId) return null;
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url")
+        .select("name, logo_url, contact_email")
         .eq("id", targetClubId)
         .single();
       return data;
@@ -169,22 +169,43 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
   const handleBulkResend = async () => {
     const selectedInvites = invites.filter(inv => selectedIds.has(inv.id));
     const linksToShare: string[] = [];
-    const emailsToSend: { email: string; name: string; link: string; role: string }[] = [];
+    const emailsToSend: { email: string; name: string; link: string; role: string; childrenNames?: string[]; customMessage?: string }[] = [];
     const pushUsersToNotify: { userId: string; name: string; link: string; role: string }[] = [];
-    
+
+    // Fetch metadata for all selected invites to get children names
+    const { data: inviteMetadataRows } = await supabase
+      .from("pending_invites")
+      .select("id, metadata, invite_token")
+      .in("id", selectedInvites.map(inv => inv.id));
+
+    const metadataMap = new Map<string, { metadata: any; invite_token: string | null }>();
+    inviteMetadataRows?.forEach(row => {
+      metadataMap.set(row.id, { metadata: row.metadata, invite_token: row.invite_token });
+    });
+
     selectedInvites.forEach(inv => {
-      const link = inviteLinks[inv.role];
+      // Prefer the personal invite token over the shared role link
+      const personalToken = metadataMap.get(inv.id)?.invite_token;
+      const link = personalToken 
+        ? `${window.location.origin}/join/p/${personalToken}`
+        : inviteLinks[inv.role];
       if (link) {
         if (!linksToShare.includes(link)) {
           linksToShare.push(link);
         }
         // Collect email recipients
         if (inv.invited_email) {
+          const meta = metadataMap.get(inv.id)?.metadata as { children?: { name: string }[]; customMessage?: string } | null;
+          const childrenNames = inv.role === "parent" && meta?.children
+            ? meta.children.map(c => c.name)
+            : undefined;
           emailsToSend.push({
             email: inv.invited_email,
             name: inv.invited_label || "Member",
             link,
             role: inv.role,
+            childrenNames,
+            customMessage: meta?.customMessage,
           });
         }
         // Collect push notification recipients (existing app users)
@@ -212,22 +233,30 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
     let emailSuccessCount = 0;
     let pushSuccessCount = 0;
     const teamName = teamData?.name || "the team";
+    const clubName = clubBranding?.name || "The Club";
+    const clubLogoUrl = clubBranding?.logo_url || undefined;
+    const clubContactEmail = (clubBranding as any)?.contact_email || undefined;
 
     // Send email notifications for invites with emails
-    for (const { email, name, link, role } of emailsToSend) {
+    for (const { email, name, link, role, childrenNames, customMessage } of emailsToSend) {
       try {
         await supabase.functions.invoke("send-email", {
           body: {
             to: email,
             subject: `Reminder: You're invited to join ${teamName}!`,
-            template: "invite-reminder",
+            template: "team-invite",
+            senderName: clubName !== "The Club" ? clubName : undefined,
+            replyTo: clubContactEmail,
             templateData: {
               recipientName: name,
+              invitedEmail: email,
               teamName,
-              clubName: clubBranding?.name || "The Club",
+              clubName,
               roleName: role.charAt(0).toUpperCase() + role.slice(1).replace("_", " "),
               inviteLink: link,
-              clubLogoUrl: clubBranding?.logo_url || undefined,
+              clubLogoUrl,
+              childrenNames,
+              customMessage,
             },
           },
         });

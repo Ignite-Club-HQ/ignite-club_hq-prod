@@ -125,20 +125,23 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     staleTime: 1000 * 60 * 5,
   });
 
-  // Get the pending invite token for resending
-  const { data: pendingInviteToken } = useQuery({
+  // Get the pending invite token and metadata for resending
+  const { data: pendingInviteData } = useQuery({
     queryKey: ["pending-invite-token", invite.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("pending_invites")
-        .select("invite_token")
+        .select("invite_token, metadata")
         .eq("id", invite.id)
         .single();
-      return data?.invite_token;
+      return data;
     },
     enabled: !!invite.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const pendingInviteToken = pendingInviteData?.invite_token;
+  const inviteMetadata = pendingInviteData?.metadata as { children?: { name: string }[]; customMessage?: string } | null;
 
 
   const deleteMutation = useMutation({
@@ -242,6 +245,11 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
       const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url || undefined;
       const clubContactEmail = (teamData?.clubs as any)?.contact_email || (clubData as any)?.contact_email || undefined;
       
+      // Extract children names from invite metadata for parent invites
+      const childrenNames = invite.role === "parent" && inviteMetadata?.children
+        ? inviteMetadata.children.map(c => c.name)
+        : undefined;
+
       const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
         body: {
           to: invite.invited_email,
@@ -257,6 +265,8 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             roleName: roleLabels[invite.role] || invite.role.replace("_", " "),
             inviteLink: inviteLinkForEmail,
             clubLogoUrl,
+            childrenNames,
+            customMessage: inviteMetadata?.customMessage,
           },
         },
       });
