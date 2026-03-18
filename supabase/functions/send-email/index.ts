@@ -358,18 +358,20 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
       const emailToCheck = data.invitedEmail || (Array.isArray(data.to) ? data.to[0] : data.to);
       if (supabaseAdmin && emailToCheck && data.childrenNames?.length > 0) {
         try {
-          const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserByEmail(emailToCheck);
-          if (authError) {
-            console.warn("getUserByEmail error:", authError.message);
-          } else {
-            isExistingUser = !!authUser?.user;
+          // Query profiles via email_hash since auth.admin.getUserByEmail isn't available
+          const { data: hashResult } = await supabaseAdmin.rpc('generate_email_hash', { email: emailToCheck });
+          if (hashResult) {
+            const { data: profile } = await supabaseAdmin
+              .from('profiles')
+              .select('id')
+              .eq('email_hash', hashResult)
+              .maybeSingle();
+            isExistingUser = !!profile;
           }
           console.log(`Existing user check for ${emailToCheck}: ${isExistingUser}`);
         } catch (e) {
           console.warn("Could not check existing user:", e?.message || e);
         }
-      } else {
-        console.log(`Skipping existing user check - admin: ${!!supabaseAdmin}, email: ${emailToCheck}, children: ${data.childrenNames?.length}`);
       }
 
       if (isExistingUser) {
