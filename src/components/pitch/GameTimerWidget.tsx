@@ -21,7 +21,7 @@ import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundChec
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
-import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
+
 
 // Storage keys
 const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
@@ -362,21 +362,11 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           ? { ...s, executed: true } : s
       );
 
-      // Always recalculate remaining plan after executing a sub to update player assignments
-      const remaining = updatedPlan.filter(s => !s.executed);
-      if (remaining.length > 0) {
-        const halfDur = minutesPerHalf * 60;
-        const recalculated = recalculateRemainingPlan(
-          updatedPlayers,
-          parseInt(pitchState.teamSize || "7"),
-          halfDur,
-          currentElapsedSeconds,
-          currentHalf,
-          sub,
-          true
-        );
-        updatedPlan = [...updatedPlan.filter(s => s.executed), ...recalculated];
-      }
+      // NOTE: Do NOT recalculate the remaining plan from the widget.
+      // The widget has stale minutesPlayed values (it doesn't track real-time playing time),
+      // so recalculation would see near-equal times and generate an empty plan,
+      // wiping all remaining subs. Recalculation should only happen from PitchBoard
+      // which has accurate live data.
 
       localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers }));
       window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
