@@ -49,21 +49,35 @@ export default function AddMemberDialog({ type, entityId, entityName, clubId }: 
 
   const roleOptions = type === "team" ? teamRoleOptions : clubRoleOptions;
 
+  const resolvedClubId = type === "team" ? clubId : entityId;
+
   const { data: searchResults, isLoading: searchLoading } = useQuery({
-    queryKey: ["user-search", debouncedSearch],
+    queryKey: ["user-search", debouncedSearch, resolvedClubId],
     queryFn: async () => {
-      if (!debouncedSearch || debouncedSearch.length < 2) return [];
+      if (!debouncedSearch || debouncedSearch.length < 2 || !resolvedClubId) return [];
+      
+      // First get user IDs that belong to this club
+      const { data: clubMembers, error: membersError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", resolvedClubId);
+      
+      if (membersError) throw membersError;
+      
+      const memberIds = [...new Set(clubMembers?.map(m => m.user_id) || [])];
+      if (memberIds.length === 0) return [];
       
       const { data, error } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
+        .in("id", memberIds)
         .ilike("display_name", `%${debouncedSearch}%`)
         .limit(10);
       
       if (error) throw error;
       return data;
     },
-    enabled: debouncedSearch.length >= 2,
+    enabled: debouncedSearch.length >= 2 && !!resolvedClubId,
   });
 
   const { data: existingMembers } = useQuery({
