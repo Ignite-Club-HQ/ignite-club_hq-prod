@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
-import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
-import { cameraPhotoToBlob, hasCameraPhotoSource, mimeToExtension } from "@/lib/binaryUtils";
-import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import { mimeToExtension } from "@/lib/binaryUtils";
+import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import {
   emitIOSNavGuard as dispatchIOSNavGuard,
 } from "@/lib/iosLayoutStability";
