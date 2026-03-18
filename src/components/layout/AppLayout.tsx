@@ -168,7 +168,7 @@ export function AppLayout() {
   if (profileError && !profile) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" role="alert" aria-live="assertive">
-        <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" />
+        <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" loading="eager" />
         {retrying ? (
           <>
             <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
