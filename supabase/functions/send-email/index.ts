@@ -732,7 +732,7 @@ serve(async (req: Request): Promise<Response> => {
     let emailHtml = html;
     if (template && templateData) {
       try {
-        emailHtml = await renderEmailTemplate(template, templateData);
+        emailHtml = await renderEmailTemplate(template, templateData, adminClient);
         console.log(`Rendered ${template} template successfully`);
       } catch (templateError) {
         console.error("Template rendering error:", sanitizeError(templateError));
