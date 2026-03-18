@@ -433,6 +433,8 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                   to: player.parentEmail.trim(),
                   subject: `You're invited to ${miniLeagueName}`,
                   template: "team-invite",
+                  senderName: clubBranding?.name || undefined,
+                  replyTo: (clubBranding as any)?.contact_email || undefined,
                   templateData: {
                     recipientName: player.parentName.trim() || player.parentEmail.trim(),
                     teamName: miniLeagueName,
