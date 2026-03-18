@@ -372,11 +372,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     if (!selectedSub) return;
     const { sub } = selectedSub;
     try {
-      const pitchRaw = localStorage.getItem(PITCH_STATE_KEY);
-      const timerRaw = localStorage.getItem(ACTIVE_TIMER_KEY);
-      if (!pitchRaw) return;
-
-      const pitchState: PitchBoardState = JSON.parse(pitchRaw);
+      const pitchState = readPitchState(timerState?.teamId);
+      if (!pitchState) return;
 
       // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
       const matchingSub = pitchState.autoSubPlan?.find(s =>
