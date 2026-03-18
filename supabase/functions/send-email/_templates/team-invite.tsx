@@ -137,10 +137,12 @@ export const TeamInviteEmail = ({
               </>
             )}
 
-            {childrenNames.length > 0 && (
+            {hasChildren && (
               <Section style={childrenSection}>
                 <Text style={childrenText}>
-                  Your {childrenNames.length === 1 ? 'child' : 'children'} will also be registered: <strong>{childrenNames.join(', ')}</strong>
+                  {childrenNames.length === 1
+                    ? <>Registered: <strong>{childrenNames[0]}</strong></>
+                    : <>Registered: <strong>{childrenNames.join(', ')}</strong></>}
                 </Text>
               </Section>
             )}
