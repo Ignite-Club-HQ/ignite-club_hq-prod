@@ -1370,6 +1370,7 @@ export type Database = {
           auto_reward_threshold: number | null
           city: string | null
           class_mode_enabled: boolean
+          contact_email: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -1434,6 +1435,7 @@ export type Database = {
           auto_reward_threshold?: number | null
           city?: string | null
           class_mode_enabled?: boolean
+          contact_email?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -1498,6 +1500,7 @@ export type Database = {
           auto_reward_threshold?: number | null
           city?: string | null
           class_mode_enabled?: boolean
+          contact_email?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
