@@ -99,7 +99,7 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
       if (!teamId) return null;
       const { data } = await supabase
         .from("teams")
-        .select("name, club_id, clubs(name, logo_url)")
+        .select("name, club_id, clubs(name, logo_url, contact_email)")
         .eq("id", teamId)
         .single();
       return data;
