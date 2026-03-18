@@ -348,10 +348,41 @@ async function checkRateLimit(
 const IGNITE_BRAND_COLOR = "#10b981";
 
 // Render email template
-async function renderEmailTemplate(template: TemplateType, data: any): Promise<string> {
+async function renderEmailTemplate(template: TemplateType, data: any, supabaseAdmin?: any): Promise<string> {
   switch (template) {
     case "team-invite":
-    case "invite-reminder":
+    case "invite-reminder": {
+      // Check if the invited email belongs to an existing user
+      // If so, send the shorter "child added" email instead of full onboarding
+      let isExistingUser = false;
+      if (supabaseAdmin && data.invitedEmail && data.childrenNames?.length > 0) {
+        try {
+          const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
+          if (userData?.users) {
+            isExistingUser = userData.users.some(
+              (u: any) => u.email?.toLowerCase() === data.invitedEmail.toLowerCase()
+            );
+          }
+        } catch (e) {
+          console.warn("Could not check existing user, using default template:", e);
+        }
+      }
+
+      if (isExistingUser) {
+        return await renderAsync(
+          React.createElement(ChildAddedEmail, {
+            recipientName: data.recipientName,
+            teamName: data.teamName,
+            clubName: data.clubName,
+            inviteLink: data.inviteLink,
+            clubLogoUrl: data.clubLogoUrl,
+            primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+            childrenNames: data.childrenNames || [],
+            customMessage: data.customMessage,
+          })
+        );
+      }
+
       return await renderAsync(
         React.createElement(TeamInviteEmail, {
           recipientName: data.recipientName,
@@ -366,6 +397,7 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           customMessage: data.customMessage,
         })
       );
+    }
     
     case "event-reminder":
       return await renderAsync(
