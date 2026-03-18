@@ -25,8 +25,31 @@ import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from ".
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 const SNOOZE_KEY = "ignite-pending-sub-snoozed";
 const SNOOZE_DURATION_MS = 60000; // 1 minute snooze
+
+// Read pitch state: prefer team-specific key, fall back to active key
+const readPitchState = (teamId?: string): PitchBoardState | null => {
+  try {
+    if (teamId) {
+      const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
+      if (teamSaved) return JSON.parse(teamSaved);
+    }
+    const saved = localStorage.getItem(PITCH_STATE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch { return null; }
+};
+
+// Write pitch state: write to both team-specific and active keys
+const writePitchState = (state: PitchBoardState) => {
+  try {
+    const json = JSON.stringify(state);
+    if (state.teamId) localStorage.setItem(getPitchStateKeyForTeam(state.teamId), json);
+    localStorage.setItem(PITCH_STATE_KEY, json);
+  } catch { /* ignore */ }
+};
 
 interface Player {
   id: string;
@@ -150,7 +173,6 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
     if (checkSnoozeStatus()) return;
 
     try {
-      const pitchStateRaw = localStorage.getItem(PITCH_STATE_KEY);
       const timerStateRaw = localStorage.getItem(TIMER_STATE_KEY);
 
       // No game in progress if no timer state or timer is not running
@@ -169,13 +191,13 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         return;
       }
 
-      if (!pitchStateRaw) {
+      const pitchState = readPitchState(timerState.teamId);
+
+      if (!pitchState) {
         setSubInfo(null);
         setHasAutoSubPlan(false);
         return;
       }
-
-      const pitchState: PitchBoardState = JSON.parse(pitchStateRaw);
       
       // Store all players for editing subs
       setAllPlayers(pitchState.players || []);
@@ -230,7 +252,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
             olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
           );
-          localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+          writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           return; // Will re-check on next tick
         }
@@ -284,7 +306,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
     const interval = setInterval(checkForPendingSub, 2000);
     
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === TIMER_STATE_KEY || e.key === PITCH_STATE_KEY || e.key === SNOOZE_KEY) {
+      if (e.key === TIMER_STATE_KEY || e.key?.startsWith(PITCH_STATE_KEY) || e.key === SNOOZE_KEY) {
         checkForPendingSub();
       }
     };
@@ -322,11 +344,11 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
 
   const executeSubstitution = () => {
     try {
-      const pitchStateRaw = localStorage.getItem(PITCH_STATE_KEY);
       const timerStateRaw = localStorage.getItem(TIMER_STATE_KEY);
+      const timerState: TimerState | null = timerStateRaw ? JSON.parse(timerStateRaw) : null;
+      const pitchState = readPitchState(timerState?.teamId);
       
-      if (pitchStateRaw) {
-        const pitchState: PitchBoardState = JSON.parse(pitchStateRaw);
+      if (pitchState) {
 
         // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
         const matchingSub = pitchState.autoSubPlan?.find(s =>
@@ -384,7 +406,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           });
           
           const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
-          localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(updatedState));
+          writePitchState(updatedState);
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           
           toast({
@@ -452,7 +474,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         }
         
         const updatedState = { ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers };
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(updatedState));
+        writePitchState(updatedState);
         
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
         
@@ -476,11 +498,11 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
 
   const skipSubstitution = () => {
     try {
-      const pitchStateRaw = localStorage.getItem(PITCH_STATE_KEY);
       const timerStateRaw = localStorage.getItem(TIMER_STATE_KEY);
+      const timerState: TimerState | null = timerStateRaw ? JSON.parse(timerStateRaw) : null;
+      const pitchState = readPitchState(timerState?.teamId);
       
-      if (pitchStateRaw) {
-        const pitchState: PitchBoardState = JSON.parse(pitchStateRaw);
+      if (pitchState) {
         
         // Mark current sub as executed + skipped
         let updatedPlan = pitchState.autoSubPlan.map(s => {
@@ -522,7 +544,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         }
         
         const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(updatedState));
+        writePitchState(updatedState);
         
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
         

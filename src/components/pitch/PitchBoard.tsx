@@ -3675,7 +3675,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setTimerResetKey(prev => prev + 1);
     
     // Clear persisted state
-    clearPitchState();
+    clearPitchState(teamId);
     
     // Reset hasLoadedRef so fresh state can be saved
     hasLoadedRef.current = false;
