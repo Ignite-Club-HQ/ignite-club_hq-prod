@@ -886,7 +886,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         onClick={() => {
                           setShowMessageEditor(!showMessageEditor);
                           if (!showMessageEditor && !customMessage) {
-                            setCustomMessage(`Welcome to ${teamName}! We look forward to a great season ahead. If you have any questions, feel free to reply to this email.`);
+                            setCustomMessage(`Welcome to ${teamName}!\n\nWe're excited to let you know that our club is using a brand new team app — Ignite Club HQ. It's been developed by a fellow club member and has all the features you'd expect (team news, events, messaging & more) without any ads.\n\nTo find out about your team, training times, and everything you need for the season — download the app below, then tap "Accept Invite" to get instant access.`);
                           }
                         }}
                       >
@@ -1196,7 +1196,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   onClick={() => {
                     setShowMessageEditor(!showMessageEditor);
                     if (!showMessageEditor && !customMessage) {
-                      setCustomMessage(`Welcome to ${teamName}! We look forward to a great season ahead. If you have any questions, feel free to reply to this email.`);
+                      setCustomMessage(`Welcome to ${teamName}!\n\nWe're excited to let you know that our club is using a brand new team app — Ignite Club HQ. It's been developed by a fellow club member and has all the features you'd expect (team news, events, messaging & more) without any ads.\n\nTo find out about your team, training times, and everything you need for the season — download the app below, then tap "Accept Invite" to get instant access.`);
                     }
                   }}
                 >
