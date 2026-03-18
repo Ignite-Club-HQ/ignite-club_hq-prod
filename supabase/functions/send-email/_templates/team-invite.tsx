@@ -105,10 +105,21 @@ export const TeamInviteEmail = ({
             </Text>
 
             {useCustomMessage ? (
-              /* Custom message override */
-              <Text style={bodyText}>
-                {customMessage}
-              </Text>
+              /* Custom message override — split on double-newlines for paragraphs */
+              <>
+                {customMessage!.split(/\n\n+/).map((paragraph, i) => {
+                  // If the paragraph contains bullet lines, render each line separately
+                  const lines = paragraph.split(/\n/);
+                  if (lines.length === 1) {
+                    return <Text key={i} style={bodyText}>{paragraph}</Text>;
+                  }
+                  return lines.map((line, j) => (
+                    <Text key={`${i}-${j}`} style={line.trim().startsWith('•') ? bulletItem : bodyText}>
+                      {line}
+                    </Text>
+                  ));
+                })}
+              </>
             ) : (
               /* Default verbatim copy */
               <>
