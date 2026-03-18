@@ -285,6 +285,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 inviteLink: link,
                 clubLogoUrl: clubBranding?.logo_url || undefined,
                 childrenNames: childrenNames.length > 0 ? childrenNames : undefined,
+                customMessage: customMessage.trim() || undefined,
               },
             },
           });
