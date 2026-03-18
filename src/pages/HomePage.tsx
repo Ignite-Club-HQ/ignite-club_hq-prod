@@ -1607,7 +1607,7 @@ export default function HomePage() {
               🎁 You have a reward ready to claim: {latestPendingRedemption.club_rewards?.name}
             </p>
           )}
-          {!latestPendingRedemption && (profile?.ignite_points || 0) >= minRewardThreshold && (
+          {!latestPendingRedemption && minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
             <p className="text-primary-foreground/80 text-sm mt-2">
               🎁 You have rewards available! Tap to browse and redeem.
             </p>
