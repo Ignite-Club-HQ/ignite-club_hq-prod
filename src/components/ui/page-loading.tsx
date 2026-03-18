@@ -6,7 +6,7 @@ interface PageLoadingProps {
   message?: string;
 }
 
-export function PageLoading({ message = "Loading..." }: PageLoadingProps) {
+export function PageLoading({ message = "Loading app..." }: PageLoadingProps) {
   const [mounted, setMounted] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
 
@@ -17,22 +17,20 @@ export function PageLoading({ message = "Loading..." }: PageLoadingProps) {
   }, []);
 
   return (
-    <div className={`flex-1 flex flex-col items-center justify-center py-12 bg-background transition-opacity duration-200 ${showLoader ? 'opacity-100' : 'opacity-0'}`}>
-      <div className="relative flex flex-col items-center">
-        <div className={`transition-opacity duration-200 ${
-          mounted ? "opacity-100" : "opacity-0"
-        }`}>
-          <img
-            src={igniteIcon}
-            alt="Ignite"
-            className="h-32 w-32 rounded-[2rem] animate-pulse object-cover"
-          />
-        </div>
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+    <div className={`flex-1 flex flex-col items-center justify-center py-12 bg-background transition-opacity duration-300 ${showLoader ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`flex flex-col items-center gap-4 transition-opacity duration-300 ${
+        mounted ? "opacity-100" : "opacity-0"
+      }`}>
+        <img
+          src={igniteIcon}
+          alt="Ignite"
+          className="h-16 w-16 rounded-2xl object-cover shadow-md"
+        />
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <p className="text-sm font-medium text-muted-foreground">{message}</p>
         </div>
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">{message}</p>
     </div>
   );
 }
