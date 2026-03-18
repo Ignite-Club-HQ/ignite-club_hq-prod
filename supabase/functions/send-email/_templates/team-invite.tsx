@@ -118,6 +118,14 @@ export const TeamInviteEmail = ({
               <strong style={{ color: primaryColor }}>{clubName}</strong> has invited you to join <strong>{teamName}</strong> as a <strong>{roleName}</strong> on Ignite Club HQ.
             </Text>
 
+            {customMessage && (
+              <Section style={customMessageSection}>
+                <Text style={customMessageText}>
+                  {customMessage}
+                </Text>
+              </Section>
+            )}
+
             {childrenNames.length > 0 && (
               <Section style={childrenSection}>
                 <Text style={childrenText}>
