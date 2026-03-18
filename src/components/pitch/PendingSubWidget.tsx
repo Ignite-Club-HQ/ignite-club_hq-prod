@@ -498,11 +498,11 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
 
   const skipSubstitution = () => {
     try {
-      const pitchStateRaw = localStorage.getItem(PITCH_STATE_KEY);
       const timerStateRaw = localStorage.getItem(TIMER_STATE_KEY);
+      const timerState: TimerState | null = timerStateRaw ? JSON.parse(timerStateRaw) : null;
+      const pitchState = readPitchState(timerState?.teamId);
       
-      if (pitchStateRaw) {
-        const pitchState: PitchBoardState = JSON.parse(pitchStateRaw);
+      if (pitchState) {
         
         // Mark current sub as executed + skipped
         let updatedPlan = pitchState.autoSubPlan.map(s => {
