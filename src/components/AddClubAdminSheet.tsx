@@ -82,7 +82,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url")
+        .select("name, logo_url, contact_email")
         .eq("id", clubId)
         .single();
       return data;
@@ -190,6 +190,8 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               to: email,
               subject: `You're invited to join ${clubName} as ${roleConfig[selectedRole].label}`,
               template: "team-invite",
+              senderName: clubName || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
               templateData: {
                 recipientName: customName.trim(),
                 invitedEmail: email,

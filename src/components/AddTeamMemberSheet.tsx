@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare } from "lucide-react";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -99,6 +100,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   ]);
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
+  const [customMessage, setCustomMessage] = useState("");
+  const [showMessageEditor, setShowMessageEditor] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -121,7 +124,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url")
+        .select("name, logo_url, contact_email")
         .eq("id", clubId)
         .single();
       return data;
@@ -271,6 +274,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               to: email,
               subject: `You're invited to join ${teamName}`,
               template: "team-invite",
+              senderName: clubBranding?.name || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
               templateData: {
                 recipientName: customName.trim(),
                 invitedEmail: email,
@@ -280,6 +285,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 inviteLink: link,
                 clubLogoUrl: clubBranding?.logo_url || undefined,
                 childrenNames: childrenNames.length > 0 ? childrenNames : undefined,
+                customMessage: customMessage.trim() || undefined,
               },
             },
           });
@@ -396,6 +402,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 to: member.email.trim(),
                 subject: `You're invited to join ${teamName}`,
                 template: "team-invite",
+                senderName: clubBranding?.name || undefined,
+                replyTo: (clubBranding as any)?.contact_email || undefined,
                 templateData: {
                   recipientName: member.name.trim(),
                   invitedEmail: member.email.trim(),
@@ -405,6 +413,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   inviteLink: link,
                   clubLogoUrl: clubBranding?.logo_url || undefined,
                   childrenNames: validChildren.map(c => c.name.trim()),
+                  customMessage: customMessage.trim() || undefined,
                 },
               },
             });
@@ -485,6 +494,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setSingleChildren([]);
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [] }]);
     setBulkResults([]);
+    setCustomMessage("");
+    setShowMessageEditor(false);
   };
 
   const handleDone = () => {
@@ -860,6 +871,45 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   </div>
                 )}
 
+                {customName.trim() && customEmail.trim() && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-1.5">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Custom Message
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setShowMessageEditor(!showMessageEditor);
+                          if (!showMessageEditor && !customMessage) {
+                            setCustomMessage(`Welcome to ${teamName}!\n\nWe're excited to let you know that our club is using a brand new team app — Ignite Club HQ. It's been developed by a fellow club member and has all the features you'd expect (team news, events, messaging & more) without any ads.\n\nTo find out about your team, training times, and everything you need for the season — download the app below, then tap "Accept Invite" to get instant access.`);
+                          }
+                        }}
+                      >
+                        {showMessageEditor ? "Hide" : "Add message"}
+                      </Button>
+                    </div>
+                    {showMessageEditor && (
+                      <div className="space-y-1.5">
+                        <Textarea
+                          placeholder="Write a personal welcome message..."
+                          value={customMessage}
+                          onChange={(e) => setCustomMessage(e.target.value)}
+                          rows={3}
+                          className="text-sm resize-none"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          This message will appear in the invite email
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Child fields for parent role in single mode */}
                 {customName.trim() && selectedRole === "parent" && (
                   <div className="space-y-3 p-4 rounded-xl bg-pink-500/5 border border-pink-500/20">
@@ -1129,6 +1179,44 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   )}
                 </div>
               ))}
+            </div>
+
+            {/* Custom message for bulk invites */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Custom Message
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setShowMessageEditor(!showMessageEditor);
+                    if (!showMessageEditor && !customMessage) {
+                      setCustomMessage(`Welcome to ${teamName}!\n\nWe're excited to let you know that our club is using a brand new team app — Ignite Club HQ. It's been developed by a fellow club member and has all the features you'd expect (team news, events, messaging & more) without any ads.\n\nTo find out about your team, training times, and everything you need for the season — download the app below, then tap "Accept Invite" to get instant access.`);
+                    }
+                  }}
+                >
+                  {showMessageEditor ? "Hide" : "Add message"}
+                </Button>
+              </div>
+              {showMessageEditor && (
+                <div className="space-y-1.5">
+                  <Textarea
+                    placeholder="Write a personal welcome message..."
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    rows={3}
+                    className="text-sm resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This message will appear in all invite emails
+                  </p>
+                </div>
+              )}
             </div>
 
             <Button

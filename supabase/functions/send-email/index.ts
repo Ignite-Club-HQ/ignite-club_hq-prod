@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
 import * as React from "npm:react@18.3.1";
 import { TeamInviteEmail } from "./_templates/team-invite.tsx";
+import { ChildAddedEmail } from "./_templates/child-added.tsx";
 import { EventReminderEmail } from "./_templates/event-reminder.tsx";
 import { MembershipConfirmationEmail } from "./_templates/membership-confirmation.tsx";
 import { MagicLinkEmail } from "./_templates/magic-link.tsx";
@@ -67,6 +68,8 @@ interface EmailRequest {
   subject: string;
   html?: string;
   from?: string;
+  replyTo?: string;
+  senderName?: string;
   // Template-based email
   template?: TemplateType;
   templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData | RewardRedeemedTemplateData | GameStatsReadyTemplateData | JoinRequestResponseTemplateData;
@@ -82,6 +85,7 @@ interface TeamInviteTemplateData {
   clubLogoUrl?: string;
   primaryColor?: string;
   childrenNames?: string[];
+  customMessage?: string;
 }
 
 interface EventReminderTemplateData {
@@ -344,10 +348,37 @@ async function checkRateLimit(
 const IGNITE_BRAND_COLOR = "#10b981";
 
 // Render email template
-async function renderEmailTemplate(template: TemplateType, data: any): Promise<string> {
+async function renderEmailTemplate(template: TemplateType, data: any, supabaseAdmin?: any): Promise<string> {
   switch (template) {
     case "team-invite":
-    case "invite-reminder":
+    case "invite-reminder": {
+      // Check if the invited email belongs to an existing user
+      // If so, send the shorter "child added" email instead of full onboarding
+      let isExistingUser = false;
+      if (supabaseAdmin && data.invitedEmail && data.childrenNames?.length > 0) {
+        try {
+          const { data: authUser } = await supabaseAdmin.auth.admin.getUserByEmail(data.invitedEmail);
+          isExistingUser = !!authUser?.user;
+        } catch (e) {
+          console.warn("Could not check existing user, using default template");
+        }
+      }
+
+      if (isExistingUser) {
+        return await renderAsync(
+          React.createElement(ChildAddedEmail, {
+            recipientName: data.recipientName,
+            teamName: data.teamName,
+            clubName: data.clubName,
+            inviteLink: data.inviteLink,
+            clubLogoUrl: data.clubLogoUrl,
+            primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+            childrenNames: data.childrenNames || [],
+            customMessage: data.customMessage,
+          })
+        );
+      }
+
       return await renderAsync(
         React.createElement(TeamInviteEmail, {
           recipientName: data.recipientName,
@@ -359,8 +390,10 @@ async function renderEmailTemplate(template: TemplateType, data: any): Promise<s
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || [],
+          customMessage: data.customMessage,
         })
       );
+    }
     
     case "event-reminder":
       return await renderAsync(
@@ -654,7 +687,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { to, subject, html, from, template, templateData }: EmailRequest = await req.json();
+    const { to, subject, html, from, replyTo, senderName, template, templateData }: EmailRequest = await req.json();
 
     // Validate required fields
     if (!to || !subject) {
@@ -695,7 +728,7 @@ serve(async (req: Request): Promise<Response> => {
     let emailHtml = html;
     if (template && templateData) {
       try {
-        emailHtml = await renderEmailTemplate(template, templateData);
+        emailHtml = await renderEmailTemplate(template, templateData, adminClient);
         console.log(`Rendered ${template} template successfully`);
       } catch (templateError) {
         console.error("Template rendering error:", sanitizeError(templateError));
@@ -706,17 +739,27 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Use verified domain sender
-    const sender = from || "Ignite Club HQ <support@igniteclubhq.app>";
+    // Build sender: use senderName if provided, otherwise fall back to from or default
+    let sender: string;
+    if (senderName) {
+      sender = `${senderName} <support@igniteclubhq.app>`;
+    } else {
+      sender = from || "Ignite Club HQ <support@igniteclubhq.app>";
+    }
 
-    console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)`);
+    console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)${replyTo ? ` (reply-to: ${replyTo})` : ''}`);
 
-    const emailResponse = await resend.emails.send({
+    const sendPayload: any = {
       from: sender,
       to: toArray,
       subject,
       html: emailHtml!,
-    });
+    };
+    if (replyTo && isValidEmail(replyTo)) {
+      sendPayload.reply_to = replyTo;
+    }
+
+    const emailResponse = await resend.emails.send(sendPayload);
 
     // Verify the response has an ID (successful send)
     if (!emailResponse.data?.id) {

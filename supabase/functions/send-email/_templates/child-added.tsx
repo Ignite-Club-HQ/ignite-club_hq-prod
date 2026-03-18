@@ -13,12 +13,10 @@ import {
 } from 'npm:@react-email/components@0.0.22'
 import * as React from 'npm:react@18.3.1'
 
-interface TeamInviteEmailProps {
+interface ChildAddedEmailProps {
   recipientName: string;
-  invitedEmail?: string;
   teamName: string;
   clubName: string;
-  roleName: string;
   inviteLink: string;
   clubLogoUrl?: string;
   primaryColor?: string;
@@ -30,48 +28,30 @@ const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 const IGNITE_BRAND_COLOR = "#10b981";
 const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
 
-const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
-const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
-
 const isValidExternalUrl = (url?: string): boolean => {
   if (!url) return false;
   return url.startsWith('http://') || url.startsWith('https://');
 };
 
-const normalizeInviteLink = (link: string): string => {
-  try {
-    const url = new URL(link);
-    return `${PRODUCTION_DOMAIN}${url.pathname}`;
-  } catch {
-    if (link.startsWith('/')) {
-      return `${PRODUCTION_DOMAIN}${link}`;
-    }
-    return link;
-  }
-};
-
-export const TeamInviteEmail = ({
-  recipientName = "everyone",
-  invitedEmail,
+export const ChildAddedEmail = ({
+  recipientName = "there",
   teamName = "The Team",
   clubName = "The Club",
-  roleName = "Player",
-  inviteLink = "https://igniteclubhq.app/join",
+  inviteLink = "https://igniteclubhq.app",
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
   childrenNames = [],
   customMessage,
-}: TeamInviteEmailProps) => {
-  const hasChildren = childrenNames.length > 0;
-  const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
-  const previewText = hasChildren
-    ? `${childLabel} has been added to their team for this season ⚽`
-    : `Your child has been added to their team for this season ⚽`;
+}: ChildAddedEmailProps) => {
+  const hasMultipleChildren = childrenNames.length > 1;
+  const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your children';
+  const previewText = childrenNames.length === 1
+    ? `${childrenNames[0]} has been added to ${teamName} ⚽`
+    : `Your children have been added to ${teamName} ⚽`;
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
-  const deepLinkUrl = `https://igniteclubhq.app${deepLinkPath}`;
+  const deepLinkUrl = `${PRODUCTION_DOMAIN}${deepLinkPath}`;
 
-  // Use custom message if provided, otherwise use default copy
   const useCustomMessage = customMessage && customMessage.trim().length > 0;
 
   return (
@@ -99,81 +79,41 @@ export const TeamInviteEmail = ({
 
           {/* Main Content */}
           <Section style={contentSection}>
-
             <Text style={greeting}>
-              Hi {recipientName === "Member" ? "everyone" : recipientName},
+              Hi {recipientName},
             </Text>
 
             {useCustomMessage ? (
-              /* Custom message override */
               <Text style={bodyText}>
                 {customMessage}
               </Text>
             ) : (
-              /* Default verbatim copy */
               <>
                 <Text style={headingText}>
-                  {hasChildren
-                    ? `${childLabel} has been added to their team for this season ⚽`
-                    : `Your child has been added to their team for this season ⚽`}
+                  {childrenNames.length === 1
+                    ? `${childrenNames[0]} has been added to ${teamName} ⚽`
+                    : `Your children have been added to ${teamName} ⚽`}
                 </Text>
 
                 <Text style={bodyText}>
-                  We're using a new app to bring everything together for the club — it's called <strong>Ignite Club HQ</strong>.
-                </Text>
-                <Text style={bodyText}>
-                  It's been built by one of our own club members to keep things simple, organised, and completely ad-free.
-                </Text>
-
-                <Text style={sectionLabel}>👀 Jump in to see:</Text>
-
-                <Text style={bulletItem}>• What team they're in</Text>
-                <Text style={bulletItem}>• Who their teammates are</Text>
-                <Text style={bulletItem}>• Your club space for updates as the season gets underway</Text>
-
-                <Text style={subtleNote}>
-                  (Fixtures and training details will be added soon)
+                  Open the app to see their team, teammates, and any updates for the season.
                 </Text>
               </>
             )}
 
-            {hasChildren && (
+            {childrenNames.length > 0 && (
               <Section style={childrenSection}>
                 <Text style={childrenText}>
                   {childrenNames.length === 1
-                    ? <>Registered: <strong>{childrenNames[0]}</strong></>
-                    : <>Registered: <strong>{childrenNames.join(', ')}</strong></>}
+                    ? <>Registered: <strong>{childrenNames[0]}</strong> → {teamName}</>
+                    : <>Registered: <strong>{childrenNames.join(', ')}</strong> → {teamName}</>}
                 </Text>
               </Section>
             )}
           </Section>
 
-          {/* Get Started Section */}
+          {/* CTA */}
           <Section style={ctaSection}>
-            <Text style={sectionLabel}>👇 Get started</Text>
-
-            {/* Step 1: Download */}
-            <Text style={stepLabel}>1. Download the app</Text>
-            <Section style={storeButtonsRow}>
-              <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
-                <tr>
-                  <td style={{ paddingRight: '6px' }}>
-                    <Button style={playStoreBtn} href={PLAY_STORE_URL}>
-                      ▶️ Google Play
-                    </Button>
-                  </td>
-                  <td style={{ paddingLeft: '6px' }}>
-                    <Button style={appStoreBtn} href={APP_STORE_URL}>
-                      🍎 App Store
-                    </Button>
-                  </td>
-                </tr>
-              </table>
-            </Section>
-
-            {/* Step 2: View team */}
-            <Text style={stepLabel}>2. Tap below to see their team</Text>
-
             <Section style={mainCtaSection}>
               <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
                 View Their Team
@@ -183,19 +123,10 @@ export const TeamInviteEmail = ({
             <Text style={fallbackLinkText}>
               Or copy this link: <Link href={deepLinkUrl} style={fallbackLink}>{deepLinkUrl}</Link>
             </Text>
-
-            {invitedEmail && (
-              <Text style={emailHint}>
-                Sign up using <strong>{invitedEmail}</strong> to link your invitation.
-              </Text>
-            )}
           </Section>
 
           {/* Closing */}
           <Section style={closingSection}>
-            <Text style={bodyText}>
-              It only takes about 30 seconds to get set up — once you're in, you're all ready to go.
-            </Text>
             <Text style={bodyText}>
               If you have any issues, just reply to this email and we'll help you out.
             </Text>
@@ -237,7 +168,7 @@ export const TeamInviteEmail = ({
   );
 };
 
-export default TeamInviteEmail;
+export default ChildAddedEmail;
 
 // ── Styles ──
 
@@ -293,30 +224,6 @@ const bodyText = {
   margin: '0 0 12px 0',
 };
 
-const sectionLabel = {
-  color: '#1a1a1a',
-  fontSize: '16px',
-  fontWeight: '600' as const,
-  lineHeight: '24px',
-  margin: '20px 0 8px 0',
-};
-
-const bulletItem = {
-  color: '#374151',
-  fontSize: '15px',
-  lineHeight: '26px',
-  margin: '0',
-  paddingLeft: '8px',
-};
-
-const subtleNote = {
-  color: '#6b7280',
-  fontSize: '14px',
-  lineHeight: '22px',
-  margin: '8px 0 0 0',
-  fontStyle: 'italic' as const,
-};
-
 const childrenSection = {
   backgroundColor: '#f0fdf4',
   borderRadius: '8px',
@@ -332,49 +239,12 @@ const childrenText = {
 };
 
 const ctaSection = {
-  padding: '8px 32px 24px 32px',
-};
-
-const stepLabel = {
-  color: '#374151',
-  fontSize: '15px',
-  fontWeight: '600' as const,
-  lineHeight: '24px',
-  margin: '16px 0 10px 0',
-};
-
-const storeButtonsRow = {
-  textAlign: 'center' as const,
-  margin: '0 0 4px 0',
-};
-
-const playStoreBtn = {
-  borderRadius: '8px',
-  backgroundColor: '#10b981',
-  color: '#ffffff',
-  fontSize: '13px',
-  fontWeight: 'bold' as const,
-  textDecoration: 'none',
-  textAlign: 'center' as const,
-  display: 'inline-block',
-  padding: '10px 20px',
-};
-
-const appStoreBtn = {
-  borderRadius: '8px',
-  backgroundColor: '#18181b',
-  color: '#ffffff',
-  fontSize: '13px',
-  fontWeight: 'bold' as const,
-  textDecoration: 'none',
-  textAlign: 'center' as const,
-  display: 'inline-block',
-  padding: '10px 20px',
+  padding: '24px 32px',
 };
 
 const mainCtaSection = {
   textAlign: 'center' as const,
-  margin: '12px 0',
+  margin: '0 0 12px 0',
 };
 
 const mainCtaButton = {
@@ -402,14 +272,6 @@ const fallbackLinkText = {
 const fallbackLink = {
   color: '#10b981',
   textDecoration: 'underline',
-};
-
-const emailHint = {
-  color: '#6b7280',
-  fontSize: '13px',
-  lineHeight: '20px',
-  margin: '12px 0 0 0',
-  textAlign: 'center' as const,
 };
 
 const closingSection = {
@@ -440,7 +302,6 @@ const footerSection = {
   padding: '20px 32px',
   backgroundColor: '#fafafa',
 };
-
 
 const footerBrandLink = {
   color: IGNITE_BRAND_COLOR,

@@ -100,7 +100,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url")
+        .select("name, logo_url, contact_email")
         .eq("id", clubId)
         .single();
       return data;
@@ -279,6 +279,8 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
               to: email,
               subject: `You're invited to ${miniLeagueName}`,
               template: "team-invite",
+              senderName: clubBranding?.name || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
               templateData: {
                 recipientName: parentName.trim() || email,
                 invitedEmail: email,
@@ -431,6 +433,8 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
                   to: player.parentEmail.trim(),
                   subject: `You're invited to ${miniLeagueName}`,
                   template: "team-invite",
+                  senderName: clubBranding?.name || undefined,
+                  replyTo: (clubBranding as any)?.contact_email || undefined,
                   templateData: {
                     recipientName: player.parentName.trim() || player.parentEmail.trim(),
                     teamName: miniLeagueName,
