@@ -272,7 +272,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
             body: {
               to: email,
-              subject: `You're invited to join ${teamName}`,
+               subject: `See who's in ${teamName} this season ⚽`,
               template: "team-invite",
               senderName: clubBranding?.name || undefined,
               replyTo: (clubBranding as any)?.contact_email || undefined,
@@ -400,7 +400,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
               body: {
                 to: member.email.trim(),
-                subject: `You're invited to join ${teamName}`,
+                subject: `See who's in ${teamName} this season ⚽`,
                 template: "team-invite",
                 senderName: clubBranding?.name || undefined,
                 replyTo: (clubBranding as any)?.contact_email || undefined,

@@ -96,7 +96,7 @@ export const ChildAddedEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  Open the app to see their team, teammates, and any updates for the season.
+                  Open the app to see their team, teammates, and any updates for the season. The app is branded as our club — you'll find everything in one place.
                 </Text>
               </>
             )}
