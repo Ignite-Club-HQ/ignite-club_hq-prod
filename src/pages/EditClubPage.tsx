@@ -219,20 +219,35 @@ export default function EditClubPage() {
                   {name.charAt(0)?.toUpperCase() || "C"}
                 </AvatarFallback>
               </Avatar>
-              <label className={`absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                {uploading ? (
-                  <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
-                ) : (
-                  <Camera className="h-5 w-5 text-primary-foreground" />
-                )}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
-                  className="hidden"
-                  onChange={handleLogoUpload}
+              {isNative ? (
+                <button
+                  type="button"
+                  className={`absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+                  onClick={handleNativeLogoPick}
                   disabled={uploading}
-                />
-              </label>
+                >
+                  {uploading ? (
+                    <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5 text-primary-foreground" />
+                  )}
+                </button>
+              ) : (
+                <label className={`absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {uploading ? (
+                    <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5 text-primary-foreground" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                    disabled={uploading}
+                  />
+                </label>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">Tap to change club logo</p>
           </div>
