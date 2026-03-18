@@ -67,6 +67,8 @@ interface EmailRequest {
   subject: string;
   html?: string;
   from?: string;
+  replyTo?: string;
+  senderName?: string;
   // Template-based email
   template?: TemplateType;
   templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData | RewardRedeemedTemplateData | GameStatsReadyTemplateData | JoinRequestResponseTemplateData;
