@@ -204,9 +204,6 @@ export const TeamInviteEmail = ({
 
           {/* Footer */}
           <Section style={footerSection}>
-            <Text style={photoConsentText}>
-              📷 Photos may be shared within the app by team members. Contact your club admin to manage photo consent.
-            </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
                 <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
