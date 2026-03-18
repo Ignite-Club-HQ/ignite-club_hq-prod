@@ -24,6 +24,7 @@ interface TeamInviteEmailProps {
   clubLogoUrl?: string;
   primaryColor?: string;
   childrenNames?: string[];
+  customMessage?: string;
 }
 
 // Production domain for all links
