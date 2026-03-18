@@ -216,6 +216,19 @@ export function UploadFilesDialog({
 
     nativePickerInFlightRef.current = true;
     console.log("[UploadFilesDialog] handleNativePhotoPick START");
+
+    // CRITICAL FIX: The Dialog's useIOSScrollLock sets body to position:fixed,
+    // which breaks the Capacitor Camera plugin's native picker on iOS.
+    // Temporarily release the scroll lock before opening the picker.
+    const bodyWasFixed = document.body.style.position === "fixed";
+    const savedTop = document.body.style.top;
+    if (bodyWasFixed) {
+      console.log("[UploadFilesDialog] Releasing body scroll lock for native picker");
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.overflow = "";
+    }
+
     try {
       // Use shared native picker with resilient Base64 → URI fallback
       const result = await pickNativePhoto({ quality: 80 });
@@ -242,6 +255,13 @@ export function UploadFilesDialog({
         console.log("[UploadFilesDialog] user cancelled");
       }
     } finally {
+      // Restore the body scroll lock that the Dialog expects
+      if (bodyWasFixed) {
+        console.log("[UploadFilesDialog] Restoring body scroll lock after native picker");
+        document.body.style.position = "fixed";
+        document.body.style.top = savedTop;
+        document.body.style.overflow = "hidden";
+      }
       queueNativeLayoutRecovery([0, 420, 1400, 2200]);
       nativePickerInFlightRef.current = false;
       setIsPickingNativePhoto(false);
