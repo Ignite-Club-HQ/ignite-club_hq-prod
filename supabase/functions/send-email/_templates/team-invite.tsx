@@ -24,6 +24,7 @@ interface TeamInviteEmailProps {
   clubLogoUrl?: string;
   primaryColor?: string;
   childrenNames?: string[];
+  customMessage?: string;
 }
 
 // Production domain for all links
@@ -71,6 +72,7 @@ export const TeamInviteEmail = ({
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
   childrenNames = [],
+  customMessage,
 }: TeamInviteEmailProps) => {
   const previewText = `You've been invited to join ${teamName} on Ignite Club HQ!`;
   // Only use club logo if it's a valid external URL (not base64)
@@ -115,6 +117,14 @@ export const TeamInviteEmail = ({
             <Text style={paragraph}>
               <strong style={{ color: primaryColor }}>{clubName}</strong> has invited you to join <strong>{teamName}</strong> as a <strong>{roleName}</strong> on Ignite Club HQ.
             </Text>
+
+            {customMessage && (
+              <Section style={customMessageSection}>
+                <Text style={customMessageText}>
+                  {customMessage}
+                </Text>
+              </Section>
+            )}
 
             {childrenNames.length > 0 && (
               <Section style={childrenSection}>
@@ -415,4 +425,20 @@ const comingSoonText = {
   textAlign: 'center' as const,
   margin: '0',
   fontStyle: 'italic' as const,
+};
+
+const customMessageSection = {
+  backgroundColor: '#f0f9ff',
+  borderRadius: '8px',
+  padding: '16px',
+  margin: '16px 0',
+  borderLeft: '4px solid #10b981',
+};
+
+const customMessageText = {
+  color: '#334155',
+  fontSize: '15px',
+  lineHeight: '24px',
+  margin: '0',
+  whiteSpace: 'pre-wrap' as const,
 };

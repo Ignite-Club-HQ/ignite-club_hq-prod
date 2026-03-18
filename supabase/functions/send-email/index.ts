@@ -84,6 +84,7 @@ interface TeamInviteTemplateData {
   clubLogoUrl?: string;
   primaryColor?: string;
   childrenNames?: string[];
+  customMessage?: string;
 }
 
 interface EventReminderTemplateData {
