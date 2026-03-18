@@ -139,7 +139,7 @@ const fetchPhotoBlobFromSource = async (
   // On native iOS, add a delay to let the OS finalize the temp file
   // (iCloud photos may need extra time to download)
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios") {
-    await wait(300);
+    await wait(600);
   }
 
   for (let attempt = 0; attempt <= NATIVE_READ_RETRY_ATTEMPTS; attempt += 1) {
