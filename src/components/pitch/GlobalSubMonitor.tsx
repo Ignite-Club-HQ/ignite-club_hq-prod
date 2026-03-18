@@ -302,7 +302,7 @@ export default function GlobalSubMonitor() {
     if (gameFinishedShownRef.current) return;
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     if (!timerState || !pitchState) return;
 
