@@ -205,12 +205,11 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       setDisplaySeconds(currentElapsed);
 
       try {
-        const pitchRaw = localStorage.getItem(PITCH_STATE_KEY);
-        if (!pitchRaw) {
+        const pitchState = readPitchState(saved.teamId);
+        if (!pitchState) {
           setHomeGoals(0); setAwayGoals(0); setAllSubs([]); setAllPlayers([]);
           return;
         }
-        const pitchState: PitchBoardState = JSON.parse(pitchRaw);
         
         // Score
         const goals = pitchState.goals || [];
