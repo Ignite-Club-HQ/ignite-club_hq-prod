@@ -72,6 +72,7 @@ export const TeamInviteEmail = ({
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
   childrenNames = [],
+  customMessage,
 }: TeamInviteEmailProps) => {
   const previewText = `You've been invited to join ${teamName} on Ignite Club HQ!`;
   // Only use club logo if it's a valid external URL (not base64)
