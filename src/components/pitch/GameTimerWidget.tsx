@@ -364,14 +364,33 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       const currentPlayerIn = pitchState.players.find(p => p.id === playerIn.id);
 
       if (!currentPlayerOut?.position || !currentPlayerIn || !!currentPlayerIn.position) {
-        // Invalid state - mark as executed but don't swap
-        const updatedPlan = pitchState.autoSubPlan.map(s =>
+        // Invalid state - skip this sub and recalculate remaining plan
+        let updatedPlan = pitchState.autoSubPlan.map(s =>
           s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
-            ? { ...s, executed: true } : s
+            ? { ...s, executed: true, skipped: true } : s
         );
+
+        // Redistribute remaining future subs evenly
+        const halfDur = minutesPerHalf * 60;
+        const totalGameSeconds = minutesPerHalf * 2 * 60;
+        const currentTotal = getTotalSeconds(currentElapsedSeconds, currentHalf, minutesPerHalf);
+        const remaining = updatedPlan.filter(s => !s.executed);
+        if (remaining.length > 0) {
+          const remainingGameSeconds = totalGameSeconds - currentTotal;
+          const interval = Math.max(Math.floor(remainingGameSeconds / (remaining.length + 1)), 60);
+          let nextSubTime = currentTotal + interval;
+          updatedPlan = updatedPlan.map(s => {
+            if (s.executed) return s;
+            const newHalf: 1 | 2 = nextSubTime < halfDur ? 1 : 2;
+            const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDur;
+            nextSubTime += interval;
+            return { ...s, half: newHalf, time: Math.floor(newTime) };
+          });
+        }
+
         localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
-        toast({ title: "Sub couldn't be made", description: !currentPlayerOut?.position ? `${playerOut.name} is already off the pitch` : `${playerIn.name} is already on the pitch`, variant: "destructive" });
+        toast({ title: "Sub rescheduled", description: `${playerIn.name} is already ${currentPlayerIn?.position ? 'on' : 'off'} the pitch — remaining subs recalculated`, variant: "default" });
         setShowConfirmDialog(false);
         return;
       }
