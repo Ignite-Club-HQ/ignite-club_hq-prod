@@ -143,7 +143,7 @@ export const TeamInviteEmail = ({
                 <Text style={bulletItem}>• Your club space for updates as the season gets underway</Text>
 
                 <Text style={subtleNote}>
-                  (Fixtures and games will be added by the team admin or coach)
+                  (Fixtures and games will be added soon by the team admin or coach)
                 </Text>
               </>
             )}
