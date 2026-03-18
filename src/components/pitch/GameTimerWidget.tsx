@@ -109,6 +109,27 @@ const saveTimerState = (state: TimerState) => {
   } catch { /* ignore */ }
 };
 
+// Read pitch state: prefer team-specific key, fall back to active key
+const readPitchState = (teamId?: string): PitchBoardState | null => {
+  try {
+    if (teamId) {
+      const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
+      if (teamSaved) return JSON.parse(teamSaved);
+    }
+    const saved = localStorage.getItem(PITCH_STATE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch { return null; }
+};
+
+// Write pitch state: write to both team-specific and active keys
+const writePitchState = (state: PitchBoardState) => {
+  try {
+    const json = JSON.stringify(state);
+    if (state.teamId) localStorage.setItem(getPitchStateKeyForTeam(state.teamId), json);
+    localStorage.setItem(PITCH_STATE_KEY, json);
+  } catch { /* ignore */ }
+};
+
 const getCurrentElapsed = (timer: TimerState): number => {
   let elapsed = timer.elapsedSeconds;
   if (timer.isRunning && timer.lastUpdateTime) {
