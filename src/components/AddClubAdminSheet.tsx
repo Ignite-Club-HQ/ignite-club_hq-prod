@@ -82,7 +82,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url")
+        .select("name, logo_url, contact_email")
         .eq("id", clubId)
         .single();
       return data;
