@@ -84,7 +84,7 @@ const roleColors: Record<string, string> = {
 
 const editableRoles: AppRole[] = ["player", "parent", "coach", "team_admin"];
 
-export default function PendingInviteCard({ invite, teamId, clubId }: PendingInviteCardProps) {
+export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = true }: PendingInviteCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
