@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import igniteIcon from "@/assets/ignite-icon.png";
 
 export function ClubThemeToggle() {
   const { availableClubThemes, activeClubTheme, setActiveClubTheme, isLoading } = useClubTheme();
@@ -153,7 +154,7 @@ export function ClubThemeToggle() {
           className="flex items-center gap-3 py-2"
         >
           <img 
-            src="/icon-192.png" 
+            src={igniteIcon} 
             alt="Ignite" 
             className="h-8 w-8 rounded-full object-contain"
           />

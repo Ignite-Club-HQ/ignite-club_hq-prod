@@ -24,7 +24,6 @@ import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
-import igniteIconLight from "@/assets/ignite-icon-light.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 
 // Helper to pick the best color from palette based on background contrast
@@ -66,9 +65,7 @@ function getBestContrastColor(
 
 function LogoClubThemeDropdown() {
   const { availableClubThemes, activeClubTheme, setActiveClubTheme } = useClubTheme();
-  // Read theme from localStorage directly to prevent hydration flash
-  const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('app-theme') : 'light';
-  const defaultLogo = storedTheme === "dark" ? igniteIcon : igniteIconLight;
+  const defaultLogo = igniteIcon;
   const { user } = useAuth();
   // Fetch ALL user clubs (including non-Pro) to show with lock
   const { data: allUserClubs = [] } = useQuery({
@@ -670,7 +667,7 @@ export function AppHeader() {
               ) : (
                 <>
                   <img 
-                    src={effectiveTheme === 'dark' ? igniteIcon : igniteIconLight} 
+                    src={igniteIcon} 
                     alt="Ignite" 
                     className="h-9 w-9 object-contain"
                   />

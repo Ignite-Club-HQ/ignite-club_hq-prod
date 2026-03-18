@@ -18,7 +18,6 @@ import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 
 import igniteIcon from "@/assets/ignite-icon.png";
-import igniteIconLight from "@/assets/ignite-icon-light.png";
 
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
@@ -35,7 +34,6 @@ export default function ProfilePage() {
   const [myClubsTeamsOpen, setMyClubsTeamsOpen] = useState(true);
   
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
-  const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('app-theme') : 'light';
 
   // Auto-scroll to points history when navigated from notification
   useEffect(() => {
@@ -472,7 +470,7 @@ export default function ProfilePage() {
             {activeThemeData?.logoUrl ? (
               <img src={activeThemeData.logoUrl} alt={activeThemeData.clubName} className="h-14 w-14 object-contain" />
             ) : (
-              <img src={storedTheme === 'light' ? igniteIconLight : igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
+              <img src={igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
             )}
           </AvatarFallback>
         </Avatar>

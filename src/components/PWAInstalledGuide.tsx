@@ -2,6 +2,7 @@ import { CheckCircle, Home, ArrowRight, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InviteFlowProgress } from "@/components/InviteFlowProgress";
+import igniteIcon from "@/assets/ignite-icon.png";
 
 interface PWAInstalledGuideProps {
   appName?: string;
@@ -32,7 +33,7 @@ export function PWAInstalledGuide({ appName = "Ignite", onDismiss }: PWAInstalle
           <div className="flex flex-col items-center gap-2">
             <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
               <img 
-                src="/ignite-logo.png" 
+                src={igniteIcon} 
                 alt={`${appName} app icon`}
                 className="h-16 w-16 rounded-xl"
               />
