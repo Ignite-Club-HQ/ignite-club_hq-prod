@@ -1196,7 +1196,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   onClick={() => {
                     setShowMessageEditor(!showMessageEditor);
                     if (!showMessageEditor && !customMessage) {
-                      setCustomMessage(`Welcome to ${teamName}! We're excited to have you join us. Download the app and sign up to get started.`);
+                      setCustomMessage(`Welcome to ${teamName}! We look forward to a great season ahead. If you have any questions, feel free to reply to this email.`);
                     }
                   }}
                 >
