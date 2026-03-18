@@ -57,7 +57,7 @@ export default function CreateTeamPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clubs")
-        .select("name, logo_url, class_mode_enabled")
+        .select("name, logo_url, class_mode_enabled, contact_email")
         .eq("id", clubId!)
         .single();
       if (error) throw error;
@@ -310,6 +310,8 @@ export default function CreateTeamPage() {
             to: adminAssignment.inviteEmail,
             subject: `You're invited to manage ${team.name}`,
             template: "team-invite",
+            senderName: club?.name || undefined,
+            replyTo: (club as any)?.contact_email || undefined,
             templateData: {
               recipientName: adminAssignment.inviteName,
               invitedEmail: adminAssignment.inviteEmail,

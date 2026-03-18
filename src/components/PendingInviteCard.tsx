@@ -99,7 +99,7 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
       if (!teamId) return null;
       const { data } = await supabase
         .from("teams")
-        .select("name, club_id, clubs(name, logo_url)")
+        .select("name, club_id, clubs(name, logo_url, contact_email)")
         .eq("id", teamId)
         .single();
       return data;
@@ -115,7 +115,7 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
       if (!clubId) return null;
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url")
+        .select("name, logo_url, contact_email")
         .eq("id", clubId)
         .single();
       return data;
@@ -239,12 +239,15 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
       const teamName = teamData?.name || clubData?.name || "the team";
       const clubName = teamData?.clubs?.name || clubData?.name || "The Club";
       const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url || undefined;
+      const clubContactEmail = (teamData?.clubs as any)?.contact_email || (clubData as any)?.contact_email || undefined;
       
       const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
         body: {
           to: invite.invited_email,
           subject: `Reminder: You're invited to join ${teamName}`,
           template: "team-invite",
+          senderName: clubName !== "The Club" ? clubName : undefined,
+          replyTo: clubContactEmail,
           templateData: {
             recipientName,
             invitedEmail: invite.invited_email,

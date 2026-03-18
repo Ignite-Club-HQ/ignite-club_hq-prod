@@ -121,7 +121,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url")
+        .select("name, logo_url, contact_email")
         .eq("id", clubId)
         .single();
       return data;
@@ -271,6 +271,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               to: email,
               subject: `You're invited to join ${teamName}`,
               template: "team-invite",
+              senderName: clubBranding?.name || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
               templateData: {
                 recipientName: customName.trim(),
                 invitedEmail: email,
@@ -396,6 +398,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 to: member.email.trim(),
                 subject: `You're invited to join ${teamName}`,
                 template: "team-invite",
+                senderName: clubBranding?.name || undefined,
+                replyTo: (clubBranding as any)?.contact_email || undefined,
                 templateData: {
                   recipientName: member.name.trim(),
                   invitedEmail: member.email.trim(),

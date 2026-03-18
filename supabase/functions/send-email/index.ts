@@ -67,6 +67,8 @@ interface EmailRequest {
   subject: string;
   html?: string;
   from?: string;
+  replyTo?: string;
+  senderName?: string;
   // Template-based email
   template?: TemplateType;
   templateData?: TeamInviteTemplateData | EventReminderTemplateData | MembershipConfirmationTemplateData | MagicLinkTemplateData | RenewalReminderTemplateData | MessageNotificationTemplateData | StorageWarningTemplateData | SubscriptionRenewedTemplateData | PaymentFailedTemplateData | PhotoUploadedTemplateData | PitchBoardNotificationTemplateData | DutyAssignedTemplateData | PointsAwardedTemplateData | RewardRedeemedTemplateData | GameStatsReadyTemplateData | JoinRequestResponseTemplateData;
@@ -654,7 +656,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { to, subject, html, from, template, templateData }: EmailRequest = await req.json();
+    const { to, subject, html, from, replyTo, senderName, template, templateData }: EmailRequest = await req.json();
 
     // Validate required fields
     if (!to || !subject) {
@@ -706,17 +708,27 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Use verified domain sender
-    const sender = from || "Ignite Club HQ <support@igniteclubhq.app>";
+    // Build sender: use senderName if provided, otherwise fall back to from or default
+    let sender: string;
+    if (senderName) {
+      sender = `${senderName} <support@igniteclubhq.app>`;
+    } else {
+      sender = from || "Ignite Club HQ <support@igniteclubhq.app>";
+    }
 
-    console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)`);
+    console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)${replyTo ? ` (reply-to: ${replyTo})` : ''}`);
 
-    const emailResponse = await resend.emails.send({
+    const sendPayload: any = {
       from: sender,
       to: toArray,
       subject,
       html: emailHtml!,
-    });
+    };
+    if (replyTo && isValidEmail(replyTo)) {
+      sendPayload.reply_to = replyTo;
+    }
+
+    const emailResponse = await resend.emails.send(sendPayload);
 
     // Verify the response has an ID (successful send)
     if (!emailResponse.data?.id) {
