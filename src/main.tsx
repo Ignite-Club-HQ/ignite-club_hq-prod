@@ -66,19 +66,8 @@ if (isNative) {
   }).catch(e => console.warn('[Main] Crashlytics unavailable:', e));
 }
 
-// Pre-request Camera/Photos permissions on native iOS so the permission dialog
-// appears early (e.g. during onboarding) rather than when the user first taps
-// an upload button — which causes the Camera plugin to throw "error loading image".
-if (isNative) {
-  import('./lib/nativePhotoPicker').then(({ ensureCameraPermissions }) => {
-    // Small delay so the WebView is fully loaded before showing the prompt
-    setTimeout(() => {
-      ensureCameraPermissions().catch(e =>
-        console.warn('[Main] Camera permission warm-up failed:', e)
-      );
-    }, 2000);
-  }).catch(() => {});
-}
+// Camera permissions are now requested on-demand when the user
+// first tries to upload a photo, not at app startup.
 
 // Initialize native handlers (wrapped to prevent crashes)
 try {
