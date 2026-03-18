@@ -65,9 +65,7 @@ function getBestContrastColor(
 
 function LogoClubThemeDropdown() {
   const { availableClubThemes, activeClubTheme, setActiveClubTheme } = useClubTheme();
-  // Read theme from localStorage directly to prevent hydration flash
-  const storedTheme = typeof window !== 'undefined' ? localStorage.getItem('app-theme') : 'light';
-  const defaultLogo = storedTheme === "dark" ? igniteIcon : igniteIconLight;
+  const defaultLogo = igniteIcon;
   const { user } = useAuth();
   // Fetch ALL user clubs (including non-Pro) to show with lock
   const { data: allUserClubs = [] } = useQuery({
