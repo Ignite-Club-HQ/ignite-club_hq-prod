@@ -455,9 +455,19 @@ export default function TeamDetailPage() {
         })
       );
       
+      // Strip email for non-admins to protect privacy
+      if (!isCoachOrAdmin) {
+        return invitesWithProfiles.map(inv => ({
+          ...inv,
+          invited_email: undefined,
+          email_sent_at: undefined,
+          email_id: undefined,
+          email_error: undefined,
+        }));
+      }
       return invitesWithProfiles;
     },
-    enabled: !!id && isCoachOrAdmin,
+    enabled: !!id && isMember,
   });
   const { data: existingRequest } = useQuery({
     queryKey: ["team-request", id, user?.id],
