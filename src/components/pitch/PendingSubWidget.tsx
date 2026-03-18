@@ -406,7 +406,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           });
           
           const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
-          localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(updatedState));
+          writePitchState(updatedState);
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           
           toast({
