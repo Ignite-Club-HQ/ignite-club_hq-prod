@@ -1231,7 +1231,7 @@ export default function TeamDetailPage() {
                     ))}
                     
                     {/* Children Section */}
-                    {teamChildren.length > 0 && (
+                    {teamChildren.length > 0 && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
                       <div className="mt-4 pt-4 border-t">
                         <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
                         <div className="space-y-2">
