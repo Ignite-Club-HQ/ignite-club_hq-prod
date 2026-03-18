@@ -72,6 +72,34 @@ export default function EditClubPage() {
   }, [club]);
 
   const [uploading, setUploading] = useState(false);
+  const isNative = shouldUseNativePicker();
+
+  const handleNativeLogoPick = async () => {
+    if (!id) return;
+    try {
+      const result = await pickNativePhoto({ quality: 80 });
+      setUploading(true);
+
+      const ext = mimeToExtension(result.mimeType);
+      const fileName = `${id}/${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('club-logos')
+        .upload(fileName, result.blob, { upsert: true, contentType: result.mimeType });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from('club-logos').getPublicUrl(fileName);
+      setLogoUrl(urlData.publicUrl);
+      toast({ title: "Logo uploaded", description: "Your club logo has been uploaded successfully." });
+    } catch (error) {
+      if (!isCancelledSelectionError(error)) {
+        console.error('Logo upload error:', error);
+        toast({ title: "Upload failed", description: "Failed to upload logo. Please try again.", variant: "destructive" });
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -79,18 +107,15 @@ export default function EditClubPage() {
 
     setUploading(true);
     try {
-      // Create a unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${id}/${Date.now()}.${fileExt}`;
 
-      // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('club-logos')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // Get the public URL
       const { data: urlData } = supabase.storage
         .from('club-logos')
         .getPublicUrl(fileName);
