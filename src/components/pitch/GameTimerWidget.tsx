@@ -468,11 +468,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       const pitchState = readPitchState(timerState?.teamId);
       if (!pitchState) return;
       let currentElapsedSeconds = 0, currentHalf: 1 | 2 = 1, minutesPerHalf = 20;
-      if (timerRaw) {
-        const ts: TimerState = JSON.parse(timerRaw);
-        minutesPerHalf = ts.minutesPerHalf || 20;
-        currentHalf = ts.currentHalf || 1;
-        currentElapsedSeconds = getCurrentElapsed(ts);
+      if (timerState) {
+        minutesPerHalf = timerState.minutesPerHalf || 20;
+        currentHalf = timerState.currentHalf || 1;
+        currentElapsedSeconds = getCurrentElapsed(timerState);
       }
       const currentTotal = getTotalSeconds(currentElapsedSeconds, currentHalf, minutesPerHalf);
 
