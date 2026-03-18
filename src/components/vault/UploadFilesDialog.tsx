@@ -255,6 +255,13 @@ export function UploadFilesDialog({
         console.log("[UploadFilesDialog] user cancelled");
       }
     } finally {
+      // Restore the body scroll lock that the Dialog expects
+      if (bodyWasFixed) {
+        console.log("[UploadFilesDialog] Restoring body scroll lock after native picker");
+        document.body.style.position = "fixed";
+        document.body.style.top = savedTop;
+        document.body.style.overflow = "hidden";
+      }
       queueNativeLayoutRecovery([0, 420, 1400, 2200]);
       nativePickerInFlightRef.current = false;
       setIsPickingNativePhoto(false);
