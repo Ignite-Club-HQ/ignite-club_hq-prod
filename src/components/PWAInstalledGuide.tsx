@@ -2,6 +2,7 @@ import { CheckCircle, Home, ArrowRight, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InviteFlowProgress } from "@/components/InviteFlowProgress";
+import igniteIcon from "@/assets/ignite-icon.png";
 
 interface PWAInstalledGuideProps {
   appName?: string;

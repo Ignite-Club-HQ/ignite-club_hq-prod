@@ -18,7 +18,6 @@ import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 
 import igniteIcon from "@/assets/ignite-icon.png";
-import igniteIconLight from "@/assets/ignite-icon-light.png";
 
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();

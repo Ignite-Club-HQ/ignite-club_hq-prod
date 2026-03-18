@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import igniteIcon from "@/assets/ignite-icon.png";
 
 export function ClubThemeToggle() {
   const { availableClubThemes, activeClubTheme, setActiveClubTheme, isLoading } = useClubTheme();
