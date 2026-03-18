@@ -421,7 +421,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           });
         }
 
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan }));
+        writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
         toast({ title: "Sub rescheduled", description: `${playerIn.name} is already ${currentPlayerIn?.position ? 'on' : 'off'} the pitch — remaining subs recalculated`, variant: "default" });
         setShowConfirmDialog(false);

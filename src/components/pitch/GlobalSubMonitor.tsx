@@ -163,7 +163,7 @@ export default function GlobalSubMonitor() {
     }
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     console.log('[SYNC] Timer state:', timerState ? {
       isRunning: timerState.isRunning,
@@ -302,7 +302,7 @@ export default function GlobalSubMonitor() {
     if (gameFinishedShownRef.current) return;
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     if (!timerState || !pitchState) return;
 
@@ -397,7 +397,7 @@ export default function GlobalSubMonitor() {
     if (isPitchBoardOpen) return;
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     if (!timerState || !pitchState) return;
     if (!timerState.isRunning) return;
@@ -476,7 +476,7 @@ export default function GlobalSubMonitor() {
   // Check if there's an active game that needs monitoring
   const hasActiveGame = useCallback(() => {
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
     
     if (!timerState || !pitchState) return false;
     
@@ -491,8 +491,8 @@ export default function GlobalSubMonitor() {
 
   // Force-open sub confirmation from notification click
   const forceOpenSubConfirmation = useCallback(() => {
-    const pitchState = loadPitchState();
     const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState || !timerState) return;
 
     // Calculate current elapsed time
@@ -669,7 +669,8 @@ export default function GlobalSubMonitor() {
   const handleConfirmAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
 
-    const pitchState = loadPitchState();
+    const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState) return;
 
     // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
@@ -748,7 +749,7 @@ export default function GlobalSubMonitor() {
     });
     
     // Recalculate remaining sub timings
-    const timerState = loadTimerState();
+    // timerState already loaded above
     const executedPlan = updatedPlan.filter(sub => sub.executed);
     let finalPlan = updatedPlan;
     
@@ -790,7 +791,8 @@ export default function GlobalSubMonitor() {
   const handleSkipAutoSub = useCallback(() => {
     if (!pendingAutoSub) return;
 
-    const pitchState = loadPitchState();
+    const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState) return;
 
     const subsToSkip = [pendingAutoSub, ...pendingBatchSubs];
@@ -804,7 +806,7 @@ export default function GlobalSubMonitor() {
     });
 
     // Recalculate remaining plan after skip
-    const timerState = loadTimerState();
+    // timerState already loaded above
     let finalPlan = updatedPlan;
     
     if (timerState && updatedPlan.some(sub => !sub.executed)) {
