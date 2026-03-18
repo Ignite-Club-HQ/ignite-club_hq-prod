@@ -132,7 +132,9 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
         state.autoSubActive = false;
         state.autoSubPaused = false;
         // Persist the cleanup
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...state, lastUpdateTime: Date.now() }));
+        const cleanedState = JSON.stringify({ ...state, lastUpdateTime: Date.now() });
+        localStorage.setItem(getPitchStateKey(teamId), cleanedState);
+        localStorage.setItem(PITCH_STATE_KEY, cleanedState);
       }
     }
     
