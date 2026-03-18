@@ -37,9 +37,10 @@ interface PendingInvitesListProps {
   invites: PendingInvite[];
   teamId?: string;
   clubId?: string;
+  isAdmin?: boolean;
 }
 
-export default function PendingInvitesList({ invites, teamId, clubId }: PendingInvitesListProps) {
+export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = true }: PendingInvitesListProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -308,62 +309,73 @@ export default function PendingInvitesList({ invites, teamId, clubId }: PendingI
   return (
     <div className="space-y-2">
       {/* Bulk Actions Bar */}
-      <Card className="p-3 flex items-center justify-between bg-muted/50">
-        <div className="flex items-center gap-3">
-          <Checkbox
-            checked={selectedIds.size === invites.length && invites.length > 0}
-            onCheckedChange={handleSelectAll}
-            aria-label="Select all pending invites"
-          />
+      {isAdmin ? (
+        <Card className="p-3 flex items-center justify-between bg-muted/50">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={selectedIds.size === invites.length && invites.length > 0}
+              onCheckedChange={handleSelectAll}
+              aria-label="Select all pending invites"
+            />
+            <span className="text-sm text-muted-foreground">
+              {selectedIds.size > 0 
+                ? `${selectedIds.size} selected` 
+                : `${invites.length} pending invite${invites.length !== 1 ? "s" : ""}`}
+            </span>
+          </div>
+          
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleBulkResend}
+                disabled={isSendingNotifications}
+              >
+                {isSendingNotifications ? (
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-1.5" />
+                )}
+                Resend
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setShowBulkDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Revoke
+              </Button>
+            </div>
+          )}
+        </Card>
+      ) : (
+        <div className="px-1 py-1.5">
           <span className="text-sm text-muted-foreground">
-            {selectedIds.size > 0 
-              ? `${selectedIds.size} selected` 
-              : `${invites.length} pending invite${invites.length !== 1 ? "s" : ""}`}
+            {invites.length} pending invite{invites.length !== 1 ? "s" : ""}
           </span>
         </div>
-        
-        {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleBulkResend}
-              disabled={isSendingNotifications}
-            >
-              {isSendingNotifications ? (
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4 mr-1.5" />
-              )}
-              Resend
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setShowBulkDeleteDialog(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-1.5" />
-              Revoke
-            </Button>
-          </div>
-        )}
-      </Card>
+      )}
 
       {/* Individual Invite Cards */}
       {invites.map((invite) => (
-        <div key={invite.id} className="flex items-start gap-2">
-          <div className="pt-4">
-            <Checkbox
-              checked={selectedIds.has(invite.id)}
-              onCheckedChange={() => handleToggleSelect(invite.id)}
-              aria-label={`Select invite for ${invite.invited_label || invite.profiles?.display_name || "pending member"}`}
-            />
-          </div>
+        <div key={invite.id} className={`flex items-start gap-2 ${isAdmin ? '' : 'pl-0'}`}>
+          {isAdmin && (
+            <div className="pt-4">
+              <Checkbox
+                checked={selectedIds.has(invite.id)}
+                onCheckedChange={() => handleToggleSelect(invite.id)}
+                aria-label={`Select invite for ${invite.invited_label || invite.profiles?.display_name || "pending member"}`}
+              />
+            </div>
+          )}
           <div className="flex-1">
             <PendingInviteCard
               invite={invite}
               teamId={teamId}
               clubId={clubId}
+              isAdmin={isAdmin}
             />
           </div>
         </div>
