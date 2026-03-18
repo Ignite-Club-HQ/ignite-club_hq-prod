@@ -204,9 +204,6 @@ export const TeamInviteEmail = ({
 
           {/* Footer */}
           <Section style={footerSection}>
-            <Text style={photoConsentText}>
-              📷 Photos may be shared within the app by team members. Contact your club admin to manage photo consent.
-            </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
                 <td style={{ paddingRight: '8px', verticalAlign: 'middle' }}>
@@ -436,13 +433,6 @@ const footerSection = {
   backgroundColor: '#fafafa',
 };
 
-const photoConsentText = {
-  color: '#9ca3af',
-  fontSize: '11px',
-  lineHeight: '18px',
-  margin: '0 0 12px 0',
-  textAlign: 'center' as const,
-};
 
 const footerBrandLink = {
   color: IGNITE_BRAND_COLOR,
