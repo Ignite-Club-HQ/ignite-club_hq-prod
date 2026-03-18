@@ -59,6 +59,16 @@ interface UseNativePushOptions {
   enabled?: boolean;
 }
 
+const normalizeNotificationPath = (url: string): string => {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || "/notifications";
+  } catch {
+    if (url.startsWith("/")) return url;
+    return `/${url.replace(/^\/+/, "")}`;
+  }
+};
+
 export function useNativePush(userId: string | undefined, options: UseNativePushOptions = {}) {
   const { enabled = true } = options;
   const navigate = useNavigate();
