@@ -7,7 +7,7 @@ import { Capacitor } from "@capacitor/core";
 
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
-import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import {
   emitIOSNavGuard as dispatchIOSNavGuard,
