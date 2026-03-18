@@ -85,6 +85,9 @@ export const savePitchState = (teamId: string, state: Omit<PitchBoardState, 'tea
       lastTimerSeconds: currentTimerSeconds,
     };
     console.log("[PitchState] SAVING state:", { teamId, playerCount: state.players.length, lastTimerSeconds: currentTimerSeconds });
+    // Write to team-specific key for isolation
+    localStorage.setItem(getPitchStateKey(teamId), JSON.stringify(fullState));
+    // Also write to active key so widgets/home page can discover the latest active game
     localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(fullState));
   } catch (e) {
     console.error("Failed to save pitch state:", e);
