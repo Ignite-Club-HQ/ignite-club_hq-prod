@@ -492,6 +492,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setSingleChildren([]);
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [] }]);
     setBulkResults([]);
+    setCustomMessage("");
+    setShowMessageEditor(false);
   };
 
   const handleDone = () => {
