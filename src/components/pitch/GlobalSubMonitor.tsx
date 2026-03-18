@@ -476,7 +476,7 @@ export default function GlobalSubMonitor() {
   // Check if there's an active game that needs monitoring
   const hasActiveGame = useCallback(() => {
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
     
     if (!timerState || !pitchState) return false;
     
