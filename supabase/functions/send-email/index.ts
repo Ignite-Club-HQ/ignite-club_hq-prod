@@ -355,12 +355,22 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
       // Check if the invited email belongs to an existing user
       // If so, send the shorter "child added" email instead of full onboarding
       let isExistingUser = false;
-      if (supabaseAdmin && data.invitedEmail && data.childrenNames?.length > 0) {
+      const emailToCheck = data.invitedEmail || (Array.isArray(data.to) ? data.to[0] : data.to);
+      if (supabaseAdmin && emailToCheck && data.childrenNames?.length > 0) {
         try {
-          const { data: authUser } = await supabaseAdmin.auth.admin.getUserByEmail(data.invitedEmail);
-          isExistingUser = !!authUser?.user;
+          // Query profiles via email_hash since auth.admin.getUserByEmail isn't available
+          const { data: hashResult } = await supabaseAdmin.rpc('generate_email_hash', { email: emailToCheck });
+          if (hashResult) {
+            const { data: profile } = await supabaseAdmin
+              .from('profiles')
+              .select('id')
+              .eq('email_hash', hashResult)
+              .maybeSingle();
+            isExistingUser = !!profile;
+          }
+          console.log(`Existing user check for ${emailToCheck}: ${isExistingUser}`);
         } catch (e) {
-          console.warn("Could not check existing user, using default template");
+          console.warn("Could not check existing user:", e?.message || e);
         }
       }
 

@@ -105,8 +105,8 @@ export const ChildAddedEmail = ({
               <Section style={childrenSection}>
                 <Text style={childrenText}>
                   {childrenNames.length === 1
-                    ? <>Registered: <strong>{childrenNames[0]}</strong> → {teamName}</>
-                    : <>Registered: <strong>{childrenNames.join(', ')}</strong> → {teamName}</>}
+                    ? <><strong>{childrenNames[0]}</strong> → {teamName}</>
+                    : <><strong>{childrenNames.join(', ')}</strong> → {teamName}</>}
                 </Text>
               </Section>
             )}
