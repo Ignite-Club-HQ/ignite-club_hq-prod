@@ -413,6 +413,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   inviteLink: link,
                   clubLogoUrl: clubBranding?.logo_url || undefined,
                   childrenNames: validChildren.map(c => c.name.trim()),
+                  customMessage: customMessage.trim() || undefined,
                 },
               },
             });
