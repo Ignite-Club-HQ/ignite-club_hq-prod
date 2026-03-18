@@ -13,9 +13,8 @@ import { cn } from "@/lib/utils";
 import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
-import { Camera as CapacitorCamera, CameraResultType, CameraSource } from "@capacitor/camera";
-import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
-import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
+import { pickNativePhoto } from "@/lib/nativePhotoPicker";
 import { emitIOSNavGuard as dispatchIOSNavGuard } from "@/lib/iosLayoutStability";
 
 interface UploadPhotoSheetProps {
