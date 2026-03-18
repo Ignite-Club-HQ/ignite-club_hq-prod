@@ -641,7 +641,7 @@ export default function GlobalSubMonitor() {
     
     // Listen for storage changes to detect game state changes
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === TIMER_STATE_KEY || e.key === PITCH_STATE_KEY || e.key === PITCH_BOARD_OPEN_KEY) {
+      if (e.key === TIMER_STATE_KEY || e.key?.startsWith(PITCH_STATE_KEY) || e.key === PITCH_BOARD_OPEN_KEY) {
         startPolling();
         syncToDatabase(); // Sync on state change
       }

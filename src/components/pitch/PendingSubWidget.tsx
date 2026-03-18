@@ -306,7 +306,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
     const interval = setInterval(checkForPendingSub, 2000);
     
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === TIMER_STATE_KEY || e.key === PITCH_STATE_KEY || e.key === SNOOZE_KEY) {
+      if (e.key === TIMER_STATE_KEY || e.key?.startsWith(PITCH_STATE_KEY) || e.key === SNOOZE_KEY) {
         checkForPendingSub();
       }
     };
