@@ -5,10 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
-import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { toast } from "sonner";
-import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
-import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
+import { pickNativePhoto } from "@/lib/nativePhotoPicker";
 import {
   emitIOSLayoutReset as dispatchIOSLayoutReset,
   emitIOSNavGuard as dispatchIOSNavGuard,
