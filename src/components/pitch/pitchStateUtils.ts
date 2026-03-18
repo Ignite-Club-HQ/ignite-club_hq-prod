@@ -173,8 +173,11 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
   }
 };
 
-export const clearPitchState = () => {
+export const clearPitchState = (teamId?: string) => {
   try {
+    if (teamId) {
+      localStorage.removeItem(getPitchStateKey(teamId));
+    }
     localStorage.removeItem(PITCH_STATE_KEY);
   } catch (e) {
     console.error("Failed to clear pitch state:", e);
