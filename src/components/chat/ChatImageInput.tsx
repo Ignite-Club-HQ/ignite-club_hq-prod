@@ -128,74 +128,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleNativePhotoPick = async () => {
-    // CRITICAL: Do NOT set state or blur before Camera.getPhoto — doing so
+    // CRITICAL: Do NOT set state or blur before pickNativePhoto — doing so
     // triggers a re-render / breaks the gesture chain and iOS rejects the picker.
     console.log("[ChatImageInput] handleNativePhotoPick START");
     try {
-      // Let Camera.getPhoto handle permissions natively on iOS to preserve
-      // the gesture-chain context. Explicit checkPermissions/requestPermissions
-      // before getPhoto breaks the gesture on first attempt.
-      let photo: Awaited<ReturnType<typeof Camera.getPhoto>>;
-      const isLoadingError = (err: unknown) => {
-        const msg = getReadableUploadError(err).toLowerCase();
-        return msg.includes("error loading image") || msg.includes("loading image");
-      };
-
-      try {
-        console.log("[ChatImageInput] calling getPhoto (Base64 mode, attempt 1)...");
-        photo = await Camera.getPhoto({
-          resultType: CameraResultType.Base64,
-          source: CameraSource.Photos,
-          allowEditing: false,
-          quality: 80,
-        });
-      } catch (firstAttemptError: unknown) {
-        if (isCancelledSelectionError(firstAttemptError)) {
-          throw firstAttemptError;
-        }
-
-        // "error loading image" often means the iOS plugin couldn't encode
-        // the photo as Base64 (iCloud, large HEIC, etc). Fall back to URI mode.
-        if (isLoadingError(firstAttemptError)) {
-          console.warn("[ChatImageInput] Base64 mode failed with loading error, retrying with URI mode:", firstAttemptError);
-          photo = await Camera.getPhoto({
-            resultType: CameraResultType.Uri,
-            source: CameraSource.Photos,
-            allowEditing: false,
-            quality: 80,
-          });
-        } else {
-          // Permission dialog / gesture-chain break — retry once with same mode
-          console.warn("[ChatImageInput] getPhoto attempt 1 failed, retrying:", firstAttemptError);
-          try {
-            photo = await Camera.getPhoto({
-              resultType: CameraResultType.Base64,
-              source: CameraSource.Photos,
-              allowEditing: false,
-              quality: 80,
-            });
-          } catch (secondAttemptError: unknown) {
-            // If retry also fails with loading error, try URI mode as last resort
-            if (!isCancelledSelectionError(secondAttemptError) && isLoadingError(secondAttemptError)) {
-              console.warn("[ChatImageInput] Base64 retry also failed, falling back to URI:", secondAttemptError);
-              photo = await Camera.getPhoto({
-                resultType: CameraResultType.Uri,
-                source: CameraSource.Photos,
-                allowEditing: false,
-                quality: 80,
-              });
-            } else {
-              throw secondAttemptError;
-            }
-          }
-        }
-      }
-      console.log("[ChatImageInput] getPhoto OK", {
-        webPath: photo.webPath,
-        path: photo.path,
-        format: photo.format,
-        hasBase64: !!photo.base64String,
-      });
+      // Use shared native picker with resilient Base64 → URI fallback
+      const result = await pickNativePhoto({ quality: 80 });
+      console.log("[ChatImageInput] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
 
       // Stabilize BottomNav immediately once picker returns, before blob/compression work.
       requestAnimationFrame(() => {
@@ -205,20 +144,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       // NOW it's safe to set uploading state — the native picker has closed
       setUploading(true);
 
-      if (!hasCameraPhotoSource(photo)) {
-        throw new Error("No photo selected (missing base64String/webPath/path)");
-      }
-
-      console.log("[ChatImageInput] calling cameraPhotoToBlob...");
-      const result = await cameraPhotoToBlob(photo);
-
-      const blobResult: { blob: Blob; mimeType: string; previewUrl: string } = {
-        blob: result.blob,
-        mimeType: result.mimeType,
-        previewUrl: result.previewUrl,
-      };
-      const { blob, mimeType } = blobResult;
-      console.log("[ChatImageInput] blob ready, size:", blob.size, "mime:", mimeType);
+      const { blob, mimeType } = result;
 
       if (blob.size > MAX_UPLOAD_SIZE_BYTES) {
         throw new Error("Image must be less than 10MB");
