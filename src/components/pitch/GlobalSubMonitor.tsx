@@ -163,7 +163,7 @@ export default function GlobalSubMonitor() {
     }
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     console.log('[SYNC] Timer state:', timerState ? {
       isRunning: timerState.isRunning,
