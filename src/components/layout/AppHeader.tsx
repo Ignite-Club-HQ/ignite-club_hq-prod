@@ -24,7 +24,6 @@ import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
-import igniteIconLight from "@/assets/ignite-icon-light.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 
 // Helper to pick the best color from palette based on background contrast
