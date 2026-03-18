@@ -516,18 +516,33 @@ export default function GlobalSubMonitor() {
           const futureSubsExist = updatedPlan.some(s => !s.executed && !(s.half === currentHalf && s.time === latestTime));
 
           if (futureSubsExist) {
-            const recalculated = recalculateRemainingPlan(
-              pitchState.players,
-              getTeamSizeNumber(pitchState.teamSize),
-              timerState.minutesPerHalf * 60,
-              currentElapsed,
-              currentHalf,
-              latestMissedSub,
-              true
-            );
+                // Simulate currentDueSubs on the players array so recalculation
+                // doesn't re-use players already queued in current due subs
+                let simulatedPlayers = [...pitchState.players];
+                currentDueSubs.forEach(dueSub => {
+                  const outPlayer = simulatedPlayers.find(p => p.id === dueSub.playerOut.id);
+                  const inPlayer = simulatedPlayers.find(p => p.id === dueSub.playerIn.id);
+                  if (outPlayer && inPlayer && outPlayer.position) {
+                    simulatedPlayers = simulatedPlayers.map(p => {
+                      if (p.id === dueSub.playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
+                      if (p.id === dueSub.playerIn.id) return { ...p, position: outPlayer.position, currentPitchPosition: outPlayer.currentPitchPosition };
+                      return p;
+                    });
+                  }
+                });
 
-            updatedPlan = [...executedSubs, ...currentDueSubs, ...recalculated];
-          }
+                const recalculated = recalculateRemainingPlan(
+                  simulatedPlayers,
+                  getTeamSizeNumber(pitchState.teamSize),
+                  timerState.minutesPerHalf * 60,
+                  currentElapsed,
+                  currentHalf,
+                  latestMissedSub,
+                  true
+                );
+
+                updatedPlan = [...executedSubs, ...currentDueSubs, ...recalculated];
+              }
         }
 
         nextPitchState = { ...pitchState, autoSubPlan: updatedPlan };
