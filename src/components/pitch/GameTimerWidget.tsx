@@ -385,11 +385,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         return;
       }
       let currentElapsedSeconds = 0, currentHalf: 1 | 2 = 1, minutesPerHalf = 20;
-      if (timerRaw) {
-        const ts: TimerState = JSON.parse(timerRaw);
-        minutesPerHalf = ts.minutesPerHalf || 20;
-        currentHalf = ts.currentHalf || 1;
-        currentElapsedSeconds = getCurrentElapsed(ts);
+      if (timerState) {
+        minutesPerHalf = timerState.minutesPerHalf || 20;
+        currentHalf = timerState.currentHalf || 1;
+        currentElapsedSeconds = getCurrentElapsed(timerState);
       }
 
       const playerOut = actualPlayerOut || sub.playerOut;
