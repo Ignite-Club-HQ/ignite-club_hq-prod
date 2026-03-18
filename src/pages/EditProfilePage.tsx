@@ -31,8 +31,7 @@ export default function EditProfilePage() {
     }
   }, [profile]);
 
-  const isNative = Capacitor.isNativePlatform();
-  const isNativeIOS = isNative && Capacitor.getPlatform() === "ios";
+  const isNative = shouldUseNativePicker();
 
   const handleNativeAvatarPick = async () => {
     if (!user) return;
