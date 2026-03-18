@@ -42,44 +42,58 @@ export async function pickNativePhoto(options?: {
     ...(height ? { height } : {}),
   };
 
+  const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+  /**
+   * Attempt Camera.getPhoto with the given resultType, retrying on
+   * "error loading image" (iCloud / HEIC processing) with increasing delays.
+   * Returns the photo or throws the last error.
+   */
+  const attemptGetPhoto = async (
+    resultType: CameraResultType,
+    maxRetries: number,
+    baseDelayMs: number,
+    label: string,
+  ): Promise<Awaited<ReturnType<typeof Camera.getPhoto>>> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        const delay = baseDelayMs * attempt;
+        console.log(`[nativePhotoPicker] ${label} retry ${attempt}/${maxRetries} in ${delay}ms`);
+        await wait(delay);
+      }
+      try {
+        return await Camera.getPhoto({ ...photoOptions, resultType });
+      } catch (err: unknown) {
+        if (isCancelledSelectionError(err)) throw err;
+        console.warn(`[nativePhotoPicker] ${label} attempt ${attempt + 1} failed:`, err);
+        lastError = err;
+        if (!isLoadingError(err) && attempt === 0) {
+          // Non-loading error on first attempt (e.g. permission) — retry once more then bail
+          continue;
+        }
+        if (!isLoadingError(err)) throw err;
+      }
+    }
+    throw lastError;
+  };
+
   let photo: Awaited<ReturnType<typeof Camera.getPhoto>>;
 
   try {
-    photo = await Camera.getPhoto({
-      ...photoOptions,
-      resultType: CameraResultType.Base64,
-    });
-  } catch (firstAttemptError: unknown) {
-    if (isCancelledSelectionError(firstAttemptError)) {
-      throw firstAttemptError;
-    }
+    // Primary: Base64 with up to 3 retries (delays: 800, 1600, 2400ms)
+    photo = await attemptGetPhoto(CameraResultType.Base64, 3, 800, "Base64");
+  } catch (base64Error: unknown) {
+    if (isCancelledSelectionError(base64Error)) throw base64Error;
 
-    if (isLoadingError(firstAttemptError)) {
-      // Base64 failed (iCloud, large HEIC, etc.) — try URI mode
-      console.warn("[nativePhotoPicker] Base64 failed, falling back to URI:", firstAttemptError);
-      photo = await Camera.getPhoto({
-        ...photoOptions,
-        resultType: CameraResultType.Uri,
-      });
-    } else {
-      // Permission dialog / gesture-chain break — retry once
-      console.warn("[nativePhotoPicker] getPhoto attempt 1 failed, retrying:", firstAttemptError);
-      try {
-        photo = await Camera.getPhoto({
-          ...photoOptions,
-          resultType: CameraResultType.Base64,
-        });
-      } catch (secondAttemptError: unknown) {
-        if (!isCancelledSelectionError(secondAttemptError) && isLoadingError(secondAttemptError)) {
-          console.warn("[nativePhotoPicker] Base64 retry failed, falling back to URI:", secondAttemptError);
-          photo = await Camera.getPhoto({
-            ...photoOptions,
-            resultType: CameraResultType.Uri,
-          });
-        } else {
-          throw secondAttemptError;
-        }
-      }
+    // Fallback: URI mode with up to 3 retries (delays: 1000, 2000, 3000ms)
+    console.warn("[nativePhotoPicker] All Base64 attempts failed, falling back to URI mode");
+    try {
+      photo = await attemptGetPhoto(CameraResultType.Uri, 3, 1000, "URI");
+    } catch (uriError: unknown) {
+      if (isCancelledSelectionError(uriError)) throw uriError;
+      // Throw the most informative error
+      throw base64Error;
     }
   }
 
