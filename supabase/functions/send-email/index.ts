@@ -656,7 +656,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { to, subject, html, from, template, templateData }: EmailRequest = await req.json();
+    const { to, subject, html, from, replyTo, senderName, template, templateData }: EmailRequest = await req.json();
 
     // Validate required fields
     if (!to || !subject) {
