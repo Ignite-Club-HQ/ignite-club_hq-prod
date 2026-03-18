@@ -20,6 +20,9 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS, getSportEmoji, isClassModeSport } from "@/lib/sportEmojis";
+import { shouldUseNativePicker, pickNativePhoto } from "@/lib/nativePhotoPicker";
+import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import { mimeToExtension } from "@/lib/binaryUtils";
 
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
@@ -69,6 +72,34 @@ export default function EditClubPage() {
   }, [club]);
 
   const [uploading, setUploading] = useState(false);
+  const isNative = shouldUseNativePicker();
+
+  const handleNativeLogoPick = async () => {
+    if (!id) return;
+    try {
+      const result = await pickNativePhoto({ quality: 80 });
+      setUploading(true);
+
+      const ext = mimeToExtension(result.mimeType);
+      const fileName = `${id}/${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('club-logos')
+        .upload(fileName, result.blob, { upsert: true, contentType: result.mimeType });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from('club-logos').getPublicUrl(fileName);
+      setLogoUrl(urlData.publicUrl);
+      toast({ title: "Logo uploaded", description: "Your club logo has been uploaded successfully." });
+    } catch (error) {
+      if (!isCancelledSelectionError(error)) {
+        console.error('Logo upload error:', error);
+        toast({ title: "Upload failed", description: "Failed to upload logo. Please try again.", variant: "destructive" });
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -76,18 +107,15 @@ export default function EditClubPage() {
 
     setUploading(true);
     try {
-      // Create a unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${id}/${Date.now()}.${fileExt}`;
 
-      // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('club-logos')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // Get the public URL
       const { data: urlData } = supabase.storage
         .from('club-logos')
         .getPublicUrl(fileName);
@@ -191,20 +219,35 @@ export default function EditClubPage() {
                   {name.charAt(0)?.toUpperCase() || "C"}
                 </AvatarFallback>
               </Avatar>
-              <label className={`absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                {uploading ? (
-                  <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
-                ) : (
-                  <Camera className="h-5 w-5 text-primary-foreground" />
-                )}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
-                  className="hidden"
-                  onChange={handleLogoUpload}
+              {isNative ? (
+                <button
+                  type="button"
+                  className={`absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+                  onClick={handleNativeLogoPick}
                   disabled={uploading}
-                />
-              </label>
+                >
+                  {uploading ? (
+                    <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5 text-primary-foreground" />
+                  )}
+                </button>
+              ) : (
+                <label className={`absolute bottom-0 right-0 p-2.5 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {uploading ? (
+                    <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
+                  ) : (
+                    <Camera className="h-5 w-5 text-primary-foreground" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                    disabled={uploading}
+                  />
+                </label>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">Tap to change club logo</p>
           </div>
