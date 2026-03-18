@@ -639,12 +639,28 @@ export default function NotificationsPage() {
         break;
       case "pending_sub":
         // Trigger GlobalSubMonitor to show the sub confirmation dialog
+        // GlobalSubMonitor is mounted at App level so this works from any page
         window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
         break;
       case "half_time":
       case "game_finished":
-        // Navigate to pitch board for half-time and full-time notifications
-        navigate("/pitch-board");
+        // related_id is game.id — try to find the linked event from the active game
+        if (relatedId) {
+          const { data: activeGame } = await supabase
+            .from("active_games")
+            .select("pitch_state")
+            .eq("id", relatedId)
+            .maybeSingle();
+          const linkedEventId = (activeGame?.pitch_state as any)?.linkedEventId;
+          if (linkedEventId) {
+            navigate(`/events/${linkedEventId}`);
+          } else {
+            // Fallback: navigate to home page instead of non-existent /pitch-board
+            navigate("/");
+          }
+        } else {
+          navigate("/");
+        }
         break;
       case "formation_change":
         // Navigate to the team's pitch board - relatedId is team_id
