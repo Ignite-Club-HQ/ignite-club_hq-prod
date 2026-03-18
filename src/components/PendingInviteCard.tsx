@@ -239,12 +239,15 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
       const teamName = teamData?.name || clubData?.name || "the team";
       const clubName = teamData?.clubs?.name || clubData?.name || "The Club";
       const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url || undefined;
+      const clubContactEmail = (teamData?.clubs as any)?.contact_email || (clubData as any)?.contact_email || undefined;
       
       const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
         body: {
           to: invite.invited_email,
           subject: `Reminder: You're invited to join ${teamName}`,
           template: "team-invite",
+          senderName: clubName !== "The Club" ? clubName : undefined,
+          replyTo: clubContactEmail,
           templateData: {
             recipientName,
             invitedEmail: invite.invited_email,

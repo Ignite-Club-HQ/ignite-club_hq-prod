@@ -271,6 +271,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               to: email,
               subject: `You're invited to join ${teamName}`,
               template: "team-invite",
+              senderName: clubBranding?.name || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
               templateData: {
                 recipientName: customName.trim(),
                 invitedEmail: email,

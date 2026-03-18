@@ -310,6 +310,8 @@ export default function CreateTeamPage() {
             to: adminAssignment.inviteEmail,
             subject: `You're invited to manage ${team.name}`,
             template: "team-invite",
+            senderName: club?.name || undefined,
+            replyTo: (club as any)?.contact_email || undefined,
             templateData: {
               recipientName: adminAssignment.inviteName,
               invitedEmail: adminAssignment.inviteEmail,

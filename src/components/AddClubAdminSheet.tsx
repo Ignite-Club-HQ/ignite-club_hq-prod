@@ -190,6 +190,8 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               to: email,
               subject: `You're invited to join ${clubName} as ${roleConfig[selectedRole].label}`,
               template: "team-invite",
+              senderName: clubName || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
               templateData: {
                 recipientName: customName.trim(),
                 invitedEmail: email,
