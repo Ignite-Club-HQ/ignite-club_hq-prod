@@ -350,13 +350,13 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     localStorage.removeItem(ACTIVE_TIMER_KEY);
     if (timerState?.teamId) localStorage.removeItem(getTeamTimerStorageKey(timerState.teamId));
     try {
-      const raw = localStorage.getItem(PITCH_STATE_KEY);
-      if (raw) {
-        const ps = JSON.parse(raw);
+      const ps = readPitchState(timerState?.teamId);
+      if (ps) {
         ps.autoSubPlan = []; ps.autoSubActive = false; ps.autoSubPaused = false;
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(ps));
+        writePitchState(ps);
       }
     } catch { /* ignore */ }
+    if (timerState?.teamId) localStorage.removeItem(getPitchStateKeyForTeam(timerState.teamId));
     localStorage.removeItem(PITCH_STATE_KEY);
     setTimerState(null);
   };
