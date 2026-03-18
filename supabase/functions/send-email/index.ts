@@ -357,13 +357,6 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
       let isExistingUser = false;
       if (supabaseAdmin && data.invitedEmail && data.childrenNames?.length > 0) {
         try {
-          const { data: userData, error } = await supabaseAdmin
-            .from('profiles')
-            .select('id')
-            .eq('email_hash', data.invitedEmail ? undefined : undefined)
-            .limit(1);
-          
-          // Use auth admin API to check by email
           const { data: authUser } = await supabaseAdmin.auth.admin.getUserByEmail(data.invitedEmail);
           isExistingUser = !!authUser?.user;
         } catch (e) {
