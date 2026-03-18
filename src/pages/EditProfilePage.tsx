@@ -11,7 +11,9 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { updateProfileCache } from "@/lib/profileCache";
 import { Capacitor } from "@capacitor/core";
-import { emitIOSNavGuard } from "@/lib/iosLayoutStability";
+import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
+import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import { mimeToExtension } from "@/lib/binaryUtils";
 
 export default function EditProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
