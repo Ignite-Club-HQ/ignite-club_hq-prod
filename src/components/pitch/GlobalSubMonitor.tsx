@@ -806,7 +806,7 @@ export default function GlobalSubMonitor() {
     });
 
     // Recalculate remaining plan after skip
-    const timerState = loadTimerState();
+    // timerState already loaded above
     let finalPlan = updatedPlan;
     
     if (timerState && updatedPlan.some(sub => !sub.executed)) {
