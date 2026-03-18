@@ -43,20 +43,7 @@ export function AppLayout() {
 
   useChatRouteOverscrollLock(isChatThreadRoute);
 
-  // Read theme synchronously on first render - useMemo ensures this only runs once
-  // This reads from localStorage which is available synchronously in the browser
-  // The value is computed once and never changes, preventing logo flicker
-  const loadingLogo = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('app-theme');
-      // Also check the DOM class as a fallback (set by index.html script)
-      const isDarkClass = document.documentElement.classList.contains('dark');
-      const isDark = stored === 'dark' || (!stored && isDarkClass);
-      return isDark ? igniteIcon : igniteIconLight;
-    }
-    // Server-side fallback (shouldn't happen in browser)
-    return igniteIconLight;
-  }, []);
+  const loadingLogo = useMemo(() => igniteIcon, []);
 
   // Debug logging for profile state - must be before any conditional returns
   useEffect(() => {
