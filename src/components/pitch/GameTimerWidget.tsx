@@ -452,7 +452,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       // wiping all remaining subs. Recalculation should only happen from PitchBoard
       // which has accurate live data.
 
-      localStorage.setItem(PITCH_STATE_KEY, JSON.stringify({ ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers }));
+      writePitchState({ ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers });
       window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       toast({ title: "Substitution made", description: `${playerIn.name} on for ${playerOut.name}` });
     } catch (e) {
