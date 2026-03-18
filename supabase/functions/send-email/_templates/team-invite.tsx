@@ -62,7 +62,11 @@ export const TeamInviteEmail = ({
   childrenNames = [],
   customMessage,
 }: TeamInviteEmailProps) => {
-  const previewText = `You've been added to your team for this season ⚽`;
+  const hasChildren = childrenNames.length > 0;
+  const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
+  const previewText = hasChildren
+    ? `${childLabel} has been added to their team for this season ⚽`
+    : `Your child has been added to their team for this season ⚽`;
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
   const deepLinkUrl = `https://igniteclubhq.app${deepLinkPath}`;
