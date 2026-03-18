@@ -337,43 +337,103 @@ const childrenText = {
 const stepsSection = {
   backgroundColor: '#f8fafc',
   borderRadius: '10px',
-  padding: '20px 24px',
+  padding: '24px',
   margin: '24px 0',
-};
-
-const stepsHeading = {
-  color: '#1a1a1a',
-  fontSize: '15px',
-  fontWeight: '600',
-  margin: '0 0 16px 0',
 };
 
 const stepRow = {
   display: 'flex',
   alignItems: 'flex-start',
-  margin: '0 0 14px 0',
+  margin: '0 0 8px 0',
 };
 
 const stepNumber = {
   backgroundColor: '#10b981',
   color: '#ffffff',
   borderRadius: '50%',
-  width: '24px',
-  height: '24px',
-  fontSize: '13px',
+  width: '28px',
+  height: '28px',
+  fontSize: '14px',
   fontWeight: 'bold',
   textAlign: 'center' as const,
-  lineHeight: '24px',
+  lineHeight: '28px',
   margin: '0 12px 0 0',
   flexShrink: 0,
   display: 'inline-block',
 };
 
 const stepText = {
-  color: '#4a4a4a',
+  color: '#1a1a1a',
+  fontSize: '16px',
+  lineHeight: '28px',
+  margin: '0',
+  fontWeight: '600',
+};
+
+const stepSubText = {
+  color: '#64748b',
   fontSize: '14px',
   lineHeight: '22px',
+  margin: '0 0 16px 0',
+  paddingLeft: '40px',
+};
+
+const stepDivider = {
+  borderColor: '#e2e8f0',
+  margin: '20px 0',
+};
+
+const storeButtonsSection = {
+  textAlign: 'center' as const,
+  margin: '0 0 8px 0',
+};
+
+const playStoreButton = {
+  borderRadius: '8px',
+  backgroundColor: '#10b981',
+  color: '#ffffff',
+  fontSize: '13px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  textAlign: 'center' as const,
+  display: 'inline-block',
+  padding: '10px 20px',
+};
+
+const appStoreButton = {
+  borderRadius: '8px',
+  backgroundColor: '#1a1a1a',
+  color: '#ffffff',
+  fontSize: '13px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  textAlign: 'center' as const,
+  display: 'inline-block',
+  padding: '10px 20px',
+};
+
+const acceptButtonSection = {
+  textAlign: 'center' as const,
+  margin: '16px 0 12px 0',
+};
+
+const acceptButton = {
+  borderRadius: '10px',
+  color: '#ffffff',
+  fontSize: '16px',
+  fontWeight: 'bold',
+  textDecoration: 'none',
+  textAlign: 'center' as const,
+  display: 'inline-block',
+  padding: '14px 32px',
+};
+
+const emailHintText = {
+  color: '#64748b',
+  fontSize: '13px',
+  lineHeight: '20px',
   margin: '0',
+  textAlign: 'center' as const,
 };
 
 const noteText = {
@@ -383,22 +443,6 @@ const noteText = {
   margin: '16px 0 0 0',
   textAlign: 'center' as const,
   fontStyle: 'italic' as const,
-};
-
-const buttonSection = {
-  textAlign: 'center' as const,
-  margin: '16px 0 20px 0',
-};
-
-const button = {
-  borderRadius: '8px',
-  color: '#ffffff',
-  fontSize: '15px',
-  fontWeight: 'bold',
-  textDecoration: 'none',
-  textAlign: 'center' as const,
-  display: 'inline-block',
-  padding: '12px 28px',
 };
 
 const footerSection = {
@@ -432,14 +476,6 @@ const footerBrandTextLink = {
   color: IGNITE_BRAND_COLOR,
   fontSize: '12px',
   textDecoration: 'none',
-};
-
-const comingSoonText = {
-  color: '#94a3b8',
-  fontSize: '13px',
-  textAlign: 'center' as const,
-  margin: '0',
-  fontStyle: 'italic' as const,
 };
 
 const customMessageSection = {
