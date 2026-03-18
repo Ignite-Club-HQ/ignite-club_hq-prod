@@ -426,3 +426,19 @@ const comingSoonText = {
   margin: '0',
   fontStyle: 'italic' as const,
 };
+
+const customMessageSection = {
+  backgroundColor: '#f0f9ff',
+  borderRadius: '8px',
+  padding: '16px',
+  margin: '16px 0',
+  borderLeft: '4px solid #10b981',
+};
+
+const customMessageText = {
+  color: '#334155',
+  fontSize: '15px',
+  lineHeight: '24px',
+  margin: '0',
+  whiteSpace: 'pre-wrap' as const,
+};
