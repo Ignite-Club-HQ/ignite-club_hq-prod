@@ -1072,6 +1072,7 @@ export default function TeamDetailPage() {
                       <PendingInvitesList
                         invites={pendingInvites}
                         teamId={id}
+                        isAdmin={isAdmin || isClubAdmin}
                       />
                     )}
                     {Object.entries(members).map(([userId, member]) => (
