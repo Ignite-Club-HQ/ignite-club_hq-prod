@@ -667,7 +667,7 @@ export function AppHeader() {
               ) : (
                 <>
                   <img 
-                    src={effectiveTheme === 'dark' ? igniteIcon : igniteIconLight} 
+                    src={igniteIcon} 
                     alt="Ignite" 
                     className="h-9 w-9 object-contain"
                   />
