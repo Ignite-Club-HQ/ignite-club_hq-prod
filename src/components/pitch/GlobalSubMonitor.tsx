@@ -749,7 +749,7 @@ export default function GlobalSubMonitor() {
     });
     
     // Recalculate remaining sub timings
-    const timerState = loadTimerState();
+    // timerState already loaded above
     const executedPlan = updatedPlan.filter(sub => sub.executed);
     let finalPlan = updatedPlan;
     
