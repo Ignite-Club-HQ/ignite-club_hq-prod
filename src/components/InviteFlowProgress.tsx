@@ -112,7 +112,7 @@ export function InviteFlowProgress({
   const stepsRemaining = steps.length - currentIndex - 1;
 
   return (
-    <div className={cn("w-full bg-background/95 backdrop-blur-sm border-b border-border py-3 px-4 z-50", className)}>
+    <div className={cn("w-full bg-background/95 backdrop-blur-sm border-b border-border py-3 px-4 z-50", className)} style={{ paddingTop: `max(0.75rem, env(safe-area-inset-top))` }}>
       <div className="max-w-md mx-auto">
         {/* Step dots with connector lines */}
         <div className="flex items-center justify-center gap-1.5 mb-2">
