@@ -162,6 +162,9 @@ export const TeamInviteEmail = ({
           {/* Get Started Section */}
           <Section style={ctaSection}>
             <Text style={sectionLabel}>👇 Get started</Text>
+            <Text style={bodyText}>
+              It only takes about 30 seconds to get set up — once you're in, you're all ready to go.
+            </Text>
 
             {/* Step 1: Download */}
             <Text style={stepLabel}>1. Download the app</Text>
@@ -204,9 +207,6 @@ export const TeamInviteEmail = ({
 
           {/* Closing */}
           <Section style={closingSection}>
-            <Text style={bodyText}>
-              It only takes about 30 seconds to get set up — once you're in, you're all ready to go.
-            </Text>
             <Text style={bodyText}>
               If you have any issues, just reply to this email and we'll help you out.
             </Text>
