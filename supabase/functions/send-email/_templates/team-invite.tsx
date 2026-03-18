@@ -433,13 +433,6 @@ const footerSection = {
   backgroundColor: '#fafafa',
 };
 
-const photoConsentText = {
-  color: '#9ca3af',
-  fontSize: '11px',
-  lineHeight: '18px',
-  margin: '0 0 12px 0',
-  textAlign: 'center' as const,
-};
 
 const footerBrandLink = {
   color: IGNITE_BRAND_COLOR,
