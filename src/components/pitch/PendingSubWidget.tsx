@@ -25,6 +25,8 @@ import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from ".
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 const SNOOZE_KEY = "ignite-pending-sub-snoozed";
 const SNOOZE_DURATION_MS = 60000; // 1 minute snooze
 

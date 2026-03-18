@@ -73,6 +73,8 @@ interface PitchBoardState {
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 const PITCH_BOARD_OPEN_KEY = "ignite-pitch-board-open";
 
 const loadTimerState = (): TimerState | null => {

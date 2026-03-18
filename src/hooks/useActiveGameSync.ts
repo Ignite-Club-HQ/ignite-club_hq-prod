@@ -6,6 +6,8 @@ import type { Json } from "@/integrations/supabase/types";
 const SYNC_INTERVAL = 10000; // Sync every 10 seconds
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 
 interface TimerState {
   elapsedSeconds: number;

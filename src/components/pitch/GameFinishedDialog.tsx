@@ -61,7 +61,9 @@ interface GameFinishedDialogProps {
   opponent?: string;
 }
 
-const PITCH_STATE_KEY = 'pitch-board-state';
+const PITCH_STATE_KEY = 'ignite-pitch-board-state';
+const PITCH_STATE_KEY_BASE = 'ignite-pitch-board-state-team';
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 const TIMER_STATE_KEY = 'pitch-board-timer-state';
 
 export default function GameFinishedDialog({ 

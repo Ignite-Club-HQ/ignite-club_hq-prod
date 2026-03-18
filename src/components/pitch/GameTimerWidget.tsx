@@ -28,6 +28,8 @@ import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from ".
 const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
 const TIMER_STORAGE_KEY_BASE = 'pitch-board-timer-state-team';
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
+const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 
 interface TimerState {
   minutesPerHalf: number;
