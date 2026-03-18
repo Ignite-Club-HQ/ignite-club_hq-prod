@@ -227,27 +227,25 @@ export default function CompleteProfilePage() {
   // 2. Existing users with no display_name - will update profile
 
   const handleNativeAvatarPick = async () => {
-    setUploading(true);
+    // CRITICAL: Do NOT set uploading state before Camera.getPhoto —
+    // the re-render breaks the iOS gesture chain and the picker flashes/fails.
     try {
-      const { Camera: CapCamera, CameraResultType, CameraSource } = await import("@capacitor/camera");
-      const photo = await CapCamera.getPhoto({
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Photos,
-        quality: 80,
-        width: 512,
-        height: 512,
-      });
-      if (!photo.webPath) throw new Error("No photo selected");
-      const response = await fetch(photo.webPath);
-      const blob = await response.blob();
+      const { pickNativePhoto } = await import("@/lib/nativePhotoPicker");
+      const { isCancelledSelectionError } = await import("@/lib/uploadErrorUtils");
+      const result = await pickNativePhoto({ quality: 80, width: 512, height: 512 });
+
+      // NOW safe to set state — native picker has closed
+      setUploading(true);
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setAvatarUrl(reader.result as string);
         setUploading(false);
       };
-      reader.readAsDataURL(blob);
+      reader.readAsDataURL(result.blob);
     } catch (error: any) {
-      if (!error?.message?.includes("cancelled") && !error?.message?.includes("User cancelled")) {
+      const { isCancelledSelectionError } = await import("@/lib/uploadErrorUtils");
+      if (!isCancelledSelectionError(error)) {
         toast({ title: "Upload failed", description: error?.message || "Could not load photo", variant: "destructive" });
       }
       setUploading(false);

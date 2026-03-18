@@ -21,6 +21,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ClassFieldsSection } from "@/components/ClassFieldsSection";
+import { shouldUseNativePicker, pickNativePhoto } from "@/lib/nativePhotoPicker";
+import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
+import { mimeToExtension } from "@/lib/binaryUtils";
 
 export default function EditTeamPage() {
   const { id } = useParams<{ id: string }>();

@@ -36,41 +36,32 @@ export default function EditProfilePage() {
 
   const handleNativeAvatarPick = async () => {
     if (!user) return;
-    setUploadingAvatar(true);
+    // CRITICAL: Do NOT set uploading state before Camera.getPhoto —
+    // the re-render breaks the iOS gesture chain and the picker flashes/fails.
     try {
-      const { Camera: CapCamera, CameraResultType, CameraSource } = await import("@capacitor/camera");
-      const { cameraPhotoToBlob } = await import("@/lib/binaryUtils");
-      const photo = await CapCamera.getPhoto({
-        resultType: CameraResultType.Base64,
-        source: CameraSource.Photos,
-        quality: 80,
-        allowEditing: false,
-      });
+      const result = await pickNativePhoto({ quality: 80 });
 
-      const result = await cameraPhotoToBlob(photo);
-      const blob = result.blob;
+      // NOW safe to set state — native picker has closed
+      setUploadingAvatar(true);
 
-      // Stabilize BottomNav after picker closes
-      if (isNativeIOS) emitIOSNavGuard(600);
-      
-      if (blob.size > 2 * 1024 * 1024) {
+      if (result.blob.size > 2 * 1024 * 1024) {
         toast({ title: "File too large", description: "Please select an image under 2MB", variant: "destructive" });
         setUploadingAvatar(false);
         return;
       }
 
-      const ext = photo.format || "jpeg";
+      const ext = mimeToExtension(result.mimeType);
       const fileName = `${user.id}-${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("avatars")
-        .upload(fileName, blob, { upsert: true, contentType: `image/${ext}` });
+        .upload(fileName, result.blob, { upsert: true, contentType: result.mimeType });
       if (uploadError) throw uploadError;
 
       const { data: publicUrlData } = supabase.storage.from("avatars").getPublicUrl(fileName);
       setAvatarUrl(publicUrlData.publicUrl);
       toast({ title: "Photo uploaded!" });
     } catch (error: any) {
-      if (error?.message?.includes("cancelled") || error?.message?.includes("User cancelled")) {
+      if (isCancelledSelectionError(error)) {
         // User cancelled picker - do nothing
       } else {
         toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Could not upload photo", variant: "destructive" });
