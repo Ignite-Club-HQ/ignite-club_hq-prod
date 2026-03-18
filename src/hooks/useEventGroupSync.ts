@@ -27,7 +27,7 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
 
   const loadLocalState = useCallback(() => {
     try {
-      const pitchStateRaw = localStorage.getItem(PITCH_STATE_KEY);
+      const pitchStateRaw = localStorage.getItem(getPitchStateKeyForTeam(teamId)) || localStorage.getItem(PITCH_STATE_KEY);
       const timerStateRaw = localStorage.getItem(getTeamTimerStorageKey(teamId));
       
       return {

@@ -62,7 +62,7 @@ export function useActiveGameSync() {
     if (!user?.id) return;
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     // If no active game state, deactivate any existing game
     if (!timerState || !pitchState) {

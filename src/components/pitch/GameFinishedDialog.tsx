@@ -127,7 +127,8 @@ export default function GameFinishedDialog({
     localStorage.removeItem(TIMER_STATE_KEY);
     
     // Clear pitch state but also ensure auto-sub plan is cancelled
-    const pitchStateRaw = localStorage.getItem(PITCH_STATE_KEY);
+    const pitchStateKey = teamId ? getPitchStateKeyForTeam(teamId) : PITCH_STATE_KEY;
+    const pitchStateRaw = localStorage.getItem(pitchStateKey) || localStorage.getItem(PITCH_STATE_KEY);
     if (pitchStateRaw) {
       try {
         const pitchState = JSON.parse(pitchStateRaw);
@@ -137,11 +138,14 @@ export default function GameFinishedDialog({
         pitchState.autoSubPaused = false;
         // Clear linked event
         pitchState.linkedEventId = null;
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(pitchState));
+        const json = JSON.stringify(pitchState);
+        if (teamId) localStorage.setItem(getPitchStateKeyForTeam(teamId), json);
+        localStorage.setItem(PITCH_STATE_KEY, json);
       } catch (e) {
         console.error('Failed to clear auto-sub plan:', e);
       }
     }
+    if (teamId) localStorage.removeItem(getPitchStateKeyForTeam(teamId));
     localStorage.removeItem(PITCH_STATE_KEY);
     onClose();
   };
