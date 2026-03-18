@@ -397,7 +397,7 @@ export default function GlobalSubMonitor() {
     if (isPitchBoardOpen) return;
 
     const timerState = loadTimerState();
-    const pitchState = loadPitchState();
+    const pitchState = loadPitchState(timerState?.teamId);
 
     if (!timerState || !pitchState) return;
     if (!timerState.isRunning) return;
