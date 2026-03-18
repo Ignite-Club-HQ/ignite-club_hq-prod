@@ -96,16 +96,28 @@ export const savePitchState = (teamId: string, state: Omit<PitchBoardState, 'tea
 
 export const loadPitchState = (teamId: string): PitchBoardState | null => {
   try {
-    const saved = localStorage.getItem(PITCH_STATE_KEY);
+    // First try team-specific key for isolation
+    let saved = localStorage.getItem(getPitchStateKey(teamId));
+    
+    // Fallback to active key if team-specific doesn't exist (migration path)
+    if (!saved) {
+      saved = localStorage.getItem(PITCH_STATE_KEY);
+      if (saved) {
+        const activeState = JSON.parse(saved) as PitchBoardState;
+        if (activeState.teamId !== teamId) {
+          console.log("[PitchState] LOAD - no team-specific state, active state is for different team");
+          return null;
+        }
+        // Migrate: write to team-specific key
+        localStorage.setItem(getPitchStateKey(teamId), saved);
+      }
+    }
+    
     if (!saved) {
       console.log("[PitchState] LOAD - no saved state found");
       return null;
     }
     const state = JSON.parse(saved) as PitchBoardState;
-    if (state.teamId !== teamId) {
-      console.log("[PitchState] LOAD - saved state is for different team");
-      return null;
-    }
     
     // Auto-expire stale auto-sub plans after 2 hours of inactivity
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
