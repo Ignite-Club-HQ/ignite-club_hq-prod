@@ -100,6 +100,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   ]);
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
+  const [customMessage, setCustomMessage] = useState("");
+  const [showMessageEditor, setShowMessageEditor] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
