@@ -61,6 +61,7 @@ interface PendingInviteCardProps {
   };
   teamId?: string;
   clubId?: string;
+  isAdmin?: boolean;
 }
 
 type AppRole = "player" | "parent" | "coach" | "team_admin" | "club_admin";
