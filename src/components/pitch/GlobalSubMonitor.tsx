@@ -767,6 +767,7 @@ export default function GlobalSubMonitor() {
     lastCheckedSubRef.current = null;
   }, [pendingAutoSub, pendingBatchSubs]);
 
+  return (
     <>
       <SubConfirmDialog
         open={subConfirmDialogOpen}
