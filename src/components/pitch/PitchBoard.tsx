@@ -3356,7 +3356,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setTimeout(() => {
           const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
           playSubAlertBeep(notificationBody);
-          createSubNotification(notificationBody);
+          // Server-side check-pending-subs handles push delivery
           
           setPendingAutoSub(gkSwapEvent);
           setPendingBatchSubs([]);
