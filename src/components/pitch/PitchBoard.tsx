@@ -2269,7 +2269,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           .in("role", ["coach", "team_admin"]);
         
         staffRoles?.forEach(r => {
-          if (r.user_id !== user.id) recipientIds.add(r.user_id);
+          if (r.user_id) recipientIds.add(r.user_id);
         });
 
         // Also include Subs Manager assignees for regular events
