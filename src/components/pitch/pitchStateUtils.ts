@@ -440,8 +440,13 @@ export const validateAndFixRemainingPlan = (
         playerOut = replacement;
         needsFix = true;
       } else {
-        // Can't fix — skip this sub
-        return { ...sub, executed: true, skipped: true };
+        // Can't fix — leave as-is rather than removing from plan
+        // Simulate the swap anyway so subsequent subs stay consistent
+        onPitch.delete(playerOut.id);
+        onBench.add(playerOut.id);
+        onBench.delete(playerIn.id);
+        onPitch.add(playerIn.id);
+        return sub;
       }
     }
     
@@ -458,8 +463,12 @@ export const validateAndFixRemainingPlan = (
         playerIn = replacement;
         needsFix = true;
       } else {
-        // Can't fix — skip this sub
-        return { ...sub, executed: true, skipped: true };
+        // Can't fix — leave as-is rather than removing from plan
+        onPitch.delete(playerOut.id);
+        onBench.add(playerOut.id);
+        onBench.delete(playerIn.id);
+        onPitch.add(playerIn.id);
+        return sub;
       }
     }
     
@@ -476,7 +485,12 @@ export const validateAndFixRemainingPlan = (
         playerIn = replacement;
         needsFix = true;
       } else {
-        return { ...sub, executed: true, skipped: true };
+        // Can't fix — leave as-is
+        onPitch.delete(playerOut.id);
+        onBench.add(playerOut.id);
+        onBench.delete(playerIn.id);
+        onPitch.add(playerIn.id);
+        return sub;
       }
     }
     
