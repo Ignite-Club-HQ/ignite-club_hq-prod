@@ -287,7 +287,7 @@ export function useAutoSubs({
       allPendingSubs.length > 1
         ? `Batch sub: ${allPendingSubs.length} substitutions`
         : `Auto-sub: ${pendingAutoSub.playerIn.name} for ${pendingAutoSub.playerOut.name}`;
-    pushToUndoHistory(subDescription, players);
+    pushToUndoHistoryRef.current?.(subDescription, players);
 
     // Execute subs using shared helper
     const { updatedPlayers, executedSubKeys, successCount } = executeSubsOnPlayers(allPendingSubs, players);
