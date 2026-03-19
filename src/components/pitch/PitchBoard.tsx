@@ -5474,30 +5474,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           hideScores={hideScores}
         />
 
-        {/* Reset Game Confirmation for landscape */}
-        {resetGameConfirmOpen && createPortal(
-          <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-          document.body
-        )}
-        {resetGameConfirmOpen && createPortal(
-          <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-            <div className="flex flex-col space-y-2 text-center sm:text-left">
-              <h2 className="text-lg font-semibold">Reset Game?</h2>
-              <p className="text-sm text-muted-foreground">
+        {/* Reset Game Confirmation - landscape */}
+        <AlertDialog open={resetGameConfirmOpen} onOpenChange={setResetGameConfirmOpen}>
+          <AlertDialogContent className="z-[999999]">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset Game?</AlertDialogTitle>
+              <AlertDialogDescription>
                 This will clear all player minutes, timer, substitutions, goals, and reset positions. This action cannot be undone.
-              </p>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-              <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => setResetGameConfirmOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }}
+              >
                 Reset Game
-              </Button>
-            </div>
-          </div>,
-          document.body
-        )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Auto-Sub Control Panel - landscape */}
         {autoSubPanelOpen && autoSubActive && (
