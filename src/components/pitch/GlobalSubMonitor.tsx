@@ -643,6 +643,27 @@ export default function GlobalSubMonitor() {
       }
     };
     
+    // Capacitor native app state change - more reliable than visibilitychange on Android
+    let appStateListener: any = null;
+    const setupNativeListener = async () => {
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        appStateListener = await CapApp.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            console.log('[SYNC] Native app resumed - forcing sync');
+            syncToDatabase();
+            startPolling();
+          } else {
+            console.log('[SYNC] Native app backgrounded - final sync');
+            syncToDatabase();
+          }
+        });
+      } catch {
+        // Not in Capacitor - that's fine, visibilitychange will handle it
+      }
+    };
+    setupNativeListener();
+    
     // Listen for storage changes to detect game state changes
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === TIMER_STATE_KEY || e.key?.startsWith(PITCH_STATE_KEY) || e.key === PITCH_BOARD_OPEN_KEY) {
