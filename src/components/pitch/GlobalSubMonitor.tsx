@@ -475,6 +475,7 @@ export default function GlobalSubMonitor() {
           if (futureSubsExist) {
                 // Simulate currentDueSubs on the players array using shared helper
                 const { updatedPlayers: simulatedPlayers } = executeSubsOnPlayers(currentDueSubs, pitchState.players);
+                const existingFutureSubs = updatedPlan.filter(s => !s.executed && !(s.half === currentHalf && s.time === latestTime));
 
                 const recalculated = recalculateRemainingPlan(
                   simulatedPlayers,
@@ -486,7 +487,19 @@ export default function GlobalSubMonitor() {
                   true
                 );
 
-                updatedPlan = [...executedSubs, ...currentDueSubs, ...recalculated];
+                // Safety guard: preserve existing future subs if recalculation shrinks the plan
+                if (recalculated.length >= existingFutureSubs.length || existingFutureSubs.length === 0) {
+                  updatedPlan = [...executedSubs, ...currentDueSubs, ...recalculated];
+                } else {
+                  const benchPlayers = simulatedPlayers.filter((p: Player) => p.position === null && !p.isInjured);
+                  if (benchPlayers.length > 0 && recalculated.length === 0) {
+                    console.warn("[GlobalSubMonitor] Auto-skip recalculation returned empty — preserving existing future subs");
+                    updatedPlan = [...executedSubs, ...currentDueSubs, ...existingFutureSubs];
+                  } else {
+                    console.warn("[GlobalSubMonitor] Auto-skip recalculation shortened plan — preserving existing future subs");
+                    updatedPlan = [...executedSubs, ...currentDueSubs, ...existingFutureSubs];
+                  }
+                }
               }
         }
 
