@@ -477,7 +477,9 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           console.log(`[PendingSubWidget] Recalculated ${recalculated.length} remaining subs`);
         }
         
-        const updatedState = { ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers };
+        // Validate remaining plan entries against updated player positions
+        const validatedPlan = validateAndFixRemainingPlan(updatedPlan, updatedPlayers);
+        const updatedState = { ...pitchState, autoSubPlan: validatedPlan, players: updatedPlayers };
         writePitchState(updatedState);
         
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
