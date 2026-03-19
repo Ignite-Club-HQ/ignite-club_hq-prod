@@ -66,7 +66,7 @@ export const TeamInviteEmail = ({
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
   const isAdminRole = ['Club Admin', 'Committee Member', 'Coach', 'Team Admin'].includes(roleName);
   const previewText = isAdminRole
-    ? `You're invited to join ${clubName} as ${roleName}`
+    ? `You've been invited to ${clubName} app as ${roleName}`
     : hasChildren
       ? `${childLabel} has been added to their team for this season ⚽`
       : `Your child has been added to their team for this season ⚽`;
