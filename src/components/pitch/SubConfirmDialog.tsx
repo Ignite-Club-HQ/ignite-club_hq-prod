@@ -65,6 +65,7 @@ export default function SubConfirmDialog({
   const isBatchSub = allSubs.length > 1;
   const alreadyExecuted = substitution?.executed === true && !substitution?.skipped;
   const wasSkipped = substitution?.skipped === true;
+  const isHalftime = substitution?.half === 2 && substitution?.time === 0;
   
   useEffect(() => {
     setCountdown(secondsUntilDue);
