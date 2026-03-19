@@ -19,7 +19,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { SPORT_EMOJIS, getSportEmoji, isClassModeSport } from "@/lib/sportEmojis";
+import { SPORT_EMOJIS, getSportEmoji, isClassModeSport, isTeamOnlySport } from "@/lib/sportEmojis";
 import { shouldUseNativePicker, pickNativePhoto } from "@/lib/nativePhotoPicker";
 import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { mimeToExtension } from "@/lib/binaryUtils";
@@ -281,6 +281,8 @@ export default function EditClubPage() {
               // Auto-toggle class mode when switching to/from a class-default sport
               if (isClassModeSport(val) && !classModeEnabled) {
                 setClassModeEnabled(true);
+              } else if (isTeamOnlySport(val) && classModeEnabled) {
+                setClassModeEnabled(false);
               } else if (!isClassModeSport(val) && classModeEnabled && isClassModeSport(sport)) {
                 // Only auto-disable if previous sport was class-default (user didn't manually enable)
                 setClassModeEnabled(false);
@@ -309,7 +311,8 @@ export default function EditClubPage() {
             </Select>
           </div>
 
-          {/* Class Mode */}
+          {/* Class Mode - hidden for traditional team sports */}
+          {!isTeamOnlySport(sport) && (
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-base">Class Mode</Label>
@@ -317,6 +320,7 @@ export default function EditClubPage() {
             </div>
             <Switch checked={classModeEnabled} onCheckedChange={setClassModeEnabled} />
           </div>
+          )}
 
           {/* Description */}
           <div className="space-y-2">
