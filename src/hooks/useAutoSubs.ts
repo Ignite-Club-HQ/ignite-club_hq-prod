@@ -447,10 +447,25 @@ export function useAutoSubs({
         const latestTime = dueTimes[dueTimes.length - 1];
         const olderSubs = allDueSubs.filter(s => s.time < latestTime);
         const olderKeys = olderSubs.map(s => getSubKey(s));
-        setAutoSubPlan(prev => validateAndFixRemainingPlan(markSubsExecuted(prev, olderKeys, true), playersRef.current));
+        const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+        const halfDurationSeconds = minsPerHalf * 60;
+        setAutoSubPlan(prev => {
+          const markedPlan = markSubsExecuted(prev, olderKeys, true);
+          const executedSubs = markedPlan.filter(s => s.executed);
+          const recalculated = recalculateRemainingPlan(
+            playersRef.current,
+            parseInt(teamSize),
+            halfDurationSeconds,
+            elapsedSeconds,
+            currentHalf,
+            olderSubs[olderSubs.length - 1],
+            rotateGkAtHalftime
+          );
+          return validateAndFixRemainingPlan([...executedSubs, ...recalculated], playersRef.current);
+        });
         toast({
           title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? "s" : ""} skipped`,
-          description: "Plan adjusted for remaining time",
+          description: "Plan recalculated for remaining time",
         });
         return true;
       }
@@ -486,7 +501,7 @@ export function useAutoSubs({
       setSubConfirmDialogOpen(true);
       return true;
     },
-    [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, lockedPlayerIds, toast, gameTimerRef, playersRef]
+    [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, lockedPlayerIds, toast, gameTimerRef, playersRef, teamSize, rotateGkAtHalftime]
   );
 
   // ── Next-sub countdown updater ──────────────────────────
