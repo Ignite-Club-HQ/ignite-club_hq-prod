@@ -218,7 +218,7 @@ export function useAutoSubs({
           : "No more planned substitutions",
     });
     skipCooldownRef.current = Date.now();
-  }, [autoSubPlan, playersRef, teamSize, rotateGkAtHalftime, toast, gameTimerRef]);
+  }, [autoSubPlan, playersRef, safeRecalculate, toast, gameTimerRef]);
 
   // ── Execute now ─────────────────────────────────────────
 
