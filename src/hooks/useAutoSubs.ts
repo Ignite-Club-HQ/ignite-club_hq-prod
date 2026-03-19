@@ -348,7 +348,8 @@ export function useAutoSubs({
     if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
 
     if (finalPlan.filter(sub => !sub.executed).length === 0) {
-      setAutoSubActive(false);
+      // Keep autoSubActive true so GlobalSubMonitor can still track the game
+      // (e.g. for game-finished detection). It will be cleared on game reset.
       toast({ title: "All substitutions complete" });
     }
   }, [
