@@ -56,9 +56,19 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
     trackClick(sponsor.id, context);
   };
 
+  const handleBannerClick = () => {
+    if (sponsor.website_url) {
+      handleClick();
+      safeOpenUrl(sponsor.website_url);
+    }
+  };
+
   if (variant === "compact") {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border">
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border ${sponsor.website_url ? "cursor-pointer hover:bg-muted/70 transition-colors" : ""}`}
+        onClick={handleBannerClick}
+      >
         <span className="text-xs text-muted-foreground">
           {entityName ? `Proud sponsor of ${entityName}` : "Sponsored by"}
         </span>
@@ -75,19 +85,17 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
           </Badge>
         )}
         {sponsor.website_url && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); handleClick(); safeOpenUrl(sponsor.website_url!); }}
-            className="ml-auto text-muted-foreground hover:text-primary transition-colors"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </button>
+          <ExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
         )}
       </div>
     );
   }
 
   return (
-    <div className="p-4 rounded-xl bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20">
+    <div
+      className={`p-4 rounded-xl bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 ${sponsor.website_url ? "cursor-pointer hover:from-primary/10 hover:to-primary/15 transition-colors" : ""}`}
+      onClick={handleBannerClick}
+    >
       <div className="flex items-center gap-4">
         <Avatar className="h-14 w-14 border-2 border-primary/20">
           <AvatarImage src={sponsor.logo_url || undefined} />
@@ -105,12 +113,9 @@ export function PrimarySponsorDisplay({ sponsorId, variant = "compact", context 
           )}
         </div>
         {sponsor.website_url && (
-          <button 
-            className="shrink-0 p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-            onClick={(e) => { e.stopPropagation(); handleClick(); safeOpenUrl(sponsor.website_url!); }}
-          >
+          <div className="shrink-0 p-2 rounded-lg bg-primary/10 text-primary">
             <ExternalLink className="h-5 w-5" />
-          </button>
+          </div>
         )}
       </div>
     </div>
