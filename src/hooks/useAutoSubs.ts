@@ -58,8 +58,8 @@ export function useAutoSubs({
   setPlayers,
   teamSize,
   rotateGkAtHalftime,
-  pushToUndoHistory,
-  runSubAnimation,
+  pushToUndoHistoryRef,
+  runSubAnimationRef,
 }: UseAutoSubsOptions) {
   const { toast } = useToast();
 
