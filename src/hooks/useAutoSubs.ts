@@ -359,8 +359,8 @@ export function useAutoSubs({
     teamSize,
     rotateGkAtHalftime,
     toast,
-    pushToUndoHistory,
-    runSubAnimation,
+    pushToUndoHistoryRef,
+    runSubAnimationRef,
     setPlayers,
     gameTimerRef,
   ]);
