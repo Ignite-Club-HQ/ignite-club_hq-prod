@@ -183,8 +183,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         console.log("[ChatImageInput] user cancelled");
       } else {
         const errMsg = getReadableUploadError(error);
-        console.warn("[ChatImageInput] Native picker failed:", errMsg, error);
-        toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
+        console.warn("[ChatImageInput] Native Camera picker failed, falling back to file input:", errMsg, error);
+        // Fall back to the standard HTML file input — this uses the iOS system
+        // file picker which works reliably even when Camera plugin fails on
+        // fresh installs (before the OS has "warmed up" photo library access).
+        restoreNativeLayout();
+        setUploading(false);
+        fileInputRef.current?.click();
+        return;
       }
       setLocalPreview(null);
     } finally {
