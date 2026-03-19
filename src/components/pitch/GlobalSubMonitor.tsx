@@ -462,12 +462,10 @@ export default function GlobalSubMonitor() {
       if (dueTimes.length > 1) {
         latestTime = dueTimes[dueTimes.length - 1];
         const olderSubs = dueSubs.filter(s => s.time < latestTime);
-        const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+        const olderKeys = olderSubs.map(s => getSubKey(s));
         const latestMissedSub = olderSubs[olderSubs.length - 1];
 
-        let updatedPlan = (pitchState.autoSubPlan || []).map(s =>
-          olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
-        );
+        let updatedPlan = markSubsExecuted(pitchState.autoSubPlan || [], olderKeys, true);
 
         if (latestMissedSub) {
           const executedSubs = updatedPlan.filter(s => s.executed);
