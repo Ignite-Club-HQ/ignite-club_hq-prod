@@ -262,27 +262,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     minorAdjustments?: { player: Player; fromLabel: string; toLabel: string }[];
   } | null>(null);
 
-  // Auto-sub plan state
+  // Auto-sub plan state (hook setup happens below after runSubAnimation is defined)
   const gameTimerRef = useRef<GameTimerRef>(null);
-  const regeneratePlanRef = useRef<(() => void) | null>(null);
   const [autoSubPlanDialogOpen, setAutoSubPlanDialogOpen] = useState(false);
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
-  const [autoSubPlan, setAutoSubPlan] = useState<SubstitutionEvent[]>(() => savedState?.autoSubPlan || []);
-  const [autoSubActive, setAutoSubActive] = useState(() => savedState?.autoSubActive || false);
-  const [autoSubPaused, setAutoSubPaused] = useState(() => savedState?.autoSubPaused || false);
-  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
   const [preferredSecondHalfGkId, setPreferredSecondHalfGkId] = useState<string | undefined>(undefined);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
-  const [pendingAutoSub, setPendingAutoSub] = useState<SubstitutionEvent | null>(null);
-  const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
-  const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [nextSubInfo, setNextSubInfo] = useState<{ playerInId: string; playerOutId: string; countdown: string } | null>(null);
-  const [subDuePlayerIds, setSubDuePlayerIds] = useState<Set<string>>(new Set());
-  const subDueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
