@@ -26,7 +26,7 @@ interface ChildAddedEmailProps {
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 const IGNITE_BRAND_COLOR = "#10b981";
-const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-icon.png`;
 
 const isValidExternalUrl = (url?: string): boolean => {
   if (!url) return false;
