@@ -115,16 +115,12 @@ export function useAutoSubs({
         rotateGkAtHalftime
       );
 
-      // If recalculation returns empty but there are bench players who should still rotate,
-      // preserve the existing unexecuted subs (excluding the ones being skipped) as fallback
+      // If recalculation returns empty but there are still unexecuted subs with bench players,
+      // preserve the existing plan to avoid wiping upcoming substitutions
       if (recalculated.length === 0 && existingUnexecuted.length > 0) {
         const benchPlayers = players.filter(p => p.position === null && !p.isInjured);
-        const pitchPlayers = players.filter(p => p.position !== null && p.currentPitchPosition !== "GK");
-        const hasTimeGap = benchPlayers.some(b =>
-          pitchPlayers.some(p => (p.minutesPlayed || 0) - (b.minutesPlayed || 0) >= 30)
-        );
-        if (hasTimeGap) {
-          console.warn("[AutoSub] Recalculation returned empty but time gap exists — preserving existing plan");
+        if (benchPlayers.length > 0) {
+          console.warn("[AutoSub] Recalculation returned empty but bench players remain — preserving existing plan");
           return existingUnexecuted;
         }
       }
