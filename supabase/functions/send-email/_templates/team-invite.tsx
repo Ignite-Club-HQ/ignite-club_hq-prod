@@ -64,9 +64,12 @@ export const TeamInviteEmail = ({
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
-  const previewText = hasChildren
-    ? `${childLabel} has been added to their team for this season ⚽`
-    : `Your child has been added to their team for this season ⚽`;
+  const isAdminRole = ['Club Admin', 'Committee Member', 'Coach', 'Team Admin'].includes(roleName);
+  const previewText = isAdminRole
+    ? `You're invited to join ${clubName} as ${roleName}`
+    : hasChildren
+      ? `${childLabel} has been added to their team for this season ⚽`
+      : `Your child has been added to their team for this season ⚽`;
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
   const deepLinkUrl = `https://igniteclubhq.app${deepLinkPath}`;
