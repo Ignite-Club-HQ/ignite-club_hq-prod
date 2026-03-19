@@ -694,6 +694,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    const currentUserId = user?.id;
+
+    try {
+      if (currentUserId && isNativePlatform()) {
+        await unregisterNativePush(currentUserId);
+      }
+    } catch (error) {
+      console.error('[Auth] Native push cleanup failed during sign out:', error);
+    }
+
     try {
       await supabase.auth.signOut();
     } catch (error) {
