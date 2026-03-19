@@ -3290,8 +3290,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
       playSubAlertBeep(notificationBody);
       
-      // Create database notification (triggers server-side push)
-      createSubNotification(notificationBody);
+      // IMPORTANT: Do not create DB notifications here.
+      // Server-side check-pending-subs already handles push delivery for all team staff.
       
       // Set sub-due pulsing for all players involved in the batch
       const dueIds = new Set<string>();
