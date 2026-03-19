@@ -461,9 +461,9 @@ workflows:
         script: xcode-project use-profiles
       - name: Set marketing version and increment build number
         script: |
-          cd ios/App
-          # Read the marketing version from package.json and fail fast if it wasn't bumped
-          APP_VERSION=$(node -p "require('../../package.json').version")
+          set -euo pipefail
+          ROOT_DIR="$(pwd)"
+          APP_VERSION=$(node -p "require('./package.json').version")
           echo "=== package.json version: $APP_VERSION ==="
           if [ -z "$APP_VERSION" ]; then
             echo "ERROR: package.json version is empty"
@@ -474,16 +474,36 @@ workflows:
             exit 1
           fi
 
-          echo "=== Setting MARKETING_VERSION to $APP_VERSION ==="
-          agvtool new-marketing-version "$APP_VERSION"
-
-          echo "=== Verifying CFBundleShortVersionString ==="
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" App/Info.plist
-
-          # Increment the build number
           LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number 6758928691 || echo 0)
-          echo "=== Latest TestFlight build number: $LATEST_BUILD_NUMBER ==="
-          agvtool new-version -all $((LATEST_BUILD_NUMBER + 1))
+          if ! echo "$LATEST_BUILD_NUMBER" | grep -Eq '^[0-9]+$'; then
+            echo "WARNING: invalid latest build number '$LATEST_BUILD_NUMBER', defaulting to 0"
+            LATEST_BUILD_NUMBER=0
+          fi
+          NEXT_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          echo "=== Next build number: $NEXT_BUILD_NUMBER ==="
+
+          PROJECT_FILE="$ROOT_DIR/ios/App/App.xcodeproj/project.pbxproj"
+          export APP_VERSION NEXT_BUILD_NUMBER PROJECT_FILE
+          ruby << 'RUBY_SCRIPT'
+          project_file = ENV.fetch('PROJECT_FILE')
+          app_version = ENV.fetch('APP_VERSION')
+          build_number = ENV.fetch('NEXT_BUILD_NUMBER')
+
+          content = File.read(project_file)
+          content.gsub!(/MARKETING_VERSION = [^;]+;/, "MARKETING_VERSION = #{app_version};")
+          content.gsub!(/CURRENT_PROJECT_VERSION = [^;]+;/, "CURRENT_PROJECT_VERSION = #{build_number};")
+          File.write(project_file, content)
+
+          puts "=== Patched MARKETING_VERSION to #{app_version} ==="
+          puts "=== Patched CURRENT_PROJECT_VERSION to #{build_number} ==="
+          RUBY_SCRIPT
+
+          cd "$ROOT_DIR/ios/App"
+          echo "=== xcodebuild build settings version check ==="
+          xcodebuild -project App.xcodeproj -scheme App -showBuildSettings | grep -E 'MARKETING_VERSION|CURRENT_PROJECT_VERSION'
+          echo "=== Info.plist placeholders ==="
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" App/Info.plist
       - name: Add Crashlytics run script to Xcode project
         script: |
           cd ios/App
@@ -540,6 +560,11 @@ workflows:
             -archivePath build/App.xcarchive \
             CODE_SIGN_STYLE=Manual \
             archive
+
+          ARCHIVE_PLIST="build/App.xcarchive/Products/Applications/App.app/Info.plist"
+          echo "=== Archived app version check ==="
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$ARCHIVE_PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$ARCHIVE_PLIST"
       - name: Export IPA
         script: |
           cd ios/App
