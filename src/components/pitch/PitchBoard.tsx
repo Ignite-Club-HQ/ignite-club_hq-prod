@@ -558,17 +558,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 16 }); // bottom-left offset
   const floatingSubsDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   
-  // Draggable + resizable floating timer state (landscape)
-  const [floatingTimerPosition, setFloatingTimerPosition] = useState({ x: 8, y: 8 });
-  const [floatingTimerScale, setFloatingTimerScale] = useState(1);
-  const floatingTimerDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
-  const floatingTimerPinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
-  
-  // Portrait draggable + resizable timer state
-  const [portraitTimerPosition, setPortraitTimerPosition] = useState<{ x: number; y: number } | null>(null);
-  const [portraitTimerScale, setPortraitTimerScale] = useState(1);
-  const portraitTimerDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
-  const portraitTimerPinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
+  // Draggable + resizable floating timer (landscape & portrait)
+  const {
+    floatingTimerPosition,
+    floatingTimerScale,
+    handleTimerDragStart,
+    handleTimerTouchStart,
+    portraitTimerPosition,
+    portraitTimerScale,
+    handlePortraitTimerTouchStart,
+  } = useDraggableTimer();
 
   // Helper to get pinch distance
   const getPinchDist = (touches: React.TouchList | TouchList) => {
