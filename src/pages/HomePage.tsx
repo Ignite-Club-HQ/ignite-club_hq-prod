@@ -1612,6 +1612,11 @@ export default function HomePage() {
               🎁 You have rewards available! Tap to browse and redeem.
             </p>
           )}
+          {!latestPendingRedemption && minRewardThreshold === null && (
+            <p className="text-primary-foreground/60 text-sm mt-2">
+              ✨ Earn points through club activities — rewards coming soon!
+            </p>
+          )}
           {/* How to earn points hints - collapsible */}
           <Collapsible
             open={earnPointsOpen}
