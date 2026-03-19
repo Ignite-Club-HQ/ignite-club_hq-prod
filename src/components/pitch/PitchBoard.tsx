@@ -2258,7 +2258,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           .eq("name", "Referee")
           .not("assigned_to", "is", null);
         referees?.forEach(d => {
-          if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+          if (d.assigned_to) recipientIds.add(d.assigned_to);
         });
       } else {
         // Regular team: notify coaches/admins
