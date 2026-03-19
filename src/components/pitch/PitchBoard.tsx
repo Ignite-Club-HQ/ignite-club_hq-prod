@@ -3574,7 +3574,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
     const remainingCount = finalPlan.filter(sub => !sub.executed).length;
     setAutoSubPlan(finalPlan);
-    setAutoSubActive(remainingCount > 0);
+    // Don't deactivate autoSubActive — recalculation may return 0 subs due to
+    // the 30s threshold but the system should remain active for half-time subs etc.
 
     const skippedCount = allPendingSubs.length;
     toast({ 
