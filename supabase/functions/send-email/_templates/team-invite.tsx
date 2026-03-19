@@ -212,7 +212,7 @@ export const TeamInviteEmail = ({
             </Text>
 
             <Text style={signOff}>
-              See you on the pitch 👊
+              Howl On 👊
             </Text>
             <Text style={clubSignature}>
               {clubName}
