@@ -42,6 +42,7 @@ const AutoSubManager = lazy(() => import("./AutoSubManager"));
 const AutoSubControlPanel = lazy(() => import("./AutoSubControlPanel"));
 const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
+import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 
 import { useToast } from "@/hooks/use-toast";
