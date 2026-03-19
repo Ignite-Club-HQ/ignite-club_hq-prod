@@ -211,9 +211,6 @@ export const TeamInviteEmail = ({
               If you have any issues, just reply to this email and we'll help you out.
             </Text>
 
-            <Text style={signOff}>
-              Howl On 👊
-            </Text>
             <Text style={clubSignature}>
               {clubName}
             </Text>
@@ -425,14 +422,6 @@ const emailHint = {
 
 const closingSection = {
   padding: '0 32px 24px 32px',
-};
-
-const signOff = {
-  color: '#1a1a1a',
-  fontSize: '16px',
-  lineHeight: '24px',
-  margin: '20px 0 4px 0',
-  fontWeight: '600' as const,
 };
 
 const clubSignature = {
