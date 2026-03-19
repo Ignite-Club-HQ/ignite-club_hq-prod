@@ -376,10 +376,8 @@ export default function GlobalSubMonitor() {
         // Skip all but the latest time group
         const latestTime = dueTimes[dueTimes.length - 1];
         const olderSubs = dueSubs.filter(s => s.time < latestTime);
-        const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-        const updatedPlan = pitchState.autoSubPlan.map(s =>
-          olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
-        );
+        const olderKeys = new Set(olderSubs.map(s => getSubKey(s)));
+        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, [...olderKeys], true);
         savePitchState({ ...pitchState, autoSubPlan: updatedPlan });
         return; // Next tick will handle the latest due sub
       }
