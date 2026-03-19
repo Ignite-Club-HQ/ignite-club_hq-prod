@@ -120,8 +120,8 @@ export const TeamInviteEmail = ({
                   ));
                 })}
               </>
-            ) : (
-              /* Default verbatim copy */
+            ) : clubName === 'Bridgewater Soccer Club' ? (
+              /* Bridgewater-specific default copy */
               <>
                 <Text style={headingText}>
                   {hasChildren
@@ -144,6 +144,29 @@ export const TeamInviteEmail = ({
 
                 <Text style={subtleNote}>
                   (Fixtures and games will be added soon by the team admin or coach)
+                </Text>
+              </>
+            ) : (
+              /* Generic default copy for all other clubs */
+              <>
+                <Text style={headingText}>
+                  {hasChildren
+                    ? `${childLabel} has been added to ${teamName} 🎉`
+                    : `You've been invited to join ${teamName} 🎉`}
+                </Text>
+
+                <Text style={bodyText}>
+                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                </Text>
+
+                <Text style={sectionLabel}>👀 Once you join, you'll be able to see:</Text>
+
+                <Text style={bulletItem}>• Team details and members</Text>
+                <Text style={bulletItem}>• Upcoming events and fixtures</Text>
+                <Text style={bulletItem}>• Club updates and announcements</Text>
+
+                <Text style={subtleNote}>
+                  It takes less than 30 seconds to get set up.
                 </Text>
               </>
             )}
