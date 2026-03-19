@@ -66,7 +66,7 @@ function getBestContrastColor(
 function LogoClubThemeDropdown() {
   const { availableClubThemes, activeClubTheme, setActiveClubTheme } = useClubTheme();
   const defaultLogo = igniteIcon;
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   // Fetch ALL user clubs (including non-Pro) to show with lock
   const { data: allUserClubs = [] } = useQuery({
     queryKey: ["all-user-clubs-for-theme", user?.id],
