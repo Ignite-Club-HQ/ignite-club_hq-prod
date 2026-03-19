@@ -42,6 +42,7 @@ const AutoSubManager = lazy(() => import("./AutoSubManager"));
 const AutoSubControlPanel = lazy(() => import("./AutoSubControlPanel"));
 const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
+import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 
 import { useToast } from "@/hooks/use-toast";
@@ -261,27 +262,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     minorAdjustments?: { player: Player; fromLabel: string; toLabel: string }[];
   } | null>(null);
 
-  // Auto-sub plan state
+  // Auto-sub plan state (hook setup happens below after runSubAnimation is defined)
   const gameTimerRef = useRef<GameTimerRef>(null);
-  const regeneratePlanRef = useRef<(() => void) | null>(null);
   const [autoSubPlanDialogOpen, setAutoSubPlanDialogOpen] = useState(false);
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
-  const [autoSubPlan, setAutoSubPlan] = useState<SubstitutionEvent[]>(() => savedState?.autoSubPlan || []);
-  const [autoSubActive, setAutoSubActive] = useState(() => savedState?.autoSubActive || false);
-  const [autoSubPaused, setAutoSubPaused] = useState(() => savedState?.autoSubPaused || false);
-  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
   const [preferredSecondHalfGkId, setPreferredSecondHalfGkId] = useState<string | undefined>(undefined);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
-  const [pendingAutoSub, setPendingAutoSub] = useState<SubstitutionEvent | null>(null);
-  const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
-  const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [nextSubInfo, setNextSubInfo] = useState<{ playerInId: string; playerOutId: string; countdown: string } | null>(null);
-  const [subDuePlayerIds, setSubDuePlayerIds] = useState<Set<string>>(new Set());
-  const subDueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
@@ -1408,7 +1398,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     subAnimationTimers.current.push(tClear);
   }, []);
 
-  // Manual substitution confirmation dialog state
+  // Refs for deferred dependencies (defined later, but used inside hook callbacks)
+  const pushToUndoHistoryRef_autoSubs = useRef<((description: string, snapshot: Player[]) => void) | null>(null);
+  const runSubAnimationRef_autoSubs = useRef<((playerOutId: string, playerInId: string, swapPlayerId?: string) => void) | null>(null);
+
+  // ── Auto-sub hook (centralizes plan state & handlers) ──
+  const {
+    autoSubPlan, setAutoSubPlan,
+    autoSubActive, setAutoSubActive,
+    autoSubPaused, setAutoSubPaused,
+    lockedPlayerIds,
+    pendingAutoSub, setPendingAutoSub,
+    pendingBatchSubs, setPendingBatchSubs,
+    subConfirmDialogOpen, setSubConfirmDialogOpen,
+    subDuePlayerIds, setSubDuePlayerIds,
+    nextSubInfo,
+    subDueTimerRef,
+    handleStartAutoSubPlan,
+    handleCancelAutoSubPlan,
+    handleTogglePauseAutoSub,
+    handleToggleLockPlayer,
+    handleSkipNextSub,
+    handleExecuteNow,
+    handleRegeneratePlan,
+    regeneratePlanRef,
+    handleConfirmAutoSub,
+    handleSkipAutoSub,
+    checkForDueSubs,
+    updateNextSubInfo,
+    checkHalftimeSubs,
+    skipCooldownRef,
+  } = useAutoSubs({
+    initialPlan: savedState?.autoSubPlan || [],
+    initialActive: savedState?.autoSubActive || false,
+    initialPaused: savedState?.autoSubPaused || false,
+    gameTimerRef,
+    playersRef,
+    setPlayers,
+    teamSize,
+    rotateGkAtHalftime,
+    pushToUndoHistoryRef: pushToUndoHistoryRef_autoSubs,
+    runSubAnimationRef: runSubAnimationRef_autoSubs,
+  });
+
   const [manualSubConfirmOpen, setManualSubConfirmOpen] = useState(false);
   const [pendingManualSub, setPendingManualSub] = useState<{ 
     pitchPlayerId: string; 
@@ -3020,160 +3052,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   };
 
-  // Auto-sub plan handlers
-  const planActivationTimeRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
-
-  const handleStartAutoSubPlan = useCallback((plan: SubstitutionEvent[]) => {
-    // Record when the plan was activated so we only alert for subs scheduled AFTER this point
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
-    planActivationTimeRef.current = { seconds: currentElapsed, half: currentHalf };
-    setAutoSubPlan(plan);
-    setAutoSubActive(true);
-    toast({ title: "Auto-sub plan started", description: `${plan.length} substitutions scheduled` });
-  }, [toast]);
-
-  const handleCancelAutoSubPlan = useCallback(() => {
-    setAutoSubPlan([]);
-    setAutoSubActive(false);
-    setAutoSubPaused(false);
-    setPendingAutoSub(null);
-    setSubConfirmDialogOpen(false);
-    planActivationTimeRef.current = null;
-    toast({ title: "Auto-sub plan cancelled" });
-  }, [toast]);
-
-  const handleTogglePauseAutoSub = useCallback(() => {
-    setAutoSubPaused(prev => {
-      const newPaused = !prev;
-      toast({ 
-        title: newPaused ? "Auto-subs paused" : "Auto-subs resumed",
-        description: newPaused ? "Sub alerts will not trigger until resumed" : "Sub alerts will trigger when due"
-      });
-      return newPaused;
-    });
-  }, [toast]);
-
-  const handleToggleLockPlayer = useCallback((playerId: string) => {
-    setLockedPlayerIds(prev => {
-      const next = new Set(prev);
-      if (next.has(playerId)) {
-        next.delete(playerId);
-      } else {
-        next.add(playerId);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSkipNextSub = useCallback(() => {
-    const remainingSubs = autoSubPlan.filter(s => !s.executed);
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const nextSub = remainingSubs.find(s => s.half === half && s.time >= currentElapsed)
-      || remainingSubs.find(s => s.half > half)
-      || remainingSubs[0];
-    if (!nextSub) return;
-
-    const skippedId = `${nextSub.half}-${nextSub.time}-${nextSub.playerOut.id}`;
-    const updatedPlan = autoSubPlan.map(sub => {
-      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return subId === skippedId ? { ...sub, executed: true, skipped: true } : sub;
-    });
-
-    // Recalculate remaining plan after skip
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
-    const recalculated = recalculateRemainingPlan(
-      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub, rotateGkAtHalftime
-    );
-
-    const executedSubs = updatedPlan.filter(s => s.executed);
-    const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
-    const remainingCount = finalPlan.filter(sub => !sub.executed).length;
-    setAutoSubPlan(finalPlan);
-    // Don't deactivate autoSubActive — recalculation may return 0 subs due to
-    // the 30s threshold but the system should remain active for half-time subs etc.
-
-    toast({
-      title: "Substitution skipped & plan recalculated",
-      description: remainingCount > 0
-        ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
-        : "No more planned substitutions",
-    });
-
-    skipCooldownRef.current = Date.now();
-  }, [autoSubPlan, players, teamSize, rotateGkAtHalftime, toast]);
-
-  const handleExecuteNow = useCallback(() => {
-    const remainingSubs = autoSubPlan.filter(s => !s.executed);
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const nextSub = remainingSubs.find(s => s.half === half && s.time >= currentElapsed)
-      || remainingSubs.find(s => s.half > half)
-      || remainingSubs[0];
-    if (!nextSub) return;
-
-    // Find batch subs at same time
-    const batchSubs = remainingSubs.filter(s => s.half === nextSub.half && s.time === nextSub.time && s !== nextSub);
-
-    setPendingAutoSub(nextSub);
-    setPendingBatchSubs(batchSubs);
-    setSubConfirmDialogOpen(true);
-
-    const playerOutName = nextSub.playerOut.name || `#${nextSub.playerOut.number}`;
-    const playerInName = nextSub.playerIn.name || `#${nextSub.playerIn.number}`;
-    const msg = batchSubs.length > 0
-      ? `Time for ${batchSubs.length + 1} substitutions`
-      : `Execute now: ${playerOutName} ➜ ${playerInName}`;
-    playSubAlertBeep(msg);
-  }, [autoSubPlan, teamId]);
-
-  const handleRegeneratePlan = useCallback(() => {
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
-
-    // Create a dummy "skipped" sub to trigger recalculation
-    const dummySub: SubstitutionEvent = {
-      time: currentElapsed,
-      half,
-      playerOut: players[0],
-      playerIn: players[0],
-      executed: true,
-    };
-
-    const recalculated = recalculateRemainingPlan(
-      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, dummySub, rotateGkAtHalftime
-    );
-
-    const currentRemainingSignature = autoSubPlan
-      .filter(s => !s.executed)
-      .map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`)
-      .join("|");
-    const recalculatedSignature = recalculated
-      .map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`)
-      .join("|");
-
-    const isUnchanged = currentRemainingSignature === recalculatedSignature;
-
-    const executedSubs = autoSubPlan.filter(s => s.executed);
-    setAutoSubPlan([...executedSubs, ...recalculated]);
-    toast({
-      title: isUnchanged ? "Plan unchanged" : "Plan regenerated",
-      description: isUnchanged
-        ? "No better alternatives available right now"
-        : `${recalculated.length} substitutions scheduled`,
-    });
-  }, [autoSubPlan, players, teamSize, toast]);
-
-  // Keep ref in sync so earlier callbacks can call it
-  regeneratePlanRef.current = handleRegeneratePlan;
+  // Keep refs in sync for the auto-sub hook
+  pushToUndoHistoryRef_autoSubs.current = pushToUndoHistory;
+  runSubAnimationRef_autoSubs.current = runSubAnimation;
 
   const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
   const hasInitializedTimeRef = useRef(false);
-  const skipCooldownRef = useRef<number>(0); // Timestamp of last skip to prevent immediate re-trigger
 
   // Timer update callback - check for pending subs and track minutes played
   const handleTimerUpdate = useCallback((elapsedSeconds: number, currentHalf: 1 | 2) => {
@@ -3206,144 +3090,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
 
-    // Compute next sub info for bench highlighting
-    const isFinished = gameTimerRef.current?.isGameFinished();
-    if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused && !isFinished) {
-      const remainingSubs = autoSubPlan.filter(s => !s.executed);
-      const nextSub = remainingSubs.find(s => s.half === currentHalf && s.time >= elapsedSeconds)
-        || remainingSubs.find(s => s.half > currentHalf)
-        || remainingSubs[0];
-      if (nextSub) {
-        const secsUntil = nextSub.half === currentHalf 
-          ? Math.max(0, nextSub.time - elapsedSeconds)
-          : nextSub.time + ((nextSub.half - currentHalf) * (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60) - elapsedSeconds;
-        const mins = Math.floor(secsUntil / 60);
-        const secs = Math.floor(secsUntil % 60);
-        const countdown = `${mins}:${secs.toString().padStart(2, '0')}`;
-        setNextSubInfo({ playerInId: nextSub.playerIn.id, playerOutId: nextSub.playerOut.id, countdown });
-      } else {
-        setNextSubInfo(null);
-      }
-    } else {
-      if (isFinished) {
-        setNextSubInfo(null);
-        setSubDuePlayerIds(new Set());
-        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-        // Close any open sub confirmation dialog
-        if (subConfirmDialogOpen) {
-          setSubConfirmDialogOpen(false);
-          setPendingAutoSub(null);
-          setPendingBatchSubs([]);
-        }
-      }
-      setNextSubInfo(prev => prev ? null : prev);
-    }
-
-    // Don't trigger subs if paused, in skip cooldown, game finished, or timer not running
-    if (!autoSubActive || autoSubPlan.length === 0 || autoSubPaused) return;
-    if (gameTimerRef.current?.isGameFinished()) return;
-    if (!gameTimerRef.current?.isRunning?.()) return;
-    if (Date.now() - skipCooldownRef.current < 3000) return; // 3s cooldown after skip
-    
-    const activationTime = planActivationTimeRef.current;
-    
-    // Find all unexecuted subs for current half that are due
-    const allDueSubs = autoSubPlan.filter(sub => {
-      if (sub.executed) return false;
-      if (sub.half !== currentHalf) return false;
-      if (elapsedSeconds < sub.time) return false;
-      // Skip subs that were already in the past when the plan was activated
-      if (activationTime && sub.half === activationTime.half && sub.time < activationTime.seconds) return false;
-      if (activationTime && sub.half < activationTime.half) return false;
-      return true;
-    });
-    
-    if (allDueSubs.length > 0) {
-      // Get distinct due times
-      const dueTimes = [...new Set(allDueSubs.map(s => s.time))].sort((a, b) => a - b);
-      
-      // If there are multiple time groups due, auto-skip all older ones — only the latest matters
-      if (dueTimes.length > 1) {
-        const latestTime = dueTimes[dueTimes.length - 1];
-        const olderSubs = allDueSubs.filter(s => s.time < latestTime);
-        
-        setAutoSubPlan(prev => {
-          const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-          const skipped = prev.map(s => olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s);
-          return validateAndFixRemainingPlan(skipped, players);
-        });
-        toast({ title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? 's' : ''} skipped`, description: "Plan adjusted for remaining time" });
-        return; // Let next tick handle the latest due sub
-      }
-      
-      if (pendingAutoSub) return;
-      
-      // Filter out locked players
-      const dueSubs = allDueSubs.filter(sub => !lockedPlayerIds.has(sub.playerOut.id));
-      if (dueSubs.length === 0) return;
-      
-      // All due subs are at the same time — present them as a batch
-      const [primarySub, ...additionalSubs] = dueSubs;
-      
-      // Play alert beep with notification message
-      const playerOutName = primarySub.playerOut.name || `#${primarySub.playerOut.number}`;
-      const playerInName = primarySub.playerIn.name || `#${primarySub.playerIn.number}`;
-      const notificationBody = dueSubs.length > 1
-        ? `Time for ${dueSubs.length} substitutions`
-        : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
-      playSubAlertBeep(notificationBody);
-      
-      // IMPORTANT: Do not create DB notifications here.
-      // Server-side check-pending-subs already handles push delivery for all team staff.
-      
-      // Set sub-due pulsing for all players involved in the batch
-      const dueIds = new Set<string>();
-      dueSubs.forEach(s => {
-        dueIds.add(s.playerOut.id);
-        dueIds.add(s.playerIn.id);
-      });
-      setSubDuePlayerIds(dueIds);
-      // Clear pulse after 30 seconds
-      if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-      subDueTimerRef.current = setTimeout(() => setSubDuePlayerIds(new Set()), 30000);
-
-      setPendingAutoSub(primarySub);
-      setPendingBatchSubs(additionalSubs);
-      setSubConfirmDialogOpen(true);
-    }
-  }, [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, createSubNotification, gameInProgress, lockedPlayerIds, toast]);
+    // Delegate next-sub countdown and due-sub detection to the hook
+    updateNextSubInfo(elapsedSeconds, currentHalf);
+    checkForDueSubs(elapsedSeconds, currentHalf);
+  }, [updateNextSubInfo, checkForDueSubs, gameInProgress]);
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2) => {
-    if (newHalf !== 2) return;
-
-    // Case 1: Auto-sub plan active — check for halftime subs
-    if (autoSubActive && autoSubPlan.length > 0) {
-      const halftimeSubs = autoSubPlan.filter(sub => 
-        !sub.executed && 
-        sub.half === 2 && 
-        sub.time === 0
-      );
-      
-      if (halftimeSubs.length > 0) {
-        setTimeout(() => {
-          const [primarySub, ...additionalSubs] = halftimeSubs;
-          const notificationBody = halftimeSubs.length > 1
-            ? `Halftime: ${halftimeSubs.length} substitutions`
-            : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
-          playSubAlertBeep(notificationBody);
-          // Server-side check-pending-subs handles push delivery
-          
-          setPendingAutoSub(primarySub);
-          setPendingBatchSubs(additionalSubs);
-          setSubConfirmDialogOpen(true);
-        }, 500);
-      }
-      return;
-    }
+    // Delegate auto-sub halftime checks to the hook
+    if (checkHalftimeSubs(newHalf)) return;
 
     // Case 2: No auto-sub plan, but a preferred 2nd half GK was selected — prompt GK swap
-    if (preferredSecondHalfGkId) {
+    if (newHalf === 2 && preferredSecondHalfGkId) {
       const currentGk = players.find(p => p.currentPitchPosition === "GK" && p.position !== null);
       const secondHalfGk = players.find(p => p.id === preferredSecondHalfGkId);
       
@@ -3359,236 +3117,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setTimeout(() => {
           const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
           playSubAlertBeep(notificationBody);
-          // Server-side check-pending-subs handles push delivery
-          
           setPendingAutoSub(gkSwapEvent);
           setPendingBatchSubs([]);
           setSubConfirmDialogOpen(true);
         }, 500);
       }
     }
-  }, [autoSubActive, autoSubPlan, createSubNotification, preferredSecondHalfGkId, players]);
-
-  // Execute auto-sub (handles batch subs)
-  const handleConfirmAutoSub = useCallback(() => {
-    if (!pendingAutoSub) return;
-
-    // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
-    const matchingSub = autoSubPlan.find(s =>
-      s.playerOut.id === pendingAutoSub.playerOut.id && 
-      s.time === pendingAutoSub.time && 
-      s.half === pendingAutoSub.half
-    );
-    if (matchingSub?.executed || matchingSub?.skipped) {
-      toast({ title: "Substitution expired", description: "This sub was already skipped — a newer one is due", variant: "destructive" });
-      setSubConfirmDialogOpen(false);
-      setPendingAutoSub(null);
-      setPendingBatchSubs([]);
-      setSubDuePlayerIds(new Set());
-      return;
-    }
-    
-    // Combine primary and batch subs
-    const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
-    let updatedPlayers = [...players];
-    const executedSubIds: string[] = [];
-    let successCount = 0;
-    
-    // Push to undo history before making changes
-    const subDescription = allPendingSubs.length > 1
-      ? `Batch sub: ${allPendingSubs.length} substitutions`
-      : `Auto-sub: ${pendingAutoSub.playerIn.name} for ${pendingAutoSub.playerOut.name}`;
-    pushToUndoHistory(subDescription, playersRef.current);
-    
-    for (const sub of allPendingSubs) {
-      const { playerOut, playerIn, positionSwap } = sub;
-      
-      // Find current player positions in our updated list
-      const currentPlayerOut = updatedPlayers.find(p => p.id === playerOut.id);
-      let currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
-      let actualPlayerIn = playerIn;
-      
-      // Check if the playerIn is still on the bench (position must be null)
-      // Note: undefined means player not found, null means on bench
-      if (!currentPlayerIn || currentPlayerIn.position !== null) {
-        // Try to find a replacement from the bench
-        const benchReplacement = updatedPlayers
-          .find(p => p.position === null && !p.isInjured && p.id !== playerOut.id &&
-            !(p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) &&
-            !allPendingSubs.some(s => s.playerIn.id === p.id && s !== sub));
-        
-        if (benchReplacement) {
-          currentPlayerIn = benchReplacement;
-          actualPlayerIn = benchReplacement;
-        } else {
-          // No replacement available - skip this sub
-          executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-          continue;
-        }
-      }
-      
-      // Check if playerOut is still on the pitch
-      if (!currentPlayerOut?.position) {
-        executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-        continue;
-      }
-      
-      if (!currentPlayerIn) {
-        continue;
-      }
-      
-      const pitchPosition = { ...currentPlayerOut.position };
-      const pitchPositionType = currentPlayerOut.currentPitchPosition;
-      
-      if (positionSwap && actualPlayerIn.id === playerIn.id) {
-        // Only use position swap if we're using the original playerIn
-        const swapPlayer = updatedPlayers.find(p => p.id === positionSwap.player.id);
-        if (swapPlayer?.position) {
-          const swapPosition = { ...swapPlayer.position };
-          
-          updatedPlayers = updatedPlayers.map(p => {
-            if (p.id === playerOut.id) {
-              return { ...p, position: null, currentPitchPosition: undefined };
-            }
-            if (p.id === positionSwap.player.id) {
-              return { ...p, position: pitchPosition, currentPitchPosition: positionSwap.toPosition };
-            }
-            if (p.id === actualPlayerIn.id) {
-              return { ...p, position: swapPosition, currentPitchPosition: positionSwap.fromPosition };
-            }
-            return p;
-          });
-        } else {
-          updatedPlayers = updatedPlayers.map(p => {
-            if (p.id === playerOut.id) {
-              return { ...p, position: null, currentPitchPosition: undefined };
-            }
-            if (p.id === actualPlayerIn.id) {
-              return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-            }
-            return p;
-          });
-        }
-      } else {
-        updatedPlayers = updatedPlayers.map(p => {
-          if (p.id === playerOut.id) {
-            return { ...p, position: null, currentPitchPosition: undefined };
-          }
-          if (p.id === actualPlayerIn.id) {
-            return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-          }
-          return p;
-        });
-      }
-      
-      executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-      successCount++;
-    }
-    
-    // Apply all player changes at once
-    // Note: setPlayers is called once below after plan validation (line ~3529)
-    
-    const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
-    runSubAnimation(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
-    
-    // Mark all processed subs as executed
-    // Mark all processed subs as executed
-    const updatedPlan = autoSubPlan.map(sub => {
-      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      if (executedSubIds.includes(subId)) {
-        return { ...sub, executed: true };
-      }
-      return sub;
-    });
-    
-    // Only recalculate remaining sub timings if the sub was significantly late (>30s)
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
-    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
-    
-    let finalPlan = updatedPlan;
-    if (remainingSubs.length > 0) {
-      const subTotalSeconds = pendingAutoSub.half === 1 ? pendingAutoSub.time : halfDurationSeconds + pendingAutoSub.time;
-      const currentTotalSeconds = half === 1 ? currentElapsed : halfDurationSeconds + currentElapsed;
-      const delaySeconds = Math.max(0, currentTotalSeconds - subTotalSeconds);
-      
-      if (delaySeconds > 30) {
-        const executedSubs = updatedPlan.filter(sub => sub.executed);
-        const recalculated = recalculateRemainingPlan(
-          updatedPlayers, parseInt(teamSize), halfDurationSeconds, currentElapsed, half as 1 | 2, pendingAutoSub, rotateGkAtHalftime
-        );
-        finalPlan = [...executedSubs, ...recalculated];
-      }
-    }
-    
-    // Validate remaining plan entries against updated player positions
-    finalPlan = validateAndFixRemainingPlan(finalPlan, updatedPlayers);
-    setAutoSubPlan(finalPlan);
-    setPlayers(updatedPlayers);
-    
-    const toastDescription = allPendingSubs.length > 1
-      ? `${successCount} substitutions made`
-      : `${pendingAutoSub.playerIn.name} replaces ${pendingAutoSub.playerOut.name}`;
-    toast({ title: allPendingSubs.length > 1 ? "Substitutions made" : "Substitution made", description: toastDescription });
-    
-    setSubConfirmDialogOpen(false);
-    setPendingAutoSub(null);
-    setPendingBatchSubs([]);
-    setSubDuePlayerIds(new Set());
-    if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-    
-    // Check if all subs executed
-    if (finalPlan.filter(sub => !sub.executed).length === 0) {
-      setAutoSubActive(false);
-      toast({ title: "All substitutions complete" });
-    }
-  }, [pendingAutoSub, pendingBatchSubs, players, autoSubPlan, toast, pushToUndoHistory, teamSize, rotateGkAtHalftime]);
-
-  const handleSkipAutoSub = useCallback(() => {
-    if (!pendingAutoSub) return;
-    
-    // Combine primary and batch subs for skipping
-    const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
-    const skippedIds = allPendingSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`);
-
-    const updatedPlan = autoSubPlan.map(sub => {
-      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return skippedIds.includes(subId) ? { ...sub, executed: true, skipped: true } : sub;
-    });
-
-    // Recalculate remaining plan after skip
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
-    const recalculated = recalculateRemainingPlan(
-      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, pendingAutoSub, rotateGkAtHalftime
-    );
-
-    const executedSubs = updatedPlan.filter(s => s.executed);
-    const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
-    const remainingCount = finalPlan.filter(sub => !sub.executed).length;
-    setAutoSubPlan(finalPlan);
-    // Don't deactivate autoSubActive — recalculation may return 0 subs due to
-    // the 30s threshold but the system should remain active for half-time subs etc.
-
-    const skippedCount = allPendingSubs.length;
-    toast({ 
-      title: skippedCount > 1 ? `${skippedCount} subs skipped & plan recalculated` : "Sub skipped & plan recalculated", 
-      description: remainingCount > 0
-        ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
-        : "No more planned substitutions"
-    });
-    
-    skipCooldownRef.current = Date.now();
-    setSubConfirmDialogOpen(false);
-    setPendingAutoSub(null);
-    setPendingBatchSubs([]);
-    setSubDuePlayerIds(new Set());
-    if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, players, teamSize, rotateGkAtHalftime, toast]);
+  }, [checkHalftimeSubs, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
 
   // Ball drag handlers
   const handleBallDragStart = () => {

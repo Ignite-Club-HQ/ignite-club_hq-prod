@@ -376,10 +376,8 @@ export default function GlobalSubMonitor() {
         // Skip all but the latest time group
         const latestTime = dueTimes[dueTimes.length - 1];
         const olderSubs = dueSubs.filter(s => s.time < latestTime);
-        const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-        const updatedPlan = pitchState.autoSubPlan.map(s =>
-          olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
-        );
+        const olderKeys = new Set(olderSubs.map(s => getSubKey(s)));
+        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, [...olderKeys], true);
         savePitchState({ ...pitchState, autoSubPlan: updatedPlan });
         return; // Next tick will handle the latest due sub
       }
@@ -464,12 +462,10 @@ export default function GlobalSubMonitor() {
       if (dueTimes.length > 1) {
         latestTime = dueTimes[dueTimes.length - 1];
         const olderSubs = dueSubs.filter(s => s.time < latestTime);
-        const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
+        const olderKeys = olderSubs.map(s => getSubKey(s));
         const latestMissedSub = olderSubs[olderSubs.length - 1];
 
-        let updatedPlan = (pitchState.autoSubPlan || []).map(s =>
-          olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
-        );
+        let updatedPlan = markSubsExecuted(pitchState.autoSubPlan || [], olderKeys, true);
 
         if (latestMissedSub) {
           const executedSubs = updatedPlan.filter(s => s.executed);
@@ -477,20 +473,8 @@ export default function GlobalSubMonitor() {
           const futureSubsExist = updatedPlan.some(s => !s.executed && !(s.half === currentHalf && s.time === latestTime));
 
           if (futureSubsExist) {
-                // Simulate currentDueSubs on the players array so recalculation
-                // doesn't re-use players already queued in current due subs
-                let simulatedPlayers = [...pitchState.players];
-                currentDueSubs.forEach(dueSub => {
-                  const outPlayer = simulatedPlayers.find(p => p.id === dueSub.playerOut.id);
-                  const inPlayer = simulatedPlayers.find(p => p.id === dueSub.playerIn.id);
-                  if (outPlayer && inPlayer && outPlayer.position) {
-                    simulatedPlayers = simulatedPlayers.map(p => {
-                      if (p.id === dueSub.playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
-                      if (p.id === dueSub.playerIn.id) return { ...p, position: outPlayer.position, currentPitchPosition: outPlayer.currentPitchPosition };
-                      return p;
-                    });
-                  }
-                });
+                // Simulate currentDueSubs on the players array using shared helper
+                const { updatedPlayers: simulatedPlayers } = executeSubsOnPlayers(currentDueSubs, pitchState.players);
 
                 const recalculated = recalculateRemainingPlan(
                   simulatedPlayers,
