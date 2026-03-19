@@ -3290,8 +3290,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
       playSubAlertBeep(notificationBody);
       
-      // Create database notification (triggers server-side push)
-      createSubNotification(notificationBody);
+      // IMPORTANT: Do not create DB notifications here.
+      // Server-side check-pending-subs already handles push delivery for all team staff.
       
       // Set sub-due pulsing for all players involved in the batch
       const dueIds = new Set<string>();
@@ -3329,7 +3329,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             ? `Halftime: ${halftimeSubs.length} substitutions`
             : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
           playSubAlertBeep(notificationBody);
-          createSubNotification(notificationBody);
+          // Server-side check-pending-subs handles push delivery
           
           setPendingAutoSub(primarySub);
           setPendingBatchSubs(additionalSubs);
@@ -3356,7 +3356,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setTimeout(() => {
           const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
           playSubAlertBeep(notificationBody);
-          createSubNotification(notificationBody);
+          // Server-side check-pending-subs handles push delivery
           
           setPendingAutoSub(gkSwapEvent);
           setPendingBatchSubs([]);

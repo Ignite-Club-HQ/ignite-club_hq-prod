@@ -347,10 +347,9 @@ async function checkGames(supabase: any): Promise<number> {
         return sub.half === 1 ? sub.time : halfDurationSecs + sub.time;
       };
 
-      // Find next unexecuted sub for current half that's due
-      // Skip subs that are more than 90 seconds overdue (matches client-side auto-skip)
+      // Find all unexecuted subs for current half that are due and not overdue
       const AUTO_SKIP_THRESHOLD_SECS = 60;
-      const nextSub = pitchState.autoSubPlan.find((sub: SubstitutionEvent) => {
+      const dueSubs = pitchState.autoSubPlan.filter((sub: SubstitutionEvent) => {
         const absoluteSubTime = getAbsoluteSubTime(sub);
         const overdueSeconds = currentElapsed - sub.time;
         return !sub.executed &&
@@ -380,28 +379,60 @@ async function checkGames(supabase: any): Promise<number> {
           .eq('id', game.id);
       }
 
-      if (nextSub) {
-        const playerOutName = nextSub.playerOut.name || `#${nextSub.playerOut.number}`;
-        const playerInName = nextSub.playerIn.name || `#${nextSub.playerIn.number}`;
-        const position = nextSub.playerOut.currentPitchPosition || 'Pitch';
-        const notificationBody = `${playerOutName} → Bench. ${playerInName} → ${position}`;
+      if (dueSubs.length > 0) {
+        // Group by time to find concurrent subs (batch)
+        const dueTimes = [...new Set(dueSubs.map((s: SubstitutionEvent) => s.time))].sort((a: number, b: number) => a - b);
+        // Take the earliest due time group
+        const earliestTime = dueTimes[0];
+        const batchSubs = dueSubs.filter((s: SubstitutionEvent) => s.time === earliestTime);
+        
         const elapsedMinutes = Math.floor(currentElapsed / 60);
 
-        console.log(`[CHECK-SUBS] Game ${game.id}: Sub due at ${nextSub.time}s, current=${currentElapsed}s`);
+        let notificationBody: string;
+        let pushTitle: string;
+        let playerOutName: string | undefined;
+        let playerInName: string | undefined;
+        let position: string | undefined;
+
+        if (batchSubs.length === 1) {
+          // Single sub
+          const sub = batchSubs[0];
+          playerOutName = sub.playerOut.name || `#${sub.playerOut.number}`;
+          playerInName = sub.playerIn.name || `#${sub.playerIn.number}`;
+          position = sub.playerOut.currentPitchPosition || 'Pitch';
+          notificationBody = `${playerOutName} → Bench. ${playerInName} → ${position}`;
+          pushTitle = `🔄 ${teamName} - Sub Due!`;
+        } else {
+          // Multiple concurrent subs — list all of them
+          const subDescriptions = batchSubs.map((sub: SubstitutionEvent) => {
+            const outName = sub.playerOut.name || `#${sub.playerOut.number}`;
+            const inName = sub.playerIn.name || `#${sub.playerIn.number}`;
+            const pos = sub.playerOut.currentPitchPosition || 'Pitch';
+            return `${outName} → Bench, ${inName} → ${pos}`;
+          });
+          notificationBody = `${batchSubs.length} subs due: ${subDescriptions.join(' • ')}`;
+          pushTitle = `🔄 ${teamName} - ${batchSubs.length} Subs Due!`;
+          // Use first sub's details for email template fields
+          playerOutName = batchSubs[0].playerOut.name || `#${batchSubs[0].playerOut.number}`;
+          playerInName = batchSubs[0].playerIn.name || `#${batchSubs[0].playerIn.number}`;
+          position = batchSubs[0].playerOut.currentPitchPosition || 'Pitch';
+        }
+
+        console.log(`[CHECK-SUBS] Game ${game.id}: ${batchSubs.length} sub(s) due at ${earliestTime}s, current=${currentElapsed}s`);
 
         notificationsSent += await notifyTeamStaff(
           supabase, staffUserIds, game.user_id, game.id,
           teamId, teamName, linkedEventId,
           'pending_sub', notificationBody, 'pending_sub',
-          `🔄 ${teamName} - Sub Due!`, notificationBody,
+          pushTitle, notificationBody,
           playerOutName, playerInName, position, elapsedMinutes, currentHalf
         );
 
-        // Update last_sub_check_time with ABSOLUTE time
-        const absoluteSubTime = getAbsoluteSubTime(nextSub);
+        // Update last_sub_check_time with the max ABSOLUTE time of the batch
+        const maxAbsTime = Math.max(...batchSubs.map((s: SubstitutionEvent) => getAbsoluteSubTime(s)));
         const { error: updateError } = await supabase
           .from('active_games')
-          .update({ last_sub_check_time: absoluteSubTime })
+          .update({ last_sub_check_time: maxAbsTime })
           .eq('id', game.id);
 
         if (updateError) {
