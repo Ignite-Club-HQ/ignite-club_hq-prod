@@ -6578,7 +6578,57 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         />
       </Suspense>
 
-      {/* Reset Game and Bench Injury dialogs rendered once in landscape branch (AlertDialog portals to body) */}
+      {/* Reset Game Confirmation - portrait */}
+      <AlertDialog open={resetGameConfirmOpen} onOpenChange={setResetGameConfirmOpen}>
+        <AlertDialogContent className="z-[999999]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Game?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will clear all player minutes, timer, substitutions, goals, and reset positions. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }}
+            >
+              Reset Game
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bench Injury Confirmation - portrait */}
+      <AlertDialog open={benchInjuryConfirmOpen} onOpenChange={(open) => { if (!open) { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); } }}>
+        <AlertDialogContent className="z-[999999]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark as Fit?" : "Mark as Injured?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {players.find(p => p.id === benchInjuryTarget)?.isInjured
+                ? `${players.find(p => p.id === benchInjuryTarget)?.name} will be available for substitutions again.`
+                : `${players.find(p => p.id === benchInjuryTarget)?.name} will not be available for substitutions.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (benchInjuryTarget) togglePlayerInjury(benchInjuryTarget);
+                setBenchInjuryConfirmOpen(false);
+                setBenchInjuryTarget(null);
+              }}
+            >
+              {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark Fit" : "Mark Injured"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Formation Change Dialog - portrait */}
       <FormationChangeDialog
