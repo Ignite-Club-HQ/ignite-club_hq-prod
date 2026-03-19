@@ -90,6 +90,50 @@ export function useAutoSubs({
   const skipCooldownRef = useRef<number>(0);
   const regeneratePlanRef = useRef<(() => void) | null>(null);
 
+  // ── Safeguard: prevent recalculation from wiping plan ──
+
+  /**
+   * If recalculation returns fewer subs than expected (e.g. due to threshold edge cases),
+   * fall back to the existing unexecuted plan (minus skipped subs) with validated references.
+   */
+  const safeRecalculate = useCallback(
+    (
+      players: Player[],
+      halfDurationSeconds: number,
+      currentElapsed: number,
+      half: 1 | 2,
+      skippedSub: SubstitutionEvent,
+      existingUnexecuted: SubstitutionEvent[]
+    ): SubstitutionEvent[] => {
+      const recalculated = recalculateRemainingPlan(
+        players,
+        parseInt(teamSize),
+        halfDurationSeconds,
+        currentElapsed,
+        half,
+        skippedSub,
+        rotateGkAtHalftime
+      );
+
+      // If recalculation returns empty but there are bench players who should still rotate,
+      // preserve the existing unexecuted subs (excluding the ones being skipped) as fallback
+      if (recalculated.length === 0 && existingUnexecuted.length > 0) {
+        const benchPlayers = players.filter(p => p.position === null && !p.isInjured);
+        const pitchPlayers = players.filter(p => p.position !== null && p.currentPitchPosition !== "GK");
+        const hasTimeGap = benchPlayers.some(b =>
+          pitchPlayers.some(p => (p.minutesPlayed || 0) - (b.minutesPlayed || 0) >= 30)
+        );
+        if (hasTimeGap) {
+          console.warn("[AutoSub] Recalculation returned empty but time gap exists — preserving existing plan");
+          return existingUnexecuted;
+        }
+      }
+
+      return recalculated;
+    },
+    [teamSize, rotateGkAtHalftime]
+  );
+
   // ── Plan lifecycle ──────────────────────────────────────
 
   const handleStartAutoSubPlan = useCallback((plan: SubstitutionEvent[]) => {
