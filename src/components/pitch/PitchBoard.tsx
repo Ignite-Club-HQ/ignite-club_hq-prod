@@ -3439,7 +3439,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const pitchPosition = { ...currentPlayerOut.position };
       const pitchPositionType = currentPlayerOut.currentPitchPosition;
       
-      if (positionSwap) {
+      if (positionSwap && actualPlayerIn.id === playerIn.id) {
+        // Only use position swap if we're using the original playerIn
         const swapPlayer = updatedPlayers.find(p => p.id === positionSwap.player.id);
         if (swapPlayer?.position) {
           const swapPosition = { ...swapPlayer.position };
@@ -3451,7 +3452,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             if (p.id === positionSwap.player.id) {
               return { ...p, position: pitchPosition, currentPitchPosition: positionSwap.toPosition };
             }
-            if (p.id === playerIn.id) {
+            if (p.id === actualPlayerIn.id) {
               return { ...p, position: swapPosition, currentPitchPosition: positionSwap.fromPosition };
             }
             return p;
@@ -3461,7 +3462,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             if (p.id === playerOut.id) {
               return { ...p, position: null, currentPitchPosition: undefined };
             }
-            if (p.id === playerIn.id) {
+            if (p.id === actualPlayerIn.id) {
               return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
             }
             return p;
@@ -3472,7 +3473,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           if (p.id === playerOut.id) {
             return { ...p, position: null, currentPitchPosition: undefined };
           }
-          if (p.id === playerIn.id) {
+          if (p.id === actualPlayerIn.id) {
             return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
           }
           return p;
