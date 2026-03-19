@@ -28,7 +28,7 @@ interface TeamInviteEmailProps {
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 const IGNITE_BRAND_COLOR = "#10b981";
-const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-icon.png`;
 
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
@@ -66,7 +66,7 @@ export const TeamInviteEmail = ({
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
   const isAdminRole = ['Club Admin', 'Committee Member', 'Coach', 'Team Admin'].includes(roleName);
   const previewText = isAdminRole
-    ? `You're invited to join ${clubName} as ${roleName}`
+    ? `You've been invited to join the ${clubName} app as ${roleName}`
     : hasChildren
       ? `${childLabel} has been added to their team for this season ⚽`
       : `Your child has been added to their team for this season ⚽`;
@@ -127,7 +127,7 @@ export const TeamInviteEmail = ({
               /* Role-specific admin invite copy */
               <>
                 <Text style={headingText}>
-                  You've been invited to join {clubName} as {roleName} 🎉
+                  You've been invited to join the {clubName} app as {roleName} 🎉
                 </Text>
 
                 <Text style={bodyText}>
