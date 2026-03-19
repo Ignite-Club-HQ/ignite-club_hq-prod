@@ -531,19 +531,29 @@ export function useAutoSubs({
           const markedPlan = markSubsExecuted(prev, olderKeys, true);
           const executedSubs = markedPlan.filter(s => s.executed);
           const existingUnexecuted = markedPlan.filter(s => !s.executed);
-          const recalculated = safeRecalculate(
-            playersRef.current,
-            halfDurationSeconds,
+          const shouldRecalculate = shouldRecalculateAfterSkip(
+            olderSubs,
             elapsedSeconds,
             currentHalf,
-            olderSubs[olderSubs.length - 1],
-            existingUnexecuted
+            halfDurationSeconds
           );
+          const recalculated = shouldRecalculate
+            ? safeRecalculate(
+                playersRef.current,
+                halfDurationSeconds,
+                elapsedSeconds,
+                currentHalf,
+                olderSubs[olderSubs.length - 1],
+                existingUnexecuted
+              )
+            : existingUnexecuted;
           return validateAndFixRemainingPlan([...executedSubs, ...recalculated], playersRef.current);
         });
         toast({
           title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? "s" : ""} skipped`,
-          description: "Plan recalculated for remaining time",
+          description: shouldRecalculateAfterSkip(olderSubs, elapsedSeconds, currentHalf, halfDurationSeconds)
+            ? "Plan recalculated for remaining time"
+            : "Remaining substitutions preserved",
         });
         return true;
       }
