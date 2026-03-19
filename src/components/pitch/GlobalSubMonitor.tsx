@@ -116,6 +116,8 @@ const savePitchState = (state: PitchBoardState) => {
     }
     // Also write to active key
     localStorage.setItem(PITCH_STATE_KEY, json);
+    // Dispatch custom event for same-tab sync (Android WebView)
+    window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'pitch-monitor' } }));
   } catch (e) {
     console.error("Failed to save pitch state:", e);
   }
@@ -625,9 +627,12 @@ export default function GlobalSubMonitor() {
       }
     };
     
-    // Check when visibility changes
+    // Check when visibility changes - critical for mobile where background intervals are throttled
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        // Immediately sync on foreground return to refresh updated_at
+        // This prevents the edge function from marking the game as stale
+        syncToDatabase();
         startPolling();
       } else {
         // When app goes to background, do one final sync
@@ -636,15 +641,44 @@ export default function GlobalSubMonitor() {
           clearInterval(intervalId);
           intervalId = null;
         }
+        // Keep syncIntervalId running - even if throttled, it will fire eventually
       }
     };
     
-    // Listen for storage changes to detect game state changes
+    // Capacitor native app state change - more reliable than visibilitychange on Android
+    let appStateListener: any = null;
+    const setupNativeListener = async () => {
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        appStateListener = await CapApp.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            console.log('[SYNC] Native app resumed - forcing sync');
+            syncToDatabase();
+            startPolling();
+          } else {
+            console.log('[SYNC] Native app backgrounded - final sync');
+            syncToDatabase();
+          }
+        });
+      } catch {
+        // Not in Capacitor - that's fine, visibilitychange will handle it
+      }
+    };
+    setupNativeListener();
+    
+    // Listen for storage changes to detect game state changes (cross-tab)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === TIMER_STATE_KEY || e.key?.startsWith(PITCH_STATE_KEY) || e.key === PITCH_BOARD_OPEN_KEY) {
         startPolling();
         syncToDatabase(); // Sync on state change
       }
+    };
+    
+    // Listen for same-tab game state changes (critical for Android WebView
+    // where StorageEvent doesn't fire for same-window localStorage writes)
+    const handleGameStateChanged = () => {
+      startPolling();
+      syncToDatabase();
     };
     
     // Listen for notification clicks requesting sub confirmation
@@ -653,6 +687,7 @@ export default function GlobalSubMonitor() {
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('game-state-changed', handleGameStateChanged);
     
     // Initial setup
     startPolling();
@@ -662,7 +697,9 @@ export default function GlobalSubMonitor() {
       if (syncIntervalId) clearInterval(syncIntervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('game-state-changed', handleGameStateChanged);
       window.removeEventListener('open-sub-confirmation', handleOpenSubConfirmation);
+      appStateListener?.remove?.();
     };
   }, [checkForPendingSubs, checkForGameFinished, hasActiveGame, syncToDatabase]);
 
