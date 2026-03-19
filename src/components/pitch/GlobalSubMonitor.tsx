@@ -625,9 +625,12 @@ export default function GlobalSubMonitor() {
       }
     };
     
-    // Check when visibility changes
+    // Check when visibility changes - critical for mobile where background intervals are throttled
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        // Immediately sync on foreground return to refresh updated_at
+        // This prevents the edge function from marking the game as stale
+        syncToDatabase();
         startPolling();
       } else {
         // When app goes to background, do one final sync
@@ -636,6 +639,7 @@ export default function GlobalSubMonitor() {
           clearInterval(intervalId);
           intervalId = null;
         }
+        // Keep syncIntervalId running - even if throttled, it will fire eventually
       }
     };
     
