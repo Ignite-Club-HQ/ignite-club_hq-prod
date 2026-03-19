@@ -549,6 +549,8 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           }
         }
         
+        // Validate remaining plan entries against current player positions
+        updatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
         const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
         writePitchState(updatedState);
         
