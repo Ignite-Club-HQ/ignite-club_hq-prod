@@ -593,7 +593,10 @@ export function AppHeader() {
           navigate(`/events/${relatedId}`);
           return;
         case "pending_sub":
-          window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
+          navigate("/");
+          window.setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('open-pitch-board'));
+          }, 300);
           return;
         case "formation_change":
           if (relatedId) {
