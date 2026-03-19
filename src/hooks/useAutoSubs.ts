@@ -496,14 +496,14 @@ export function useAutoSubs({
         setAutoSubPlan(prev => {
           const markedPlan = markSubsExecuted(prev, olderKeys, true);
           const executedSubs = markedPlan.filter(s => s.executed);
-          const recalculated = recalculateRemainingPlan(
+          const existingUnexecuted = markedPlan.filter(s => !s.executed);
+          const recalculated = safeRecalculate(
             playersRef.current,
-            parseInt(teamSize),
             halfDurationSeconds,
             elapsedSeconds,
             currentHalf,
             olderSubs[olderSubs.length - 1],
-            rotateGkAtHalftime
+            existingUnexecuted
           );
           return validateAndFixRemainingPlan([...executedSubs, ...recalculated], playersRef.current);
         });
