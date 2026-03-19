@@ -281,6 +281,8 @@ export default function EditClubPage() {
               // Auto-toggle class mode when switching to/from a class-default sport
               if (isClassModeSport(val) && !classModeEnabled) {
                 setClassModeEnabled(true);
+              } else if (isTeamOnlySport(val) && classModeEnabled) {
+                setClassModeEnabled(false);
               } else if (!isClassModeSport(val) && classModeEnabled && isClassModeSport(sport)) {
                 // Only auto-disable if previous sport was class-default (user didn't manually enable)
                 setClassModeEnabled(false);
