@@ -210,14 +210,22 @@ export function useAutoSubs({
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
     const halfDurationSeconds = minsPerHalf * 60;
     const existingUnexecuted = updatedPlan.filter(s => !s.executed);
-    const recalculated = safeRecalculate(
-      players,
-      halfDurationSeconds,
+    const shouldRecalculate = shouldRecalculateAfterSkip(
+      [nextSub],
       currentElapsed,
       half,
-      nextSub,
-      existingUnexecuted
+      halfDurationSeconds
     );
+    const recalculated = shouldRecalculate
+      ? safeRecalculate(
+          players,
+          halfDurationSeconds,
+          currentElapsed,
+          half,
+          nextSub,
+          existingUnexecuted
+        )
+      : existingUnexecuted;
 
     const executedSubs = updatedPlan.filter(s => s.executed);
     const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
@@ -225,14 +233,14 @@ export function useAutoSubs({
     setAutoSubPlan(finalPlan);
 
     toast({
-      title: "Substitution skipped & plan recalculated",
+      title: shouldRecalculate ? "Substitution skipped & plan recalculated" : "Substitution skipped",
       description:
         remainingCount > 0
-          ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
+          ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} remaining`
           : "No more planned substitutions",
     });
     skipCooldownRef.current = Date.now();
-  }, [autoSubPlan, playersRef, safeRecalculate, toast, gameTimerRef]);
+  }, [autoSubPlan, playersRef, safeRecalculate, shouldRecalculateAfterSkip, toast, gameTimerRef]);
 
   // ── Execute now ─────────────────────────────────────────
 
