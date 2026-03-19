@@ -396,17 +396,45 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       const subTotal = getTotalSeconds(sub.time, sub.half, minutesPerHalf);
       const currentTotal = getTotalSeconds(currentElapsedSeconds, currentHalf, minutesPerHalf);
       const delaySeconds = Math.max(0, currentTotal - subTotal);
+      const earlyBySeconds = Math.max(0, subTotal - currentTotal);
 
       let updatedPlan = pitchState.autoSubPlan.map(s =>
         s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
           ? { ...s, executed: true } : s
       );
 
-      // NOTE: Do NOT recalculate the remaining plan from the widget.
-      // The widget has stale minutesPlayed values (it doesn't track real-time playing time),
-      // so recalculation would see near-equal times and generate an empty plan,
-      // wiping all remaining subs. Recalculation should only happen from PitchBoard
-      // which has accurate live data.
+      // If the sub was confirmed early (>15s) or late (>30s), redistribute the TIMING
+      // of remaining future subs evenly. We only adjust times, not player assignments,
+      // since the widget lacks live minutesPlayed data for full recalculation.
+      const isSignificantlyEarly = earlyBySeconds > 15;
+      const isSignificantlyLate = delaySeconds > 30;
+
+      if (isSignificantlyEarly || isSignificantlyLate) {
+        const halfDur = minutesPerHalf * 60;
+        const totalGameSeconds = minutesPerHalf * 2 * 60;
+        const futureSubs = updatedPlan.filter(s => {
+          if (s.executed) return false;
+          const sTotal = getTotalSeconds(s.time, s.half, minutesPerHalf);
+          return sTotal > currentTotal;
+        });
+
+        if (futureSubs.length > 0) {
+          const remainingGameSeconds = totalGameSeconds - currentTotal;
+          const interval = Math.max(Math.floor(remainingGameSeconds / (futureSubs.length + 1)), 60);
+          const futureSubKeys = new Set(futureSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`));
+          let nextSubTime = currentTotal + interval;
+
+          updatedPlan = updatedPlan.map(s => {
+            if (s.executed) return s;
+            const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
+            if (!futureSubKeys.has(subKey)) return s;
+            const newHalf: 1 | 2 = nextSubTime < halfDur ? 1 : 2;
+            const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDur;
+            nextSubTime += interval;
+            return { ...s, half: newHalf, time: Math.floor(newTime) };
+          });
+        }
+      }
 
       // Validate remaining plan entries against updated player positions
       const validatedPlan = validateAndFixRemainingPlan(updatedPlan, updatedPlayers);
