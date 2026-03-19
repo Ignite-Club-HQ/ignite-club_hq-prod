@@ -21,7 +21,7 @@ import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundChec
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
-import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
+import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan, validateAndFixRemainingPlan } from "./pitchStateUtils";
 
 
 // Storage keys
@@ -290,6 +290,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               }
             }
 
+            // Validate remaining plan entries against current player positions
+            updatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
             writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
             window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
             return; // Will pick up updated state on next poll tick
@@ -335,9 +337,22 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const toggleTimer = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!timerState) return;
-    // Don't allow resuming if at half-time boundary - user needs to start 2nd half from pitch board
-    const isAtHalfBoundary = timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60;
-    if (isAtHalfBoundary) return;
+    
+    const mph = timerState.minutesPerHalf || 20;
+    const atHalfTimeLimit = displaySeconds >= mph * 60;
+    
+    // If currently in 1st half and at the time limit, transition to 2nd half
+    if (!timerState.isRunning && timerState.currentHalf === 1 && atHalfTimeLimit) {
+      const newState = { ...timerState, currentHalf: 2 as 1 | 2, elapsedSeconds: 0, isRunning: true, lastUpdateTime: Date.now() };
+      saveTimerState(newState);
+      setTimerState(newState);
+      setDisplaySeconds(0);
+      return;
+    }
+    
+    // Don't allow resuming if game is finished (2nd half at limit)
+    if (!timerState.isRunning && timerState.currentHalf === 2 && atHalfTimeLimit) return;
+    
     saveTimerState({ ...timerState, isRunning: !timerState.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds });
     setTimerState(prev => prev ? { ...prev, isRunning: !prev.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds } : null);
   };
@@ -425,6 +440,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           });
         }
 
+        // Validate remaining plan entries against current player positions
+        updatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
         writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
         toast({ title: "Sub rescheduled", description: `${playerIn.name} is already ${currentPlayerIn?.position ? 'on' : 'off'} the pitch — remaining subs recalculated`, variant: "default" });
@@ -455,7 +472,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       // wiping all remaining subs. Recalculation should only happen from PitchBoard
       // which has accurate live data.
 
-      writePitchState({ ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers });
+      // Validate remaining plan entries against updated player positions
+      const validatedPlan = validateAndFixRemainingPlan(updatedPlan, updatedPlayers);
+      writePitchState({ ...pitchState, autoSubPlan: validatedPlan, players: updatedPlayers });
       window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       toast({ title: "Substitution made", description: `${playerIn.name} on for ${playerOut.name}` });
     } catch (e) {
@@ -514,6 +533,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         });
       }
 
+      // Validate remaining plan entries against current player positions
+      updatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
       writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
       window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       toast({ title: "Substitution skipped", description: "Remaining subs have been rescheduled" });

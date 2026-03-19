@@ -300,7 +300,7 @@ export const recalculateRemainingPlan = (
 
   for (const { time, half } of subTimes) {
     // Determine how many subs to make in this window
-    const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id) && p.position === null);
+    const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id));
     const subsThisWindow = Math.min(subsAtOnce, benchAvailable.length, currentOnPitch.size);
     
     const usedPlayerOutIds = new Set<string>();
@@ -313,7 +313,7 @@ export const recalculateRemainingPlan = (
         .sort((a, b) => b.time - a.time);
       
       const benchSorted = outfieldPlayers
-        .filter(p => !currentOnPitch.has(p.id) && p.position === null && !usedPlayerInIds.has(p.id))
+        .filter(p => !currentOnPitch.has(p.id) && !usedPlayerInIds.has(p.id))
         .map(p => ({ id: p.id, time: p.minutesPlayed || 0, player: p }))
         .sort((a, b) => a.time - b.time);
 
@@ -395,6 +395,122 @@ export const recalculateRemainingPlan = (
   }
   
   return plan;
+};
+
+/**
+ * Validate remaining (unexecuted) plan entries against current player positions.
+ * If a playerIn is already on pitch or playerOut is already off pitch,
+ * attempt to find a valid replacement. If no replacement is possible, mark it as executed+skipped.
+ * This prevents "player is already on pitch" errors for upcoming subs.
+ */
+export const validateAndFixRemainingPlan = (
+  plan: SubstitutionEvent[],
+  currentPlayers: Player[]
+): SubstitutionEvent[] => {
+  // Simulate forward: track who's on pitch and who's on bench as we process subs in order
+  const onPitch = new Set<string>();
+  const onBench = new Set<string>();
+  
+  currentPlayers.forEach(p => {
+    if (p.position !== null) {
+      onPitch.add(p.id);
+    } else if (!p.isInjured) {
+      onBench.add(p.id);
+    }
+  });
+
+  const getPlayer = (id: string) => currentPlayers.find(p => p.id === id);
+  
+  return plan.map(sub => {
+    if (sub.executed) return sub;
+    
+    let { playerOut, playerIn } = sub;
+    let needsFix = false;
+    
+    // Check if playerOut is actually on pitch
+    if (!onPitch.has(playerOut.id)) {
+      // playerOut is NOT on pitch — find a replacement from on-pitch players
+      // Pick the player with the most minutes played (excluding GK)
+      const replacement = Array.from(onPitch)
+        .map(id => getPlayer(id))
+        .filter(p => p && p.currentPitchPosition !== "GK" && p.id !== playerIn.id)
+        .sort((a, b) => (b!.minutesPlayed || 0) - (a!.minutesPlayed || 0))[0];
+      
+      if (replacement) {
+        playerOut = replacement;
+        needsFix = true;
+      } else {
+        // Can't fix — leave as-is rather than removing from plan
+        // Simulate the swap anyway so subsequent subs stay consistent
+        onPitch.delete(playerOut.id);
+        onBench.add(playerOut.id);
+        onBench.delete(playerIn.id);
+        onPitch.add(playerIn.id);
+        return sub;
+      }
+    }
+    
+    // Check if playerIn is actually on bench (not on pitch)
+    if (onPitch.has(playerIn.id)) {
+      // playerIn is ON pitch — find a replacement from bench
+      const replacement = Array.from(onBench)
+        .map(id => getPlayer(id))
+        .filter(p => p && !p.isInjured && p.id !== playerOut.id &&
+          !(p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1))
+        .sort((a, b) => (a!.minutesPlayed || 0) - (b!.minutesPlayed || 0))[0];
+      
+      if (replacement) {
+        playerIn = replacement;
+        needsFix = true;
+      } else {
+        // Can't fix — leave as-is rather than removing from plan
+        onPitch.delete(playerOut.id);
+        onBench.add(playerOut.id);
+        onBench.delete(playerIn.id);
+        onPitch.add(playerIn.id);
+        return sub;
+      }
+    }
+    
+    // Also check playerIn is not already scheduled to come on in this sub's own slot
+    if (!onBench.has(playerIn.id) && !needsFix) {
+      // playerIn might have been moved by a previous planned sub in this validation
+      const replacement = Array.from(onBench)
+        .map(id => getPlayer(id))
+        .filter(p => p && !p.isInjured && p.id !== playerOut.id &&
+          !(p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1))
+        .sort((a, b) => (a!.minutesPlayed || 0) - (b!.minutesPlayed || 0))[0];
+      
+      if (replacement) {
+        playerIn = replacement;
+        needsFix = true;
+      } else {
+        // Can't fix — leave as-is
+        onPitch.delete(playerOut.id);
+        onBench.add(playerOut.id);
+        onBench.delete(playerIn.id);
+        onPitch.add(playerIn.id);
+        return sub;
+      }
+    }
+    
+    // Simulate this sub's effect on the sets for subsequent subs
+    onPitch.delete(playerOut.id);
+    onBench.add(playerOut.id);
+    onBench.delete(playerIn.id);
+    onPitch.add(playerIn.id);
+    
+    if (needsFix) {
+      const outPosition = playerOut.currentPitchPosition;
+      return {
+        ...sub,
+        playerOut: { ...playerOut, currentPitchPosition: outPosition },
+        playerIn,
+      };
+    }
+    
+    return sub;
+  });
 };
 
 /**

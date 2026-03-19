@@ -77,7 +77,8 @@ import {
   loadPitchState,
   clearPitchState,
   loadTimerStateForMinutes,
-  recalculateRemainingPlanTeamAware as recalculateRemainingPlan
+  recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
+  validateAndFixRemainingPlan
 } from "./pitchStateUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
@@ -2242,7 +2243,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
     }
   ) => {
-    if (!user?.id || readOnly) return;
+    // Only notify during active games (not during setup or after game finishes)
+    if (!user?.id || readOnly || !gameInProgress || gameTimerRef.current?.isGameFinished()) return;
     try {
       const recipientIds = new Set<string>();
       const isEventGroup = teamId.startsWith("event-group-");
@@ -2257,7 +2259,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           .eq("name", "Referee")
           .not("assigned_to", "is", null);
         referees?.forEach(d => {
-          if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+          if (d.assigned_to) recipientIds.add(d.assigned_to);
         });
       } else {
         // Regular team: notify coaches/admins
@@ -2268,7 +2270,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           .in("role", ["coach", "team_admin"]);
         
         staffRoles?.forEach(r => {
-          if (r.user_id !== user.id) recipientIds.add(r.user_id);
+          if (r.user_id) recipientIds.add(r.user_id);
         });
 
         // Also include Subs Manager assignees for regular events
@@ -2280,7 +2282,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             .eq("name", "Subs Manager")
             .not("assigned_to", "is", null);
           subsManagers?.forEach(d => {
-            if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+            if (d.assigned_to) recipientIds.add(d.assigned_to);
           });
         }
       }
@@ -2330,7 +2332,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
     }
-  }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
+  }, [user?.id, teamId, teamName, readOnly, linkedEventId, gameInProgress]);
 
   const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
     const formation = FORMATIONS[teamSize][index];
@@ -3087,10 +3089,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     );
 
     const executedSubs = updatedPlan.filter(s => s.executed);
-    const finalPlan = [...executedSubs, ...recalculated];
+    const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
     const remainingCount = finalPlan.filter(sub => !sub.executed).length;
     setAutoSubPlan(finalPlan);
-    setAutoSubActive(remainingCount > 0);
+    // Don't deactivate autoSubActive — recalculation may return 0 subs due to
+    // the 30s threshold but the system should remain active for half-time subs etc.
 
     toast({
       title: "Substitution skipped & plan recalculated",
@@ -3266,7 +3269,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         
         setAutoSubPlan(prev => {
           const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-          return prev.map(s => olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s);
+          const skipped = prev.map(s => olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s);
+          return validateAndFixRemainingPlan(skipped, players);
         });
         toast({ title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? 's' : ''} skipped`, description: "Plan adjusted for remaining time" });
         return; // Let next tick handle the latest due sub
@@ -3289,8 +3293,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
       playSubAlertBeep(notificationBody);
       
-      // Create database notification (triggers server-side push)
-      createSubNotification(notificationBody);
+      // IMPORTANT: Do not create DB notifications here.
+      // Server-side check-pending-subs already handles push delivery for all team staff.
       
       // Set sub-due pulsing for all players involved in the batch
       const dueIds = new Set<string>();
@@ -3328,7 +3332,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             ? `Halftime: ${halftimeSubs.length} substitutions`
             : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
           playSubAlertBeep(notificationBody);
-          createSubNotification(notificationBody);
+          // Server-side check-pending-subs handles push delivery
           
           setPendingAutoSub(primarySub);
           setPendingBatchSubs(additionalSubs);
@@ -3355,7 +3359,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setTimeout(() => {
           const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
           playSubAlertBeep(notificationBody);
-          createSubNotification(notificationBody);
+          // Server-side check-pending-subs handles push delivery
           
           setPendingAutoSub(gkSwapEvent);
           setPendingBatchSubs([]);
@@ -3401,12 +3405,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       // Find current player positions in our updated list
       const currentPlayerOut = updatedPlayers.find(p => p.id === playerOut.id);
-      const currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
+      let currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
+      let actualPlayerIn = playerIn;
       
-      // Check if the playerIn is still on the bench
-      if (currentPlayerIn?.position !== null) {
-        executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-        continue;
+      // Check if the playerIn is still on the bench (position must be null)
+      // Note: undefined means player not found, null means on bench
+      if (!currentPlayerIn || currentPlayerIn.position !== null) {
+        // Try to find a replacement from the bench
+        const benchReplacement = updatedPlayers
+          .find(p => p.position === null && !p.isInjured && p.id !== playerOut.id &&
+            !(p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) &&
+            !allPendingSubs.some(s => s.playerIn.id === p.id && s !== sub));
+        
+        if (benchReplacement) {
+          currentPlayerIn = benchReplacement;
+          actualPlayerIn = benchReplacement;
+        } else {
+          // No replacement available - skip this sub
+          executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
+          continue;
+        }
       }
       
       // Check if playerOut is still on the pitch
@@ -3422,7 +3440,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const pitchPosition = { ...currentPlayerOut.position };
       const pitchPositionType = currentPlayerOut.currentPitchPosition;
       
-      if (positionSwap) {
+      if (positionSwap && actualPlayerIn.id === playerIn.id) {
+        // Only use position swap if we're using the original playerIn
         const swapPlayer = updatedPlayers.find(p => p.id === positionSwap.player.id);
         if (swapPlayer?.position) {
           const swapPosition = { ...swapPlayer.position };
@@ -3434,7 +3453,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             if (p.id === positionSwap.player.id) {
               return { ...p, position: pitchPosition, currentPitchPosition: positionSwap.toPosition };
             }
-            if (p.id === playerIn.id) {
+            if (p.id === actualPlayerIn.id) {
               return { ...p, position: swapPosition, currentPitchPosition: positionSwap.fromPosition };
             }
             return p;
@@ -3444,7 +3463,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             if (p.id === playerOut.id) {
               return { ...p, position: null, currentPitchPosition: undefined };
             }
-            if (p.id === playerIn.id) {
+            if (p.id === actualPlayerIn.id) {
               return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
             }
             return p;
@@ -3455,7 +3474,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           if (p.id === playerOut.id) {
             return { ...p, position: null, currentPitchPosition: undefined };
           }
-          if (p.id === playerIn.id) {
+          if (p.id === actualPlayerIn.id) {
             return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
           }
           return p;
@@ -3482,7 +3501,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       return sub;
     });
     
-    // Recalculate remaining sub timings if the sub was late
+    // Only recalculate remaining sub timings if the sub was significantly late (>30s)
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
     const half = gameTimerRef.current?.getCurrentHalf() || 1;
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
@@ -3491,13 +3510,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     let finalPlan = updatedPlan;
     if (remainingSubs.length > 0) {
-      const executedSubs = updatedPlan.filter(sub => sub.executed);
-      const recalculated = recalculateRemainingPlan(
-        updatedPlayers, parseInt(teamSize), halfDurationSeconds, currentElapsed, half as 1 | 2, pendingAutoSub, rotateGkAtHalftime
-      );
-      finalPlan = [...executedSubs, ...recalculated];
+      const subTotalSeconds = pendingAutoSub.half === 1 ? pendingAutoSub.time : halfDurationSeconds + pendingAutoSub.time;
+      const currentTotalSeconds = half === 1 ? currentElapsed : halfDurationSeconds + currentElapsed;
+      const delaySeconds = Math.max(0, currentTotalSeconds - subTotalSeconds);
+      
+      if (delaySeconds > 30) {
+        const executedSubs = updatedPlan.filter(sub => sub.executed);
+        const recalculated = recalculateRemainingPlan(
+          updatedPlayers, parseInt(teamSize), halfDurationSeconds, currentElapsed, half as 1 | 2, pendingAutoSub, rotateGkAtHalftime
+        );
+        finalPlan = [...executedSubs, ...recalculated];
+      }
     }
     
+    // Validate remaining plan entries against updated player positions
+    finalPlan = validateAndFixRemainingPlan(finalPlan, updatedPlayers);
     setAutoSubPlan(finalPlan);
     setPlayers(updatedPlayers);
     
@@ -3541,10 +3568,11 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     );
 
     const executedSubs = updatedPlan.filter(s => s.executed);
-    const finalPlan = [...executedSubs, ...recalculated];
+    const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
     const remainingCount = finalPlan.filter(sub => !sub.executed).length;
     setAutoSubPlan(finalPlan);
-    setAutoSubActive(remainingCount > 0);
+    // Don't deactivate autoSubActive — recalculation may return 0 subs due to
+    // the 30s threshold but the system should remain active for half-time subs etc.
 
     const skippedCount = allPendingSubs.length;
     toast({ 
@@ -4707,7 +4735,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <>
                       <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                       <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
-                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", gameInProgress ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !gameTimerRef.current?.isGameFinished()} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
                           <Play className="h-4 w-4" />
                           Setup Game
                         </button>
@@ -6161,7 +6189,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                   <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[170px] py-1">
                     {!readOnly && (
-                      <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", gameInProgress ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                      <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !gameTimerRef.current?.isGameFinished()} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
                         <Play className="h-4 w-4" />
                         Setup Game
                       </button>
