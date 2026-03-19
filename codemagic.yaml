@@ -462,12 +462,27 @@ workflows:
       - name: Set marketing version and increment build number
         script: |
           cd ios/App
-          # Set the marketing version from package.json
+          # Read the marketing version from package.json and fail fast if it wasn't bumped
           APP_VERSION=$(node -p "require('../../package.json').version")
+          echo "=== package.json version: $APP_VERSION ==="
+          if [ -z "$APP_VERSION" ]; then
+            echo "ERROR: package.json version is empty"
+            exit 1
+          fi
+          if [ "$APP_VERSION" = "1.1.0" ]; then
+            echo "ERROR: package.json is still 1.1.0 — bump the app version before publishing to App Store Connect"
+            exit 1
+          fi
+
           echo "=== Setting MARKETING_VERSION to $APP_VERSION ==="
           agvtool new-marketing-version "$APP_VERSION"
+
+          echo "=== Verifying CFBundleShortVersionString ==="
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" App/Info.plist
+
           # Increment the build number
           LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number 6758928691 || echo 0)
+          echo "=== Latest TestFlight build number: $LATEST_BUILD_NUMBER ==="
           agvtool new-version -all $((LATEST_BUILD_NUMBER + 1))
       - name: Add Crashlytics run script to Xcode project
         script: |
