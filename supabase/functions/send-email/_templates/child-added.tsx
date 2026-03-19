@@ -132,7 +132,7 @@ export const ChildAddedEmail = ({
             </Text>
 
             <Text style={signOff}>
-              See you on the pitch 👊
+              Howl On 👊
             </Text>
             <Text style={clubSignature}>
               {clubName}
