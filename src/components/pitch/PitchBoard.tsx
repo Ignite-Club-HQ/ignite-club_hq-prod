@@ -423,204 +423,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [initialTeamSize, initialFormation, initialMinutesPerHalf, initialRotationSpeed, initialDisablePositionSwaps, initialDisableBatchSubs, initialRotateGkAtHalftime, savedState]);
 
-  // Save settings to database when they change
+  // Setting change handlers — update local state and persist via hook
   const handleRotationSpeedChange = useCallback(async (speed: number) => {
     setRotationSpeed(speed);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: speed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, disablePositionSwaps, disableBatchSubs, minutesPerHalf, teamSize, selectedFormation]);
+    await persistRotationSpeed(speed);
+  }, [persistRotationSpeed]);
 
   const handleDisablePositionSwapsChange = useCallback(async (disabled: boolean) => {
     setDisablePositionSwaps(disabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disabled,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disableBatchSubs, minutesPerHalf, teamSize, selectedFormation]);
+    await persistDisablePositionSwaps(disabled);
+  }, [persistDisablePositionSwaps]);
 
   const handleDisableBatchSubsChange = useCallback(async (disabled: boolean) => {
     setDisableBatchSubs(disabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disabled,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, minutesPerHalf, teamSize, selectedFormation]);
+    await persistDisableBatchSubs(disabled);
+  }, [persistDisableBatchSubs]);
 
   const handleRotateGkAtHalftimeChange = useCallback(async (enabled: boolean) => {
     setRotateGkAtHalftime(enabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotate_gk_at_halftime: enabled,
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly]);
+    await persistRotateGkAtHalftime(enabled);
+  }, [persistRotateGkAtHalftime]);
 
   const handleMinutesPerHalfChange = useCallback(async (minutes: number) => {
     setMinutesPerHalf(minutes);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutes,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, teamSize, selectedFormation]);
-
-  const persistTeamSizeToDb = useCallback(async (newSize: TeamSize, formationName?: string) => {
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(newSize),
-          formation: formationName || FORMATIONS[newSize][0]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, minutesPerHalf]);
-
-  const persistFormationToDb = useCallback(async (formationName: string) => {
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: formationName
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, minutesPerHalf, teamSize]);
-
-  // Save all settings at once with loading state
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  
-  const handleSaveSettings = useCallback(async () => {
-    if (readOnly) return;
-    
-    setIsSavingSettings(true);
-    try {
-      const { error } = await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null,
-          show_match_header: showMatchHeader,
-          rotate_gk_at_halftime: rotateGkAtHalftime,
-          show_lineup_picker: showLineupPickerSetting
-        }, { onConflict: 'team_id' });
-      
-      if (error) throw error;
-
-      const savedFormation = FORMATIONS[teamSize][selectedFormation]?.name || null;
-      savedTeamDefaultsRef.current = {
-        minutesPerHalf,
-        rotationSpeed,
-        disablePositionSwaps,
-        disableBatchSubs,
-        rotateGkAtHalftime,
-        teamSize,
-        formation: savedFormation,
-      };
-      
-      // Invalidate subscription queries so parent pages pick up new defaults
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] }),
-        queryClient.invalidateQueries({ queryKey: ["team-subscription-for-pitch", teamId] }),
-      ]);
-      
-      toast({
-        title: "Settings saved",
-        description: "Your pitch settings have been saved successfully.",
-      });
-    } catch (error) {
-      console.error("Failed to save settings:", error);
-      toast({
-        title: "Failed to save",
-        description: "Could not save your settings. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSavingSettings(false);
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, queryClient, toast]);
-
-  // handleTacticalModeChange is defined after handleFormationChange (see below)
-
-  const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
-    setPlayers(updatedPlayers);
-    setShowLineupPicker(false);
-    if (secondHalfGkId) {
-      setPreferredSecondHalfGkId(secondHalfGkId);
-    }
-    if (firstHalfGkId || secondHalfGkId) {
-      console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
-    }
-    // After confirming lineup, prompt auto-sub generation
-    setTimeout(() => {
-      setAutoSubPlanEditMode(false);
-      setAutoSubFromPreGame(true);
-      setAutoSubPlanDialogOpen(true);
-    }, 300);
-  }, []);
+    await persistMinutesPerHalf(minutes);
+  }, [persistMinutesPerHalf]);
 
   const handleShowLineupPickerSettingChange = useCallback(async (enabled: boolean) => {
     setShowLineupPickerSetting(enabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ team_id: teamId, show_lineup_picker: enabled }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly]);
+    await persistShowLineupPicker(enabled);
+  }, [persistShowLineupPicker]);
 
 
   // Handle linking event with email notifications
