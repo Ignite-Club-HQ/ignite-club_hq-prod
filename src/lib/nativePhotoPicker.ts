@@ -66,6 +66,15 @@ export async function ensureCameraPermissions(): Promise<void> {
         console.log("[nativePhotoPicker] Requesting photo permissions...");
         const result = await Camera.requestPermissions({ permissions: ["photos"] });
         console.log("[nativePhotoPicker] Permission result:", JSON.stringify(result));
+
+        // iOS needs time to fully register the permission grant internally.
+        // Without this delay, Camera.getPhoto() can fail even though the
+        // permission was just granted (race condition in the OS).
+        await new Promise((r) => setTimeout(r, 500));
+
+        // Re-verify the permission actually took effect
+        const verified = await Camera.checkPermissions();
+        console.log("[nativePhotoPicker] Post-grant verification:", JSON.stringify(verified));
       }
 
       permissionsReady = true;
