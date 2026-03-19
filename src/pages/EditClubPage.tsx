@@ -309,7 +309,8 @@ export default function EditClubPage() {
             </Select>
           </div>
 
-          {/* Class Mode */}
+          {/* Class Mode - hidden for traditional team sports */}
+          {!isTeamOnlySport(sport) && (
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label className="text-base">Class Mode</Label>
@@ -317,6 +318,7 @@ export default function EditClubPage() {
             </div>
             <Switch checked={classModeEnabled} onCheckedChange={setClassModeEnabled} />
           </div>
+          )}
 
           {/* Description */}
           <div className="space-y-2">
