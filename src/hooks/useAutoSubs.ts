@@ -456,7 +456,7 @@ export function useAutoSubs({
     setPendingBatchSubs([]);
     setSubDuePlayerIds(new Set());
     if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, playersRef, teamSize, rotateGkAtHalftime, toast, gameTimerRef]);
+  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, playersRef, safeRecalculate, toast, gameTimerRef]);
 
   // ── Due-sub detection (called from handleTimerUpdate) ───
 
