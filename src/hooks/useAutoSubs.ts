@@ -424,14 +424,14 @@ export function useAutoSubs({
     const half = gameTimerRef.current?.getCurrentHalf() || 1;
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
     const halfDurationSeconds = minsPerHalf * 60;
-    const recalculated = recalculateRemainingPlan(
+    const existingUnexecuted = updatedPlan.filter(s => !s.executed);
+    const recalculated = safeRecalculate(
       players,
-      parseInt(teamSize),
       halfDurationSeconds,
       currentElapsed,
       half,
       pendingAutoSub,
-      rotateGkAtHalftime
+      existingUnexecuted
     );
 
     const executedSubs = updatedPlan.filter(s => s.executed);
