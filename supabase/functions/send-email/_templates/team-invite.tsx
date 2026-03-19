@@ -130,7 +130,7 @@ export const TeamInviteEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  We're using a new app called <strong>Ignite Club HQ</strong> — it's branded as our club and brings everything together in one place.
+                  To see which team they're in and all the details, we're using a new app called <strong>Ignite Club HQ</strong> — it's branded as our club and brings everything together in one place.
                 </Text>
                 <Text style={bodyText}>
                   It's completely ad-free, built by a club member, and designed to keep things simple whilst still having all the functionality of other apps.
