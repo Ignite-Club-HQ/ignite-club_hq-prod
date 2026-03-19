@@ -1379,7 +1379,7 @@ export default function HomePage() {
     return () => window.removeEventListener('open-pitch-board', handleOpenPitchBoard);
   }, []);
 
-
+  const clubRequestMutation = useMutation({
     mutationFn: async () => {
       // Use activeClubFilter if in club mode, otherwise use selectedClub
       const clubToJoin = activeClubFilter || selectedClub;
