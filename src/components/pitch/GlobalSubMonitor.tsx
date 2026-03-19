@@ -116,6 +116,8 @@ const savePitchState = (state: PitchBoardState) => {
     }
     // Also write to active key
     localStorage.setItem(PITCH_STATE_KEY, json);
+    // Dispatch custom event for same-tab sync (Android WebView)
+    window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'pitch-monitor' } }));
   } catch (e) {
     console.error("Failed to save pitch state:", e);
   }
