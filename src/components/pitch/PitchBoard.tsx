@@ -2242,7 +2242,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
     }
   ) => {
-    if (!user?.id || readOnly) return;
+    // Only notify during active games (not during setup or after game finishes)
+    if (!user?.id || readOnly || !gameInProgress || gameTimerRef.current?.isGameFinished()) return;
     try {
       const recipientIds = new Set<string>();
       const isEventGroup = teamId.startsWith("event-group-");
@@ -2257,7 +2258,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           .eq("name", "Referee")
           .not("assigned_to", "is", null);
         referees?.forEach(d => {
-          if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+          if (d.assigned_to) recipientIds.add(d.assigned_to);
         });
       } else {
         // Regular team: notify coaches/admins
@@ -2268,7 +2269,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           .in("role", ["coach", "team_admin"]);
         
         staffRoles?.forEach(r => {
-          if (r.user_id !== user.id) recipientIds.add(r.user_id);
+          if (r.user_id) recipientIds.add(r.user_id);
         });
 
         // Also include Subs Manager assignees for regular events
@@ -2280,7 +2281,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             .eq("name", "Subs Manager")
             .not("assigned_to", "is", null);
           subsManagers?.forEach(d => {
-            if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+            if (d.assigned_to) recipientIds.add(d.assigned_to);
           });
         }
       }
@@ -2330,7 +2331,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
     }
-  }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
+  }, [user?.id, teamId, teamName, readOnly, linkedEventId, gameInProgress]);
 
   const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
     const formation = FORMATIONS[teamSize][index];
