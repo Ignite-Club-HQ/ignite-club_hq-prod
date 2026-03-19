@@ -1398,7 +1398,45 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     subAnimationTimers.current.push(tClear);
   }, []);
 
-  // Manual substitution confirmation dialog state
+  // ── Auto-sub hook (centralizes plan state & handlers) ──
+  const {
+    autoSubPlan, setAutoSubPlan,
+    autoSubActive, setAutoSubActive,
+    autoSubPaused, setAutoSubPaused,
+    lockedPlayerIds,
+    pendingAutoSub, setPendingAutoSub,
+    pendingBatchSubs, setPendingBatchSubs,
+    subConfirmDialogOpen, setSubConfirmDialogOpen,
+    subDuePlayerIds, setSubDuePlayerIds,
+    nextSubInfo,
+    subDueTimerRef,
+    handleStartAutoSubPlan,
+    handleCancelAutoSubPlan,
+    handleTogglePauseAutoSub,
+    handleToggleLockPlayer,
+    handleSkipNextSub,
+    handleExecuteNow,
+    handleRegeneratePlan,
+    regeneratePlanRef,
+    handleConfirmAutoSub,
+    handleSkipAutoSub,
+    checkForDueSubs,
+    updateNextSubInfo,
+    checkHalftimeSubs,
+    skipCooldownRef,
+  } = useAutoSubs({
+    initialPlan: savedState?.autoSubPlan || [],
+    initialActive: savedState?.autoSubActive || false,
+    initialPaused: savedState?.autoSubPaused || false,
+    gameTimerRef,
+    playersRef,
+    setPlayers,
+    teamSize,
+    rotateGkAtHalftime,
+    pushToUndoHistory,
+    runSubAnimation,
+  });
+
   const [manualSubConfirmOpen, setManualSubConfirmOpen] = useState(false);
   const [pendingManualSub, setPendingManualSub] = useState<{ 
     pitchPlayerId: string; 
