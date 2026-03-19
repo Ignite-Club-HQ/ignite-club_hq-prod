@@ -153,14 +153,14 @@ export const TeamInviteEmail = ({
                   <>
                     <Text style={bulletItem}>• Set up and manage training sessions and fixtures</Text>
                     <Text style={bulletItem}>• Track attendance and manage team rosters</Text>
-                    <Text style={bulletItem}>• Use the pitch board for lineups and formations</Text>
+                    <Text style={bulletItem}>• Use the pitch board for lineups, formations, and automated substitutions</Text>
                     <Text style={bulletItem}>• Communicate with your team via team chat</Text>
                   </>
                 ) : roleName === 'Team Admin' ? (
                   <>
                     <Text style={bulletItem}>• Create and manage team events, fixtures, and training</Text>
                     <Text style={bulletItem}>• Track attendance and manage team members</Text>
-                    <Text style={bulletItem}>• Use the pitch board for lineups and formations</Text>
+                    <Text style={bulletItem}>• Use the pitch board for lineups, formations, and automated substitutions</Text>
                     <Text style={bulletItem}>• Manage team chat and communication</Text>
                   </>
                 ) : (
