@@ -127,7 +127,7 @@ export const TeamInviteEmail = ({
               /* Role-specific admin invite copy */
               <>
                 <Text style={headingText}>
-                  You've been invited to {clubName} app as {roleName} 🎉
+                  You've been invited to join the {clubName} app as {roleName} 🎉
                 </Text>
 
                 <Text style={bodyText}>
