@@ -447,14 +447,22 @@ export function useAutoSubs({
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
     const halfDurationSeconds = minsPerHalf * 60;
     const existingUnexecuted = updatedPlan.filter(s => !s.executed);
-    const recalculated = safeRecalculate(
-      players,
-      halfDurationSeconds,
+    const shouldRecalculate = shouldRecalculateAfterSkip(
+      allPendingSubs,
       currentElapsed,
       half,
-      pendingAutoSub,
-      existingUnexecuted
+      halfDurationSeconds
     );
+    const recalculated = shouldRecalculate
+      ? safeRecalculate(
+          players,
+          halfDurationSeconds,
+          currentElapsed,
+          half,
+          pendingAutoSub,
+          existingUnexecuted
+        )
+      : existingUnexecuted;
 
     const executedSubs = updatedPlan.filter(s => s.executed);
     const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
@@ -464,11 +472,15 @@ export function useAutoSubs({
     toast({
       title:
         allPendingSubs.length > 1
-          ? `${allPendingSubs.length} subs skipped & plan recalculated`
-          : "Sub skipped & plan recalculated",
+          ? shouldRecalculate
+            ? `${allPendingSubs.length} subs skipped & plan recalculated`
+            : `${allPendingSubs.length} subs skipped`
+          : shouldRecalculate
+            ? "Sub skipped & plan recalculated"
+            : "Sub skipped",
       description:
         remainingCount > 0
-          ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
+          ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} remaining`
           : "No more planned substitutions",
     });
 
@@ -478,7 +490,7 @@ export function useAutoSubs({
     setPendingBatchSubs([]);
     setSubDuePlayerIds(new Set());
     if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, playersRef, safeRecalculate, toast, gameTimerRef]);
+  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, playersRef, safeRecalculate, shouldRecalculateAfterSkip, toast, gameTimerRef]);
 
   // ── Due-sub detection (called from handleTimerUpdate) ───
 
