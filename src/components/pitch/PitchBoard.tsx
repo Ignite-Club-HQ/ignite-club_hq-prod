@@ -3268,7 +3268,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         
         setAutoSubPlan(prev => {
           const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-          return prev.map(s => olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s);
+          const skipped = prev.map(s => olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s);
+          return validateAndFixRemainingPlan(skipped, players);
         });
         toast({ title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? 's' : ''} skipped`, description: "Plan adjusted for remaining time" });
         return; // Let next tick handle the latest due sub
