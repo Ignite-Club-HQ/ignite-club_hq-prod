@@ -3486,7 +3486,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     
     // Apply all player changes at once
-    setPlayers(updatedPlayers);
+    // Note: setPlayers is called once below after plan validation (line ~3529)
     
     const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
     runSubAnimation(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);

@@ -3,79 +3,24 @@ import { playSubAlertBeep, playTimerBeep } from "./GameTimer";
 import SubConfirmDialog from "./SubConfirmDialog";
 import GameFinishedDialog from "./GameFinishedDialog";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
-import { PitchPosition } from "./PositionBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import type { Json } from "@/integrations/supabase/types";
 import { setSyncStatus } from "@/hooks/useSyncStatus";
-import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
+import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan, validateAndFixRemainingPlan } from "./pitchStateUtils";
+import type { Player, SubstitutionEvent, TimerState, PitchBoardState, Goal } from "./types";
+import {
+  PITCH_STATE_KEY,
+  PITCH_STATE_KEY_BASE,
+  getPitchStateKey,
+  PITCH_BOARD_OPEN_KEY,
+  TIMER_STORAGE_KEY,
+} from "./types";
+import { getSubKey, executeSubsOnPlayers, markSubsExecuted, calculateSubDelay } from "./autoSubHelpers";
 
-interface Player {
-  id: string;
-  name: string;
-  number?: number;
-  position: { x: number; y: number } | null;
-  assignedPositions?: PitchPosition[];
-  currentPitchPosition?: PitchPosition;
-  minutesPlayed?: number;
-}
-
-interface SubstitutionEvent {
-  time: number;
-  half: 1 | 2;
-  playerOut: Player;
-  playerIn: Player;
-  positionSwap?: {
-    player: Player;
-    fromPosition: PitchPosition;
-    toPosition: PitchPosition;
-  };
-  executed?: boolean;
-  skipped?: boolean;
-}
-
-interface TimerState {
-  teamId: string;
-  teamName?: string;
-  minutesPerHalf: number;
-  currentHalf: 1 | 2;
-  elapsedSeconds: number;
-  isRunning: boolean;
-  soundEnabled: boolean;
-  lastUpdateTime: number;
-}
-
-interface Goal {
-  id: string;
-  scorerId?: string;
-  scorerName?: string;
-  time: number;
-  half: 1 | 2;
-  isOpponentGoal: boolean;
-}
-
-interface PitchBoardState {
-  teamId: string;
-  players: Player[];
-  teamSize: string;
-  selectedFormation: number;
-  ballPosition: { x: number; y: number };
-  autoSubPlan: SubstitutionEvent[];
-  autoSubActive: boolean;
-  autoSubPaused: boolean;
-  mockMode: boolean;
-  lastUpdateTime: number;
-  linkedEventId?: string | null;
-  executedSubs?: SubstitutionEvent[];
-  goals?: Goal[];
-}
-
-const TIMER_STATE_KEY = "pitch-board-timer-state";
-const PITCH_STATE_KEY = "ignite-pitch-board-state";
-const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
-const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
-const PITCH_BOARD_OPEN_KEY = "ignite-pitch-board-open";
+const TIMER_STATE_KEY = TIMER_STORAGE_KEY;
+const getPitchStateKeyForTeam = getPitchStateKey;
 
 const loadTimerState = (): TimerState | null => {
   try {

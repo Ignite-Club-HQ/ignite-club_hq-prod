@@ -234,7 +234,7 @@ export const recalculateRemainingPlan = (
     return plan;
   }
   
-  const fieldPositions = teamSize - 1;
+  // fieldPositions not needed — teamSize used indirectly via outfield filtering
   const remainingInCurrentHalf = halfDurationSeconds - currentElapsedSeconds;
   const remainingInSecondHalf = currentHalf === 1 ? halfDurationSeconds : 0;
   const totalRemainingSeconds = remainingInCurrentHalf + remainingInSecondHalf;
