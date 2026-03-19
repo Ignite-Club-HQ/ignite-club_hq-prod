@@ -545,7 +545,7 @@ export function useAutoSubs({
       setSubConfirmDialogOpen(true);
       return true;
     },
-    [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, lockedPlayerIds, toast, gameTimerRef, playersRef, teamSize, rotateGkAtHalftime]
+    [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, lockedPlayerIds, toast, gameTimerRef, playersRef, safeRecalculate]
   );
 
   // ── Next-sub countdown updater ──────────────────────────
