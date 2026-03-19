@@ -92,6 +92,16 @@ export function useAutoSubs({
 
   // ── Safeguard: prevent recalculation from wiping plan ──
 
+  const shouldRecalculateAfterSkip = useCallback(
+    (
+      skippedSubs: SubstitutionEvent[],
+      currentElapsed: number,
+      half: 1 | 2,
+      halfDurationSeconds: number
+    ) => skippedSubs.some(sub => calculateSubDelay(sub, currentElapsed, half, halfDurationSeconds) > 30),
+    []
+  );
+
   /**
    * If recalculation returns fewer subs than expected (e.g. due to threshold edge cases),
    * fall back to the existing unexecuted plan (minus skipped subs) with validated references.
@@ -115,8 +125,16 @@ export function useAutoSubs({
         rotateGkAtHalftime
       );
 
-      // If recalculation returns empty but there are still unexecuted subs with bench players,
-      // preserve the existing plan to avoid wiping upcoming substitutions
+      // If recalculation shrinks the remaining plan, preserve the existing schedule.
+      // Skipping a single sub should not collapse all future subs.
+      if (existingUnexecuted.length > 0 && recalculated.length < existingUnexecuted.length) {
+        console.warn("[AutoSub] Recalculation shortened remaining plan — preserving existing plan", {
+          recalculated: recalculated.length,
+          existing: existingUnexecuted.length,
+        });
+        return existingUnexecuted;
+      }
+
       if (recalculated.length === 0 && existingUnexecuted.length > 0) {
         const benchPlayers = players.filter(p => p.position === null && !p.isInjured);
         if (benchPlayers.length > 0) {
