@@ -42,6 +42,9 @@ const AutoSubManager = lazy(() => import("./AutoSubManager"));
 const AutoSubControlPanel = lazy(() => import("./AutoSubControlPanel"));
 const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
+import { useAutoSubs } from "@/hooks/useAutoSubs";
+import { usePitchSettings } from "@/hooks/usePitchSettings";
+import { useDraggableTimer } from "@/hooks/useDraggableTimer";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 
 import { useToast } from "@/hooks/use-toast";
@@ -261,27 +264,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     minorAdjustments?: { player: Player; fromLabel: string; toLabel: string }[];
   } | null>(null);
 
-  // Auto-sub plan state
+  // Auto-sub plan state (hook setup happens below after runSubAnimation is defined)
   const gameTimerRef = useRef<GameTimerRef>(null);
-  const regeneratePlanRef = useRef<(() => void) | null>(null);
   const [autoSubPlanDialogOpen, setAutoSubPlanDialogOpen] = useState(false);
   const [autoSubPlanEditMode, setAutoSubPlanEditMode] = useState(false);
   const [autoSubFromPreGame, setAutoSubFromPreGame] = useState(false);
-  const [autoSubPlan, setAutoSubPlan] = useState<SubstitutionEvent[]>(() => savedState?.autoSubPlan || []);
-  const [autoSubActive, setAutoSubActive] = useState(() => savedState?.autoSubActive || false);
-  const [autoSubPaused, setAutoSubPaused] = useState(() => savedState?.autoSubPaused || false);
-  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
   const [preferredSecondHalfGkId, setPreferredSecondHalfGkId] = useState<string | undefined>(undefined);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(() => savedState?.linkedEventId || initialLinkedEventId || null);
   const [showMatchHeader, setShowMatchHeader] = useState(() => initialShowMatchHeader);
   const [goals, setGoals] = useState<Goal[]>(() => savedState?.goals || []);
-  const [pendingAutoSub, setPendingAutoSub] = useState<SubstitutionEvent | null>(null);
-  const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
-  const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(true); // Start collapsed by default
-  const [nextSubInfo, setNextSubInfo] = useState<{ playerInId: string; playerOutId: string; countdown: string } | null>(null);
-  const [subDuePlayerIds, setSubDuePlayerIds] = useState<Set<string>>(new Set());
-  const subDueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bottomSheetTab, setBottomSheetTab] = useState<"bench" | "setup">("bench");
   const [showFloatingDrawToolbar, setShowFloatingDrawToolbar] = useState(false);
   const [pinDrawingToolbar, setPinDrawingToolbar] = useState(false);
@@ -308,15 +300,61 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
-  const savedTeamDefaultsRef = useRef({
-    minutesPerHalf: initialMinutesPerHalf,
-    rotationSpeed: initialRotationSpeed,
-    disablePositionSwaps: initialDisablePositionSwaps,
-    disableBatchSubs: initialDisableBatchSubs,
-    rotateGkAtHalftime: initialRotateGkAtHalftime,
-    teamSize: getInitialTeamSize(),
-    formation: initialFormation || null,
+  // Settings ref for usePitchSettings (avoids stale closures)
+  const pitchSettingsRef = useRef({
+    rotationSpeed,
+    disablePositionSwaps,
+    disableBatchSubs,
+    rotateGkAtHalftime,
+    minutesPerHalf,
+    teamSize,
+    selectedFormation,
+    showMatchHeader,
+    showLineupPickerSetting: showLineupPickerSetting,
   });
+  // Keep ref in sync
+  pitchSettingsRef.current = {
+    rotationSpeed,
+    disablePositionSwaps,
+    disableBatchSubs,
+    rotateGkAtHalftime,
+    minutesPerHalf,
+    teamSize,
+    selectedFormation,
+    showMatchHeader,
+    showLineupPickerSetting: showLineupPickerSetting,
+  };
+
+  const {
+    isSavingSettings,
+    savedTeamDefaultsRef,
+    persistTeamSizeToDb,
+    persistFormationToDb,
+    persistRotationSpeed,
+    persistDisablePositionSwaps,
+    persistDisableBatchSubs,
+    persistRotateGkAtHalftime,
+    persistMinutesPerHalf,
+    persistShowLineupPicker,
+    handleSaveSettings,
+  } = usePitchSettings({
+    teamId,
+    readOnly,
+    settingsRef: pitchSettingsRef,
+  });
+
+  // Initialize saved defaults ref with initial props
+  if (!savedTeamDefaultsRef.current.formation) {
+    savedTeamDefaultsRef.current = {
+      minutesPerHalf: initialMinutesPerHalf,
+      rotationSpeed: initialRotationSpeed,
+      disablePositionSwaps: initialDisablePositionSwaps,
+      disableBatchSubs: initialDisableBatchSubs,
+      rotateGkAtHalftime: initialRotateGkAtHalftime,
+      teamSize: getInitialTeamSize(),
+      formation: initialFormation || null,
+    };
+  }
   
   // Tactical mode state
   type TacticalFormationSuggestion = {
@@ -386,178 +424,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [initialTeamSize, initialFormation, initialMinutesPerHalf, initialRotationSpeed, initialDisablePositionSwaps, initialDisableBatchSubs, initialRotateGkAtHalftime, savedState]);
 
-  // Save settings to database when they change
+  // Setting change handlers — update local state and persist via hook
   const handleRotationSpeedChange = useCallback(async (speed: number) => {
     setRotationSpeed(speed);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: speed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, disablePositionSwaps, disableBatchSubs, minutesPerHalf, teamSize, selectedFormation]);
+    await persistRotationSpeed(speed);
+  }, [persistRotationSpeed]);
 
   const handleDisablePositionSwapsChange = useCallback(async (disabled: boolean) => {
     setDisablePositionSwaps(disabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disabled,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disableBatchSubs, minutesPerHalf, teamSize, selectedFormation]);
+    await persistDisablePositionSwaps(disabled);
+  }, [persistDisablePositionSwaps]);
 
   const handleDisableBatchSubsChange = useCallback(async (disabled: boolean) => {
     setDisableBatchSubs(disabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disabled,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, minutesPerHalf, teamSize, selectedFormation]);
+    await persistDisableBatchSubs(disabled);
+  }, [persistDisableBatchSubs]);
 
   const handleRotateGkAtHalftimeChange = useCallback(async (enabled: boolean) => {
     setRotateGkAtHalftime(enabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotate_gk_at_halftime: enabled,
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly]);
+    await persistRotateGkAtHalftime(enabled);
+  }, [persistRotateGkAtHalftime]);
 
   const handleMinutesPerHalfChange = useCallback(async (minutes: number) => {
     setMinutesPerHalf(minutes);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutes,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, teamSize, selectedFormation]);
+    await persistMinutesPerHalf(minutes);
+  }, [persistMinutesPerHalf]);
 
-  const persistTeamSizeToDb = useCallback(async (newSize: TeamSize, formationName?: string) => {
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(newSize),
-          formation: formationName || FORMATIONS[newSize][0]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, minutesPerHalf]);
-
-  const persistFormationToDb = useCallback(async (formationName: string) => {
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: formationName
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, minutesPerHalf, teamSize]);
-
-  // Save all settings at once with loading state
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  
-  const handleSaveSettings = useCallback(async () => {
-    if (readOnly) return;
-    
-    setIsSavingSettings(true);
-    try {
-      const { error } = await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null,
-          show_match_header: showMatchHeader,
-          rotate_gk_at_halftime: rotateGkAtHalftime,
-          show_lineup_picker: showLineupPickerSetting
-        }, { onConflict: 'team_id' });
-      
-      if (error) throw error;
-
-      const savedFormation = FORMATIONS[teamSize][selectedFormation]?.name || null;
-      savedTeamDefaultsRef.current = {
-        minutesPerHalf,
-        rotationSpeed,
-        disablePositionSwaps,
-        disableBatchSubs,
-        rotateGkAtHalftime,
-        teamSize,
-        formation: savedFormation,
-      };
-      
-      // Invalidate subscription queries so parent pages pick up new defaults
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] }),
-        queryClient.invalidateQueries({ queryKey: ["team-subscription-for-pitch", teamId] }),
-      ]);
-      
-      toast({
-        title: "Settings saved",
-        description: "Your pitch settings have been saved successfully.",
-      });
-    } catch (error) {
-      console.error("Failed to save settings:", error);
-      toast({
-        title: "Failed to save",
-        description: "Could not save your settings. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSavingSettings(false);
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, queryClient, toast]);
-
-  // handleTacticalModeChange is defined after handleFormationChange (see below)
+  const handleShowLineupPickerSettingChange = useCallback(async (enabled: boolean) => {
+    setShowLineupPickerSetting(enabled);
+    await persistShowLineupPicker(enabled);
+  }, [persistShowLineupPicker]);
 
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
     setPlayers(updatedPlayers);
@@ -576,17 +472,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }, 300);
   }, []);
 
-  const handleShowLineupPickerSettingChange = useCallback(async (enabled: boolean) => {
-    setShowLineupPickerSetting(enabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ team_id: teamId, show_lineup_picker: enabled }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly]);
 
-
-  // Handle linking event with email notifications
   const handleLinkEvent = useCallback(async (eventId: string | null) => {
     const previousLinkedEventId = linkedEventId;
     setLinkedEventId(eventId);
@@ -672,17 +558,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   const [floatingSubsPosition, setFloatingSubsPosition] = useState({ x: 16, y: 16 }); // bottom-left offset
   const floatingSubsDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   
-  // Draggable + resizable floating timer state (landscape)
-  const [floatingTimerPosition, setFloatingTimerPosition] = useState({ x: 8, y: 8 });
-  const [floatingTimerScale, setFloatingTimerScale] = useState(1);
-  const floatingTimerDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
-  const floatingTimerPinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
-  
-  // Portrait draggable + resizable timer state
-  const [portraitTimerPosition, setPortraitTimerPosition] = useState<{ x: number; y: number } | null>(null);
-  const [portraitTimerScale, setPortraitTimerScale] = useState(1);
-  const portraitTimerDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
-  const portraitTimerPinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
+  // Draggable + resizable floating timer (landscape & portrait)
+  const {
+    floatingTimerPosition,
+    floatingTimerScale,
+    handleTimerDragStart,
+    handleTimerTouchStart,
+    portraitTimerPosition,
+    portraitTimerScale,
+    handlePortraitTimerTouchStart,
+  } = useDraggableTimer();
 
   // Helper to get pinch distance
   const getPinchDist = (touches: React.TouchList | TouchList) => {
@@ -692,181 +577,6 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     const dy = t1.clientY - t0.clientY;
     return Math.sqrt(dx * dx + dy * dy);
   };
-  
-  // Floating timer drag handlers (landscape)
-  const handleTimerDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    floatingTimerDragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startPosX: floatingTimerPosition.x,
-      startPosY: floatingTimerPosition.y,
-    };
-    
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!floatingTimerDragRef.current) return;
-      const deltaX = moveEvent.clientX - floatingTimerDragRef.current.startX;
-      const deltaY = moveEvent.clientY - floatingTimerDragRef.current.startY;
-      setFloatingTimerPosition({
-        x: Math.max(-200, floatingTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(-220, floatingTimerDragRef.current.startPosY + deltaY),
-      });
-    };
-    
-    const handleMouseUp = () => {
-      floatingTimerDragRef.current = null;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [floatingTimerPosition]);
-  
-  const handleTimerTouchStart = useCallback((e: React.TouchEvent) => {
-    // 2-finger pinch to resize
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      floatingTimerPinchRef.current = {
-        startDist: getPinchDist(e.touches),
-        startScale: floatingTimerScale,
-      };
-      floatingTimerDragRef.current = null;
-      
-      const handleTouchMove = (moveEvent: TouchEvent) => {
-        if (!floatingTimerPinchRef.current || moveEvent.touches.length !== 2) return;
-        moveEvent.preventDefault();
-        const newDist = getPinchDist(moveEvent.touches);
-        const ratio = newDist / floatingTimerPinchRef.current.startDist;
-        setFloatingTimerScale(Math.min(2, Math.max(0.5, floatingTimerPinchRef.current.startScale * ratio)));
-      };
-      
-      const handleTouchEnd = () => {
-        floatingTimerPinchRef.current = null;
-        document.removeEventListener('touchmove', handleTouchMove);
-        document.removeEventListener('touchend', handleTouchEnd);
-      };
-      
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('touchend', handleTouchEnd);
-      return;
-    }
-    
-    // 1-finger drag
-    if (e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    floatingTimerDragRef.current = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      startPosX: floatingTimerPosition.x,
-      startPosY: floatingTimerPosition.y,
-    };
-    
-    const handleTouchMove = (moveEvent: TouchEvent) => {
-      if (!floatingTimerDragRef.current || moveEvent.touches.length !== 1) return;
-      moveEvent.preventDefault();
-      const touch = moveEvent.touches[0];
-      const deltaX = touch.clientX - floatingTimerDragRef.current.startX;
-      const deltaY = touch.clientY - floatingTimerDragRef.current.startY;
-      setFloatingTimerPosition({
-        x: Math.max(-200, floatingTimerDragRef.current.startPosX + deltaX),
-        y: Math.max(-220, floatingTimerDragRef.current.startPosY + deltaY),
-      });
-    };
-    
-    const handleTouchEnd = () => {
-      floatingTimerDragRef.current = null;
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-    
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd);
-  }, [floatingTimerPosition, floatingTimerScale]);
-
-  // Portrait timer touch handlers (drag + pinch)
-  const handlePortraitTimerTouchStart = useCallback((e: React.TouchEvent) => {
-    // Don't initiate drag if the touch target is inside an open dropdown
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-timer-dropdown]')) return;
-
-    const container = (e.currentTarget as HTMLElement).parentElement;
-    // 2-finger pinch
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      portraitTimerPinchRef.current = {
-        startDist: getPinchDist(e.touches),
-        startScale: portraitTimerScale,
-      };
-      portraitTimerDragRef.current = null;
-      
-      const handleTouchMove = (moveEvent: TouchEvent) => {
-        if (!portraitTimerPinchRef.current || moveEvent.touches.length !== 2) return;
-        moveEvent.preventDefault();
-        const newDist = getPinchDist(moveEvent.touches);
-        const ratio = newDist / portraitTimerPinchRef.current.startDist;
-        setPortraitTimerScale(Math.min(2, Math.max(0.5, portraitTimerPinchRef.current.startScale * ratio)));
-      };
-      
-      const handleTouchEnd = () => {
-        portraitTimerPinchRef.current = null;
-        document.removeEventListener('touchmove', handleTouchMove);
-        document.removeEventListener('touchend', handleTouchEnd);
-      };
-      
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('touchend', handleTouchEnd);
-      return;
-    }
-    
-    // 1-finger drag with threshold to distinguish from taps
-    if (e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    const rect = container?.getBoundingClientRect();
-    const currentX = portraitTimerPosition?.x ?? (rect ? rect.width - (e.currentTarget as HTMLElement).offsetWidth - 8 : 8);
-    const currentY = portraitTimerPosition?.y ?? 8;
-    const startX = touch.clientX;
-    const startY = touch.clientY;
-    let isDragging = false;
-    const DRAG_THRESHOLD = 8;
-    
-    const handleTouchMove = (moveEvent: TouchEvent) => {
-      if (moveEvent.touches.length !== 1) return;
-      const t = moveEvent.touches[0];
-      const deltaX = t.clientX - startX;
-      const deltaY = t.clientY - startY;
-      
-      if (!isDragging) {
-        // Check if movement exceeds threshold to start dragging
-        if (Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD) {
-          isDragging = true;
-          portraitTimerDragRef.current = {
-            startX,
-            startY,
-            startPosX: currentX,
-            startPosY: currentY,
-          };
-        } else {
-          return;
-        }
-      }
-      
-      moveEvent.preventDefault();
-      setPortraitTimerPosition({
-        x: Math.max(-200, currentX + deltaX),
-        y: Math.max(-220, currentY + deltaY),
-      });
-    };
-    
-    const handleTouchEnd = () => {
-      portraitTimerDragRef.current = null;
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-    
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd);
-  }, [portraitTimerPosition, portraitTimerScale]);
 
 
   // Swipe gestures for bench in landscape mode
@@ -1408,7 +1118,49 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     subAnimationTimers.current.push(tClear);
   }, []);
 
-  // Manual substitution confirmation dialog state
+  // Refs for deferred dependencies (defined later, but used inside hook callbacks)
+  const pushToUndoHistoryRef_autoSubs = useRef<((description: string, snapshot: Player[]) => void) | null>(null);
+  const runSubAnimationRef_autoSubs = useRef<((playerOutId: string, playerInId: string, swapPlayerId?: string) => void) | null>(null);
+
+  // ── Auto-sub hook (centralizes plan state & handlers) ──
+  const {
+    autoSubPlan, setAutoSubPlan,
+    autoSubActive, setAutoSubActive,
+    autoSubPaused, setAutoSubPaused,
+    lockedPlayerIds,
+    pendingAutoSub, setPendingAutoSub,
+    pendingBatchSubs, setPendingBatchSubs,
+    subConfirmDialogOpen, setSubConfirmDialogOpen,
+    subDuePlayerIds, setSubDuePlayerIds,
+    nextSubInfo,
+    subDueTimerRef,
+    handleStartAutoSubPlan,
+    handleCancelAutoSubPlan,
+    handleTogglePauseAutoSub,
+    handleToggleLockPlayer,
+    handleSkipNextSub,
+    handleExecuteNow,
+    handleRegeneratePlan,
+    regeneratePlanRef,
+    handleConfirmAutoSub,
+    handleSkipAutoSub,
+    checkForDueSubs,
+    updateNextSubInfo,
+    checkHalftimeSubs,
+    skipCooldownRef,
+  } = useAutoSubs({
+    initialPlan: savedState?.autoSubPlan || [],
+    initialActive: savedState?.autoSubActive || false,
+    initialPaused: savedState?.autoSubPaused || false,
+    gameTimerRef,
+    playersRef,
+    setPlayers,
+    teamSize,
+    rotateGkAtHalftime,
+    pushToUndoHistoryRef: pushToUndoHistoryRef_autoSubs,
+    runSubAnimationRef: runSubAnimationRef_autoSubs,
+  });
+
   const [manualSubConfirmOpen, setManualSubConfirmOpen] = useState(false);
   const [pendingManualSub, setPendingManualSub] = useState<{ 
     pitchPlayerId: string; 
@@ -3020,160 +2772,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   };
 
-  // Auto-sub plan handlers
-  const planActivationTimeRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
-
-  const handleStartAutoSubPlan = useCallback((plan: SubstitutionEvent[]) => {
-    // Record when the plan was activated so we only alert for subs scheduled AFTER this point
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const currentHalf = gameTimerRef.current?.getCurrentHalf() || 1;
-    planActivationTimeRef.current = { seconds: currentElapsed, half: currentHalf };
-    setAutoSubPlan(plan);
-    setAutoSubActive(true);
-    toast({ title: "Auto-sub plan started", description: `${plan.length} substitutions scheduled` });
-  }, [toast]);
-
-  const handleCancelAutoSubPlan = useCallback(() => {
-    setAutoSubPlan([]);
-    setAutoSubActive(false);
-    setAutoSubPaused(false);
-    setPendingAutoSub(null);
-    setSubConfirmDialogOpen(false);
-    planActivationTimeRef.current = null;
-    toast({ title: "Auto-sub plan cancelled" });
-  }, [toast]);
-
-  const handleTogglePauseAutoSub = useCallback(() => {
-    setAutoSubPaused(prev => {
-      const newPaused = !prev;
-      toast({ 
-        title: newPaused ? "Auto-subs paused" : "Auto-subs resumed",
-        description: newPaused ? "Sub alerts will not trigger until resumed" : "Sub alerts will trigger when due"
-      });
-      return newPaused;
-    });
-  }, [toast]);
-
-  const handleToggleLockPlayer = useCallback((playerId: string) => {
-    setLockedPlayerIds(prev => {
-      const next = new Set(prev);
-      if (next.has(playerId)) {
-        next.delete(playerId);
-      } else {
-        next.add(playerId);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSkipNextSub = useCallback(() => {
-    const remainingSubs = autoSubPlan.filter(s => !s.executed);
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const nextSub = remainingSubs.find(s => s.half === half && s.time >= currentElapsed)
-      || remainingSubs.find(s => s.half > half)
-      || remainingSubs[0];
-    if (!nextSub) return;
-
-    const skippedId = `${nextSub.half}-${nextSub.time}-${nextSub.playerOut.id}`;
-    const updatedPlan = autoSubPlan.map(sub => {
-      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return subId === skippedId ? { ...sub, executed: true, skipped: true } : sub;
-    });
-
-    // Recalculate remaining plan after skip
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
-    const recalculated = recalculateRemainingPlan(
-      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, nextSub, rotateGkAtHalftime
-    );
-
-    const executedSubs = updatedPlan.filter(s => s.executed);
-    const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
-    const remainingCount = finalPlan.filter(sub => !sub.executed).length;
-    setAutoSubPlan(finalPlan);
-    // Don't deactivate autoSubActive — recalculation may return 0 subs due to
-    // the 30s threshold but the system should remain active for half-time subs etc.
-
-    toast({
-      title: "Substitution skipped & plan recalculated",
-      description: remainingCount > 0
-        ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
-        : "No more planned substitutions",
-    });
-
-    skipCooldownRef.current = Date.now();
-  }, [autoSubPlan, players, teamSize, rotateGkAtHalftime, toast]);
-
-  const handleExecuteNow = useCallback(() => {
-    const remainingSubs = autoSubPlan.filter(s => !s.executed);
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const nextSub = remainingSubs.find(s => s.half === half && s.time >= currentElapsed)
-      || remainingSubs.find(s => s.half > half)
-      || remainingSubs[0];
-    if (!nextSub) return;
-
-    // Find batch subs at same time
-    const batchSubs = remainingSubs.filter(s => s.half === nextSub.half && s.time === nextSub.time && s !== nextSub);
-
-    setPendingAutoSub(nextSub);
-    setPendingBatchSubs(batchSubs);
-    setSubConfirmDialogOpen(true);
-
-    const playerOutName = nextSub.playerOut.name || `#${nextSub.playerOut.number}`;
-    const playerInName = nextSub.playerIn.name || `#${nextSub.playerIn.number}`;
-    const msg = batchSubs.length > 0
-      ? `Time for ${batchSubs.length + 1} substitutions`
-      : `Execute now: ${playerOutName} ➜ ${playerInName}`;
-    playSubAlertBeep(msg);
-  }, [autoSubPlan, teamId]);
-
-  const handleRegeneratePlan = useCallback(() => {
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
-
-    // Create a dummy "skipped" sub to trigger recalculation
-    const dummySub: SubstitutionEvent = {
-      time: currentElapsed,
-      half,
-      playerOut: players[0],
-      playerIn: players[0],
-      executed: true,
-    };
-
-    const recalculated = recalculateRemainingPlan(
-      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, dummySub, rotateGkAtHalftime
-    );
-
-    const currentRemainingSignature = autoSubPlan
-      .filter(s => !s.executed)
-      .map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`)
-      .join("|");
-    const recalculatedSignature = recalculated
-      .map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`)
-      .join("|");
-
-    const isUnchanged = currentRemainingSignature === recalculatedSignature;
-
-    const executedSubs = autoSubPlan.filter(s => s.executed);
-    setAutoSubPlan([...executedSubs, ...recalculated]);
-    toast({
-      title: isUnchanged ? "Plan unchanged" : "Plan regenerated",
-      description: isUnchanged
-        ? "No better alternatives available right now"
-        : `${recalculated.length} substitutions scheduled`,
-    });
-  }, [autoSubPlan, players, teamSize, toast]);
-
-  // Keep ref in sync so earlier callbacks can call it
-  regeneratePlanRef.current = handleRegeneratePlan;
+  // Keep refs in sync for the auto-sub hook
+  pushToUndoHistoryRef_autoSubs.current = pushToUndoHistory;
+  runSubAnimationRef_autoSubs.current = runSubAnimation;
 
   const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
   const hasInitializedTimeRef = useRef(false);
-  const skipCooldownRef = useRef<number>(0); // Timestamp of last skip to prevent immediate re-trigger
 
   // Timer update callback - check for pending subs and track minutes played
   const handleTimerUpdate = useCallback((elapsedSeconds: number, currentHalf: 1 | 2) => {
@@ -3206,144 +2810,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
 
-    // Compute next sub info for bench highlighting
-    const isFinished = gameTimerRef.current?.isGameFinished();
-    if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused && !isFinished) {
-      const remainingSubs = autoSubPlan.filter(s => !s.executed);
-      const nextSub = remainingSubs.find(s => s.half === currentHalf && s.time >= elapsedSeconds)
-        || remainingSubs.find(s => s.half > currentHalf)
-        || remainingSubs[0];
-      if (nextSub) {
-        const secsUntil = nextSub.half === currentHalf 
-          ? Math.max(0, nextSub.time - elapsedSeconds)
-          : nextSub.time + ((nextSub.half - currentHalf) * (gameTimerRef.current?.getMinutesPerHalf() || 10) * 60) - elapsedSeconds;
-        const mins = Math.floor(secsUntil / 60);
-        const secs = Math.floor(secsUntil % 60);
-        const countdown = `${mins}:${secs.toString().padStart(2, '0')}`;
-        setNextSubInfo({ playerInId: nextSub.playerIn.id, playerOutId: nextSub.playerOut.id, countdown });
-      } else {
-        setNextSubInfo(null);
-      }
-    } else {
-      if (isFinished) {
-        setNextSubInfo(null);
-        setSubDuePlayerIds(new Set());
-        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-        // Close any open sub confirmation dialog
-        if (subConfirmDialogOpen) {
-          setSubConfirmDialogOpen(false);
-          setPendingAutoSub(null);
-          setPendingBatchSubs([]);
-        }
-      }
-      setNextSubInfo(prev => prev ? null : prev);
-    }
-
-    // Don't trigger subs if paused, in skip cooldown, game finished, or timer not running
-    if (!autoSubActive || autoSubPlan.length === 0 || autoSubPaused) return;
-    if (gameTimerRef.current?.isGameFinished()) return;
-    if (!gameTimerRef.current?.isRunning?.()) return;
-    if (Date.now() - skipCooldownRef.current < 3000) return; // 3s cooldown after skip
-    
-    const activationTime = planActivationTimeRef.current;
-    
-    // Find all unexecuted subs for current half that are due
-    const allDueSubs = autoSubPlan.filter(sub => {
-      if (sub.executed) return false;
-      if (sub.half !== currentHalf) return false;
-      if (elapsedSeconds < sub.time) return false;
-      // Skip subs that were already in the past when the plan was activated
-      if (activationTime && sub.half === activationTime.half && sub.time < activationTime.seconds) return false;
-      if (activationTime && sub.half < activationTime.half) return false;
-      return true;
-    });
-    
-    if (allDueSubs.length > 0) {
-      // Get distinct due times
-      const dueTimes = [...new Set(allDueSubs.map(s => s.time))].sort((a, b) => a - b);
-      
-      // If there are multiple time groups due, auto-skip all older ones — only the latest matters
-      if (dueTimes.length > 1) {
-        const latestTime = dueTimes[dueTimes.length - 1];
-        const olderSubs = allDueSubs.filter(s => s.time < latestTime);
-        
-        setAutoSubPlan(prev => {
-          const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-          const skipped = prev.map(s => olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s);
-          return validateAndFixRemainingPlan(skipped, players);
-        });
-        toast({ title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? 's' : ''} skipped`, description: "Plan adjusted for remaining time" });
-        return; // Let next tick handle the latest due sub
-      }
-      
-      if (pendingAutoSub) return;
-      
-      // Filter out locked players
-      const dueSubs = allDueSubs.filter(sub => !lockedPlayerIds.has(sub.playerOut.id));
-      if (dueSubs.length === 0) return;
-      
-      // All due subs are at the same time — present them as a batch
-      const [primarySub, ...additionalSubs] = dueSubs;
-      
-      // Play alert beep with notification message
-      const playerOutName = primarySub.playerOut.name || `#${primarySub.playerOut.number}`;
-      const playerInName = primarySub.playerIn.name || `#${primarySub.playerIn.number}`;
-      const notificationBody = dueSubs.length > 1
-        ? `Time for ${dueSubs.length} substitutions`
-        : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
-      playSubAlertBeep(notificationBody);
-      
-      // IMPORTANT: Do not create DB notifications here.
-      // Server-side check-pending-subs already handles push delivery for all team staff.
-      
-      // Set sub-due pulsing for all players involved in the batch
-      const dueIds = new Set<string>();
-      dueSubs.forEach(s => {
-        dueIds.add(s.playerOut.id);
-        dueIds.add(s.playerIn.id);
-      });
-      setSubDuePlayerIds(dueIds);
-      // Clear pulse after 30 seconds
-      if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-      subDueTimerRef.current = setTimeout(() => setSubDuePlayerIds(new Set()), 30000);
-
-      setPendingAutoSub(primarySub);
-      setPendingBatchSubs(additionalSubs);
-      setSubConfirmDialogOpen(true);
-    }
-  }, [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, createSubNotification, gameInProgress, lockedPlayerIds, toast]);
+    // Delegate next-sub countdown and due-sub detection to the hook
+    updateNextSubInfo(elapsedSeconds, currentHalf);
+    checkForDueSubs(elapsedSeconds, currentHalf);
+  }, [updateNextSubInfo, checkForDueSubs, gameInProgress]);
 
   // Half change callback - check for halftime subs (including batch)
   const handleHalfChange = useCallback((newHalf: 1 | 2) => {
-    if (newHalf !== 2) return;
-
-    // Case 1: Auto-sub plan active — check for halftime subs
-    if (autoSubActive && autoSubPlan.length > 0) {
-      const halftimeSubs = autoSubPlan.filter(sub => 
-        !sub.executed && 
-        sub.half === 2 && 
-        sub.time === 0
-      );
-      
-      if (halftimeSubs.length > 0) {
-        setTimeout(() => {
-          const [primarySub, ...additionalSubs] = halftimeSubs;
-          const notificationBody = halftimeSubs.length > 1
-            ? `Halftime: ${halftimeSubs.length} substitutions`
-            : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
-          playSubAlertBeep(notificationBody);
-          // Server-side check-pending-subs handles push delivery
-          
-          setPendingAutoSub(primarySub);
-          setPendingBatchSubs(additionalSubs);
-          setSubConfirmDialogOpen(true);
-        }, 500);
-      }
-      return;
-    }
+    // Delegate auto-sub halftime checks to the hook
+    if (checkHalftimeSubs(newHalf)) return;
 
     // Case 2: No auto-sub plan, but a preferred 2nd half GK was selected — prompt GK swap
-    if (preferredSecondHalfGkId) {
+    if (newHalf === 2 && preferredSecondHalfGkId) {
       const currentGk = players.find(p => p.currentPitchPosition === "GK" && p.position !== null);
       const secondHalfGk = players.find(p => p.id === preferredSecondHalfGkId);
       
@@ -3359,236 +2837,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         setTimeout(() => {
           const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
           playSubAlertBeep(notificationBody);
-          // Server-side check-pending-subs handles push delivery
-          
           setPendingAutoSub(gkSwapEvent);
           setPendingBatchSubs([]);
           setSubConfirmDialogOpen(true);
         }, 500);
       }
     }
-  }, [autoSubActive, autoSubPlan, createSubNotification, preferredSecondHalfGkId, players]);
-
-  // Execute auto-sub (handles batch subs)
-  const handleConfirmAutoSub = useCallback(() => {
-    if (!pendingAutoSub) return;
-
-    // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
-    const matchingSub = autoSubPlan.find(s =>
-      s.playerOut.id === pendingAutoSub.playerOut.id && 
-      s.time === pendingAutoSub.time && 
-      s.half === pendingAutoSub.half
-    );
-    if (matchingSub?.executed || matchingSub?.skipped) {
-      toast({ title: "Substitution expired", description: "This sub was already skipped — a newer one is due", variant: "destructive" });
-      setSubConfirmDialogOpen(false);
-      setPendingAutoSub(null);
-      setPendingBatchSubs([]);
-      setSubDuePlayerIds(new Set());
-      return;
-    }
-    
-    // Combine primary and batch subs
-    const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
-    let updatedPlayers = [...players];
-    const executedSubIds: string[] = [];
-    let successCount = 0;
-    
-    // Push to undo history before making changes
-    const subDescription = allPendingSubs.length > 1
-      ? `Batch sub: ${allPendingSubs.length} substitutions`
-      : `Auto-sub: ${pendingAutoSub.playerIn.name} for ${pendingAutoSub.playerOut.name}`;
-    pushToUndoHistory(subDescription, playersRef.current);
-    
-    for (const sub of allPendingSubs) {
-      const { playerOut, playerIn, positionSwap } = sub;
-      
-      // Find current player positions in our updated list
-      const currentPlayerOut = updatedPlayers.find(p => p.id === playerOut.id);
-      let currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
-      let actualPlayerIn = playerIn;
-      
-      // Check if the playerIn is still on the bench (position must be null)
-      // Note: undefined means player not found, null means on bench
-      if (!currentPlayerIn || currentPlayerIn.position !== null) {
-        // Try to find a replacement from the bench
-        const benchReplacement = updatedPlayers
-          .find(p => p.position === null && !p.isInjured && p.id !== playerOut.id &&
-            !(p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) &&
-            !allPendingSubs.some(s => s.playerIn.id === p.id && s !== sub));
-        
-        if (benchReplacement) {
-          currentPlayerIn = benchReplacement;
-          actualPlayerIn = benchReplacement;
-        } else {
-          // No replacement available - skip this sub
-          executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-          continue;
-        }
-      }
-      
-      // Check if playerOut is still on the pitch
-      if (!currentPlayerOut?.position) {
-        executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-        continue;
-      }
-      
-      if (!currentPlayerIn) {
-        continue;
-      }
-      
-      const pitchPosition = { ...currentPlayerOut.position };
-      const pitchPositionType = currentPlayerOut.currentPitchPosition;
-      
-      if (positionSwap && actualPlayerIn.id === playerIn.id) {
-        // Only use position swap if we're using the original playerIn
-        const swapPlayer = updatedPlayers.find(p => p.id === positionSwap.player.id);
-        if (swapPlayer?.position) {
-          const swapPosition = { ...swapPlayer.position };
-          
-          updatedPlayers = updatedPlayers.map(p => {
-            if (p.id === playerOut.id) {
-              return { ...p, position: null, currentPitchPosition: undefined };
-            }
-            if (p.id === positionSwap.player.id) {
-              return { ...p, position: pitchPosition, currentPitchPosition: positionSwap.toPosition };
-            }
-            if (p.id === actualPlayerIn.id) {
-              return { ...p, position: swapPosition, currentPitchPosition: positionSwap.fromPosition };
-            }
-            return p;
-          });
-        } else {
-          updatedPlayers = updatedPlayers.map(p => {
-            if (p.id === playerOut.id) {
-              return { ...p, position: null, currentPitchPosition: undefined };
-            }
-            if (p.id === actualPlayerIn.id) {
-              return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-            }
-            return p;
-          });
-        }
-      } else {
-        updatedPlayers = updatedPlayers.map(p => {
-          if (p.id === playerOut.id) {
-            return { ...p, position: null, currentPitchPosition: undefined };
-          }
-          if (p.id === actualPlayerIn.id) {
-            return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-          }
-          return p;
-        });
-      }
-      
-      executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-      successCount++;
-    }
-    
-    // Apply all player changes at once
-    setPlayers(updatedPlayers);
-    
-    const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
-    runSubAnimation(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
-    
-    // Mark all processed subs as executed
-    // Mark all processed subs as executed
-    const updatedPlan = autoSubPlan.map(sub => {
-      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      if (executedSubIds.includes(subId)) {
-        return { ...sub, executed: true };
-      }
-      return sub;
-    });
-    
-    // Only recalculate remaining sub timings if the sub was significantly late (>30s)
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
-    const remainingSubs = updatedPlan.filter(sub => !sub.executed);
-    
-    let finalPlan = updatedPlan;
-    if (remainingSubs.length > 0) {
-      const subTotalSeconds = pendingAutoSub.half === 1 ? pendingAutoSub.time : halfDurationSeconds + pendingAutoSub.time;
-      const currentTotalSeconds = half === 1 ? currentElapsed : halfDurationSeconds + currentElapsed;
-      const delaySeconds = Math.max(0, currentTotalSeconds - subTotalSeconds);
-      
-      if (delaySeconds > 30) {
-        const executedSubs = updatedPlan.filter(sub => sub.executed);
-        const recalculated = recalculateRemainingPlan(
-          updatedPlayers, parseInt(teamSize), halfDurationSeconds, currentElapsed, half as 1 | 2, pendingAutoSub, rotateGkAtHalftime
-        );
-        finalPlan = [...executedSubs, ...recalculated];
-      }
-    }
-    
-    // Validate remaining plan entries against updated player positions
-    finalPlan = validateAndFixRemainingPlan(finalPlan, updatedPlayers);
-    setAutoSubPlan(finalPlan);
-    setPlayers(updatedPlayers);
-    
-    const toastDescription = allPendingSubs.length > 1
-      ? `${successCount} substitutions made`
-      : `${pendingAutoSub.playerIn.name} replaces ${pendingAutoSub.playerOut.name}`;
-    toast({ title: allPendingSubs.length > 1 ? "Substitutions made" : "Substitution made", description: toastDescription });
-    
-    setSubConfirmDialogOpen(false);
-    setPendingAutoSub(null);
-    setPendingBatchSubs([]);
-    setSubDuePlayerIds(new Set());
-    if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-    
-    // Check if all subs executed
-    if (finalPlan.filter(sub => !sub.executed).length === 0) {
-      setAutoSubActive(false);
-      toast({ title: "All substitutions complete" });
-    }
-  }, [pendingAutoSub, pendingBatchSubs, players, autoSubPlan, toast, pushToUndoHistory, teamSize, rotateGkAtHalftime]);
-
-  const handleSkipAutoSub = useCallback(() => {
-    if (!pendingAutoSub) return;
-    
-    // Combine primary and batch subs for skipping
-    const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
-    const skippedIds = allPendingSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`);
-
-    const updatedPlan = autoSubPlan.map(sub => {
-      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return skippedIds.includes(subId) ? { ...sub, executed: true, skipped: true } : sub;
-    });
-
-    // Recalculate remaining plan after skip
-    const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
-    const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
-    const recalculated = recalculateRemainingPlan(
-      players, parseInt(teamSize), halfDurationSeconds, currentElapsed, half, pendingAutoSub, rotateGkAtHalftime
-    );
-
-    const executedSubs = updatedPlan.filter(s => s.executed);
-    const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
-    const remainingCount = finalPlan.filter(sub => !sub.executed).length;
-    setAutoSubPlan(finalPlan);
-    // Don't deactivate autoSubActive — recalculation may return 0 subs due to
-    // the 30s threshold but the system should remain active for half-time subs etc.
-
-    const skippedCount = allPendingSubs.length;
-    toast({ 
-      title: skippedCount > 1 ? `${skippedCount} subs skipped & plan recalculated` : "Sub skipped & plan recalculated", 
-      description: remainingCount > 0
-        ? `${remainingCount} substitution${remainingCount === 1 ? "" : "s"} rescheduled`
-        : "No more planned substitutions"
-    });
-    
-    skipCooldownRef.current = Date.now();
-    setSubConfirmDialogOpen(false);
-    setPendingAutoSub(null);
-    setPendingBatchSubs([]);
-    setSubDuePlayerIds(new Set());
-    if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, players, teamSize, rotateGkAtHalftime, toast]);
+  }, [checkHalftimeSubs, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
 
   // Ball drag handlers
   const handleBallDragStart = () => {
@@ -3879,11 +3134,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     persistTeamSizeToDb(newSize);
   }, [players, teamSize, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, persistTeamSizeToDb]);
 
-  const getPinchDistance = (touches: React.TouchList) => {
+  const getPinchDistance = (touches: React.TouchList): number | null => {
     if (touches.length < 2) return null;
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
+    return getPinchDist(touches);
   };
 
   const handlePitchTouchStart = (e: React.TouchEvent) => {
@@ -6004,40 +5257,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         </Suspense>
 
         {/* Bench Injury Confirmation - landscape */}
-        {benchInjuryConfirmOpen && createPortal(
-          <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-          document.body
-        )}
-        {benchInjuryConfirmOpen && benchInjuryTarget && createPortal(
-          <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-sm translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-            <div className="flex flex-col space-y-2 text-center sm:text-left">
-              <h2 className="text-lg font-semibold">
+        <AlertDialog open={benchInjuryConfirmOpen} onOpenChange={(open) => { if (!open) { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); } }}>
+          <AlertDialogContent className="z-[999999]">
+            <AlertDialogHeader>
+              <AlertDialogTitle>
                 {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark as Fit?" : "Mark as Injured?"}
-              </h2>
-              <p className="text-sm text-muted-foreground">
+              </AlertDialogTitle>
+              <AlertDialogDescription>
                 {players.find(p => p.id === benchInjuryTarget)?.isInjured
                   ? `${players.find(p => p.id === benchInjuryTarget)?.name} will be available for substitutions again.`
                   : `${players.find(p => p.id === benchInjuryTarget)?.name} will not be available for substitutions.`}
-              </p>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-              <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
                 Cancel
-              </Button>
-              <Button
-                variant="destructive"
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={() => {
-                  togglePlayerInjury(benchInjuryTarget);
+                  if (benchInjuryTarget) togglePlayerInjury(benchInjuryTarget);
                   setBenchInjuryConfirmOpen(false);
                   setBenchInjuryTarget(null);
                 }}
               >
                 {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark Fit" : "Mark Injured"}
-              </Button>
-            </div>
-          </div>,
-          document.body
-        )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Match Stats Panel */}
         <MatchStatsPanel
@@ -6051,30 +5299,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           hideScores={hideScores}
         />
 
-        {/* Reset Game Confirmation for landscape */}
-        {resetGameConfirmOpen && createPortal(
-          <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-          document.body
-        )}
-        {resetGameConfirmOpen && createPortal(
-          <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-            <div className="flex flex-col space-y-2 text-center sm:text-left">
-              <h2 className="text-lg font-semibold">Reset Game?</h2>
-              <p className="text-sm text-muted-foreground">
+        {/* Reset Game Confirmation - landscape */}
+        <AlertDialog open={resetGameConfirmOpen} onOpenChange={setResetGameConfirmOpen}>
+          <AlertDialogContent className="z-[999999]">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset Game?</AlertDialogTitle>
+              <AlertDialogDescription>
                 This will clear all player minutes, timer, substitutions, goals, and reset positions. This action cannot be undone.
-              </p>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-              <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => setResetGameConfirmOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }}
+              >
                 Reset Game
-              </Button>
-            </div>
-          </div>,
-          document.body
-        )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Auto-Sub Control Panel - landscape */}
         {autoSubPanelOpen && autoSubActive && (
@@ -7159,66 +6403,57 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         />
       </Suspense>
 
-      {/* Reset Game Confirmation */}
-      {resetGameConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-        document.body
-      )}
-      {resetGameConfirmOpen && createPortal(
-        <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-          <div className="flex flex-col space-y-2 text-center sm:text-left">
-            <h2 className="text-lg font-semibold">Reset Game?</h2>
-            <p className="text-sm text-muted-foreground">
+      {/* Reset Game Confirmation - portrait */}
+      <AlertDialog open={resetGameConfirmOpen} onOpenChange={setResetGameConfirmOpen}>
+        <AlertDialogContent className="z-[999999]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Game?</AlertDialogTitle>
+            <AlertDialogDescription>
               This will clear all player minutes, timer, substitutions, goals, and reset positions. This action cannot be undone.
-            </p>
-          </div>
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-            <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => setResetGameConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }}
+            >
               Reset Game
-            </Button>
-          </div>
-        </div>,
-        document.body
-      )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Bench Injury Confirmation */}
-      {benchInjuryConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-        document.body
-      )}
-      {benchInjuryConfirmOpen && benchInjuryTarget && createPortal(
-        <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-sm translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-          <div className="flex flex-col space-y-2 text-center sm:text-left">
-            <h2 className="text-lg font-semibold">
+      {/* Bench Injury Confirmation - portrait */}
+      <AlertDialog open={benchInjuryConfirmOpen} onOpenChange={(open) => { if (!open) { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); } }}>
+        <AlertDialogContent className="z-[999999]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
               {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark as Fit?" : "Mark as Injured?"}
-            </h2>
-            <p className="text-sm text-muted-foreground">
+            </AlertDialogTitle>
+            <AlertDialogDescription>
               {players.find(p => p.id === benchInjuryTarget)?.isInjured
                 ? `${players.find(p => p.id === benchInjuryTarget)?.name} will be available for substitutions again.`
                 : `${players.find(p => p.id === benchInjuryTarget)?.name} will not be available for substitutions.`}
-            </p>
-          </div>
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-            <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
               Cancel
-            </Button>
-            <Button
-              variant="destructive"
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
-                togglePlayerInjury(benchInjuryTarget);
+                if (benchInjuryTarget) togglePlayerInjury(benchInjuryTarget);
                 setBenchInjuryConfirmOpen(false);
                 setBenchInjuryTarget(null);
               }}
             >
               {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark Fit" : "Mark Injured"}
-            </Button>
-          </div>
-        </div>,
-        document.body
-      )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Formation Change Dialog - portrait */}
       <FormationChangeDialog
