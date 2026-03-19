@@ -293,7 +293,7 @@ async function checkGames(supabase: any): Promise<number> {
     // (which is a frozen snapshot from when the timer was last interacted with).
     // Use a longer threshold during half-time/full-time boundaries
     // because the client legitimately stops syncing during breaks.
-    const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 600_000 : 120_000; // 10min at breaks, 2min normally
+    const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 600_000 : 300_000; // 10min at breaks, 5min normally (mobile WebViews throttle intervals in background)
     const gameUpdatedAt = new Date(game.updated_at).getTime();
     if (gameUpdatedAt > 0 && (now - gameUpdatedAt) > STALE_THRESHOLD_MS) {
       console.log(`[CHECK-SUBS] Game ${game.id} is stale (DB row last updated ${Math.floor((now - gameUpdatedAt) / 1000)}s ago), marking inactive`);
