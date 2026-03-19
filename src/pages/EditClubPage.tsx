@@ -37,6 +37,7 @@ export default function EditClubPage() {
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [sport, setSport] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [classModeEnabled, setClassModeEnabled] = useState(false);
   const [allowGuestsDefault, setAllowGuestsDefault] = useState(false);
   const [maxGuestsDefault, setMaxGuestsDefault] = useState(2);
@@ -65,6 +66,7 @@ export default function EditClubPage() {
       setDescription(club.description || "");
       setLogoUrl(club.logo_url || "");
       setSport(club.sport || "");
+      setContactEmail(club.contact_email || "");
       setClassModeEnabled(club.class_mode_enabled || false);
       setAllowGuestsDefault(club.allow_guests_default || false);
       setMaxGuestsDefault(club.max_guests_per_member_default || 2);
@@ -156,6 +158,7 @@ export default function EditClubPage() {
         description: description.trim() || null,
         logo_url: logoUrl || null,
         sport: sport || null,
+        contact_email: contactEmail.trim() || null,
         class_mode_enabled: classModeEnabled,
         allow_guests_default: allowGuestsDefault,
         max_guests_per_member_default: maxGuestsDefault,
@@ -327,6 +330,21 @@ export default function EditClubPage() {
               rows={4}
               className="text-base resize-none"
             />
+          </div>
+
+          {/* Contact Email */}
+          <div className="space-y-2">
+            <Label htmlFor="contact-email" className="text-base">Contact Email</Label>
+            <Input
+              id="contact-email"
+              type="email"
+              placeholder="club@example.com"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              maxLength={200}
+              className="h-12 text-base"
+            />
+            <p className="text-sm text-muted-foreground">Used as the reply-to address on emails sent to members</p>
           </div>
 
           {/* Guest Settings */}
