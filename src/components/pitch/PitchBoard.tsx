@@ -3500,6 +3500,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       finalPlan = [...executedSubs, ...recalculated];
     }
     
+    // Validate remaining plan entries against updated player positions
+    finalPlan = validateAndFixRemainingPlan(finalPlan, updatedPlayers);
     setAutoSubPlan(finalPlan);
     setPlayers(updatedPlayers);
     
