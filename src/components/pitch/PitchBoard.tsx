@@ -3500,7 +3500,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       return sub;
     });
     
-    // Recalculate remaining sub timings if the sub was late
+    // Only recalculate remaining sub timings if the sub was significantly late (>30s)
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
     const half = gameTimerRef.current?.getCurrentHalf() || 1;
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
@@ -3509,11 +3509,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     let finalPlan = updatedPlan;
     if (remainingSubs.length > 0) {
-      const executedSubs = updatedPlan.filter(sub => sub.executed);
-      const recalculated = recalculateRemainingPlan(
-        updatedPlayers, parseInt(teamSize), halfDurationSeconds, currentElapsed, half as 1 | 2, pendingAutoSub, rotateGkAtHalftime
-      );
-      finalPlan = [...executedSubs, ...recalculated];
+      const subTotalSeconds = pendingAutoSub.half === 1 ? pendingAutoSub.time : halfDurationSeconds + pendingAutoSub.time;
+      const currentTotalSeconds = half === 1 ? currentElapsed : halfDurationSeconds + currentElapsed;
+      const delaySeconds = Math.max(0, currentTotalSeconds - subTotalSeconds);
+      
+      if (delaySeconds > 30) {
+        const executedSubs = updatedPlan.filter(sub => sub.executed);
+        const recalculated = recalculateRemainingPlan(
+          updatedPlayers, parseInt(teamSize), halfDurationSeconds, currentElapsed, half as 1 | 2, pendingAutoSub, rotateGkAtHalftime
+        );
+        finalPlan = [...executedSubs, ...recalculated];
+      }
     }
     
     // Validate remaining plan entries against updated player positions
