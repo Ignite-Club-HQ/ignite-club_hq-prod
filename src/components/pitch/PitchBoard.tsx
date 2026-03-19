@@ -43,6 +43,7 @@ const AutoSubControlPanel = lazy(() => import("./AutoSubControlPanel"));
 const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
 import { useAutoSubs } from "@/hooks/useAutoSubs";
+import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 
 import { useToast } from "@/hooks/use-toast";
@@ -298,15 +299,61 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
-  const savedTeamDefaultsRef = useRef({
-    minutesPerHalf: initialMinutesPerHalf,
-    rotationSpeed: initialRotationSpeed,
-    disablePositionSwaps: initialDisablePositionSwaps,
-    disableBatchSubs: initialDisableBatchSubs,
-    rotateGkAtHalftime: initialRotateGkAtHalftime,
-    teamSize: getInitialTeamSize(),
-    formation: initialFormation || null,
+  // Settings ref for usePitchSettings (avoids stale closures)
+  const pitchSettingsRef = useRef({
+    rotationSpeed,
+    disablePositionSwaps,
+    disableBatchSubs,
+    rotateGkAtHalftime,
+    minutesPerHalf,
+    teamSize,
+    selectedFormation,
+    showMatchHeader,
+    showLineupPickerSetting: showLineupPickerSetting,
   });
+  // Keep ref in sync
+  pitchSettingsRef.current = {
+    rotationSpeed,
+    disablePositionSwaps,
+    disableBatchSubs,
+    rotateGkAtHalftime,
+    minutesPerHalf,
+    teamSize,
+    selectedFormation,
+    showMatchHeader,
+    showLineupPickerSetting: showLineupPickerSetting,
+  };
+
+  const {
+    isSavingSettings,
+    savedTeamDefaultsRef,
+    persistTeamSizeToDb,
+    persistFormationToDb,
+    persistRotationSpeed,
+    persistDisablePositionSwaps,
+    persistDisableBatchSubs,
+    persistRotateGkAtHalftime,
+    persistMinutesPerHalf,
+    persistShowLineupPicker,
+    handleSaveSettings,
+  } = usePitchSettings({
+    teamId,
+    readOnly,
+    settingsRef: pitchSettingsRef,
+  });
+
+  // Initialize saved defaults ref with initial props
+  if (!savedTeamDefaultsRef.current.formation) {
+    savedTeamDefaultsRef.current = {
+      minutesPerHalf: initialMinutesPerHalf,
+      rotationSpeed: initialRotationSpeed,
+      disablePositionSwaps: initialDisablePositionSwaps,
+      disableBatchSubs: initialDisableBatchSubs,
+      rotateGkAtHalftime: initialRotateGkAtHalftime,
+      teamSize: getInitialTeamSize(),
+      formation: initialFormation || null,
+    };
+  }
   
   // Tactical mode state
   type TacticalFormationSuggestion = {
@@ -376,178 +423,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [initialTeamSize, initialFormation, initialMinutesPerHalf, initialRotationSpeed, initialDisablePositionSwaps, initialDisableBatchSubs, initialRotateGkAtHalftime, savedState]);
 
-  // Save settings to database when they change
+  // Setting change handlers — update local state and persist via hook
   const handleRotationSpeedChange = useCallback(async (speed: number) => {
     setRotationSpeed(speed);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: speed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, disablePositionSwaps, disableBatchSubs, minutesPerHalf, teamSize, selectedFormation]);
+    await persistRotationSpeed(speed);
+  }, [persistRotationSpeed]);
 
   const handleDisablePositionSwapsChange = useCallback(async (disabled: boolean) => {
     setDisablePositionSwaps(disabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disabled,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disableBatchSubs, minutesPerHalf, teamSize, selectedFormation]);
+    await persistDisablePositionSwaps(disabled);
+  }, [persistDisablePositionSwaps]);
 
   const handleDisableBatchSubsChange = useCallback(async (disabled: boolean) => {
     setDisableBatchSubs(disabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disabled,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, minutesPerHalf, teamSize, selectedFormation]);
+    await persistDisableBatchSubs(disabled);
+  }, [persistDisableBatchSubs]);
 
   const handleRotateGkAtHalftimeChange = useCallback(async (enabled: boolean) => {
     setRotateGkAtHalftime(enabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotate_gk_at_halftime: enabled,
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly]);
+    await persistRotateGkAtHalftime(enabled);
+  }, [persistRotateGkAtHalftime]);
 
   const handleMinutesPerHalfChange = useCallback(async (minutes: number) => {
     setMinutesPerHalf(minutes);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutes,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, teamSize, selectedFormation]);
+    await persistMinutesPerHalf(minutes);
+  }, [persistMinutesPerHalf]);
 
-  const persistTeamSizeToDb = useCallback(async (newSize: TeamSize, formationName?: string) => {
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(newSize),
-          formation: formationName || FORMATIONS[newSize][0]?.name || null
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, minutesPerHalf]);
-
-  const persistFormationToDb = useCallback(async (formationName: string) => {
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: formationName
-        }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, minutesPerHalf, teamSize]);
-
-  // Save all settings at once with loading state
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  
-  const handleSaveSettings = useCallback(async () => {
-    if (readOnly) return;
-    
-    setIsSavingSettings(true);
-    try {
-      const { error } = await supabase
-        .from('team_subscriptions')
-        .upsert({ 
-          team_id: teamId, 
-          rotation_speed: rotationSpeed,
-          disable_position_swaps: disablePositionSwaps,
-          disable_batch_subs: disableBatchSubs,
-          minutes_per_half: minutesPerHalf,
-          team_size: parseInt(teamSize),
-          formation: FORMATIONS[teamSize][selectedFormation]?.name || null,
-          show_match_header: showMatchHeader,
-          rotate_gk_at_halftime: rotateGkAtHalftime,
-          show_lineup_picker: showLineupPickerSetting
-        }, { onConflict: 'team_id' });
-      
-      if (error) throw error;
-
-      const savedFormation = FORMATIONS[teamSize][selectedFormation]?.name || null;
-      savedTeamDefaultsRef.current = {
-        minutesPerHalf,
-        rotationSpeed,
-        disablePositionSwaps,
-        disableBatchSubs,
-        rotateGkAtHalftime,
-        teamSize,
-        formation: savedFormation,
-      };
-      
-      // Invalidate subscription queries so parent pages pick up new defaults
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] }),
-        queryClient.invalidateQueries({ queryKey: ["team-subscription-for-pitch", teamId] }),
-      ]);
-      
-      toast({
-        title: "Settings saved",
-        description: "Your pitch settings have been saved successfully.",
-      });
-    } catch (error) {
-      console.error("Failed to save settings:", error);
-      toast({
-        title: "Failed to save",
-        description: "Could not save your settings. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSavingSettings(false);
-    }
-  }, [teamId, readOnly, rotationSpeed, disablePositionSwaps, disableBatchSubs, rotateGkAtHalftime, minutesPerHalf, teamSize, selectedFormation, showMatchHeader, showLineupPickerSetting, queryClient, toast]);
-
-  // handleTacticalModeChange is defined after handleFormationChange (see below)
+  const handleShowLineupPickerSettingChange = useCallback(async (enabled: boolean) => {
+    setShowLineupPickerSetting(enabled);
+    await persistShowLineupPicker(enabled);
+  }, [persistShowLineupPicker]);
 
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
     setPlayers(updatedPlayers);
@@ -566,17 +471,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }, 300);
   }, []);
 
-  const handleShowLineupPickerSettingChange = useCallback(async (enabled: boolean) => {
-    setShowLineupPickerSetting(enabled);
-    if (!readOnly) {
-      await supabase
-        .from('team_subscriptions')
-        .upsert({ team_id: teamId, show_lineup_picker: enabled }, { onConflict: 'team_id' });
-    }
-  }, [teamId, readOnly]);
 
-
-  // Handle linking event with email notifications
   const handleLinkEvent = useCallback(async (eventId: string | null) => {
     const previousLinkedEventId = linkedEventId;
     setLinkedEventId(eventId);
@@ -3414,11 +3309,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     persistTeamSizeToDb(newSize);
   }, [players, teamSize, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, persistTeamSizeToDb]);
 
-  const getPinchDistance = (touches: React.TouchList) => {
+  const getPinchDistance = (touches: React.TouchList): number | null => {
     if (touches.length < 2) return null;
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
+    return getPinchDist(touches);
   };
 
   const handlePitchTouchStart = (e: React.TouchEvent) => {
@@ -5539,40 +5432,35 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         </Suspense>
 
         {/* Bench Injury Confirmation - landscape */}
-        {benchInjuryConfirmOpen && createPortal(
-          <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-          document.body
-        )}
-        {benchInjuryConfirmOpen && benchInjuryTarget && createPortal(
-          <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-sm translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-            <div className="flex flex-col space-y-2 text-center sm:text-left">
-              <h2 className="text-lg font-semibold">
+        <AlertDialog open={benchInjuryConfirmOpen} onOpenChange={(open) => { if (!open) { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); } }}>
+          <AlertDialogContent className="z-[999999]">
+            <AlertDialogHeader>
+              <AlertDialogTitle>
                 {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark as Fit?" : "Mark as Injured?"}
-              </h2>
-              <p className="text-sm text-muted-foreground">
+              </AlertDialogTitle>
+              <AlertDialogDescription>
                 {players.find(p => p.id === benchInjuryTarget)?.isInjured
                   ? `${players.find(p => p.id === benchInjuryTarget)?.name} will be available for substitutions again.`
                   : `${players.find(p => p.id === benchInjuryTarget)?.name} will not be available for substitutions.`}
-              </p>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-              <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
                 Cancel
-              </Button>
-              <Button
-                variant="destructive"
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={() => {
-                  togglePlayerInjury(benchInjuryTarget);
+                  if (benchInjuryTarget) togglePlayerInjury(benchInjuryTarget);
                   setBenchInjuryConfirmOpen(false);
                   setBenchInjuryTarget(null);
                 }}
               >
                 {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark Fit" : "Mark Injured"}
-              </Button>
-            </div>
-          </div>,
-          document.body
-        )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Match Stats Panel */}
         <MatchStatsPanel
@@ -5586,30 +5474,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           hideScores={hideScores}
         />
 
-        {/* Reset Game Confirmation for landscape */}
-        {resetGameConfirmOpen && createPortal(
-          <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-          document.body
-        )}
-        {resetGameConfirmOpen && createPortal(
-          <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-            <div className="flex flex-col space-y-2 text-center sm:text-left">
-              <h2 className="text-lg font-semibold">Reset Game?</h2>
-              <p className="text-sm text-muted-foreground">
+        {/* Reset Game Confirmation - landscape */}
+        <AlertDialog open={resetGameConfirmOpen} onOpenChange={setResetGameConfirmOpen}>
+          <AlertDialogContent className="z-[999999]">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset Game?</AlertDialogTitle>
+              <AlertDialogDescription>
                 This will clear all player minutes, timer, substitutions, goals, and reset positions. This action cannot be undone.
-              </p>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-              <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => setResetGameConfirmOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }}
+              >
                 Reset Game
-              </Button>
-            </div>
-          </div>,
-          document.body
-        )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Auto-Sub Control Panel - landscape */}
         {autoSubPanelOpen && autoSubActive && (
@@ -6694,66 +6578,57 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         />
       </Suspense>
 
-      {/* Reset Game Confirmation */}
-      {resetGameConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-        document.body
-      )}
-      {resetGameConfirmOpen && createPortal(
-        <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-          <div className="flex flex-col space-y-2 text-center sm:text-left">
-            <h2 className="text-lg font-semibold">Reset Game?</h2>
-            <p className="text-sm text-muted-foreground">
+      {/* Reset Game Confirmation - portrait */}
+      <AlertDialog open={resetGameConfirmOpen} onOpenChange={setResetGameConfirmOpen}>
+        <AlertDialogContent className="z-[999999]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Game?</AlertDialogTitle>
+            <AlertDialogDescription>
               This will clear all player minutes, timer, substitutions, goals, and reset positions. This action cannot be undone.
-            </p>
-          </div>
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-            <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => setResetGameConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }}
+            >
               Reset Game
-            </Button>
-          </div>
-        </div>,
-        document.body
-      )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Bench Injury Confirmation */}
-      {benchInjuryConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-        document.body
-      )}
-      {benchInjuryConfirmOpen && benchInjuryTarget && createPortal(
-        <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-sm translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-          <div className="flex flex-col space-y-2 text-center sm:text-left">
-            <h2 className="text-lg font-semibold">
+      {/* Bench Injury Confirmation - portrait */}
+      <AlertDialog open={benchInjuryConfirmOpen} onOpenChange={(open) => { if (!open) { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); } }}>
+        <AlertDialogContent className="z-[999999]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
               {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark as Fit?" : "Mark as Injured?"}
-            </h2>
-            <p className="text-sm text-muted-foreground">
+            </AlertDialogTitle>
+            <AlertDialogDescription>
               {players.find(p => p.id === benchInjuryTarget)?.isInjured
                 ? `${players.find(p => p.id === benchInjuryTarget)?.name} will be available for substitutions again.`
                 : `${players.find(p => p.id === benchInjuryTarget)?.name} will not be available for substitutions.`}
-            </p>
-          </div>
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-            <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
               Cancel
-            </Button>
-            <Button
-              variant="destructive"
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
-                togglePlayerInjury(benchInjuryTarget);
+                if (benchInjuryTarget) togglePlayerInjury(benchInjuryTarget);
                 setBenchInjuryConfirmOpen(false);
                 setBenchInjuryTarget(null);
               }}
             >
               {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark Fit" : "Mark Injured"}
-            </Button>
-          </div>
-        </div>,
-        document.body
-      )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Formation Change Dialog - portrait */}
       <FormationChangeDialog
