@@ -300,7 +300,7 @@ export const recalculateRemainingPlan = (
 
   for (const { time, half } of subTimes) {
     // Determine how many subs to make in this window
-    const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id) && p.position === null);
+    const benchAvailable = outfieldPlayers.filter(p => !currentOnPitch.has(p.id));
     const subsThisWindow = Math.min(subsAtOnce, benchAvailable.length, currentOnPitch.size);
     
     const usedPlayerOutIds = new Set<string>();
