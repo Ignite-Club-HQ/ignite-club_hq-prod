@@ -2242,7 +2242,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
     }
   ) => {
-    if (!user?.id || readOnly) return;
+    // Only notify during active games (not during setup or after game finishes)
+    if (!user?.id || readOnly || !gameInProgress || gameTimerRef.current?.isGameFinished()) return;
     try {
       const recipientIds = new Set<string>();
       const isEventGroup = teamId.startsWith("event-group-");
