@@ -712,30 +712,55 @@ export default function GlobalSubMonitor() {
     const skippedKeys = subsToSkip.map(sub => getSubKey(sub));
 
     let updatedPlan = markSubsExecuted(pitchState.autoSubPlan, skippedKeys, true);
+    const existingUnexecuted = updatedPlan.filter(sub => !sub.executed);
+    const executedSubs = updatedPlan.filter(sub => sub.executed);
 
-    // Recalculate remaining plan after skip
     let finalPlan = updatedPlan;
-    if (timerState && updatedPlan.some(sub => !sub.executed)) {
+
+    if (timerState && existingUnexecuted.length > 0) {
       const now = Date.now();
       const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
       const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
       const halfDuration = timerState.minutesPerHalf * 60;
-      
-      const recalculated = recalculateRemainingPlan(
-        pitchState.players,
-        getTeamSizeNumber(pitchState.teamSize),
-        halfDuration,
-        currentElapsed,
-        timerState.currentHalf as 1 | 2,
-        pendingAutoSub,
-        true
+      const currentHalf = timerState.currentHalf as 1 | 2;
+
+      // Only recalculate if the skip was significantly late (>30s overdue)
+      const shouldRecalculate = subsToSkip.some(sub =>
+        calculateSubDelay(sub, currentElapsed, currentHalf, halfDuration) > 30
       );
-      
-      const executedSubs = updatedPlan.filter(sub => sub.executed);
-      finalPlan = [...executedSubs, ...recalculated];
+
+      if (shouldRecalculate) {
+        const recalculated = recalculateRemainingPlan(
+          pitchState.players,
+          getTeamSizeNumber(pitchState.teamSize),
+          halfDuration,
+          currentElapsed,
+          currentHalf,
+          pendingAutoSub,
+          true
+        );
+
+        // Safety guard: if recalculation shrinks the plan, preserve existing schedule
+        if (recalculated.length >= existingUnexecuted.length || existingUnexecuted.length === 0) {
+          finalPlan = [...executedSubs, ...recalculated];
+        } else {
+          // Check if bench players still exist — only preserve if they do
+          const benchPlayers = pitchState.players.filter((p: Player) => p.position === null && !p.isInjured);
+          if (benchPlayers.length > 0 && recalculated.length === 0) {
+            console.warn("[GlobalSubMonitor] Recalculation returned empty but bench players remain — preserving existing plan");
+            finalPlan = [...executedSubs, ...existingUnexecuted];
+          } else {
+            console.warn("[GlobalSubMonitor] Recalculation shortened plan — preserving existing plan");
+            finalPlan = [...executedSubs, ...existingUnexecuted];
+          }
+        }
+      } else {
+        // Not significantly late — just keep the existing unexecuted subs
+        finalPlan = [...executedSubs, ...existingUnexecuted];
+      }
     }
 
-    // Always validate after recalculation
+    // Always validate after any plan change
     finalPlan = validateAndFixRemainingPlan(finalPlan, pitchState.players);
 
     savePitchState({
