@@ -41,6 +41,7 @@ interface DemoUser {
 }
 
 export function GenerateDemoDataButton() {
+  const { signOut } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<string[] | null>(null);
