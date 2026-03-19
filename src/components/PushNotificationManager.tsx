@@ -6,7 +6,6 @@ import { useMissedNotificationSync } from "@/hooks/useMissedNotificationSync";
 import { clearStalePushLocks } from "@/lib/pushNotifications";
 import { useNativePush } from "@/hooks/useNativePush";
 import { isNativePlatform } from "@/lib/nativePush";
-import { Capacitor } from "@capacitor/core";
 
 /**
  * Component that manages push notification health checks and missed notification sync.
@@ -20,23 +19,6 @@ export function PushNotificationManager() {
   
   // Initialize native push for Capacitor apps (no-op on web)
   useNativePush(user?.id);
-  
-  // Warm up camera/photo permissions on native iOS so the permission dialog
-  // doesn't break the gesture chain when the user first taps an image button.
-  // Without this, the first chat image upload fails because iOS rejects
-  // Camera.getPhoto() after a permission dialog interrupts the gesture.
-  useEffect(() => {
-    if (!user?.id) return;
-    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "ios") return;
-    
-    import("@/lib/nativePhotoPicker").then(({ ensureCameraPermissions }) => {
-      ensureCameraPermissions().then(() => {
-        console.log("[PushManager] Camera permissions warmed up");
-      });
-    }).catch(() => {
-      // Non-fatal — picker will re-prompt if needed
-    });
-  }, [user?.id]);
   
   // Helper to navigate from a push notification URL
   const navigateToUrl = (url: string) => {
