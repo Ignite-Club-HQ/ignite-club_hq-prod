@@ -177,15 +177,15 @@ export const TeamInviteEmail = ({
               <>
                 <Text style={headingText}>
                   {hasChildren
-                    ? `${childLabel} has been added to their team for this season ⚽`
-                    : `Your child has been added to their team for this season ⚽`}
+                    ? `${childLabel} has been added to a team for this season ⚽`
+                    : `Your child has been added to a team for this season ⚽`}
                 </Text>
 
                 <Text style={bodyText}>
-                  To see which team they're in and all the details, we're using a new app called <strong>Ignite Club HQ</strong> — it's branded as our club and brings everything together in one place.
+                  To see which team they're in and all the details, we're using a new app called <strong>Ignite</strong>. It's branded for our club, so everything feels familiar and is all in one place.
                 </Text>
                 <Text style={bodyText}>
-                  It's completely ad-free, built by a club member, and designed to keep things simple whilst still having all the functionality of other apps.
+                  It's completely ad-free, built by a club member, and designed to keep things simple while still giving families everything they need in one easy spot.
                 </Text>
 
                 <Text style={sectionLabel}>👀 Jump in to see:</Text>
@@ -195,7 +195,7 @@ export const TeamInviteEmail = ({
                 <Text style={bulletItem}>• Your club space for updates as the season gets underway</Text>
 
                 <Text style={subtleNote}>
-                  (Fixtures and games will be added soon by the team admin or coach)
+                  Fixtures and games will be added soon by the team admin or coach.
                 </Text>
               </>
             ) : (
