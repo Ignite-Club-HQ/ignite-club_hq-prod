@@ -299,15 +299,61 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     return initialShowLineupPicker && !!initialLinkedEventId && !savedState && !readOnly && !miniLeagueTeams;
   });
   const [showLineupPickerSetting, setShowLineupPickerSetting] = useState(() => initialShowLineupPicker); // Persist setting
-  const savedTeamDefaultsRef = useRef({
-    minutesPerHalf: initialMinutesPerHalf,
-    rotationSpeed: initialRotationSpeed,
-    disablePositionSwaps: initialDisablePositionSwaps,
-    disableBatchSubs: initialDisableBatchSubs,
-    rotateGkAtHalftime: initialRotateGkAtHalftime,
-    teamSize: getInitialTeamSize(),
-    formation: initialFormation || null,
+  // Settings ref for usePitchSettings (avoids stale closures)
+  const pitchSettingsRef = useRef({
+    rotationSpeed,
+    disablePositionSwaps,
+    disableBatchSubs,
+    rotateGkAtHalftime,
+    minutesPerHalf,
+    teamSize,
+    selectedFormation,
+    showMatchHeader,
+    showLineupPickerSetting: showLineupPickerSetting,
   });
+  // Keep ref in sync
+  pitchSettingsRef.current = {
+    rotationSpeed,
+    disablePositionSwaps,
+    disableBatchSubs,
+    rotateGkAtHalftime,
+    minutesPerHalf,
+    teamSize,
+    selectedFormation,
+    showMatchHeader,
+    showLineupPickerSetting: showLineupPickerSetting,
+  };
+
+  const {
+    isSavingSettings,
+    savedTeamDefaultsRef,
+    persistTeamSizeToDb,
+    persistFormationToDb,
+    persistRotationSpeed,
+    persistDisablePositionSwaps,
+    persistDisableBatchSubs,
+    persistRotateGkAtHalftime,
+    persistMinutesPerHalf,
+    persistShowLineupPicker,
+    handleSaveSettings,
+  } = usePitchSettings({
+    teamId,
+    readOnly,
+    settingsRef: pitchSettingsRef,
+  });
+
+  // Initialize saved defaults ref with initial props
+  if (!savedTeamDefaultsRef.current.formation) {
+    savedTeamDefaultsRef.current = {
+      minutesPerHalf: initialMinutesPerHalf,
+      rotationSpeed: initialRotationSpeed,
+      disablePositionSwaps: initialDisablePositionSwaps,
+      disableBatchSubs: initialDisableBatchSubs,
+      rotateGkAtHalftime: initialRotateGkAtHalftime,
+      teamSize: getInitialTeamSize(),
+      formation: initialFormation || null,
+    };
+  }
   
   // Tactical mode state
   type TacticalFormationSuggestion = {
