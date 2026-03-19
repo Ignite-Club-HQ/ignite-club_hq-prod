@@ -158,6 +158,7 @@ export default function EditClubPage() {
         description: description.trim() || null,
         logo_url: logoUrl || null,
         sport: sport || null,
+        contact_email: contactEmail.trim() || null,
         class_mode_enabled: classModeEnabled,
         allow_guests_default: allowGuestsDefault,
         max_guests_per_member_default: maxGuestsDefault,
