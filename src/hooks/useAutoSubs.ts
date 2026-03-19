@@ -294,7 +294,7 @@ export function useAutoSubs({
 
     // Animation
     const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
-    runSubAnimation(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
+    runSubAnimationRef.current?.(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
 
     // Mark executed
     let finalPlan = markSubsExecuted(autoSubPlan, executedSubKeys);
