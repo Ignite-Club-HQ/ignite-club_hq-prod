@@ -131,9 +131,6 @@ export const ChildAddedEmail = ({
               If you have any issues, just reply to this email and we'll help you out.
             </Text>
 
-            <Text style={signOff}>
-              Howl On 👊
-            </Text>
             <Text style={clubSignature}>
               {clubName}
             </Text>
