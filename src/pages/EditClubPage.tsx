@@ -37,6 +37,7 @@ export default function EditClubPage() {
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [sport, setSport] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [classModeEnabled, setClassModeEnabled] = useState(false);
   const [allowGuestsDefault, setAllowGuestsDefault] = useState(false);
   const [maxGuestsDefault, setMaxGuestsDefault] = useState(2);
