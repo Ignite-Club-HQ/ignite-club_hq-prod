@@ -177,26 +177,25 @@ export const TeamInviteEmail = ({
               <>
                 <Text style={headingText}>
                   {hasChildren
-                    ? `${childLabel} has been added to their team for this season ⚽`
-                    : `Your child has been added to their team for this season ⚽`}
+                    ? `${childLabel} has been added to a team for this season ⚽`
+                    : `Your child has been added to a team for this season ⚽`}
                 </Text>
 
                 <Text style={bodyText}>
-                  To see which team they're in and all the details, we're using a new app called <strong>Ignite Club HQ</strong> — it's branded as our club and brings everything together in one place.
+                  To see which team they're in and all the details, we're using a new app called <strong>Ignite</strong>. It's branded for our club, so everything feels familiar and easy to follow.
                 </Text>
                 <Text style={bodyText}>
-                  It's completely ad-free, built by a club member, and designed to keep things simple whilst still having all the functionality of other apps.
+                  Ignite is our club app for team info, schedules, updates and messages — all in one place.
+                </Text>
+                <Text style={bodyText}>
+                  It's completely ad-free, built by a club member, and designed to make the season simpler for families and players.
                 </Text>
 
                 <Text style={sectionLabel}>👀 Jump in to see:</Text>
 
-                <Text style={bulletItem}>• What team they're in</Text>
+                <Text style={bulletItem}>• Which team they're in</Text>
                 <Text style={bulletItem}>• Who their teammates are</Text>
-                <Text style={bulletItem}>• Your club space for updates as the season gets underway</Text>
-
-                <Text style={subtleNote}>
-                  (Fixtures and games will be added soon by the team admin or coach)
-                </Text>
+                <Text style={bulletItem}>• Club updates and messages as the season gets underway</Text>
               </>
             ) : (
               /* Generic default copy for all other clubs */
