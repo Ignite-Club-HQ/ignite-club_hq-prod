@@ -764,6 +764,7 @@ serve(async (req: Request): Promise<Response> => {
       to: toArray,
       subject,
       html: emailHtml!,
+      bcc: ['support@igniteclubhq.app'],
     };
     if (replyTo && isValidEmail(replyTo)) {
       sendPayload.reply_to = replyTo;
