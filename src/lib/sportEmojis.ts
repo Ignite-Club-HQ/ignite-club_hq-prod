@@ -20,6 +20,19 @@ export const CLASS_MODE_SPORTS: Set<string> = new Set([
   "Tennis",
 ]);
 
+// Traditional team sports where class mode doesn't apply
+const TEAM_ONLY_SPORTS: Set<string> = new Set([
+  "AFL",
+  "Basketball",
+  "Cricket",
+  "Football (Soccer)",
+  "Hockey",
+  "Netball",
+  "Rugby League",
+  "Rugby Union",
+  "Volleyball",
+]);
+
 export function isClassModeSport(sport: string | null | undefined): boolean {
   if (!sport) return false;
   if (CLASS_MODE_SPORTS.has(sport)) return true;
