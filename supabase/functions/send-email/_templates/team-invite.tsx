@@ -64,9 +64,12 @@ export const TeamInviteEmail = ({
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
-  const previewText = hasChildren
-    ? `${childLabel} has been added to their team for this season ⚽`
-    : `Your child has been added to their team for this season ⚽`;
+  const isAdminRole = ['Club Admin', 'Committee Member', 'Coach', 'Team Admin'].includes(roleName);
+  const previewText = isAdminRole
+    ? `You're invited to join ${clubName} as ${roleName}`
+    : hasChildren
+      ? `${childLabel} has been added to their team for this season ⚽`
+      : `Your child has been added to their team for this season ⚽`;
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
   const deepLinkUrl = `https://igniteclubhq.app${deepLinkPath}`;
@@ -105,12 +108,72 @@ export const TeamInviteEmail = ({
             </Text>
 
             {useCustomMessage ? (
-              /* Custom message override */
-              <Text style={bodyText}>
-                {customMessage}
-              </Text>
-            ) : (
-              /* Default verbatim copy */
+              /* Custom message override — split on double-newlines for paragraphs */
+              <>
+                {customMessage!.split(/\n\n+/).map((paragraph, i) => {
+                  // If the paragraph contains bullet lines, render each line separately
+                  const lines = paragraph.split(/\n/);
+                  if (lines.length === 1) {
+                    return <Text key={i} style={bodyText}>{paragraph}</Text>;
+                  }
+                  return lines.map((line, j) => (
+                    <Text key={`${i}-${j}`} style={line.trim().startsWith('•') ? bulletItem : bodyText}>
+                      {line}
+                    </Text>
+                  ));
+                })}
+              </>
+            ) : isAdminRole ? (
+              /* Role-specific admin invite copy */
+              <>
+                <Text style={headingText}>
+                  You've been invited to join {clubName} as {roleName} 🎉
+                </Text>
+
+                <Text style={bodyText}>
+                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                </Text>
+
+                <Text style={sectionLabel}>👀 As {roleName}, you'll be able to:</Text>
+
+                {roleName === 'Club Admin' ? (
+                  <>
+                    <Text style={bulletItem}>• Manage all club teams, members, and roles</Text>
+                    <Text style={bulletItem}>• Oversee club chat and communication channels</Text>
+                    <Text style={bulletItem}>• Manage the file vault and media gallery</Text>
+                    <Text style={bulletItem}>• Configure club settings and branding</Text>
+                  </>
+                ) : roleName === 'Committee Member' ? (
+                  <>
+                    <Text style={bulletItem}>• Access and participate in committee chat</Text>
+                    <Text style={bulletItem}>• Store and manage club documents in the vault</Text>
+                    <Text style={bulletItem}>• Stay across club updates and announcements</Text>
+                  </>
+                ) : roleName === 'Coach' ? (
+                  <>
+                    <Text style={bulletItem}>• Set up and manage training sessions and fixtures</Text>
+                    <Text style={bulletItem}>• Track attendance and manage team rosters</Text>
+                    <Text style={bulletItem}>• Use the pitch board for lineups, formations, and automated substitutions</Text>
+                    <Text style={bulletItem}>• Communicate with your team via team chat</Text>
+                  </>
+                ) : roleName === 'Team Admin' ? (
+                  <>
+                    <Text style={bulletItem}>• Create and manage team events, fixtures, and training</Text>
+                    <Text style={bulletItem}>• Track attendance and manage team members</Text>
+                    <Text style={bulletItem}>• Use the pitch board for lineups, formations, and automated substitutions</Text>
+                    <Text style={bulletItem}>• Manage team chat and communication</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={bulletItem}>• View and manage teams and members</Text>
+                    <Text style={bulletItem}>• Coordinate events and fixtures</Text>
+                    <Text style={bulletItem}>• Communicate with your club</Text>
+                  </>
+                )}
+
+              </>
+            ) : clubName === 'Bridgewater Soccer Club' ? (
+              /* Bridgewater-specific default copy */
               <>
                 <Text style={headingText}>
                   {hasChildren
@@ -119,10 +182,10 @@ export const TeamInviteEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  We're using a new app to bring everything together for the club — it's called <strong>Ignite Club HQ</strong>.
+                  To see which team they're in and all the details, we're using a new app called <strong>Ignite Club HQ</strong> — it's branded as our club and brings everything together in one place.
                 </Text>
                 <Text style={bodyText}>
-                  It's been built by one of our own club members to keep things simple, organised, and completely ad-free.
+                  It's completely ad-free, built by a club member, and designed to keep things simple whilst still having all the functionality of other apps.
                 </Text>
 
                 <Text style={sectionLabel}>👀 Jump in to see:</Text>
@@ -132,25 +195,39 @@ export const TeamInviteEmail = ({
                 <Text style={bulletItem}>• Your club space for updates as the season gets underway</Text>
 
                 <Text style={subtleNote}>
-                  (Fixtures and training details will be added soon)
+                  (Fixtures and games will be added soon by the team admin or coach)
                 </Text>
+              </>
+            ) : (
+              /* Generic default copy for all other clubs */
+              <>
+                <Text style={headingText}>
+                  {hasChildren
+                    ? `${childLabel} has been added to ${teamName} 🎉`
+                    : `You've been invited to join ${teamName} 🎉`}
+                </Text>
+
+                <Text style={bodyText}>
+                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                </Text>
+
+                <Text style={sectionLabel}>👀 Once you join, you'll be able to see:</Text>
+
+                <Text style={bulletItem}>• Team details and members</Text>
+                <Text style={bulletItem}>• Upcoming events and fixtures</Text>
+                <Text style={bulletItem}>• Club updates and announcements</Text>
+
               </>
             )}
 
-            {hasChildren && (
-              <Section style={childrenSection}>
-                <Text style={childrenText}>
-                  {childrenNames.length === 1
-                    ? <><strong>{childrenNames[0]}</strong> → {teamName}</>
-                    : <><strong>{childrenNames.join(', ')}</strong> → {teamName}</>}
-                </Text>
-              </Section>
-            )}
           </Section>
 
           {/* Get Started Section */}
           <Section style={ctaSection}>
             <Text style={sectionLabel}>👇 Get started</Text>
+            <Text style={bodyText}>
+              It only takes about 30 seconds to get set up — once you're in, you're all ready to go.
+            </Text>
 
             {/* Step 1: Download */}
             <Text style={stepLabel}>1. Download the app</Text>
@@ -171,12 +248,12 @@ export const TeamInviteEmail = ({
               </table>
             </Section>
 
-            {/* Step 2: View team */}
-            <Text style={stepLabel}>2. Tap below to see their team</Text>
+            {/* Step 2: View */}
+            <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : '2. Tap below to see their team'}</Text>
 
             <Section style={mainCtaSection}>
               <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                View Their Team
+                {isAdminRole ? 'Get Started' : 'View Their Team'}
               </Button>
             </Section>
 
@@ -194,15 +271,9 @@ export const TeamInviteEmail = ({
           {/* Closing */}
           <Section style={closingSection}>
             <Text style={bodyText}>
-              It only takes about 30 seconds to get set up — once you're in, you're all ready to go.
-            </Text>
-            <Text style={bodyText}>
               If you have any issues, just reply to this email and we'll help you out.
             </Text>
 
-            <Text style={signOff}>
-              See you on the pitch 👊
-            </Text>
             <Text style={clubSignature}>
               {clubName}
             </Text>
@@ -414,14 +485,6 @@ const emailHint = {
 
 const closingSection = {
   padding: '0 32px 24px 32px',
-};
-
-const signOff = {
-  color: '#1a1a1a',
-  fontSize: '16px',
-  lineHeight: '24px',
-  margin: '20px 0 4px 0',
-  fontWeight: '600' as const,
 };
 
 const clubSignature = {

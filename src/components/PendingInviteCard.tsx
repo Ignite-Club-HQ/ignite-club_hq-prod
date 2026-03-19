@@ -61,6 +61,7 @@ interface PendingInviteCardProps {
   };
   teamId?: string;
   clubId?: string;
+  isAdmin?: boolean;
 }
 
 type AppRole = "player" | "parent" | "coach" | "team_admin" | "club_admin";
@@ -83,7 +84,7 @@ const roleColors: Record<string, string> = {
 
 const editableRoles: AppRole[] = ["player", "parent", "coach", "team_admin"];
 
-export default function PendingInviteCard({ invite, teamId, clubId }: PendingInviteCardProps) {
+export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = true }: PendingInviteCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -124,20 +125,23 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
     staleTime: 1000 * 60 * 5,
   });
 
-  // Get the pending invite token for resending
-  const { data: pendingInviteToken } = useQuery({
+  // Get the pending invite token and metadata for resending
+  const { data: pendingInviteData } = useQuery({
     queryKey: ["pending-invite-token", invite.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("pending_invites")
-        .select("invite_token")
+        .select("invite_token, metadata")
         .eq("id", invite.id)
         .single();
-      return data?.invite_token;
+      return data;
     },
     enabled: !!invite.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const pendingInviteToken = pendingInviteData?.invite_token;
+  const inviteMetadata = pendingInviteData?.metadata as { children?: { name: string }[]; customMessage?: string } | null;
 
 
   const deleteMutation = useMutation({
@@ -241,10 +245,19 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
       const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url || undefined;
       const clubContactEmail = (teamData?.clubs as any)?.contact_email || (clubData as any)?.contact_email || undefined;
       
+      // Extract children names from invite metadata for parent invites
+      const childrenNames = invite.role === "parent" && inviteMetadata?.children
+        ? inviteMetadata.children.map(c => c.name)
+        : undefined;
+
       const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
         body: {
           to: invite.invited_email,
-          subject: `Reminder: You're invited to join ${teamName}`,
+           subject: childrenNames && childrenNames.length === 1
+             ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
+             : childrenNames && childrenNames.length > 1
+               ? `Reminder: ${clubName} — see which team your kids are in ⚽`
+               : `Reminder: ${clubName} — you've been added to the team ⚽`,
           template: "team-invite",
           senderName: clubName !== "The Club" ? clubName : undefined,
           replyTo: clubContactEmail,
@@ -256,6 +269,8 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
             roleName: roleLabels[invite.role] || invite.role.replace("_", " "),
             inviteLink: inviteLinkForEmail,
             clubLogoUrl,
+            childrenNames,
+            customMessage: inviteMetadata?.customMessage,
           },
         },
       });
@@ -357,8 +372,8 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
                 <Clock className="h-3 w-3 mr-1" />
                 Pending
               </Badge>
-              {/* Email status indicator */}
-              {invite.invited_email && (
+              {/* Email status indicator - only for admins */}
+              {isAdmin && invite.invited_email && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -398,67 +413,69 @@ export default function PendingInviteCard({ invite, teamId, clubId }: PendingInv
             </div>
           </div>
 
-          {/* Quick action buttons */}
-          <div className="flex items-center gap-1">
-            {/* Show Resend Email button when email failed or not sent */}
-            {invite.invited_email && (!invite.email_sent_at || invite.email_error) && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-2 gap-1 text-xs hidden sm:flex border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
-                onClick={handleResendEmail}
-                disabled={isResending}
-              >
-                {isResending ? (
-                  <>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <RotateCw className="h-3 w-3" />
-                    Resend Email
-                  </>
-                )}
-              </Button>
-            )}
-            
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleOpenEdit}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit name/role
-                </DropdownMenuItem>
-                {invite.invited_email && (
-                  <DropdownMenuItem 
-                    onClick={handleResendEmail} 
-                    disabled={isResending}
-                  >
-                    {isResending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <RotateCw className="h-4 w-4 mr-2" />
-                    )}
-                    {invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="text-destructive focus:text-destructive"
+          {/* Quick action buttons - only for admins */}
+          {isAdmin && (
+            <div className="flex items-center gap-1">
+              {/* Show Resend Email button when email failed or not sent */}
+              {invite.invited_email && (!invite.email_sent_at || invite.email_error) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2 gap-1 text-xs hidden sm:flex border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
+                  onClick={handleResendEmail}
+                  disabled={isResending}
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Revoke invite
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                  {isResending ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCw className="h-3 w-3" />
+                      Resend Email
+                    </>
+                  )}
+                </Button>
+              )}
+              
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleOpenEdit}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit name/role
+                  </DropdownMenuItem>
+                  {invite.invited_email && (
+                    <DropdownMenuItem 
+                      onClick={handleResendEmail} 
+                      disabled={isResending}
+                    >
+                      {isResending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RotateCw className="h-4 w-4 mr-2" />
+                      )}
+                      {invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Revoke invite
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </CardContent>
       </Card>
 

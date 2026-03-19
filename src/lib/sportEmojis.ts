@@ -20,6 +20,29 @@ export const CLASS_MODE_SPORTS: Set<string> = new Set([
   "Tennis",
 ]);
 
+// Traditional team sports where class mode doesn't apply
+const TEAM_ONLY_SPORTS: Set<string> = new Set([
+  "AFL",
+  "Basketball",
+  "Cricket",
+  "Football (Soccer)",
+  "Hockey",
+  "Netball",
+  "Rugby League",
+  "Rugby Union",
+  "Volleyball",
+]);
+
+export function isTeamOnlySport(sport: string | null | undefined): boolean {
+  if (!sport) return false;
+  if (TEAM_ONLY_SPORTS.has(sport)) return true;
+  const lower = sport.toLowerCase();
+  return lower.includes("soccer") || lower.includes("football") || lower.includes("futsal") ||
+    lower.includes("rugby") || lower.includes("cricket") || lower.includes("hockey") ||
+    lower.includes("netball") || lower.includes("basketball") || lower.includes("afl") ||
+    lower.includes("volleyball") || lower.includes("aussie rules");
+}
+
 export function isClassModeSport(sport: string | null | undefined): boolean {
   if (!sport) return false;
   if (CLASS_MODE_SPORTS.has(sport)) return true;

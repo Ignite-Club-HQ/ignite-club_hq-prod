@@ -669,7 +669,7 @@ export function AppHeader() {
                   <img 
                     src={igniteIcon} 
                     alt="Ignite" 
-                    className="h-9 w-9 object-contain"
+                    className="h-9 w-9 rounded-full object-contain"
                   />
                   <div className="flex flex-col leading-tight items-start">
                     <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>

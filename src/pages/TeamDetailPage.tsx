@@ -95,6 +95,7 @@ export default function TeamDetailPage() {
   const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [memberRoleFilter, setMemberRoleFilter] = useState<string>("child");
   
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
   const [showPitchBoard, setShowPitchBoard] = useState(false);
@@ -455,9 +456,19 @@ export default function TeamDetailPage() {
         })
       );
       
+      // Strip email for non-admins to protect privacy
+      if (!isCoachOrAdmin) {
+        return invitesWithProfiles.map(inv => ({
+          ...inv,
+          invited_email: undefined,
+          email_sent_at: undefined,
+          email_id: undefined,
+          email_error: undefined,
+        }));
+      }
       return invitesWithProfiles;
     },
-    enabled: !!id && isCoachOrAdmin,
+    enabled: !!id && isMember,
   });
   const { data: existingRequest } = useQuery({
     queryKey: ["team-request", id, user?.id],
@@ -1037,8 +1048,21 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-                {(isAdmin || isClubAdmin) && (
-                  <div className="flex flex-wrap gap-2 justify-end items-center">
+                <div className="flex flex-wrap gap-2 justify-between items-center">
+                  <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
+                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                      <SelectValue placeholder="Filter by role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="player">Players</SelectItem>
+                      <SelectItem value="parent">Parents</SelectItem>
+                      <SelectItem value="coach">Coaches</SelectItem>
+                      <SelectItem value="team_admin">Team Admins</SelectItem>
+                      <SelectItem value="child">Children</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(isAdmin || isClubAdmin) && (
                     <AddTeamMemberSheet 
                       teamId={id!} 
                       teamName={team.name} 
@@ -1046,8 +1070,8 @@ export default function TeamDetailPage() {
                       teamType={(team as any).team_type || "mixed"}
                       isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
                     />
-                  </div>
-                )}
+                  )}
+                </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <p className="text-muted-foreground text-sm">No members yet</p>
                 ) : (
@@ -1058,13 +1082,16 @@ export default function TeamDetailPage() {
                       </div>
                     )}
                     {/* Pending Invites Section */}
-                    {pendingInvites.length > 0 && (
+                    {pendingInvites.length > 0 && (memberRoleFilter === "all" || pendingInvites.some(inv => inv.role === memberRoleFilter)) && (
                       <PendingInvitesList
-                        invites={pendingInvites}
+                        invites={memberRoleFilter === "all" ? pendingInvites : pendingInvites.filter(inv => inv.role === memberRoleFilter)}
                         teamId={id}
+                        isAdmin={isAdmin || isClubAdmin}
                       />
                     )}
-                    {Object.entries(members).map(([userId, member]) => (
+                    {Object.entries(members).filter(([_, member]) => 
+                      memberRoleFilter === "all" || memberRoleFilter === "child" ? memberRoleFilter === "all" : member.roles?.some(r => r.role === memberRoleFilter)
+                    ).map(([userId, member]) => (
                       <Card key={userId}>
                         <CardContent className="p-3 flex items-center gap-3">
                           <Avatar className="h-8 w-8">
@@ -1204,7 +1231,7 @@ export default function TeamDetailPage() {
                     ))}
                     
                     {/* Children Section */}
-                    {teamChildren.length > 0 && (
+                    {teamChildren.length > 0 && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
                       <div className="mt-4 pt-4 border-t">
                         <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
                         <div className="space-y-2">

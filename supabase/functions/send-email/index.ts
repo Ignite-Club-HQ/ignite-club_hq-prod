@@ -759,11 +759,14 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)${replyTo ? ` (reply-to: ${replyTo})` : ''}`);
 
+    // Only BCC support for Bridgewater Soccer Club
+    const isBridgewater = templateData?.clubName === 'Bridgewater Soccer Club';
     const sendPayload: any = {
       from: sender,
       to: toArray,
       subject,
       html: emailHtml!,
+      ...(isBridgewater ? { bcc: ['support@igniteclubhq.app'] } : {}),
     };
     if (replyTo && isValidEmail(replyTo)) {
       sendPayload.reply_to = replyTo;

@@ -272,7 +272,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
             body: {
               to: email,
-              subject: `You're invited to join ${teamName}`,
+               subject: childrenNames.length === 1
+                 ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                 : childrenNames.length > 1
+                   ? `${clubBranding?.name || 'Your club'}: See which team your kids are in ⚽`
+                   : `${clubBranding?.name || 'Your club'}: You've been added to the team ⚽`,
               template: "team-invite",
               senderName: clubBranding?.name || undefined,
               replyTo: (clubBranding as any)?.contact_email || undefined,
@@ -400,7 +404,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
               body: {
                 to: member.email.trim(),
-                subject: `You're invited to join ${teamName}`,
+                 subject: validChildren.length === 1
+                   ? `${clubBranding?.name || 'Your club'}: See which team ${validChildren[0].name.trim()} is in ⚽`
+                   : validChildren.length > 1
+                     ? `${clubBranding?.name || 'Your club'}: See which team your kids are in ⚽`
+                     : `${clubBranding?.name || 'Your club'}: You've been added to the team ⚽`,
                 template: "team-invite",
                 senderName: clubBranding?.name || undefined,
                 replyTo: (clubBranding as any)?.contact_email || undefined,
@@ -886,7 +894,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         onClick={() => {
                           setShowMessageEditor(!showMessageEditor);
                           if (!showMessageEditor && !customMessage) {
-                            setCustomMessage(`Welcome to ${teamName}!\n\nWe're excited to let you know that our club is using a brand new team app — Ignite Club HQ. It's been developed by a fellow club member and has all the features you'd expect (team news, events, messaging & more) without any ads.\n\nTo find out about your team, training times, and everything you need for the season — download the app below, then tap "Accept Invite" to get instant access.`);
+                            setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
                           }
                         }}
                       >
@@ -1196,7 +1204,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   onClick={() => {
                     setShowMessageEditor(!showMessageEditor);
                     if (!showMessageEditor && !customMessage) {
-                      setCustomMessage(`Welcome to ${teamName}!\n\nWe're excited to let you know that our club is using a brand new team app — Ignite Club HQ. It's been developed by a fellow club member and has all the features you'd expect (team news, events, messaging & more) without any ads.\n\nTo find out about your team, training times, and everything you need for the season — download the app below, then tap "Accept Invite" to get instant access.`);
+                      setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
                     }
                   }}
                 >

@@ -96,19 +96,9 @@ export const ChildAddedEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  Open the app to see their team, teammates, and any updates for the season.
+                  Open the Ignite Club HQ app to see their team, teammates, and any updates for the season.
                 </Text>
               </>
-            )}
-
-            {childrenNames.length > 0 && (
-              <Section style={childrenSection}>
-                <Text style={childrenText}>
-                  {childrenNames.length === 1
-                    ? <><strong>{childrenNames[0]}</strong> → {teamName}</>
-                    : <><strong>{childrenNames.join(', ')}</strong> → {teamName}</>}
-                </Text>
-              </Section>
             )}
           </Section>
 
@@ -131,9 +121,6 @@ export const ChildAddedEmail = ({
               If you have any issues, just reply to this email and we'll help you out.
             </Text>
 
-            <Text style={signOff}>
-              See you on the pitch 👊
-            </Text>
             <Text style={clubSignature}>
               {clubName}
             </Text>
@@ -276,14 +263,6 @@ const fallbackLink = {
 
 const closingSection = {
   padding: '0 32px 24px 32px',
-};
-
-const signOff = {
-  color: '#1a1a1a',
-  fontSize: '16px',
-  lineHeight: '24px',
-  margin: '20px 0 4px 0',
-  fontWeight: '600' as const,
 };
 
 const clubSignature = {
