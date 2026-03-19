@@ -124,7 +124,7 @@ export const TeamInviteEmail = ({
                 })}
               </>
             ) : isAdminRole ? (
-              /* Admin/Committee/Coach role invite */
+              /* Role-specific admin invite copy */
               <>
                 <Text style={headingText}>
                   You've been invited to join {clubName} as {roleName} 🎉
@@ -136,9 +136,40 @@ export const TeamInviteEmail = ({
 
                 <Text style={sectionLabel}>👀 As {roleName}, you'll be able to:</Text>
 
-                <Text style={bulletItem}>• View and manage teams and members</Text>
-                <Text style={bulletItem}>• Coordinate events and fixtures</Text>
-                <Text style={bulletItem}>• Communicate with your club</Text>
+                {roleName === 'Club Admin' ? (
+                  <>
+                    <Text style={bulletItem}>• Manage all club teams, members, and roles</Text>
+                    <Text style={bulletItem}>• Oversee club chat and communication channels</Text>
+                    <Text style={bulletItem}>• Manage the file vault and media gallery</Text>
+                    <Text style={bulletItem}>• Configure club settings and branding</Text>
+                  </>
+                ) : roleName === 'Committee Member' ? (
+                  <>
+                    <Text style={bulletItem}>• Access and participate in committee chat</Text>
+                    <Text style={bulletItem}>• Store and manage club documents in the vault</Text>
+                    <Text style={bulletItem}>• Stay across club updates and announcements</Text>
+                  </>
+                ) : roleName === 'Coach' ? (
+                  <>
+                    <Text style={bulletItem}>• Set up and manage training sessions and fixtures</Text>
+                    <Text style={bulletItem}>• Track attendance and manage team rosters</Text>
+                    <Text style={bulletItem}>• Use the pitch board for lineups and formations</Text>
+                    <Text style={bulletItem}>• Communicate with your team via team chat</Text>
+                  </>
+                ) : roleName === 'Team Admin' ? (
+                  <>
+                    <Text style={bulletItem}>• Create and manage team events, fixtures, and training</Text>
+                    <Text style={bulletItem}>• Track attendance and manage team members</Text>
+                    <Text style={bulletItem}>• Use the pitch board for lineups and formations</Text>
+                    <Text style={bulletItem}>• Manage team chat and communication</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={bulletItem}>• View and manage teams and members</Text>
+                    <Text style={bulletItem}>• Coordinate events and fixtures</Text>
+                    <Text style={bulletItem}>• Communicate with your club</Text>
+                  </>
+                )}
 
                 <Text style={subtleNote}>
                   It takes less than 30 seconds to get set up.
