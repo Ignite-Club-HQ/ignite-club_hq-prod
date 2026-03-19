@@ -110,8 +110,8 @@ export function GenerateDemoDataButton() {
   const handleLoginAs = async (user: DemoUser) => {
     setLoggingInAs(user.id);
     try {
-      // First sign out current user
-      await supabase.auth.signOut();
+      // First sign out current user and unregister native push for this device
+      await signOut();
       
       // Then sign in as demo user
       const { error } = await supabase.auth.signInWithPassword({

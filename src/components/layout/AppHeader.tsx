@@ -882,7 +882,7 @@ export function AppHeader() {
                   if (isSigningOut) return;
                   setIsSigningOut(true);
                   try {
-                    await supabase.auth.signOut({ scope: 'local' });
+                    await signOut();
                   } catch (error) {
                     console.error("Error signing out:", error);
                   } finally {
