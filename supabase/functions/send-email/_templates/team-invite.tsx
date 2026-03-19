@@ -217,9 +217,6 @@ export const TeamInviteEmail = ({
                 <Text style={bulletItem}>• Upcoming events and fixtures</Text>
                 <Text style={bulletItem}>• Club updates and announcements</Text>
 
-                <Text style={subtleNote}>
-                  It takes less than 30 seconds to get set up.
-                </Text>
               </>
             )}
 
