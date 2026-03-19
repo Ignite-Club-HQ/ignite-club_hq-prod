@@ -638,9 +638,11 @@ export default function NotificationsPage() {
         }
         break;
       case "pending_sub":
-        // Trigger GlobalSubMonitor to show the sub confirmation dialog
-        // GlobalSubMonitor is mounted at App level so this works from any page
-        window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
+        // Navigate to home and open the pitch board
+        navigate("/");
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('open-pitch-board'));
+        }, 300);
         break;
       case "half_time":
       case "game_finished":

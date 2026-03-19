@@ -1363,7 +1363,23 @@ export default function HomePage() {
     }
   };
 
-  const clubRequestMutation = useMutation({
+  // Listen for notification-triggered pitch board opens
+  useEffect(() => {
+    const handleOpenPitchBoard = () => {
+      try {
+        const timerStateRaw = localStorage.getItem('pitch-board-timer-state');
+        if (!timerStateRaw) return;
+        const parsed = JSON.parse(timerStateRaw);
+        if (parsed?.teamId && parsed?.teamName) {
+          openPitchBoard(parsed.teamId, parsed.teamName, false);
+        }
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('open-pitch-board', handleOpenPitchBoard);
+    return () => window.removeEventListener('open-pitch-board', handleOpenPitchBoard);
+  }, []);
+
+
     mutationFn: async () => {
       // Use activeClubFilter if in club mode, otherwise use selectedClub
       const clubToJoin = activeClubFilter || selectedClub;

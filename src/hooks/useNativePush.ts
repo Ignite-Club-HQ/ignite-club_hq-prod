@@ -119,7 +119,7 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   const data = notification.notification?.data;
                   const type = data?.notificationType || data?.type;
                   const url = data?.url || data?.link || data?.path;
-                  const path = url ? normalizeNotificationPath(url) : (type === 'pending_sub' ? '/notifications' : null);
+                  const path = url ? normalizeNotificationPath(url) : (type === 'pending_sub' ? '/' : null);
 
                   if (!path) return;
 
@@ -127,8 +127,8 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
 
                   if (type === 'pending_sub') {
                     window.setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent('open-sub-confirmation'));
-                    }, 250);
+                      window.dispatchEvent(new CustomEvent('open-pitch-board'));
+                    }, 500);
                   }
                 }
               ).then(handle => {
