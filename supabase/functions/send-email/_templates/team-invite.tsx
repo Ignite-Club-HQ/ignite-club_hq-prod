@@ -130,12 +130,6 @@ export const TeamInviteEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  {hasChildren
-                    ? `Great news — ${childLabel} has been placed in a team for the upcoming season! Here's how to see all the details.`
-                    : `Great news — your child has been placed in a team for the upcoming season! Here's how to see all the details.`}
-                </Text>
-
-                <Text style={bodyText}>
                   We're using a new app called <strong>Ignite Club HQ</strong> — it's branded as our club and brings everything together in one place.
                 </Text>
                 <Text style={bodyText}>
