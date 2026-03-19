@@ -6,6 +6,7 @@ import { useMissedNotificationSync } from "@/hooks/useMissedNotificationSync";
 import { clearStalePushLocks } from "@/lib/pushNotifications";
 import { useNativePush } from "@/hooks/useNativePush";
 import { isNativePlatform } from "@/lib/nativePush";
+import { Capacitor } from "@capacitor/core";
 
 /**
  * Component that manages push notification health checks and missed notification sync.
