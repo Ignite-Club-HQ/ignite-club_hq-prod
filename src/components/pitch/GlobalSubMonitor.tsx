@@ -347,7 +347,6 @@ export default function GlobalSubMonitor() {
     const pitchState = loadPitchState(timerState?.teamId);
 
     if (!timerState || !pitchState) return;
-    if (!timerState.isRunning) return;
     if (!pitchState.autoSubActive || pitchState.autoSubPlan.length === 0) return;
     if (pitchState.autoSubPaused) return;
 
