@@ -1398,6 +1398,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     subAnimationTimers.current.push(tClear);
   }, []);
 
+  // Refs for deferred dependencies (defined later, but used inside hook callbacks)
+  const pushToUndoHistoryRef_autoSubs = useRef<((description: string, snapshot: Player[]) => void) | null>(null);
+  const runSubAnimationRef_autoSubs = useRef<((playerOutId: string, playerInId: string, swapPlayerId?: string) => void) | null>(null);
+
   // ── Auto-sub hook (centralizes plan state & handlers) ──
   const {
     autoSubPlan, setAutoSubPlan,
