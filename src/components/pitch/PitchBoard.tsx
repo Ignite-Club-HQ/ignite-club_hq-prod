@@ -3403,12 +3403,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       // Find current player positions in our updated list
       const currentPlayerOut = updatedPlayers.find(p => p.id === playerOut.id);
-      const currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
+      let currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
+      let actualPlayerIn = playerIn;
       
-      // Check if the playerIn is still on the bench
-      if (currentPlayerIn?.position !== null) {
-        executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-        continue;
+      // Check if the playerIn is still on the bench (position must be null)
+      // Note: undefined means player not found, null means on bench
+      if (!currentPlayerIn || currentPlayerIn.position !== null) {
+        // Try to find a replacement from the bench
+        const benchReplacement = updatedPlayers
+          .find(p => p.position === null && !p.isInjured && p.id !== playerOut.id &&
+            !(p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) &&
+            !allPendingSubs.some(s => s.playerIn.id === p.id && s !== sub));
+        
+        if (benchReplacement) {
+          currentPlayerIn = benchReplacement;
+          actualPlayerIn = benchReplacement;
+        } else {
+          // No replacement available - skip this sub
+          executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
+          continue;
+        }
       }
       
       // Check if playerOut is still on the pitch
