@@ -96,19 +96,9 @@ export const ChildAddedEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  Open the app to see their team, teammates, and any updates for the season. The app is branded as our club — you'll find everything in one place.
+                  Open the Ignite Club HQ app to see their team, teammates, and any updates for the season.
                 </Text>
               </>
-            )}
-
-            {childrenNames.length > 0 && (
-              <Section style={childrenSection}>
-                <Text style={childrenText}>
-                  {childrenNames.length === 1
-                    ? <><strong>{childrenNames[0]}</strong> → {teamName}</>
-                    : <><strong>{childrenNames.join(', ')}</strong> → {teamName}</>}
-                </Text>
-              </Section>
             )}
           </Section>
 
