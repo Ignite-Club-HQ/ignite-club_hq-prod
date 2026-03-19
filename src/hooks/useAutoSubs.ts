@@ -90,6 +90,50 @@ export function useAutoSubs({
   const skipCooldownRef = useRef<number>(0);
   const regeneratePlanRef = useRef<(() => void) | null>(null);
 
+  // ── Safeguard: prevent recalculation from wiping plan ──
+
+  /**
+   * If recalculation returns fewer subs than expected (e.g. due to threshold edge cases),
+   * fall back to the existing unexecuted plan (minus skipped subs) with validated references.
+   */
+  const safeRecalculate = useCallback(
+    (
+      players: Player[],
+      halfDurationSeconds: number,
+      currentElapsed: number,
+      half: 1 | 2,
+      skippedSub: SubstitutionEvent,
+      existingUnexecuted: SubstitutionEvent[]
+    ): SubstitutionEvent[] => {
+      const recalculated = recalculateRemainingPlan(
+        players,
+        parseInt(teamSize),
+        halfDurationSeconds,
+        currentElapsed,
+        half,
+        skippedSub,
+        rotateGkAtHalftime
+      );
+
+      // If recalculation returns empty but there are bench players who should still rotate,
+      // preserve the existing unexecuted subs (excluding the ones being skipped) as fallback
+      if (recalculated.length === 0 && existingUnexecuted.length > 0) {
+        const benchPlayers = players.filter(p => p.position === null && !p.isInjured);
+        const pitchPlayers = players.filter(p => p.position !== null && p.currentPitchPosition !== "GK");
+        const hasTimeGap = benchPlayers.some(b =>
+          pitchPlayers.some(p => (p.minutesPlayed || 0) - (b.minutesPlayed || 0) >= 30)
+        );
+        if (hasTimeGap) {
+          console.warn("[AutoSub] Recalculation returned empty but time gap exists — preserving existing plan");
+          return existingUnexecuted;
+        }
+      }
+
+      return recalculated;
+    },
+    [teamSize, rotateGkAtHalftime]
+  );
+
   // ── Plan lifecycle ──────────────────────────────────────
 
   const handleStartAutoSubPlan = useCallback((plan: SubstitutionEvent[]) => {
@@ -151,14 +195,14 @@ export function useAutoSubs({
 
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
     const halfDurationSeconds = minsPerHalf * 60;
-    const recalculated = recalculateRemainingPlan(
+    const existingUnexecuted = updatedPlan.filter(s => !s.executed);
+    const recalculated = safeRecalculate(
       players,
-      parseInt(teamSize),
       halfDurationSeconds,
       currentElapsed,
       half,
       nextSub,
-      rotateGkAtHalftime
+      existingUnexecuted
     );
 
     const executedSubs = updatedPlan.filter(s => s.executed);
@@ -174,7 +218,7 @@ export function useAutoSubs({
           : "No more planned substitutions",
     });
     skipCooldownRef.current = Date.now();
-  }, [autoSubPlan, playersRef, teamSize, rotateGkAtHalftime, toast, gameTimerRef]);
+  }, [autoSubPlan, playersRef, safeRecalculate, toast, gameTimerRef]);
 
   // ── Execute now ─────────────────────────────────────────
 
@@ -380,14 +424,14 @@ export function useAutoSubs({
     const half = gameTimerRef.current?.getCurrentHalf() || 1;
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
     const halfDurationSeconds = minsPerHalf * 60;
-    const recalculated = recalculateRemainingPlan(
+    const existingUnexecuted = updatedPlan.filter(s => !s.executed);
+    const recalculated = safeRecalculate(
       players,
-      parseInt(teamSize),
       halfDurationSeconds,
       currentElapsed,
       half,
       pendingAutoSub,
-      rotateGkAtHalftime
+      existingUnexecuted
     );
 
     const executedSubs = updatedPlan.filter(s => s.executed);
@@ -412,7 +456,7 @@ export function useAutoSubs({
     setPendingBatchSubs([]);
     setSubDuePlayerIds(new Set());
     if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
-  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, playersRef, teamSize, rotateGkAtHalftime, toast, gameTimerRef]);
+  }, [pendingAutoSub, pendingBatchSubs, autoSubPlan, playersRef, safeRecalculate, toast, gameTimerRef]);
 
   // ── Due-sub detection (called from handleTimerUpdate) ───
 
@@ -452,14 +496,14 @@ export function useAutoSubs({
         setAutoSubPlan(prev => {
           const markedPlan = markSubsExecuted(prev, olderKeys, true);
           const executedSubs = markedPlan.filter(s => s.executed);
-          const recalculated = recalculateRemainingPlan(
+          const existingUnexecuted = markedPlan.filter(s => !s.executed);
+          const recalculated = safeRecalculate(
             playersRef.current,
-            parseInt(teamSize),
             halfDurationSeconds,
             elapsedSeconds,
             currentHalf,
             olderSubs[olderSubs.length - 1],
-            rotateGkAtHalftime
+            existingUnexecuted
           );
           return validateAndFixRemainingPlan([...executedSubs, ...recalculated], playersRef.current);
         });
@@ -501,7 +545,7 @@ export function useAutoSubs({
       setSubConfirmDialogOpen(true);
       return true;
     },
-    [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, lockedPlayerIds, toast, gameTimerRef, playersRef, teamSize, rotateGkAtHalftime]
+    [autoSubActive, autoSubPlan, autoSubPaused, pendingAutoSub, lockedPlayerIds, toast, gameTimerRef, playersRef, safeRecalculate]
   );
 
   // ── Next-sub countdown updater ──────────────────────────
