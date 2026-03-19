@@ -11,6 +11,7 @@ import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
 import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 import { markProfileCompleted } from "@/components/InviteFlowProgress";
+import { isNativePlatform, unregisterNativePush } from "@/lib/nativePush";
 
 interface Profile {
   id: string;
@@ -693,6 +694,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    const currentUserId = user?.id;
+
+    try {
+      if (currentUserId && isNativePlatform()) {
+        await unregisterNativePush(currentUserId);
+      }
+    } catch (error) {
+      console.error('[Auth] Native push cleanup failed during sign out:', error);
+    }
+
     try {
       await supabase.auth.signOut();
     } catch (error) {

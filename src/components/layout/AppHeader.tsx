@@ -66,7 +66,7 @@ function getBestContrastColor(
 function LogoClubThemeDropdown() {
   const { availableClubThemes, activeClubTheme, setActiveClubTheme } = useClubTheme();
   const defaultLogo = igniteIcon;
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   // Fetch ALL user clubs (including non-Pro) to show with lock
   const { data: allUserClubs = [] } = useQuery({
     queryKey: ["all-user-clubs-for-theme", user?.id],
@@ -245,7 +245,7 @@ function LogoClubThemeDropdown() {
 export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { profile, unreadCount, user, clearUnreadCount, refreshUnreadCount } = useAuth();
+  const { profile, unreadCount, user, clearUnreadCount, refreshUnreadCount, signOut } = useAuth();
   const { activeThemeData, activeClubTheme } = useClubTheme();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -882,7 +882,7 @@ export function AppHeader() {
                   if (isSigningOut) return;
                   setIsSigningOut(true);
                   try {
-                    await supabase.auth.signOut({ scope: 'local' });
+                    await signOut();
                   } catch (error) {
                     console.error("Error signing out:", error);
                   } finally {
