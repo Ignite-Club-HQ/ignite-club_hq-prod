@@ -77,7 +77,8 @@ import {
   loadPitchState,
   clearPitchState,
   loadTimerStateForMinutes,
-  recalculateRemainingPlanTeamAware as recalculateRemainingPlan
+  recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
+  validateAndFixRemainingPlan
 } from "./pitchStateUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
