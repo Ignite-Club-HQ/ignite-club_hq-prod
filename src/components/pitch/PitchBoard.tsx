@@ -3089,7 +3089,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     );
 
     const executedSubs = updatedPlan.filter(s => s.executed);
-    const finalPlan = [...executedSubs, ...recalculated];
+    const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
     const remainingCount = finalPlan.filter(sub => !sub.executed).length;
     setAutoSubPlan(finalPlan);
     setAutoSubActive(remainingCount > 0);
