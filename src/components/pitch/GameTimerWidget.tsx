@@ -337,9 +337,22 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const toggleTimer = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!timerState) return;
-    // Don't allow resuming if at half-time boundary - user needs to start 2nd half from pitch board
-    const isAtHalfBoundary = timerState.isRunning && displaySeconds >= timerState.minutesPerHalf * 60;
-    if (isAtHalfBoundary) return;
+    
+    const mph = timerState.minutesPerHalf || 20;
+    const atHalfTimeLimit = displaySeconds >= mph * 60;
+    
+    // If currently in 1st half and at the time limit, transition to 2nd half
+    if (!timerState.isRunning && timerState.currentHalf === 1 && atHalfTimeLimit) {
+      const newState = { ...timerState, currentHalf: 2 as 1 | 2, elapsedSeconds: 0, isRunning: true, lastUpdateTime: Date.now() };
+      saveTimerState(newState);
+      setTimerState(newState);
+      setDisplaySeconds(0);
+      return;
+    }
+    
+    // Don't allow resuming if game is finished (2nd half at limit)
+    if (!timerState.isRunning && timerState.currentHalf === 2 && atHalfTimeLimit) return;
+    
     saveTimerState({ ...timerState, isRunning: !timerState.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds });
     setTimerState(prev => prev ? { ...prev, isRunning: !prev.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds } : null);
   };
