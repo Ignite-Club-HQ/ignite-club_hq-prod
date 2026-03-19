@@ -3309,11 +3309,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     persistTeamSizeToDb(newSize);
   }, [players, teamSize, autoPlacePlayersOnPitch, autoPlaceMiniLeaguePlayers, miniLeagueTeams, persistTeamSizeToDb]);
 
-  const getPinchDistance = (touches: React.TouchList) => {
+  const getPinchDistance = (touches: React.TouchList): number | null => {
     if (touches.length < 2) return null;
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
+    return getPinchDist(touches);
   };
 
   const handlePitchTouchStart = (e: React.TouchEvent) => {
