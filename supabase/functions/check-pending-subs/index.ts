@@ -206,10 +206,29 @@ async function notifyTeamStaff(
     : new Set<string>([gameOwnerId, ...staffUserIds]);
   let notificationsSent = 0;
 
-  const pushUrl = linkedEventId
-    ? `/events/${linkedEventId}`
-    : '/notifications';
-  const pushTag = `${notificationType}-${gameId}`;
+  // Dedup window: for milestone notifications (half_time, full_time), check if we already 
+  // sent this exact notification type for this game recently. This prevents duplicates
+  // from concurrent cron invocations or retries.
+  const DEDUP_WINDOW_SECONDS = notificationType === 'pending_sub' ? 30 : 120;
+  
+  // Check for ANY recent notification of this type for this game (check first recipient only)
+  const firstRecipient = Array.from(allRecipients)[0];
+  if (firstRecipient) {
+    const cutoff = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
+    const { data: recentNotifs } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('user_id', firstRecipient)
+      .eq('type', inAppType)
+      .eq('related_id', gameId)
+      .gte('created_at', cutoff)
+      .limit(1);
+    
+    if (recentNotifs && recentNotifs.length > 0) {
+      console.log(`[CHECK-SUBS] Skipping duplicate ${notificationType} for game ${gameId} (sent within ${DEDUP_WINDOW_SECONDS}s)`);
+      return 0;
+    }
+  }
 
   for (const userId of allRecipients) {
     const enabled = await isNotificationEnabled(supabase, userId);
