@@ -856,7 +856,6 @@ export default function GlobalSubMonitor() {
     });
 
     // Recalculate remaining plan after skip
-    // timerState already loaded above
     let finalPlan = updatedPlan;
     
     if (timerState && updatedPlan.some(sub => !sub.executed)) {
@@ -879,12 +878,11 @@ export default function GlobalSubMonitor() {
       finalPlan = [...executedSubs, ...recalculated];
     }
 
-    const remainingSubs = finalPlan.filter(sub => !sub.executed);
-
     savePitchState({
       ...pitchState,
       autoSubPlan: finalPlan,
-      autoSubActive: remainingSubs.length > 0,
+      // NEVER deactivate autoSubActive from here — only PitchBoard or explicit cancel should do that
+      autoSubActive: pitchState.autoSubActive,
       lastUpdateTime: Date.now(),
     });
     
