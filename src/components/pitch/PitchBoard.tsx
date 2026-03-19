@@ -3329,7 +3329,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             ? `Halftime: ${halftimeSubs.length} substitutions`
             : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
           playSubAlertBeep(notificationBody);
-          createSubNotification(notificationBody);
+          // Server-side check-pending-subs handles push delivery
           
           setPendingAutoSub(primarySub);
           setPendingBatchSubs(additionalSubs);
