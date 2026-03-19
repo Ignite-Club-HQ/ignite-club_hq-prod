@@ -570,6 +570,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
+          // Optimistic increment for instant UI feedback
           setUnreadCount((prev) => prev + 1);
           
           const notificationType = (payload.new as any)?.type;
@@ -611,8 +612,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       )
       .subscribe();
 
+    // Re-sync unread count from server when app becomes visible
+    // This catches any drift from missed realtime events (common on mobile/native)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchUnreadCount(user.id);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Also re-sync on focus (more reliable on some platforms)
+    const handleFocus = () => {
+      fetchUnreadCount(user.id);
+    };
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [user]);
 
