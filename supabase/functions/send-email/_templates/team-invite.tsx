@@ -123,6 +123,27 @@ export const TeamInviteEmail = ({
                   ));
                 })}
               </>
+            ) : isAdminRole ? (
+              /* Admin/Committee/Coach role invite */
+              <>
+                <Text style={headingText}>
+                  You've been invited to join {clubName} as {roleName} 🎉
+                </Text>
+
+                <Text style={bodyText}>
+                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                </Text>
+
+                <Text style={sectionLabel}>👀 As {roleName}, you'll be able to:</Text>
+
+                <Text style={bulletItem}>• View and manage teams and members</Text>
+                <Text style={bulletItem}>• Coordinate events and fixtures</Text>
+                <Text style={bulletItem}>• Communicate with your club</Text>
+
+                <Text style={subtleNote}>
+                  It takes less than 30 seconds to get set up.
+                </Text>
+              </>
             ) : clubName === 'Bridgewater Soccer Club' ? (
               /* Bridgewater-specific default copy */
               <>
