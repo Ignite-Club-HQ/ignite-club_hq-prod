@@ -125,7 +125,11 @@ serve(async (req) => {
         const { error: emailError } = await supabase.functions.invoke("send-email", {
           body: {
             to: invite.invited_email,
-            subject: `Reminder: See who's in ${teamName} ⚽`,
+             subject: childrenNames && childrenNames.length === 1
+               ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
+               : childrenNames && childrenNames.length > 1
+                 ? `Reminder: ${clubName} — see which team your kids are in ⚽`
+                 : `Reminder: ${clubName} — you've been added to the team ⚽`,
             template: "team-invite",
             senderName: clubName !== "Your Club" ? clubName : undefined,
             replyTo: clubContactEmail,
