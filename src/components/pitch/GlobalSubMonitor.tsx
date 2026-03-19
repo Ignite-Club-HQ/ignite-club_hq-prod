@@ -655,7 +655,7 @@ export default function GlobalSubMonitor() {
     const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState) return;
 
-    // Guard: check if this sub was already skipped (e.g., by auto-skip while dialog was open)
+    // Guard: check if this sub was already skipped
     const matchingSub = pitchState.autoSubPlan?.find(s =>
       s.playerOut.id === pendingAutoSub.playerOut.id && 
       s.time === pendingAutoSub.time && 
@@ -669,164 +669,44 @@ export default function GlobalSubMonitor() {
       return;
     }
 
-    // Process ALL pending subs (primary + batch)
+    // Use shared helper to execute subs
     const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
-    let updatedPlayers = [...pitchState.players];
-    const executedSubIds: string[] = [];
+    const { updatedPlayers, executedSubKeys } = executeSubsOnPlayers(allPendingSubs, pitchState.players);
 
-    for (const sub of allPendingSubs) {
-      const { playerOut, playerIn, positionSwap } = sub;
-      
-      const currentPlayerOut = updatedPlayers.find(p => p.id === playerOut.id);
-      const currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
-      
-      // Validate: playerOut must be on pitch, playerIn must be on bench
-      if (!currentPlayerOut?.position || !currentPlayerIn || !!currentPlayerIn.position) {
-        console.log('[GlobalSubMonitor] Skipping invalid sub:', {
-          playerOut: playerOut.name,
-          playerOutOnPitch: !!currentPlayerOut?.position,
-          playerIn: playerIn.name,
-          playerInOnBench: !currentPlayerIn?.position
-        });
-        executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-        continue;
-      }
-      
-      const pitchPosition = { ...currentPlayerOut.position };
-      const pitchPositionType = currentPlayerOut.currentPitchPosition;
-      
-      if (positionSwap) {
-        const swapPlayer = updatedPlayers.find(p => p.id === positionSwap.player.id);
-        if (swapPlayer?.position) {
-          const swapPosition = { ...swapPlayer.position };
-          updatedPlayers = updatedPlayers.map(p => {
-            if (p.id === playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
-            if (p.id === positionSwap.player.id) return { ...p, position: pitchPosition, currentPitchPosition: positionSwap.toPosition };
-            if (p.id === playerIn.id) return { ...p, position: swapPosition, currentPitchPosition: positionSwap.fromPosition };
-            return p;
-          });
-        } else {
-          updatedPlayers = updatedPlayers.map(p => {
-            if (p.id === playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
-            if (p.id === playerIn.id) return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-            return p;
-          });
-        }
-      } else {
-        updatedPlayers = updatedPlayers.map(p => {
-          if (p.id === playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
-          if (p.id === playerIn.id) return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-          return p;
-        });
-      }
-      
-      executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-    }
+    // Mark processed subs as executed
+    let finalPlan = markSubsExecuted(pitchState.autoSubPlan, executedSubKeys);
     
-    // Mark all processed subs as executed
-    const updatedPlan = pitchState.autoSubPlan.map(sub => {
-      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      if (executedSubIds.includes(subId)) return { ...sub, executed: true };
-      return sub;
-    });
-    
-    // Only recalculate remaining sub timings if the sub was significantly late (>30s)
-    // Otherwise just keep the existing plan — recalculating on every accept can wipe
-    // the plan if the algorithm's 30s min-time-diff threshold filters out all subs.
-    let finalPlan = updatedPlan;
-    
-    if (timerState && updatedPlan.some(sub => !sub.executed)) {
+    // Recalculate if significantly late (>30s)
+    if (timerState && finalPlan.some(sub => !sub.executed)) {
       const now = Date.now();
       const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
       const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
       const halfDuration = timerState.minutesPerHalf * 60;
+      const delaySeconds = calculateSubDelay(pendingAutoSub, currentElapsed, timerState.currentHalf as 1 | 2, halfDuration);
       
-      // Calculate how late this sub was
-      const subTotalSeconds = pendingAutoSub.half === 1
-        ? pendingAutoSub.time
-        : halfDuration + pendingAutoSub.time;
-      const currentTotalSeconds = timerState.currentHalf === 1
-        ? currentElapsed
-        : halfDuration + currentElapsed;
-      const delaySeconds = Math.max(0, currentTotalSeconds - subTotalSeconds);
-      
-      // Only recalculate if significantly late — mirrors PendingSubWidget logic
       if (delaySeconds > 30) {
         console.log(`[GlobalSubMonitor] Sub was ${Math.round(delaySeconds / 60)}m late, recalculating remaining plan`);
-        const executedPlan = updatedPlan.filter(sub => sub.executed);
+        const executedPlan = finalPlan.filter(sub => sub.executed);
         const recalculated = recalculateRemainingPlan(
           updatedPlayers,
           getTeamSizeNumber(pitchState.teamSize),
           halfDuration,
           currentElapsed,
           timerState.currentHalf as 1 | 2,
-          { ...pendingAutoSub, executed: true }, // Mark as executed, not skipped
+          { ...pendingAutoSub, executed: true },
           true
         );
-        
         finalPlan = [...executedPlan, ...recalculated];
       }
     }
+
+    // Always validate remaining plan against updated player positions
+    finalPlan = validateAndFixRemainingPlan(finalPlan, updatedPlayers);
     
     savePitchState({
       ...pitchState,
       players: updatedPlayers,
       autoSubPlan: finalPlan,
-      // NEVER deactivate autoSubActive from here — only PitchBoard or explicit cancel should do that
-      autoSubActive: pitchState.autoSubActive,
-      lastUpdateTime: Date.now(),
-    });
-    
-    setSubConfirmDialogOpen(false);
-    setPendingAutoSub(null);
-    setPendingBatchSubs([]);
-    lastCheckedSubRef.current = null;
-  }, [pendingAutoSub, pendingBatchSubs]);
-
-  const handleSkipAutoSub = useCallback(() => {
-    if (!pendingAutoSub) return;
-
-    const timerState = loadTimerState();
-    const pitchState = loadPitchState(timerState?.teamId);
-    if (!pitchState) return;
-
-    const subsToSkip = [pendingAutoSub, ...pendingBatchSubs];
-    const skippedIds = new Set(
-      subsToSkip.map(sub => `${sub.half}-${sub.time}-${sub.playerOut.id}`)
-    );
-
-    const updatedPlan = pitchState.autoSubPlan.map(sub => {
-      const subId = `${sub.half}-${sub.time}-${sub.playerOut.id}`;
-      return skippedIds.has(subId) ? { ...sub, executed: true, skipped: true } : sub;
-    });
-
-    // Recalculate remaining plan after skip
-    let finalPlan = updatedPlan;
-    
-    if (timerState && updatedPlan.some(sub => !sub.executed)) {
-      const now = Date.now();
-      const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-      const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
-      const halfDuration = timerState.minutesPerHalf * 60;
-      
-      const recalculated = recalculateRemainingPlan(
-        pitchState.players,
-        getTeamSizeNumber(pitchState.teamSize),
-        halfDuration,
-        currentElapsed,
-        timerState.currentHalf as 1 | 2,
-        pendingAutoSub,
-        true
-      );
-      
-      const executedSubs = updatedPlan.filter(sub => sub.executed);
-      finalPlan = [...executedSubs, ...recalculated];
-    }
-
-    savePitchState({
-      ...pitchState,
-      autoSubPlan: finalPlan,
-      // NEVER deactivate autoSubActive from here — only PitchBoard or explicit cancel should do that
       autoSubActive: pitchState.autoSubActive,
       lastUpdateTime: Date.now(),
     });
