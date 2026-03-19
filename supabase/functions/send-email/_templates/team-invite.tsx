@@ -64,9 +64,12 @@ export const TeamInviteEmail = ({
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
-  const previewText = hasChildren
-    ? `${childLabel} has been added to their team for this season ⚽`
-    : `Your child has been added to their team for this season ⚽`;
+  const isAdminRole = ['Club Admin', 'Committee Member', 'Coach', 'Team Admin'].includes(roleName);
+  const previewText = isAdminRole
+    ? `You're invited to join ${clubName} as ${roleName}`
+    : hasChildren
+      ? `${childLabel} has been added to their team for this season ⚽`
+      : `Your child has been added to their team for this season ⚽`;
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const deepLinkPath = inviteLink.replace(/^https?:\/\/[^/]+/, '');
   const deepLinkUrl = `https://igniteclubhq.app${deepLinkPath}`;
@@ -119,6 +122,27 @@ export const TeamInviteEmail = ({
                     </Text>
                   ));
                 })}
+              </>
+            ) : isAdminRole ? (
+              /* Admin/Committee/Coach role invite */
+              <>
+                <Text style={headingText}>
+                  You've been invited to join {clubName} as {roleName} 🎉
+                </Text>
+
+                <Text style={bodyText}>
+                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                </Text>
+
+                <Text style={sectionLabel}>👀 As {roleName}, you'll be able to:</Text>
+
+                <Text style={bulletItem}>• View and manage teams and members</Text>
+                <Text style={bulletItem}>• Coordinate events and fixtures</Text>
+                <Text style={bulletItem}>• Communicate with your club</Text>
+
+                <Text style={subtleNote}>
+                  It takes less than 30 seconds to get set up.
+                </Text>
               </>
             ) : clubName === 'Bridgewater Soccer Club' ? (
               /* Bridgewater-specific default copy */
@@ -199,12 +223,12 @@ export const TeamInviteEmail = ({
               </table>
             </Section>
 
-            {/* Step 2: View team */}
-            <Text style={stepLabel}>2. Tap below to see their team</Text>
+            {/* Step 2: View */}
+            <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : '2. Tap below to see their team'}</Text>
 
             <Section style={mainCtaSection}>
               <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                View Their Team
+                {isAdminRole ? 'Get Started' : 'View Their Team'}
               </Button>
             </Section>
 
