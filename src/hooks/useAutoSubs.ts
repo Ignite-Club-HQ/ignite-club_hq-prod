@@ -195,14 +195,14 @@ export function useAutoSubs({
 
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
     const halfDurationSeconds = minsPerHalf * 60;
-    const recalculated = recalculateRemainingPlan(
+    const existingUnexecuted = updatedPlan.filter(s => !s.executed);
+    const recalculated = safeRecalculate(
       players,
-      parseInt(teamSize),
       halfDurationSeconds,
       currentElapsed,
       half,
       nextSub,
-      rotateGkAtHalftime
+      existingUnexecuted
     );
 
     const executedSubs = updatedPlan.filter(s => s.executed);
