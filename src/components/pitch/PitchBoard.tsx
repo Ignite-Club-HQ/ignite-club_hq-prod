@@ -3089,7 +3089,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     );
 
     const executedSubs = updatedPlan.filter(s => s.executed);
-    const finalPlan = [...executedSubs, ...recalculated];
+    const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
     const remainingCount = finalPlan.filter(sub => !sub.executed).length;
     setAutoSubPlan(finalPlan);
     setAutoSubActive(remainingCount > 0);
@@ -3268,7 +3268,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         
         setAutoSubPlan(prev => {
           const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-          return prev.map(s => olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s);
+          const skipped = prev.map(s => olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s);
+          return validateAndFixRemainingPlan(skipped, players);
         });
         toast({ title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? 's' : ''} skipped`, description: "Plan adjusted for remaining time" });
         return; // Let next tick handle the latest due sub
@@ -3403,12 +3404,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       
       // Find current player positions in our updated list
       const currentPlayerOut = updatedPlayers.find(p => p.id === playerOut.id);
-      const currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
+      let currentPlayerIn = updatedPlayers.find(p => p.id === playerIn.id);
+      let actualPlayerIn = playerIn;
       
-      // Check if the playerIn is still on the bench
-      if (currentPlayerIn?.position !== null) {
-        executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
-        continue;
+      // Check if the playerIn is still on the bench (position must be null)
+      // Note: undefined means player not found, null means on bench
+      if (!currentPlayerIn || currentPlayerIn.position !== null) {
+        // Try to find a replacement from the bench
+        const benchReplacement = updatedPlayers
+          .find(p => p.position === null && !p.isInjured && p.id !== playerOut.id &&
+            !(p.assignedPositions?.includes("GK") && p.assignedPositions?.length === 1) &&
+            !allPendingSubs.some(s => s.playerIn.id === p.id && s !== sub));
+        
+        if (benchReplacement) {
+          currentPlayerIn = benchReplacement;
+          actualPlayerIn = benchReplacement;
+        } else {
+          // No replacement available - skip this sub
+          executedSubIds.push(`${sub.half}-${sub.time}-${playerOut.id}`);
+          continue;
+        }
       }
       
       // Check if playerOut is still on the pitch
@@ -3424,7 +3439,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const pitchPosition = { ...currentPlayerOut.position };
       const pitchPositionType = currentPlayerOut.currentPitchPosition;
       
-      if (positionSwap) {
+      if (positionSwap && actualPlayerIn.id === playerIn.id) {
+        // Only use position swap if we're using the original playerIn
         const swapPlayer = updatedPlayers.find(p => p.id === positionSwap.player.id);
         if (swapPlayer?.position) {
           const swapPosition = { ...swapPlayer.position };
@@ -3436,7 +3452,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             if (p.id === positionSwap.player.id) {
               return { ...p, position: pitchPosition, currentPitchPosition: positionSwap.toPosition };
             }
-            if (p.id === playerIn.id) {
+            if (p.id === actualPlayerIn.id) {
               return { ...p, position: swapPosition, currentPitchPosition: positionSwap.fromPosition };
             }
             return p;
@@ -3446,7 +3462,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             if (p.id === playerOut.id) {
               return { ...p, position: null, currentPitchPosition: undefined };
             }
-            if (p.id === playerIn.id) {
+            if (p.id === actualPlayerIn.id) {
               return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
             }
             return p;
@@ -3457,7 +3473,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           if (p.id === playerOut.id) {
             return { ...p, position: null, currentPitchPosition: undefined };
           }
-          if (p.id === playerIn.id) {
+          if (p.id === actualPlayerIn.id) {
             return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
           }
           return p;

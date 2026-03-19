@@ -290,6 +290,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
               }
             }
 
+            // Validate remaining plan entries against current player positions
+            updatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
             writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
             window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
             return; // Will pick up updated state on next poll tick
