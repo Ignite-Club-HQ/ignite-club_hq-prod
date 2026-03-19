@@ -379,7 +379,15 @@ export function useAutoSubs({
         half as 1 | 2,
         halfDurationSeconds
       );
-      if (delaySeconds > 30) {
+      // Also detect early execution: sub was scheduled later than current time
+      const scheduledTime = pendingAutoSub.time;
+      const earlyBySeconds = pendingAutoSub.half === (half as 1 | 2)
+        ? Math.max(0, scheduledTime - currentElapsed)
+        : 0;
+      const isSignificantlyEarly = earlyBySeconds > 15;
+      const isSignificantlyLate = delaySeconds > 30;
+
+      if (isSignificantlyLate || isSignificantlyEarly) {
         const executedPlan = finalPlan.filter(sub => sub.executed);
         const recalculated = recalculateRemainingPlan(
           updatedPlayers,
@@ -390,7 +398,19 @@ export function useAutoSubs({
           { ...pendingAutoSub, executed: true },
           rotateGkAtHalftime
         );
-        finalPlan = [...executedPlan, ...recalculated];
+        // Use safeRecalculate logic: don't let recalculation wipe the plan
+        if (recalculated.length > 0 || remainingSubs.length === 0) {
+          finalPlan = [...executedPlan, ...recalculated];
+        } else {
+          // Preserve existing remaining subs if recalculation returns empty
+          const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+          if (benchPlayers.length > 0) {
+            console.warn("[AutoSub] Early-sub recalculation returned empty — preserving remaining plan");
+            finalPlan = [...executedPlan, ...remainingSubs];
+          } else {
+            finalPlan = [...executedPlan, ...recalculated];
+          }
+        }
       }
     }
 
