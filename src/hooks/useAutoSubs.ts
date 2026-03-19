@@ -43,10 +43,10 @@ export interface UseAutoSubsOptions {
   teamSize: TeamSize;
   /** Whether GK rotation at halftime is enabled */
   rotateGkAtHalftime: boolean;
-  /** Push to undo history before making changes */
-  pushToUndoHistory: (description: string, snapshot: Player[]) => void;
-  /** Run the sub animation effect */
-  runSubAnimation: (playerOutId: string, playerInId: string, swapPlayerId?: string) => void;
+  /** Push to undo history before making changes (ref to avoid hook ordering issues) */
+  pushToUndoHistoryRef: React.MutableRefObject<((description: string, snapshot: Player[]) => void) | null>;
+  /** Run the sub animation effect (ref to avoid hook ordering issues) */
+  runSubAnimationRef: React.MutableRefObject<((playerOutId: string, playerInId: string, swapPlayerId?: string) => void) | null>;
 }
 
 export function useAutoSubs({
