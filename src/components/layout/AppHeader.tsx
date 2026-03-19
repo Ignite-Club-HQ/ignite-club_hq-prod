@@ -245,7 +245,7 @@ function LogoClubThemeDropdown() {
 export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { profile, unreadCount, user, clearUnreadCount, refreshUnreadCount } = useAuth();
+  const { profile, unreadCount, user, clearUnreadCount, refreshUnreadCount, signOut } = useAuth();
   const { activeThemeData, activeClubTheme } = useClubTheme();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
