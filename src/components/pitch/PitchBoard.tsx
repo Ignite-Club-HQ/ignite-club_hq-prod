@@ -454,8 +454,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     await persistShowLineupPicker(enabled);
   }, [persistShowLineupPicker]);
 
+  const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
+    setPlayers(updatedPlayers);
+    setShowLineupPicker(false);
+    if (secondHalfGkId) {
+      setPreferredSecondHalfGkId(secondHalfGkId);
+    }
+    if (firstHalfGkId || secondHalfGkId) {
+      console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
+    }
+    // After confirming lineup, prompt auto-sub generation
+    setTimeout(() => {
+      setAutoSubPlanEditMode(false);
+      setAutoSubFromPreGame(true);
+      setAutoSubPlanDialogOpen(true);
+    }, 300);
+  }, []);
 
-  // Handle linking event with email notifications
+
   const handleLinkEvent = useCallback(async (eventId: string | null) => {
     const previousLinkedEventId = linkedEventId;
     setLinkedEventId(eventId);
