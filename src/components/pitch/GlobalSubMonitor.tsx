@@ -454,8 +454,15 @@ export default function GlobalSubMonitor() {
     
     if (!timerState || !pitchState) return false;
     
-    // Also need to monitor for game finish even if subs not active
+    // Monitor when timer is running
     if (timerState.isRunning) return true;
+    
+    // Monitor during halftime break (half=2, elapsed=0, not running) for halftime subs
+    if (!timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0) {
+      if (pitchState.autoSubActive && pitchState.autoSubPlan.some(s => !s.executed && s.half === 2 && s.time === 0)) {
+        return true;
+      }
+    }
     
     if (!pitchState.autoSubActive || pitchState.autoSubPlan.length === 0) return false;
     if (pitchState.autoSubPaused) return false;
