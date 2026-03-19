@@ -407,7 +407,9 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
             return s;
           });
           
-          const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
+          // Validate remaining plan entries against current player positions
+          const validatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
+          const updatedState = { ...pitchState, autoSubPlan: validatedPlan };
           writePitchState(updatedState);
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           
