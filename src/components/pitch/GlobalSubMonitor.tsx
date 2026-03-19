@@ -785,9 +785,9 @@ export default function GlobalSubMonitor() {
       return sub;
     });
     
-    // Recalculate remaining sub timings
-    // timerState already loaded above
-    const executedPlan = updatedPlan.filter(sub => sub.executed);
+    // Only recalculate remaining sub timings if the sub was significantly late (>30s)
+    // Otherwise just keep the existing plan — recalculating on every accept can wipe
+    // the plan if the algorithm's 30s min-time-diff threshold filters out all subs.
     let finalPlan = updatedPlan;
     
     if (timerState && updatedPlan.some(sub => !sub.executed)) {
@@ -796,26 +796,39 @@ export default function GlobalSubMonitor() {
       const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
       const halfDuration = timerState.minutesPerHalf * 60;
       
-      const recalculated = recalculateRemainingPlan(
-        updatedPlayers,
-        getTeamSizeNumber(pitchState.teamSize),
-        halfDuration,
-        currentElapsed,
-        timerState.currentHalf as 1 | 2,
-        pendingAutoSub,
-        true
-      );
+      // Calculate how late this sub was
+      const subTotalSeconds = pendingAutoSub.half === 1
+        ? pendingAutoSub.time
+        : halfDuration + pendingAutoSub.time;
+      const currentTotalSeconds = timerState.currentHalf === 1
+        ? currentElapsed
+        : halfDuration + currentElapsed;
+      const delaySeconds = Math.max(0, currentTotalSeconds - subTotalSeconds);
       
-      finalPlan = [...executedPlan, ...recalculated];
+      // Only recalculate if significantly late — mirrors PendingSubWidget logic
+      if (delaySeconds > 30) {
+        console.log(`[GlobalSubMonitor] Sub was ${Math.round(delaySeconds / 60)}m late, recalculating remaining plan`);
+        const executedPlan = updatedPlan.filter(sub => sub.executed);
+        const recalculated = recalculateRemainingPlan(
+          updatedPlayers,
+          getTeamSizeNumber(pitchState.teamSize),
+          halfDuration,
+          currentElapsed,
+          timerState.currentHalf as 1 | 2,
+          { ...pendingAutoSub, executed: true }, // Mark as executed, not skipped
+          true
+        );
+        
+        finalPlan = [...executedPlan, ...recalculated];
+      }
     }
-    
-    const remainingSubs = finalPlan.filter(sub => !sub.executed);
     
     savePitchState({
       ...pitchState,
       players: updatedPlayers,
       autoSubPlan: finalPlan,
-      autoSubActive: remainingSubs.length > 0,
+      // NEVER deactivate autoSubActive from here — only PitchBoard or explicit cancel should do that
+      autoSubActive: pitchState.autoSubActive,
       lastUpdateTime: Date.now(),
     });
     
@@ -843,7 +856,6 @@ export default function GlobalSubMonitor() {
     });
 
     // Recalculate remaining plan after skip
-    // timerState already loaded above
     let finalPlan = updatedPlan;
     
     if (timerState && updatedPlan.some(sub => !sub.executed)) {
@@ -866,12 +878,11 @@ export default function GlobalSubMonitor() {
       finalPlan = [...executedSubs, ...recalculated];
     }
 
-    const remainingSubs = finalPlan.filter(sub => !sub.executed);
-
     savePitchState({
       ...pitchState,
       autoSubPlan: finalPlan,
-      autoSubActive: remainingSubs.length > 0,
+      // NEVER deactivate autoSubActive from here — only PitchBoard or explicit cancel should do that
+      autoSubActive: pitchState.autoSubActive,
       lastUpdateTime: Date.now(),
     });
     
