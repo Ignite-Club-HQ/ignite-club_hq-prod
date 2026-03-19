@@ -66,6 +66,7 @@ export default function EditClubPage() {
       setDescription(club.description || "");
       setLogoUrl(club.logo_url || "");
       setSport(club.sport || "");
+      setContactEmail(club.contact_email || "");
       setClassModeEnabled(club.class_mode_enabled || false);
       setAllowGuestsDefault(club.allow_guests_default || false);
       setMaxGuestsDefault(club.max_guests_per_member_default || 2);
