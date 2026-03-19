@@ -223,12 +223,12 @@ export const TeamInviteEmail = ({
               </table>
             </Section>
 
-            {/* Step 2: View team */}
-            <Text style={stepLabel}>2. Tap below to see their team</Text>
+            {/* Step 2: View */}
+            <Text style={stepLabel}>{isAdminRole ? '2. Tap below to get started' : '2. Tap below to see their team'}</Text>
 
             <Section style={mainCtaSection}>
               <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
-                View Their Team
+                {isAdminRole ? 'Get Started' : 'View Their Team'}
               </Button>
             </Section>
 
