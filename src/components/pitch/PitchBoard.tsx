@@ -77,7 +77,8 @@ import {
   loadPitchState,
   clearPitchState,
   loadTimerStateForMinutes,
-  recalculateRemainingPlanTeamAware as recalculateRemainingPlan
+  recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
+  validateAndFixRemainingPlan
 } from "./pitchStateUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
@@ -3499,6 +3500,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       finalPlan = [...executedSubs, ...recalculated];
     }
     
+    // Validate remaining plan entries against updated player positions
+    finalPlan = validateAndFixRemainingPlan(finalPlan, updatedPlayers);
     setAutoSubPlan(finalPlan);
     setPlayers(updatedPlayers);
     
@@ -3542,7 +3545,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     );
 
     const executedSubs = updatedPlan.filter(s => s.executed);
-    const finalPlan = [...executedSubs, ...recalculated];
+    const finalPlan = validateAndFixRemainingPlan([...executedSubs, ...recalculated], players);
     const remainingCount = finalPlan.filter(sub => !sub.executed).length;
     setAutoSubPlan(finalPlan);
     setAutoSubActive(remainingCount > 0);

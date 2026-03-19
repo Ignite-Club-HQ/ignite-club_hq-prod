@@ -21,7 +21,7 @@ import { UserRoundCheck, ArrowRightLeft, ChevronRight, X, Clock, ArrowDown, Arro
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { getSpecificPositionLabel } from "./types";
 import { toast } from "@/hooks/use-toast";
-import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
+import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan, validateAndFixRemainingPlan } from "./pitchStateUtils";
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
@@ -407,7 +407,9 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
             return s;
           });
           
-          const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
+          // Validate remaining plan entries against current player positions
+          const validatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
+          const updatedState = { ...pitchState, autoSubPlan: validatedPlan };
           writePitchState(updatedState);
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           
@@ -475,7 +477,9 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           console.log(`[PendingSubWidget] Recalculated ${recalculated.length} remaining subs`);
         }
         
-        const updatedState = { ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers };
+        // Validate remaining plan entries against updated player positions
+        const validatedPlan = validateAndFixRemainingPlan(updatedPlan, updatedPlayers);
+        const updatedState = { ...pitchState, autoSubPlan: validatedPlan, players: updatedPlayers };
         writePitchState(updatedState);
         
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
@@ -545,6 +549,8 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           }
         }
         
+        // Validate remaining plan entries against current player positions
+        updatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
         const updatedState = { ...pitchState, autoSubPlan: updatedPlan };
         writePitchState(updatedState);
         

@@ -21,7 +21,7 @@ import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundChec
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
-import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan } from "./pitchStateUtils";
+import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan, validateAndFixRemainingPlan } from "./pitchStateUtils";
 
 
 // Storage keys
@@ -425,6 +425,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           });
         }
 
+        // Validate remaining plan entries against current player positions
+        updatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
         writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
         toast({ title: "Sub rescheduled", description: `${playerIn.name} is already ${currentPlayerIn?.position ? 'on' : 'off'} the pitch — remaining subs recalculated`, variant: "default" });
@@ -455,7 +457,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       // wiping all remaining subs. Recalculation should only happen from PitchBoard
       // which has accurate live data.
 
-      writePitchState({ ...pitchState, autoSubPlan: updatedPlan, players: updatedPlayers });
+      // Validate remaining plan entries against updated player positions
+      const validatedPlan = validateAndFixRemainingPlan(updatedPlan, updatedPlayers);
+      writePitchState({ ...pitchState, autoSubPlan: validatedPlan, players: updatedPlayers });
       window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       toast({ title: "Substitution made", description: `${playerIn.name} on for ${playerOut.name}` });
     } catch (e) {
@@ -514,6 +518,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         });
       }
 
+      // Validate remaining plan entries against current player positions
+      updatedPlan = validateAndFixRemainingPlan(updatedPlan, pitchState.players);
       writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
       window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       toast({ title: "Substitution skipped", description: "Remaining subs have been rescheduled" });
