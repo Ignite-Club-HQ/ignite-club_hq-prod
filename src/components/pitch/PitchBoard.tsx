@@ -6578,66 +6578,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         />
       </Suspense>
 
-      {/* Reset Game Confirmation */}
-      {resetGameConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-        document.body
-      )}
-      {resetGameConfirmOpen && createPortal(
-        <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-          <div className="flex flex-col space-y-2 text-center sm:text-left">
-            <h2 className="text-lg font-semibold">Reset Game?</h2>
-            <p className="text-sm text-muted-foreground">
-              This will clear all player minutes, timer, substitutions, goals, and reset positions. This action cannot be undone.
-            </p>
-          </div>
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-            <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => setResetGameConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => { handleResetGame(); setResetGameConfirmOpen(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Reset Game
-            </Button>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Bench Injury Confirmation */}
-      {benchInjuryConfirmOpen && createPortal(
-        <div className="fixed inset-0 z-[999998] bg-black/80 animate-in fade-in-0" />,
-        document.body
-      )}
-      {benchInjuryConfirmOpen && benchInjuryTarget && createPortal(
-        <div className="fixed left-[50%] top-[50%] z-[999999] grid w-[calc(100%-2rem)] max-w-sm translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg rounded-lg animate-in fade-in-0 zoom-in-95">
-          <div className="flex flex-col space-y-2 text-center sm:text-left">
-            <h2 className="text-lg font-semibold">
-              {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark as Fit?" : "Mark as Injured?"}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {players.find(p => p.id === benchInjuryTarget)?.isInjured
-                ? `${players.find(p => p.id === benchInjuryTarget)?.name} will be available for substitutions again.`
-                : `${players.find(p => p.id === benchInjuryTarget)?.name} will not be available for substitutions.`}
-            </p>
-          </div>
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
-            <Button variant="outline" className="mt-2 sm:mt-0" onClick={() => { setBenchInjuryConfirmOpen(false); setBenchInjuryTarget(null); }}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                togglePlayerInjury(benchInjuryTarget);
-                setBenchInjuryConfirmOpen(false);
-                setBenchInjuryTarget(null);
-              }}
-            >
-              {players.find(p => p.id === benchInjuryTarget)?.isInjured ? "Mark Fit" : "Mark Injured"}
-            </Button>
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* Reset Game and Bench Injury dialogs rendered once in landscape branch (AlertDialog portals to body) */}
 
       {/* Formation Change Dialog - portrait */}
       <FormationChangeDialog
