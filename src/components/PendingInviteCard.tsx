@@ -253,7 +253,11 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
       const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
         body: {
           to: invite.invited_email,
-          subject: `Reminder: See who's in ${teamName} ⚽`,
+           subject: childrenNames && childrenNames.length === 1
+             ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
+             : childrenNames && childrenNames.length > 1
+               ? `Reminder: ${clubName} — see which team your kids are in ⚽`
+               : `Reminder: ${clubName} — you've been added to the team ⚽`,
           template: "team-invite",
           senderName: clubName !== "The Club" ? clubName : undefined,
           replyTo: clubContactEmail,
