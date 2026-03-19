@@ -129,6 +129,8 @@ const writePitchState = (state: PitchBoardState) => {
     const json = JSON.stringify(state);
     if (state.teamId) localStorage.setItem(getPitchStateKeyForTeam(state.teamId), json);
     localStorage.setItem(PITCH_STATE_KEY, json);
+    // Dispatch custom event for same-tab sync (Android WebView)
+    window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'pitch-widget' } }));
   } catch { /* ignore */ }
 };
 
