@@ -2331,7 +2331,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
     }
-  }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
+  }, [user?.id, teamId, teamName, readOnly, linkedEventId, gameInProgress]);
 
   const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
     const formation = FORMATIONS[teamSize][index];
