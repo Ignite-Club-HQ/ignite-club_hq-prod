@@ -177,15 +177,6 @@ export const TeamInviteEmail = ({
               </>
             )}
 
-            {hasChildren && (
-              <Section style={childrenSection}>
-                <Text style={childrenText}>
-                  {childrenNames.length === 1
-                    ? <><strong>{childrenNames[0]}</strong> → {teamName}</>
-                    : <><strong>{childrenNames.join(', ')}</strong> → {teamName}</>}
-                </Text>
-              </Section>
-            )}
           </Section>
 
           {/* Get Started Section */}
