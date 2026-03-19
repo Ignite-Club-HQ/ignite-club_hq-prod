@@ -171,9 +171,6 @@ export const TeamInviteEmail = ({
                   </>
                 )}
 
-                <Text style={subtleNote}>
-                  It takes less than 30 seconds to get set up.
-                </Text>
               </>
             ) : clubName === 'Bridgewater Soccer Club' ? (
               /* Bridgewater-specific default copy */
