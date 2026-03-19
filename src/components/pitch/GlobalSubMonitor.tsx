@@ -717,7 +717,56 @@ export default function GlobalSubMonitor() {
     lastCheckedSubRef.current = null;
   }, [pendingAutoSub, pendingBatchSubs]);
 
-  return (
+  const handleSkipAutoSub = useCallback(() => {
+    if (!pendingAutoSub) return;
+
+    const timerState = loadTimerState();
+    const pitchState = loadPitchState(timerState?.teamId);
+    if (!pitchState) return;
+
+    const subsToSkip = [pendingAutoSub, ...pendingBatchSubs];
+    const skippedKeys = subsToSkip.map(sub => getSubKey(sub));
+
+    let updatedPlan = markSubsExecuted(pitchState.autoSubPlan, skippedKeys, true);
+
+    // Recalculate remaining plan after skip
+    let finalPlan = updatedPlan;
+    if (timerState && updatedPlan.some(sub => !sub.executed)) {
+      const now = Date.now();
+      const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
+      const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+      const halfDuration = timerState.minutesPerHalf * 60;
+      
+      const recalculated = recalculateRemainingPlan(
+        pitchState.players,
+        getTeamSizeNumber(pitchState.teamSize),
+        halfDuration,
+        currentElapsed,
+        timerState.currentHalf as 1 | 2,
+        pendingAutoSub,
+        true
+      );
+      
+      const executedSubs = updatedPlan.filter(sub => sub.executed);
+      finalPlan = [...executedSubs, ...recalculated];
+    }
+
+    // Always validate after recalculation
+    finalPlan = validateAndFixRemainingPlan(finalPlan, pitchState.players);
+
+    savePitchState({
+      ...pitchState,
+      autoSubPlan: finalPlan,
+      autoSubActive: pitchState.autoSubActive,
+      lastUpdateTime: Date.now(),
+    });
+    
+    setSubConfirmDialogOpen(false);
+    setPendingAutoSub(null);
+    setPendingBatchSubs([]);
+    lastCheckedSubRef.current = null;
+  }, [pendingAutoSub, pendingBatchSubs]);
+
     <>
       <SubConfirmDialog
         open={subConfirmDialogOpen}
