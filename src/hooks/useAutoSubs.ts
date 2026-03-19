@@ -321,7 +321,7 @@ export function useAutoSubs({
           halfDurationSeconds,
           currentElapsed,
           half as 1 | 2,
-          pendingAutoSub,
+          { ...pendingAutoSub, executed: true },
           rotateGkAtHalftime
         );
         finalPlan = [...executedPlan, ...recalculated];
