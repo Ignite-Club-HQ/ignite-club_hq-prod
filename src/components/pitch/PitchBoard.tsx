@@ -1433,8 +1433,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     setPlayers,
     teamSize,
     rotateGkAtHalftime,
-    pushToUndoHistory,
-    runSubAnimation,
+    pushToUndoHistoryRef: pushToUndoHistoryRef_autoSubs,
+    runSubAnimationRef: runSubAnimationRef_autoSubs,
   });
 
   const [manualSubConfirmOpen, setManualSubConfirmOpen] = useState(false);
