@@ -664,12 +664,19 @@ export default function GlobalSubMonitor() {
     };
     setupNativeListener();
     
-    // Listen for storage changes to detect game state changes
+    // Listen for storage changes to detect game state changes (cross-tab)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === TIMER_STATE_KEY || e.key?.startsWith(PITCH_STATE_KEY) || e.key === PITCH_BOARD_OPEN_KEY) {
         startPolling();
         syncToDatabase(); // Sync on state change
       }
+    };
+    
+    // Listen for same-tab game state changes (critical for Android WebView
+    // where StorageEvent doesn't fire for same-window localStorage writes)
+    const handleGameStateChanged = () => {
+      startPolling();
+      syncToDatabase();
     };
     
     // Listen for notification clicks requesting sub confirmation
@@ -678,6 +685,7 @@ export default function GlobalSubMonitor() {
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('game-state-changed', handleGameStateChanged);
     
     // Initial setup
     startPolling();
@@ -687,6 +695,7 @@ export default function GlobalSubMonitor() {
       if (syncIntervalId) clearInterval(syncIntervalId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('game-state-changed', handleGameStateChanged);
       window.removeEventListener('open-sub-confirmation', handleOpenSubConfirmation);
       appStateListener?.remove?.();
     };

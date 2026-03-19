@@ -113,6 +113,8 @@ const saveTimerState = (state: TimerState, teamId?: string) => {
       const teamKey = getTeamTimerStorageKey(teamId);
       localStorage.setItem(teamKey, JSON.stringify(state));
     }
+    // Dispatch custom event so GlobalSubMonitor can react in same-tab (Android WebView)
+    window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'timer' } }));
   } catch (e) {
     console.error('Failed to save timer state:', e);
   }
