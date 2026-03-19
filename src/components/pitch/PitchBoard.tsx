@@ -2281,7 +2281,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
             .eq("name", "Subs Manager")
             .not("assigned_to", "is", null);
           subsManagers?.forEach(d => {
-            if (d.assigned_to && d.assigned_to !== user.id) recipientIds.add(d.assigned_to);
+            if (d.assigned_to) recipientIds.add(d.assigned_to);
           });
         }
       }
