@@ -28,7 +28,7 @@ interface TeamInviteEmailProps {
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 const IGNITE_BRAND_COLOR = "#10b981";
-const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-icon.png`;
 
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";

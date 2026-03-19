@@ -31,7 +31,7 @@ const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 const IGNITE_BRAND_COLOR = "#10b981";
 
 // Ignite icon URL for footer (hosted on production domain)
-const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-email-icon.png`;
+const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-icon.png`;
 
 // Check if a URL is a valid external URL (not base64)
 const isValidExternalUrl = (url?: string): boolean => {
