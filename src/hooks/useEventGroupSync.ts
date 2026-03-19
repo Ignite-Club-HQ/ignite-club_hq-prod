@@ -1,8 +1,9 @@
 import { useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
-const SYNC_INTERVAL = 5000; // Sync every 5 seconds
+const SYNC_INTERVAL = 5000; // Fallback polling interval
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
 const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
 const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
@@ -14,22 +15,26 @@ const getTeamTimerStorageKey = (teamId: string) => {
 
 /**
  * Hook to sync event group pitch board state to the database.
- * This enables real-time game state sharing across all users viewing the match.
+ * Uses a lightweight Supabase Realtime channel to broadcast "state-changed"
+ * signals so other clients can fetch fresh state immediately, while keeping
+ * the existing polling sync as a safety-net fallback.
  */
 export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncedStateRef = useRef<string | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const lastSignalVersionRef = useRef<number>(0);
 
   // Extract the actual event group ID from teamId (format: "event-group-{uuid}")
-  const actualGroupId = teamId.startsWith("event-group-") 
-    ? teamId.replace("event-group-", "") 
+  const actualGroupId = teamId.startsWith("event-group-")
+    ? teamId.replace("event-group-", "")
     : eventGroupId;
 
   const loadLocalState = useCallback(() => {
     try {
       const pitchStateRaw = localStorage.getItem(getPitchStateKeyForTeam(teamId)) || localStorage.getItem(PITCH_STATE_KEY);
       const timerStateRaw = localStorage.getItem(getTeamTimerStorageKey(teamId));
-      
+
       return {
         pitchState: pitchStateRaw ? JSON.parse(pitchStateRaw) : null,
         timerState: timerStateRaw ? JSON.parse(timerStateRaw) : null,
@@ -39,15 +44,81 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
     }
   }, [teamId]);
 
+  /**
+   * Broadcast a lightweight "state-changed" signal on the Realtime channel.
+   * Other clients receive this and fetch the latest state from the DB.
+   */
+  const broadcastSignal = useCallback(() => {
+    if (!channelRef.current) return;
+    const version = Date.now();
+    lastSignalVersionRef.current = version;
+    channelRef.current.send({
+      type: "broadcast",
+      event: "state-changed",
+      payload: { version, updatedBy: teamId },
+    }).catch(() => {
+      // Silently ignore broadcast errors – polling fallback will cover it
+    });
+  }, [teamId]);
+
+  /**
+   * Load state from the database and apply it to localStorage.
+   * When `force` is true (triggered by a Realtime signal), always overwrite
+   * local state. Otherwise, only load when localStorage is empty (initial load).
+   */
+  const loadFromDatabase = useCallback(async (force = false) => {
+    if (!actualGroupId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("event_groups")
+        .select("pitch_state, timer_state")
+        .eq("id", actualGroupId)
+        .single();
+
+      if (error) {
+        console.error("[EventGroupSync] Failed to load:", error);
+        return;
+      }
+
+      const { pitchState: localPitch, timerState: localTimer } = loadLocalState();
+
+      if (data.pitch_state && (force || !localPitch)) {
+        const dbPitchState = data.pitch_state as Record<string, unknown>;
+        if (typeof dbPitchState === "object" && dbPitchState !== null) {
+          dbPitchState.teamId = teamId;
+        }
+        localStorage.setItem(getPitchStateKeyForTeam(teamId), JSON.stringify(dbPitchState));
+        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(dbPitchState));
+        console.log("[EventGroupSync] Applied pitch state from database", force ? "(realtime)" : "(initial)");
+      }
+
+      if (data.timer_state && (force || !localTimer)) {
+        const dbTimerState = data.timer_state as Record<string, unknown>;
+        if (typeof dbTimerState === "object" && dbTimerState !== null) {
+          dbTimerState.teamId = teamId;
+        }
+        localStorage.setItem(getTeamTimerStorageKey(teamId), JSON.stringify(dbTimerState));
+        localStorage.setItem("pitch-board-timer-state", JSON.stringify(dbTimerState));
+        console.log("[EventGroupSync] Applied timer state from database", force ? "(realtime)" : "(initial)");
+      }
+
+      // Dispatch event so same-tab components know state changed
+      if (force) {
+        window.dispatchEvent(new CustomEvent("game-state-changed"));
+      }
+    } catch (err) {
+      console.error("[EventGroupSync] Load error:", err);
+    }
+  }, [actualGroupId, loadLocalState, teamId]);
+
   const syncToDatabase = useCallback(async () => {
     if (!actualGroupId) return;
 
     const { pitchState, timerState } = loadLocalState();
-    
-    // Only sync if we have state to sync
+
     if (!pitchState && !timerState) return;
 
-    // Check if state has changed since last sync
     const stateHash = JSON.stringify({ pitchState, timerState });
     if (stateHash === lastSyncedStateRef.current) return;
 
@@ -66,66 +137,62 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
       } else {
         lastSyncedStateRef.current = stateHash;
         console.log("[EventGroupSync] Synced state to database");
+        // Broadcast a signal so other clients pick up the change
+        broadcastSignal();
       }
     } catch (err) {
       console.error("[EventGroupSync] Sync error:", err);
     }
-  }, [actualGroupId, loadLocalState]);
+  }, [actualGroupId, loadLocalState, broadcastSignal]);
 
-  const loadFromDatabase = useCallback(async () => {
-    if (!actualGroupId) return;
+  /**
+   * Subscribe to a lightweight Realtime broadcast channel for this event group.
+   */
+  const subscribeToChannel = useCallback(() => {
+    if (!actualGroupId || channelRef.current) return;
 
-    try {
-      const { data, error } = await supabase
-        .from("event_groups")
-        .select("pitch_state, timer_state")
-        .eq("id", actualGroupId)
-        .single();
+    const channel = supabase.channel(`event-group:${actualGroupId}`, {
+      config: { broadcast: { self: false } },
+    });
 
-      if (error) {
-        console.error("[EventGroupSync] Failed to load:", error);
-        return;
-      }
-
-      // Only load if database has state and local storage is empty
-      const { pitchState: localPitch, timerState: localTimer } = loadLocalState();
-      
-      if (data.pitch_state && !localPitch) {
-        const dbPitchState = data.pitch_state as Record<string, unknown>;
-        // Update teamId in the loaded state to match current session
-        if (typeof dbPitchState === 'object' && dbPitchState !== null) {
-          dbPitchState.teamId = teamId;
+    channel
+      .on("broadcast", { event: "state-changed" }, (payload) => {
+        const version = payload?.payload?.version as number | undefined;
+        if (version && version > lastSignalVersionRef.current) {
+          lastSignalVersionRef.current = version;
+          console.log("[EventGroupSync] Received state-changed signal, fetching latest…");
+          loadFromDatabase(true);
         }
-        localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(dbPitchState));
-        console.log("[EventGroupSync] Loaded pitch state from database");
-      }
-
-      if (data.timer_state && !localTimer) {
-        const dbTimerState = data.timer_state as Record<string, unknown>;
-        // Update teamId in the loaded state to match current session
-        if (typeof dbTimerState === 'object' && dbTimerState !== null) {
-          dbTimerState.teamId = teamId;
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log("[EventGroupSync] Realtime channel subscribed for:", actualGroupId);
         }
-        localStorage.setItem(getTeamTimerStorageKey(teamId), JSON.stringify(dbTimerState));
-        // Also set the active timer key for widgets
-        localStorage.setItem("pitch-board-timer-state", JSON.stringify(dbTimerState));
-        console.log("[EventGroupSync] Loaded timer state from database");
-      }
-    } catch (err) {
-      console.error("[EventGroupSync] Load error:", err);
+      });
+
+    channelRef.current = channel;
+  }, [actualGroupId, loadFromDatabase]);
+
+  const unsubscribeFromChannel = useCallback(() => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
-  }, [actualGroupId, loadLocalState, teamId]);
+  }, []);
 
   const startSync = useCallback(() => {
     if (syncIntervalRef.current || !actualGroupId) return;
 
-    // Load from database first (in case another user started the game)
-    loadFromDatabase();
+    // Subscribe to Realtime channel for instant cross-user updates
+    subscribeToChannel();
 
-    // Then start periodic sync
+    // Load from database first (in case another user started the game)
+    loadFromDatabase(false);
+
+    // Fallback polling sync
     syncIntervalRef.current = setInterval(syncToDatabase, SYNC_INTERVAL);
     console.log("[EventGroupSync] Started sync for event group:", actualGroupId);
-  }, [actualGroupId, loadFromDatabase, syncToDatabase]);
+  }, [actualGroupId, loadFromDatabase, syncToDatabase, subscribeToChannel]);
 
   const stopSync = useCallback(async () => {
     if (syncIntervalRef.current) {
@@ -135,8 +202,11 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
 
     // Final sync before stopping
     await syncToDatabase();
+
+    // Tear down Realtime channel
+    unsubscribeFromChannel();
     console.log("[EventGroupSync] Stopped sync");
-  }, [syncToDatabase]);
+  }, [syncToDatabase, unsubscribeFromChannel]);
 
   // Force sync on demand
   const forceSync = useCallback(() => {
@@ -154,10 +224,11 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
         clearInterval(syncIntervalRef.current);
         syncIntervalRef.current = null;
       }
+      unsubscribeFromChannel();
       // Don't await in cleanup - just fire and forget
       syncToDatabase();
     };
-  }, [actualGroupId, startSync, syncToDatabase]);
+  }, [actualGroupId, startSync, syncToDatabase, unsubscribeFromChannel]);
 
   return {
     startSync,
