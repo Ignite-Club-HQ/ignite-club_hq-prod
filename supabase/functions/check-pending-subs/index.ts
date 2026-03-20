@@ -246,7 +246,7 @@ async function notifyTeamStaff(
     const enabled = await isNotificationEnabled(supabase, userId);
     if (!enabled) continue;
 
-    // In-app notification
+    // In-app notification (skip_push=true to avoid duplicate push from DB trigger)
     const { error: notifError } = await supabase
       .from('notifications')
       .insert({
@@ -254,6 +254,7 @@ async function notifyTeamStaff(
         type: inAppType,
         message: notificationMessage,
         related_id: gameId,
+        skip_push: true,
       });
 
     if (!notifError) {
@@ -262,7 +263,7 @@ async function notifyTeamStaff(
       console.error(`[CHECK-SUBS] Notification insert error for ${userId}:`, notifError.message);
     }
 
-    // Send push notification explicitly (no DB trigger exists on notifications table)
+    // Send push notification explicitly (DB trigger skipped via skip_push flag)
     await sendPushNotification(
       supabase, userId, pushTitle, pushBody,
       linkedEventId ? `/events/${linkedEventId}` : '/notifications',
