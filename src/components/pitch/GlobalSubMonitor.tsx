@@ -389,10 +389,8 @@ export default function GlobalSubMonitor() {
     // Allow halftime check to proceed even with empty plan
     if (!isHalftimeBreakEarly && (!pitchState.autoSubActive || pitchState.autoSubPlan.length === 0)) return;
 
-    // Calculate current elapsed time
-    const now = Date.now();
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    // Reuse already-calculated values
+    const currentElapsed = elapsed;
     const currentHalf = timerState.currentHalf;
 
     // Don't show sub notifications if game is finished
