@@ -20,6 +20,8 @@ import {
   executeSubsOnPlayers,
   markSubsExecuted,
   calculateSubDelay,
+  getDueSubGroups,
+  findRelevantNextSub,
 } from "@/components/pitch/autoSubHelpers";
 import {
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
@@ -198,17 +200,14 @@ export function useAutoSubs({
     const remainingSubs = autoSubPlan.filter(s => !s.executed);
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
     const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const nextSub =
-      remainingSubs.find(s => s.half === half && s.time >= currentElapsed) ||
-      remainingSubs.find(s => s.half > half) ||
-      remainingSubs[0];
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+    const nextSub = findRelevantNextSub(remainingSubs, half, currentElapsed, halfDurationSeconds);
     if (!nextSub) return;
 
     const skippedKeys = [getSubKey(nextSub)];
     const updatedPlan = markSubsExecuted(autoSubPlan, skippedKeys, true);
 
-    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-    const halfDurationSeconds = minsPerHalf * 60;
     const existingUnexecuted = updatedPlan.filter(s => !s.executed);
     const shouldRecalculate = shouldRecalculateAfterSkip(
       [nextSub],
@@ -248,10 +247,9 @@ export function useAutoSubs({
     const remainingSubs = autoSubPlan.filter(s => !s.executed);
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
     const half = gameTimerRef.current?.getCurrentHalf() || 1;
-    const nextSub =
-      remainingSubs.find(s => s.half === half && s.time >= currentElapsed) ||
-      remainingSubs.find(s => s.half > half) ||
-      remainingSubs[0];
+    const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+    const halfDurationSeconds = minsPerHalf * 60;
+    const nextSub = findRelevantNextSub(remainingSubs, half, currentElapsed, halfDurationSeconds);
     if (!nextSub) return;
 
     const batchSubs = remainingSubs.filter(
@@ -585,38 +583,28 @@ export function useAutoSubs({
 
       const activationTime = planActivationTimeRef.current;
 
-      const allDueSubs = autoSubPlan.filter(sub => {
+      const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
+      const halfDurationSeconds = minsPerHalf * 60;
+      const eligibleSubs = autoSubPlan.filter(sub => {
         if (sub.executed) return false;
-        if (sub.half !== currentHalf) return false;
-        if (elapsedSeconds < sub.time) return false;
         if (activationTime && sub.half === activationTime.half && sub.time < activationTime.seconds) return false;
         if (activationTime && sub.half < activationTime.half) return false;
         return true;
       });
 
-      if (allDueSubs.length === 0) return false;
-
-      let latestDueSub = allDueSubs[0];
-      for (const sub of allDueSubs) {
-        if (
-          sub.half > latestDueSub.half ||
-          (sub.half === latestDueSub.half && sub.time > latestDueSub.time)
-        ) {
-          latestDueSub = sub;
-        }
-      }
-
-      const latestDueSubs = allDueSubs.filter(
-        sub => sub.half === latestDueSub.half && sub.time === latestDueSub.time
+      const { latestDueSubs, olderDueSubs: olderSubs } = getDueSubGroups(
+        eligibleSubs,
+        currentHalf,
+        elapsedSeconds,
+        halfDurationSeconds
       );
-      const olderSubs = allDueSubs.filter(
-        sub => sub.half !== latestDueSub.half || sub.time !== latestDueSub.time
-      );
+
+      if (latestDueSubs.length === 0) return false;
+
+      const latestDueSub = latestDueSubs[0];
 
       if (olderSubs.length > 0) {
         const olderKeys = olderSubs.map(s => getSubKey(s));
-        const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
-        const halfDurationSeconds = minsPerHalf * 60;
         const shouldRecalculate = shouldRecalculateAfterSkip(
           olderSubs,
           elapsedSeconds,
@@ -712,10 +700,9 @@ export function useAutoSubs({
       const isFinished = gameTimerRef.current?.isGameFinished();
       if (autoSubActive && autoSubPlan.length > 0 && !autoSubPaused && !isFinished) {
         const remainingSubs = autoSubPlan.filter(s => !s.executed);
-        const nextSub =
-          remainingSubs.find(s => s.half === currentHalf && s.time >= elapsedSeconds) ||
-          remainingSubs.find(s => s.half > currentHalf) ||
-          remainingSubs[0];
+        const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 10;
+        const halfDurationSeconds = minsPerHalf * 60;
+        const nextSub = findRelevantNextSub(remainingSubs, currentHalf, elapsedSeconds, halfDurationSeconds);
         if (nextSub) {
           const secsUntil =
             nextSub.half === currentHalf
