@@ -30,6 +30,78 @@ export const findNextSub = (
 };
 
 /**
+ * Convert a sub schedule to absolute match seconds so halftime (2H 0:00)
+ * correctly sorts after all first-half times.
+ */
+export const getSubTotalSeconds = (
+  sub: SubstitutionEvent,
+  halfDurationSeconds: number
+): number => (sub.half === 1 ? sub.time : halfDurationSeconds + sub.time);
+
+/**
+ * Split all due substitutions into the newest due batch and any older overdue ones.
+ * This lets the app auto-skip stale groups and surface the latest actionable batch.
+ */
+export const getDueSubGroups = (
+  plan: SubstitutionEvent[],
+  currentHalf: 1 | 2,
+  currentElapsedSeconds: number,
+  halfDurationSeconds: number
+): {
+  latestDueSubs: SubstitutionEvent[];
+  olderDueSubs: SubstitutionEvent[];
+} => {
+  const currentTotalSeconds = currentHalf === 1
+    ? currentElapsedSeconds
+    : halfDurationSeconds + currentElapsedSeconds;
+
+  const dueSubs = plan.filter(
+    sub => !sub.executed && getSubTotalSeconds(sub, halfDurationSeconds) <= currentTotalSeconds
+  );
+
+  if (dueSubs.length === 0) {
+    return { latestDueSubs: [], olderDueSubs: [] };
+  }
+
+  const latestDueTotalSeconds = Math.max(
+    ...dueSubs.map(sub => getSubTotalSeconds(sub, halfDurationSeconds))
+  );
+
+  return {
+    latestDueSubs: dueSubs.filter(
+      sub => getSubTotalSeconds(sub, halfDurationSeconds) === latestDueTotalSeconds
+    ),
+    olderDueSubs: dueSubs.filter(
+      sub => getSubTotalSeconds(sub, halfDurationSeconds) < latestDueTotalSeconds
+    ),
+  };
+};
+
+/**
+ * Pick the most relevant sub for controls/UI.
+ * If any sub group is already due, prefer the newest due batch; otherwise return the next scheduled sub.
+ */
+export const findRelevantNextSub = (
+  plan: SubstitutionEvent[],
+  currentHalf: 1 | 2,
+  currentElapsedSeconds: number,
+  halfDurationSeconds: number
+): SubstitutionEvent | undefined => {
+  const { latestDueSubs } = getDueSubGroups(
+    plan,
+    currentHalf,
+    currentElapsedSeconds,
+    halfDurationSeconds
+  );
+
+  if (latestDueSubs.length > 0) {
+    return latestDueSubs[0];
+  }
+
+  return findNextSub(plan, currentHalf, currentElapsedSeconds);
+};
+
+/**
  * Find all subs in the same time window as the given sub (batch partners).
  */
 export const findBatchSubs = (
@@ -153,7 +225,7 @@ export const calculateSubDelay = (
   currentHalf: 1 | 2,
   halfDurationSeconds: number
 ): number => {
-  const subTotalSeconds = sub.half === 1 ? sub.time : halfDurationSeconds + sub.time;
+  const subTotalSeconds = getSubTotalSeconds(sub, halfDurationSeconds);
   const currentTotalSeconds = currentHalf === 1 ? currentElapsed : halfDurationSeconds + currentElapsed;
   return Math.max(0, currentTotalSeconds - subTotalSeconds);
 };

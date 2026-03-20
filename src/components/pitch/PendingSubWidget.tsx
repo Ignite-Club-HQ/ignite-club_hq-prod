@@ -22,6 +22,7 @@ import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { getSpecificPositionLabel } from "./types";
 import { toast } from "@/hooks/use-toast";
 import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan, validateAndFixRemainingPlan } from "./pitchStateUtils";
+import { getDueSubGroups, getSubKey, markSubsExecuted } from "./autoSubHelpers";
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
@@ -235,27 +236,21 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         currentElapsedSeconds = Math.min(currentElapsedSeconds + secondsPassed, minutesPerHalf * 60);
       }
 
+      const halfDurationSeconds = minutesPerHalf * 60;
       const currentTotalSeconds = currentHalf === 1
         ? currentElapsedSeconds
-        : (minutesPerHalf * 60) + currentElapsedSeconds;
-
-      const getSubTotalSeconds = (sub: SubstitutionEvent) => (
-        sub.half === 1 ? sub.time : (minutesPerHalf * 60) + sub.time
+        : halfDurationSeconds + currentElapsedSeconds;
+      const { latestDueSubs: allDueSubs, olderDueSubs: olderSubs } = getDueSubGroups(
+        sortedSubs,
+        currentHalf,
+        currentElapsedSeconds,
+        halfDurationSeconds
       );
 
-      const allDueSubs = sortedSubs.filter(sub => getSubTotalSeconds(sub) <= currentTotalSeconds);
-
       if (allDueSubs.length > 0) {
-        const latestDueTotalSeconds = Math.max(...allDueSubs.map(getSubTotalSeconds));
-        const olderSubs = allDueSubs.filter(sub => getSubTotalSeconds(sub) < latestDueTotalSeconds);
 
         if (olderSubs.length > 0) {
-          const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-          activePlan = activePlan.map(s =>
-            olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`)
-              ? { ...s, executed: true, skipped: true }
-              : s
-          );
+          activePlan = markSubsExecuted(activePlan, olderSubs.map(getSubKey), true);
 
           sortedSubs = activePlan
             .filter(sub => !sub.executed)
@@ -274,7 +269,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       let secondsUntil = 0;
 
       for (const sub of sortedSubs) {
-        const subTotalSeconds = getSubTotalSeconds(sub);
+        const subTotalSeconds = sub.half === 1 ? sub.time : halfDurationSeconds + sub.time;
 
         if (subTotalSeconds <= currentTotalSeconds) {
           bestSub = sub;
@@ -525,13 +520,22 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       
       if (pitchState) {
         
-        // Mark current sub as executed + skipped
-        let updatedPlan = pitchState.autoSubPlan.map(s => {
-          if (s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half) {
-            return { ...s, executed: true, skipped: true };
-          }
-          return s;
-        });
+        const relevantDueSubs = getDueSubGroups(
+          pitchState.autoSubPlan,
+          timerState?.currentHalf || 1,
+          timerState?.elapsedSeconds || 0,
+          (timerState?.minutesPerHalf || 20) * 60
+        ).latestDueSubs;
+
+        const subsToSkip = relevantDueSubs.some(s => getSubKey(s) === getSubKey(sub))
+          ? relevantDueSubs
+          : [sub];
+
+        let updatedPlan = markSubsExecuted(
+          pitchState.autoSubPlan,
+          subsToSkip.map(getSubKey),
+          true
+        );
         
         // Recalculate remaining plan using the proper algorithm
         if (timerStateRaw) {
@@ -555,7 +559,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
               halfDurationSeconds,
               currentElapsedSeconds,
               currentHalf as 1 | 2,
-              sub,
+              subsToSkip[subsToSkip.length - 1],
               true
             );
             
