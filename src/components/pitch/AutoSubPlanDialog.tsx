@@ -681,7 +681,9 @@ function DialogInner({
   isSetupFlow?: boolean;
   miniLeagueTeams?: MiniLeagueTeams;
 }) {
-  const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
+  // Treat empty existing plans (all executed/empty) as no plan so auto-generation kicks in
+  const effectiveExistingPlan = existingPlan && existingPlan.some(s => !s.executed) ? existingPlan : undefined;
+  const [plan, setPlan] = useState<SubstitutionEvent[] | null>(effectiveExistingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
   
