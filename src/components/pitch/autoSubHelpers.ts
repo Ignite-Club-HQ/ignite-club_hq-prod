@@ -229,3 +229,34 @@ export const calculateSubDelay = (
   const currentTotalSeconds = currentHalf === 1 ? currentElapsed : halfDurationSeconds + currentElapsed;
   return Math.max(0, currentTotalSeconds - subTotalSeconds);
 };
+
+/**
+ * Snap a computed sub time to respect half boundaries:
+ * - Within 60s of end of first half → halftime (half 2, time 0)
+ * - Within 60s of start of second half → halftime (half 2, time 0)
+ * - Within 60s of full time → drop (returns null)
+ */
+export const snapSubTime = (
+  absoluteSeconds: number,
+  halfDurationSeconds: number
+): { half: 1 | 2; time: number } | null => {
+  const BOUNDARY_THRESHOLD = 60;
+
+  if (absoluteSeconds < halfDurationSeconds) {
+    // First half
+    if (halfDurationSeconds - absoluteSeconds <= BOUNDARY_THRESHOLD) {
+      return { half: 2, time: 0 }; // Snap to halftime
+    }
+    return { half: 1, time: Math.floor(absoluteSeconds) };
+  } else {
+    // Second half
+    const timeInSecondHalf = absoluteSeconds - halfDurationSeconds;
+    if (timeInSecondHalf <= BOUNDARY_THRESHOLD) {
+      return { half: 2, time: 0 }; // Snap to halftime
+    }
+    if (halfDurationSeconds - timeInSecondHalf <= BOUNDARY_THRESHOLD) {
+      return null; // Too close to full time — drop
+    }
+    return { half: 2, time: Math.floor(timeInSecondHalf) };
+  }
+};

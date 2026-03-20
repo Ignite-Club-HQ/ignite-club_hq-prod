@@ -287,10 +287,15 @@ export const recalculateRemainingPlan = (
           if ((halfDurationSeconds - timeInSecondHalf) <= END_OF_HALF_SNAP_THRESHOLD) {
             continue;
           }
-          times.push({ 
-            time: Math.floor(timeInSecondHalf), 
-            half: 2 
-          });
+          // Snap subs within 60s of start of second half → halftime (time 0)
+          if (timeInSecondHalf <= END_OF_HALF_SNAP_THRESHOLD) {
+            times.push({ time: 0, half: 2 });
+          } else {
+            times.push({ 
+              time: Math.floor(timeInSecondHalf), 
+              half: 2 
+            });
+          }
         }
       } else {
         const absTime = currentElapsedSeconds + accumulatedTime;
@@ -298,10 +303,15 @@ export const recalculateRemainingPlan = (
         if ((halfDurationSeconds - absTime) <= END_OF_HALF_SNAP_THRESHOLD) {
           continue;
         }
-        times.push({ 
-          time: Math.floor(absTime), 
-          half: 2 
-        });
+        // Snap subs within 60s of start of second half → halftime (time 0)
+        if (absTime <= END_OF_HALF_SNAP_THRESHOLD) {
+          times.push({ time: 0, half: 2 });
+        } else {
+          times.push({ 
+            time: Math.floor(absTime), 
+            half: 2 
+          });
+        }
       }
     }
     return times;
@@ -437,7 +447,18 @@ export const validateAndFixRemainingPlan = (
   const getPlayer = (id: string) => currentPlayers.find(p => p.id === id);
   
   return plan.map(sub => {
-    if (sub.executed) return sub;
+    // Already executed subs: simulate their effect on tracking sets if they weren't skipped
+    if (sub.executed) {
+      if (!sub.skipped) {
+        // Successfully executed — simulate the swap so subsequent subs see correct state
+        onPitch.delete(sub.playerOut.id);
+        onBench.add(sub.playerOut.id);
+        onBench.delete(sub.playerIn.id);
+        onPitch.add(sub.playerIn.id);
+      }
+      // Skipped subs: no player movement happened, don't touch the sets
+      return sub;
+    }
     
     let { playerOut, playerIn } = sub;
     let needsFix = false;
@@ -456,6 +477,7 @@ export const validateAndFixRemainingPlan = (
         needsFix = true;
       } else {
         // Can't fix — mark as skipped so it doesn't block future subs
+        // Don't touch onPitch/onBench since no movement happens
         return { ...sub, executed: true, skipped: true };
       }
     }
