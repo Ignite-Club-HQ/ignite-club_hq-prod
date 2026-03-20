@@ -463,6 +463,8 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           console.log(`[PendingSubWidget] Sub was ${Math.round(delaySeconds / 60)}m late, recalculating remaining plan`);
           
           const halfDurationSeconds = minutesPerHalf * 60;
+          const executedSubs = updatedPlan.filter(s => s.executed);
+          const remainingSubs = updatedPlan.filter(s => !s.executed);
           const recalculated = recalculateRemainingPlan(
             updatedPlayers,
             parseInt(pitchState.teamSize),
@@ -473,7 +475,18 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
             true
           );
           
-          updatedPlan = [...updatedPlan.filter(s => s.executed), ...recalculated];
+          // Safety guard: don't let recalculation wipe the plan
+          if (recalculated.length > 0 || remainingSubs.length === 0) {
+            updatedPlan = [...executedSubs, ...recalculated];
+          } else {
+            const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+            if (benchPlayers.length > 0) {
+              console.warn("[PendingSubWidget] Recalculation returned empty but bench players remain — preserving existing plan");
+              updatedPlan = [...executedSubs, ...remainingSubs];
+            } else {
+              updatedPlan = [...executedSubs, ...recalculated];
+            }
+          }
           console.log(`[PendingSubWidget] Recalculated ${recalculated.length} remaining subs`);
         }
         
@@ -545,7 +558,18 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
             );
             
             const executedSubs = updatedPlan.filter(s => s.executed);
-            updatedPlan = [...executedSubs, ...recalculated];
+            // Safety guard: don't let recalculation wipe the plan
+            if (recalculated.length > 0 || remainingSubs.length === 0) {
+              updatedPlan = [...executedSubs, ...recalculated];
+            } else {
+              const benchPlayers = pitchState.players.filter((p: any) => p.position === null && !p.isInjured);
+              if (benchPlayers.length > 0) {
+                console.warn("[PendingSubWidget] Skip recalculation returned empty but bench players remain — preserving existing plan");
+                updatedPlan = [...executedSubs, ...remainingSubs];
+              } else {
+                updatedPlan = [...executedSubs, ...recalculated];
+              }
+            }
           }
         }
         
