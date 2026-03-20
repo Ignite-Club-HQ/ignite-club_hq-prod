@@ -290,6 +290,7 @@ export default function AutoSubControlPanel({
                             : formatTime(group.time);
                           // Determine group status
                           const allExecuted = group.items.every(({ sub }) => sub.executed);
+                          const allSkipped = group.items.every(({ sub }) => sub.skipped);
                           const anyNext = group.items.some(({ sub }) => nextSub && sub === nextSub);
                           const anyDue = group.items.some(({ sub }) => !sub.executed && sub.half === currentHalf && sub.time <= currentElapsedSeconds);
 
@@ -299,7 +300,7 @@ export default function AutoSubControlPanel({
                               className={cn(
                                 "flex gap-2.5 px-3 py-2",
                                 allExecuted
-                                  ? "bg-muted/20"
+                                  ? allSkipped ? "bg-muted/10 opacity-60" : "bg-muted/20"
                                   : anyNext
                                     ? "bg-primary/10"
                                     : anyDue
@@ -311,7 +312,11 @@ export default function AutoSubControlPanel({
                               <div className="flex flex-col items-center pt-0.5 shrink-0 w-14">
                                 <div className="shrink-0 mb-1">
                                   {allExecuted ? (
-                                    <Check className="h-3.5 w-3.5 text-green-500" />
+                                    allSkipped ? (
+                                      <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                    ) : (
+                                      <Check className="h-3.5 w-3.5 text-green-500" />
+                                    )
                                   ) : anyNext ? (
                                     <Clock className="h-3.5 w-3.5 text-primary" />
                                   ) : (
@@ -332,16 +337,22 @@ export default function AutoSubControlPanel({
                                     key={idx}
                                     className={cn(
                                       "flex items-center gap-1 text-sm",
-                                      sub.executed && "text-muted-foreground line-through"
+                                      sub.skipped && "text-muted-foreground/50 line-through",
+                                      sub.executed && !sub.skipped && "text-muted-foreground"
                                     )}
                                   >
-                                    <span className="text-destructive truncate">
+                                    <span className={cn("truncate", sub.skipped ? "text-muted-foreground/50" : "text-destructive")}>
                                       {sub.playerOut.name}
                                     </span>
                                     <span className="text-muted-foreground text-xs">→</span>
-                                    <span className="text-green-600 dark:text-green-400 truncate">
+                                    <span className={cn("truncate", sub.skipped ? "text-muted-foreground/50" : "text-green-600 dark:text-green-400")}>
                                       {sub.playerIn.name}
                                     </span>
+                                    {sub.skipped && (
+                                      <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground shrink-0">
+                                        Skipped
+                                      </Badge>
+                                    )}
                                     {!sub.executed && lockedPlayerIds.has(sub.playerOut.id) && (
                                       <Lock className="h-3 w-3 text-amber-500 shrink-0" />
                                     )}
