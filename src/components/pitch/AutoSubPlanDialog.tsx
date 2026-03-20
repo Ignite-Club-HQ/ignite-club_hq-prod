@@ -380,12 +380,27 @@ function createSubPlan(
     return candidates[0] || null;
   };
   
+  // Threshold: subs within this many seconds of half-end get moved to halftime
+  const END_OF_HALF_SNAP_THRESHOLD = 30;
+
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
     const isStartHalf = half === startHalf;
     const halfRemaining = isStartHalf ? halfDurationSeconds - startElapsedSeconds : halfDurationSeconds;
-    const subTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
+    const rawSubTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
       .map(t => isStartHalf ? t + startElapsedSeconds : t); // Offset times for current half
+
+    // Snap subs too close to end of first half → halftime (half 2, time 0)
+    const subTimes: number[] = [];
+    const deferredToHalftime: number[] = [];
+    for (const t of rawSubTimes) {
+      if (half === 1 && (halfDurationSeconds - t) <= END_OF_HALF_SNAP_THRESHOLD) {
+        deferredToHalftime.push(t);
+      } else {
+        subTimes.push(t);
+      }
+    }
+
     let lastEventTime = isStartHalf ? startElapsedSeconds : 0;
     
     for (const subTime of subTimes) {
