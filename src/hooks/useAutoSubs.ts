@@ -470,12 +470,17 @@ export function useAutoSubs({
     setAutoSubPlan(finalPlan);
     setPlayers(updatedPlayers);
 
+    const staleCount = staleSubs.length;
     const toastDescription =
-      allPendingSubs.length > 1
-        ? `${successCount} substitutions made`
-        : `${pendingAutoSub.playerIn.name} replaces ${pendingAutoSub.playerOut.name}`;
+      validSubs.length > 1
+        ? `${successCount} substitutions made${staleCount > 0 ? `, ${staleCount} expired` : ''}`
+        : successCount > 0
+          ? `${validSubs[0].playerIn.name} replaces ${validSubs[0].playerOut.name}`
+          : 'Sub expired — players already moved';
     toast({
-      title: allPendingSubs.length > 1 ? "Substitutions made" : "Substitution made",
+      title: successCount > 0
+        ? (validSubs.length > 1 ? "Substitutions made" : "Substitution made")
+        : "Substitution expired",
       description: toastDescription,
     });
 
