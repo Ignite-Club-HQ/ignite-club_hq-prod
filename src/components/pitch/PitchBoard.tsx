@@ -1214,6 +1214,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
   useEffect(() => {
     localStorage.setItem(PITCH_BOARD_OPEN_KEY, "true");
+    // Clear widget-dismissed flag so widget reappears when pitch board closes
+    localStorage.removeItem("pitch-widget-dismissed");
     return () => {
       localStorage.removeItem(PITCH_BOARD_OPEN_KEY);
     };
