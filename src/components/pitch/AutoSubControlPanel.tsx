@@ -132,7 +132,7 @@ export default function AutoSubControlPanel({
                 <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
                   {nextSub!.half === 2 && nextSub!.time === 0
                     ? "HT"
-                    : `${nextSub!.half === 2 ? "2H " : ""}${formatTime(nextSub!.time)}`}
+                    : formatTime(nextSub!.time)}
                 </Badge>
               </div>
               <div className="space-y-1.5">
@@ -287,7 +287,7 @@ export default function AutoSubControlPanel({
                         {groups.map((group) => {
                           const timeLabel = group.time === 0 && half === 2
                             ? "HT"
-                            : `${half === 2 ? "2H " : ""}${formatTime(group.time)}`;
+                            : formatTime(group.time);
                           // Determine group status
                           const allExecuted = group.items.every(({ sub }) => sub.executed);
                           const anyNext = group.items.some(({ sub }) => nextSub && sub === nextSub);
