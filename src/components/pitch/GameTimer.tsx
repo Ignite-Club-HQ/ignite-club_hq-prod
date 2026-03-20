@@ -467,7 +467,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         <span className={cn("font-medium text-muted-foreground", large ? "text-base" : "text-xs")}>
           {isGameFinished ? "FT" : (currentHalf === 1 ? "1H" : "2H")}
         </span>
-        <span className={cn("font-mono font-bold tabular-nums", large ? "text-2xl" : "text-xl")}>{getDisplayTime()}</span>
+        <span className={cn("font-mono font-bold tabular-nums", large ? "text-2xl" : "text-xl")}>{getDisplayTime(false)}</span>
       </div>
       
       {!readOnly && !hidePlayPause && (
