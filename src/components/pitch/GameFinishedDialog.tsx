@@ -156,13 +156,35 @@ export default function GameFinishedDialog({
         pitchState.linkedEventId = null;
         const json = JSON.stringify(pitchState);
         if (teamId) localStorage.setItem(getPitchStateKeyForTeam(teamId), json);
-        localStorage.setItem(PITCH_STATE_KEY, json);
+        // Only write to active key if it belongs to this team
+        const activeRaw = localStorage.getItem(PITCH_STATE_KEY);
+        if (activeRaw) {
+          try {
+            const activeState = JSON.parse(activeRaw);
+            if (!activeState.teamId || activeState.teamId === teamId) {
+              localStorage.setItem(PITCH_STATE_KEY, json);
+            }
+          } catch { localStorage.setItem(PITCH_STATE_KEY, json); }
+        } else {
+          localStorage.setItem(PITCH_STATE_KEY, json);
+        }
       } catch (e) {
         console.error('Failed to clear auto-sub plan:', e);
       }
     }
     if (teamId) localStorage.removeItem(getPitchStateKeyForTeam(teamId));
-    localStorage.removeItem(PITCH_STATE_KEY);
+    // Only remove active key if it belongs to this team (prevent wiping another team's state)
+    const activeKeyRaw = localStorage.getItem(PITCH_STATE_KEY);
+    if (activeKeyRaw) {
+      try {
+        const activeState = JSON.parse(activeKeyRaw);
+        if (!activeState.teamId || activeState.teamId === teamId) {
+          localStorage.removeItem(PITCH_STATE_KEY);
+        }
+      } catch { localStorage.removeItem(PITCH_STATE_KEY); }
+    } else {
+      localStorage.removeItem(PITCH_STATE_KEY);
+    }
     onClose();
   };
 
