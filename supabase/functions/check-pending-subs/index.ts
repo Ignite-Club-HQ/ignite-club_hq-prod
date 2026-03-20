@@ -107,7 +107,8 @@ async function sendPushNotification(
   body: string,
   url: string,
   tag: string,
-  notificationType: string
+  notificationType: string,
+  notificationId?: string
 ) {
   try {
     await supabase.functions.invoke('send-push-notification', {
@@ -118,6 +119,9 @@ async function sendPushNotification(
         url,
         tag,
         notificationType,
+        // Pass notificationId so send-push-notification creates a push_notification_log entry,
+        // preventing retry-missed-push-notifications from re-sending this push.
+        notificationId: notificationId || undefined,
       },
     });
   } catch (err) {
@@ -222,7 +226,7 @@ async function notifyTeamStaff(
 
       recentNotifs = result.data;
     } else {
-      const dedupWindowSeconds = notificationType === 'pending_sub' ? 30 : 120;
+      const dedupWindowSeconds = 120; // 2 minutes covers cron interval gaps
       const cutoff = new Date(Date.now() - dedupWindowSeconds * 1000).toISOString();
       const result = await supabase
         .from('notifications')
@@ -247,7 +251,7 @@ async function notifyTeamStaff(
     if (!enabled) continue;
 
     // In-app notification (skip_push=true to avoid duplicate push from DB trigger)
-    const { error: notifError } = await supabase
+    const { data: notifData, error: notifError } = await supabase
       .from('notifications')
       .insert({
         user_id: userId,
@@ -255,7 +259,11 @@ async function notifyTeamStaff(
         message: notificationMessage,
         related_id: gameId,
         skip_push: true,
-      });
+      })
+      .select('id')
+      .single();
+
+    const insertedNotifId = notifData?.id;
 
     if (!notifError) {
       notificationsSent++;
@@ -264,11 +272,14 @@ async function notifyTeamStaff(
     }
 
     // Send push notification explicitly (DB trigger skipped via skip_push flag)
+    // Pass the notification ID so a push_notification_log entry is created,
+    // preventing the retry function from re-sending this push.
     await sendPushNotification(
       supabase, userId, pushTitle, pushBody,
       '/',
       `pitch-${notificationType}-${gameId}`,
-      'pitch_board'
+      'pitch_board',
+      insertedNotifId
     );
 
     // Email notification
