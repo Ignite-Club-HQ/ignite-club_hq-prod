@@ -303,17 +303,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
-    localStorage.removeItem(ACTIVE_TIMER_KEY);
-    if (timerState?.teamId) localStorage.removeItem(getTeamTimerStorageKey(timerState.teamId));
-    try {
-      const ps = readPitchState(timerState?.teamId);
-      if (ps) {
-        ps.autoSubPlan = []; ps.autoSubActive = false; ps.autoSubPaused = false;
-        writePitchState(ps);
-      }
-    } catch { /* ignore */ }
-    if (timerState?.teamId) localStorage.removeItem(getPitchStateKeyForTeam(timerState.teamId));
-    localStorage.removeItem(PITCH_STATE_KEY);
+    // Only hide the widget — do NOT delete timer or pitch state
+    const teamId = timerState?.teamId;
+    localStorage.setItem(WIDGET_DISMISSED_KEY, teamId || 'true');
     setTimerState(null);
   };
 
