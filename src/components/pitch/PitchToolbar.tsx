@@ -317,6 +317,12 @@ function PitchToolbar({
   const [timerRunning, setTimerRunning] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
+
+  const handleTimerToggle = () => {
+    if (readOnly || !gameTimerRef.current) return;
+    const nextRunning = gameTimerRef.current.toggleTimer();
+    setTimerRunning(nextRunning);
+  };
   
   // Persist expanded section states across collapse/expand cycles
   const [subsOpen, setSubsOpen] = useState(true);
