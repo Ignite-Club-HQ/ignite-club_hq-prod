@@ -119,13 +119,15 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   const data = notification.notification?.data;
                   const type = data?.notificationType || data?.type;
                   const url = data?.url || data?.link || data?.path;
-                  const path = url ? normalizeNotificationPath(url) : (type === 'pending_sub' ? '/' : null);
+                  const pitchBoardTypes = ['pending_sub', 'half_time', 'game_finished', 'formation_change'];
+                  const isPitchBoard = pitchBoardTypes.includes(type);
+                  const path = isPitchBoard ? '/' : (url ? normalizeNotificationPath(url) : null);
 
                   if (!path) return;
 
                   navigate(path);
 
-                  if (type === 'pending_sub') {
+                  if (isPitchBoard) {
                     window.setTimeout(() => {
                       window.dispatchEvent(new CustomEvent('open-pitch-board'));
                     }, 500);
