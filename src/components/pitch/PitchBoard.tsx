@@ -5554,7 +5554,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onHideScoresChange={setHideScores}
                 showLineupPicker={showLineupPickerSetting}
                 onShowLineupPickerChange={handleShowLineupPickerSettingChange}
-                onOpenLineupPicker={() => setShowLineupPicker(true)}
+                onOpenLineupPicker={handleSetupGame}
                 hideTrigger
                 externalOpen={settingsDialogOpen}
                 onExternalOpenChange={setSettingsDialogOpen}
