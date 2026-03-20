@@ -378,13 +378,19 @@ export default function GlobalSubMonitor() {
     const pitchState = loadPitchState(timerState?.teamId);
 
     if (!timerState || !pitchState) return;
-    if (!pitchState.autoSubActive || pitchState.autoSubPlan.length === 0) return;
     if (pitchState.autoSubPaused) return;
 
-    // Calculate current elapsed time
+    // Calculate halftime state before early-returning on empty plan
     const now = Date.now();
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    const timeSinceUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
+    const elapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0);
+    const isHalftimeBreakEarly = !timerState.isRunning && timerState.currentHalf === 2 && elapsed === 0;
+
+    // Allow halftime check to proceed even with empty plan
+    if (!isHalftimeBreakEarly && (!pitchState.autoSubActive || pitchState.autoSubPlan.length === 0)) return;
+
+    // Reuse already-calculated values
+    const currentElapsed = elapsed;
     const currentHalf = timerState.currentHalf;
 
     // Don't show sub notifications if game is finished
