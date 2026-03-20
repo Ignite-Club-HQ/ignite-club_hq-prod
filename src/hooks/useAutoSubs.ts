@@ -360,15 +360,48 @@ export function useAutoSubs({
 
     const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
 
+    // Guard: validate player positions before executing
+    // If playerOut is already off pitch or playerIn is already on pitch,
+    // the sub is stale — auto-skip it instead of showing an error
+    const staleSubs = allPendingSubs.filter(sub => {
+      const currentOut = players.find(p => p.id === sub.playerOut.id);
+      const currentIn = players.find(p => p.id === sub.playerIn.id);
+      return !currentOut?.position || (currentIn && currentIn.position !== null);
+    });
+
+    if (staleSubs.length === allPendingSubs.length) {
+      // ALL subs are stale — skip them all gracefully
+      const skippedKeys = allPendingSubs.map(s => getSubKey(s));
+      const updatedPlan = markSubsExecuted(autoSubPlan, skippedKeys, true);
+      setAutoSubPlan(validateAndFixRemainingPlan(updatedPlan, players));
+      toast({
+        title: "Substitution expired",
+        description: "Players have already moved — sub auto-skipped",
+      });
+      setSubConfirmDialogOpen(false);
+      setPendingAutoSub(null);
+      setPendingBatchSubs([]);
+      setSubDuePlayerIds(new Set());
+      if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      return;
+    }
+
+    // Filter out any stale subs from the batch, keep valid ones
+    const validSubs = allPendingSubs.filter(sub => {
+      const currentOut = players.find(p => p.id === sub.playerOut.id);
+      const currentIn = players.find(p => p.id === sub.playerIn.id);
+      return currentOut?.position && (!currentIn || currentIn.position === null);
+    });
+
     // Push undo
     const subDescription =
-      allPendingSubs.length > 1
-        ? `Batch sub: ${allPendingSubs.length} substitutions`
-        : `Auto-sub: ${pendingAutoSub.playerIn.name} for ${pendingAutoSub.playerOut.name}`;
+      validSubs.length > 1
+        ? `Batch sub: ${validSubs.length} substitutions`
+        : `Auto-sub: ${validSubs[0].playerIn.name} for ${validSubs[0].playerOut.name}`;
     pushToUndoHistoryRef.current?.(subDescription, players);
 
     // Execute subs using shared helper
-    const { updatedPlayers, executedSubKeys, successCount } = executeSubsOnPlayers(allPendingSubs, players);
+    const { updatedPlayers, executedSubKeys, successCount } = executeSubsOnPlayers(validSubs, players);
 
     // Animation
     const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
