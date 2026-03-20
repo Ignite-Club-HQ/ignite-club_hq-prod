@@ -297,8 +297,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }, []);
 
-  const getDisplayTime = useCallback(() => {
-    if (currentHalf === 1) {
+  const getDisplayTime = useCallback((cumulative = false) => {
+    if (currentHalf === 1 || !cumulative) {
       return formatTime(elapsedSeconds);
     } else {
       return formatTime(halfDurationSeconds + elapsedSeconds);
@@ -411,7 +411,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
             {isGameFinished ? "FT" : `H${currentHalf}`}
           </span>
           <span className={cn("font-mono font-bold ml-1", isLarge ? "text-lg" : "")}>
-            {getDisplayTime()}
+            {getDisplayTime(false)}
           </span>
         </div>
         {!readOnly && !hidePlayPause && (
@@ -467,7 +467,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         <span className={cn("font-medium text-muted-foreground", large ? "text-base" : "text-xs")}>
           {isGameFinished ? "FT" : (currentHalf === 1 ? "1H" : "2H")}
         </span>
-        <span className={cn("font-mono font-bold tabular-nums", large ? "text-2xl" : "text-xl")}>{getDisplayTime()}</span>
+        <span className={cn("font-mono font-bold tabular-nums", large ? "text-2xl" : "text-xl")}>{getDisplayTime(false)}</span>
       </div>
       
       {!readOnly && !hidePlayPause && (
