@@ -2067,19 +2067,22 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? `${baseSummary}\n${changeParts.join("\n")}`
         : baseSummary;
 
-      // Create in-app notifications with details
+      // Create in-app notifications with details via SECURITY DEFINER RPC
+      // (direct inserts fail RLS when the current user isn't a coach/admin in the same team)
       const notificationMessage = changeParts.length > 0
         ? `${baseSummary} — ${changeParts.join(" • ")}`
         : baseSummary;
 
-      for (const recipientId of recipientIds) {
-        // In-app notification (DB trigger handles push delivery automatically)
-        supabase.from("notifications").insert({
-          user_id: recipientId,
-          type: "formation_change",
-          message: notificationMessage,
-          related_id: teamId,
-        }).then(() => {});
+      const recipientArray = Array.from(recipientIds);
+      if (recipientArray.length > 0) {
+        const { error: rpcError } = await supabase.rpc("notify_formation_change", {
+          _recipient_ids: recipientArray,
+          _message: notificationMessage,
+          _related_id: teamId,
+        });
+        if (rpcError) {
+          console.error("Formation notification RPC error:", rpcError);
+        }
       }
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
