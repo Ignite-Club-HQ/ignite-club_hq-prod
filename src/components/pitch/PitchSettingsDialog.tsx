@@ -450,7 +450,7 @@ export function PitchSettingsDialog({
                     variant="default" 
                     size="sm"
                     className="h-9 text-xs gap-1.5"
-                    disabled={gameInProgress}
+                    disabled={gameInProgress && gameTimerRunning && !gameFinished}
                     onClick={() => {
                       onOpenLineupPicker();
                       setOpen(false);
