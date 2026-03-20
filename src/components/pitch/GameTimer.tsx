@@ -61,7 +61,7 @@ export interface GameTimerRef {
   getMinutesPerHalf: () => number;
   isRunning: () => boolean;
   isGameFinished: () => boolean;
-  toggleTimer: () => void;
+  toggleTimer: () => boolean;
   resetTimer: () => void;
 }
 
