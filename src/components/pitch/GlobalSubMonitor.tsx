@@ -364,9 +364,23 @@ export default function GlobalSubMonitor() {
     const isHalftimeBreak = !timerState.isRunning && currentHalf === 2 && currentElapsed === 0;
     
     if (isHalftimeBreak) {
+      const staleFirstHalfSubs = pitchState.autoSubPlan.filter(sub => !sub.executed && sub.half === 1);
       const halftimeSubs = pitchState.autoSubPlan.filter(sub =>
         !sub.executed && sub.half === 2 && sub.time === 0
       );
+
+      let nextPitchState = pitchState;
+      if (staleFirstHalfSubs.length > 0) {
+        const staleKeys = staleFirstHalfSubs.map(getSubKey);
+        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, staleKeys, true);
+        nextPitchState = { ...pitchState, autoSubPlan: updatedPlan, lastUpdateTime: Date.now() };
+        savePitchState(nextPitchState);
+        setPendingAutoSub(null);
+        setPendingBatchSubs([]);
+        setSubConfirmDialogOpen(false);
+        lastCheckedSubRef.current = null;
+      }
+
       if (halftimeSubs.length > 0) {
         const [primarySub, ...additionalSubs] = halftimeSubs;
         const subKey = `halftime-batch-${halftimeSubs.length}`;
@@ -378,7 +392,7 @@ export default function GlobalSubMonitor() {
           if (timerState.soundEnabled) {
             try { playSubAlertBeep(); } catch { /* Audio may fail */ }
           }
-          setCurrentPlayers(pitchState.players);
+          setCurrentPlayers(nextPitchState.players);
           setPendingAutoSub(primarySub);
           setPendingBatchSubs(additionalSubs);
           setSubConfirmDialogOpen(true);
