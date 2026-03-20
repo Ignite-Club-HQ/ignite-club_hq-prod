@@ -29,6 +29,7 @@ const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
 const TIMER_STORAGE_KEY_BASE = 'pitch-board-timer-state-team';
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
 const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
+const WIDGET_DISMISSED_KEY = "pitch-widget-dismissed";
 const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 
 interface TimerState {
@@ -91,6 +92,13 @@ const loadActiveTimerState = (): TimerState | null => {
     const activeRaw = localStorage.getItem(ACTIVE_TIMER_KEY);
     if (!activeRaw) return null;
     const activeState = JSON.parse(activeRaw) as TimerState;
+
+    // If widget was dismissed for this team, don't show it
+    const dismissed = localStorage.getItem(WIDGET_DISMISSED_KEY);
+    if (dismissed && (dismissed === 'true' || dismissed === activeState.teamId)) {
+      return null;
+    }
+
     if (activeState.teamId) {
       const teamKey = getTeamTimerStorageKey(activeState.teamId);
       const teamRaw = localStorage.getItem(teamKey);
@@ -106,6 +114,8 @@ const saveTimerState = (state: TimerState) => {
     if (state.teamId) {
       localStorage.setItem(getTeamTimerStorageKey(state.teamId), JSON.stringify(state));
     }
+    // Clear dismissed flag when timer state is actively saved (new game or state change)
+    localStorage.removeItem(WIDGET_DISMISSED_KEY);
     // Dispatch custom event for same-tab sync (Android WebView)
     window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'timer-widget' } }));
   } catch { /* ignore */ }
@@ -302,17 +312,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation();
-    localStorage.removeItem(ACTIVE_TIMER_KEY);
-    if (timerState?.teamId) localStorage.removeItem(getTeamTimerStorageKey(timerState.teamId));
-    try {
-      const ps = readPitchState(timerState?.teamId);
-      if (ps) {
-        ps.autoSubPlan = []; ps.autoSubActive = false; ps.autoSubPaused = false;
-        writePitchState(ps);
-      }
-    } catch { /* ignore */ }
-    if (timerState?.teamId) localStorage.removeItem(getPitchStateKeyForTeam(timerState.teamId));
-    localStorage.removeItem(PITCH_STATE_KEY);
+    // Only hide the widget — do NOT delete timer or pitch state
+    const teamId = timerState?.teamId;
+    localStorage.setItem(WIDGET_DISMISSED_KEY, teamId || 'true');
     setTimerState(null);
   };
 
