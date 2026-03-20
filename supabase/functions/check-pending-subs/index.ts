@@ -346,7 +346,6 @@ async function checkGames(supabase: any): Promise<number> {
     if (isAtHalfTimeBoundary) {
       // Atomically claim the half-time notification slot to prevent duplicates
       // from concurrent cron invocations. Only the first invocation to update wins.
-      const halfTimeMarker = game.last_sub_check_time || 0;
       const halfTimeMarker = game.last_sub_check_time ?? null;
       if (halfTimeMarker === null || halfTimeMarker < halfDurationSecs) {
         // Use separate filter conditions instead of .or() which can silently fail
