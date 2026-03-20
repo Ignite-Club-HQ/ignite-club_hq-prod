@@ -3566,7 +3566,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           p.id === playerId ? { ...p, isInjured: true } : p
         );
         
-        const recalculatedPlan = recalculateRemainingPlan(
+        const executedSubs = autoSubPlan.filter(s => s.executed);
+        const remainingSubs = autoSubPlan.filter(s => !s.executed);
+        const recalculated = recalculateRemainingPlan(
           updatedPlayers,
           parseInt(teamSize),
           minutesPerHalfSecs,
@@ -3576,7 +3578,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           rotateGkAtHalftime
         );
         
-        setAutoSubPlan(recalculatedPlan);
+        // Safety guard: don't let recalculation wipe remaining plan
+        let finalPlan: typeof autoSubPlan;
+        if (recalculated.length > 0 || remainingSubs.length === 0) {
+          finalPlan = [...executedSubs, ...recalculated];
+        } else {
+          const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+          if (benchPlayers.length > 0) {
+            console.warn("[PitchBoard] Injury recalculation returned empty — preserving existing plan");
+            finalPlan = [...executedSubs, ...remainingSubs];
+          } else {
+            finalPlan = [...executedSubs, ...recalculated];
+          }
+        }
+        setAutoSubPlan(finalPlan);
         toast({
           title: "Sub plan updated",
           description: "Auto-substitution plan recalculated due to injury",
