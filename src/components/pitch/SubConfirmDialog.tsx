@@ -65,7 +65,8 @@ export default function SubConfirmDialog({
   const isBatchSub = allSubs.length > 1;
   const alreadyExecuted = substitution?.executed === true && !substitution?.skipped;
   const wasSkipped = substitution?.skipped === true;
-  const isHalftime = substitution?.half === 2 && substitution?.time === 0;
+  const isHalftime = !substitution || (substitution?.half === 2 && substitution?.time === 0);
+  const isHalftimeOnly = !substitution; // No subs, just a halftime notification
   
   useEffect(() => {
     setCountdown(secondsUntilDue);
@@ -79,7 +80,8 @@ export default function SubConfirmDialog({
     return () => clearInterval(interval);
   }, [open, countdown]);
   
-  if (!substitution) return null;
+  if (!open) return null;
+  if (!substitution && !isHalftimeOnly) return null;
   
   const isDue = countdown <= 0;
   
