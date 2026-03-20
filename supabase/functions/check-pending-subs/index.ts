@@ -107,7 +107,8 @@ async function sendPushNotification(
   body: string,
   url: string,
   tag: string,
-  notificationType: string
+  notificationType: string,
+  notificationId?: string
 ) {
   try {
     await supabase.functions.invoke('send-push-notification', {
@@ -118,6 +119,9 @@ async function sendPushNotification(
         url,
         tag,
         notificationType,
+        // Pass notificationId so send-push-notification creates a push_notification_log entry,
+        // preventing retry-missed-push-notifications from re-sending this push.
+        notificationId: notificationId || undefined,
       },
     });
   } catch (err) {
