@@ -558,7 +558,18 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
             );
             
             const executedSubs = updatedPlan.filter(s => s.executed);
-            updatedPlan = [...executedSubs, ...recalculated];
+            // Safety guard: don't let recalculation wipe the plan
+            if (recalculated.length > 0 || remainingSubs.length === 0) {
+              updatedPlan = [...executedSubs, ...recalculated];
+            } else {
+              const benchPlayers = pitchState.players.filter((p: any) => p.position === null && !p.isInjured);
+              if (benchPlayers.length > 0) {
+                console.warn("[PendingSubWidget] Skip recalculation returned empty but bench players remain — preserving existing plan");
+                updatedPlan = [...executedSubs, ...remainingSubs];
+              } else {
+                updatedPlan = [...executedSubs, ...recalculated];
+              }
+            }
           }
         }
         
