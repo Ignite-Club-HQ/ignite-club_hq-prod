@@ -730,8 +730,20 @@ export function useAutoSubs({
       if (newHalf !== 2) return false;
       if (!autoSubActive || autoSubPlan.length === 0) return false;
 
+      const staleFirstHalfSubs = autoSubPlan.filter(sub => !sub.executed && sub.half === 1);
       const halftimeSubs = autoSubPlan.filter(sub => !sub.executed && sub.half === 2 && sub.time === 0);
-      if (halftimeSubs.length === 0) return false;
+
+      if (staleFirstHalfSubs.length > 0) {
+        const staleKeys = staleFirstHalfSubs.map(getSubKey);
+        setAutoSubPlan(prev => markSubsExecuted(prev, staleKeys, true));
+        setPendingAutoSub(null);
+        setPendingBatchSubs([]);
+        setSubConfirmDialogOpen(false);
+        setSubDuePlayerIds(new Set());
+        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      }
+
+      if (halftimeSubs.length === 0) return staleFirstHalfSubs.length > 0;
 
       setTimeout(() => {
         const [primarySub, ...additionalSubs] = halftimeSubs;
