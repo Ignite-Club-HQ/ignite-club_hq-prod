@@ -742,7 +742,6 @@ export function useAutoSubs({
   const checkHalftimeSubs = useCallback(
     (newHalf: 1 | 2) => {
       if (newHalf !== 2) return false;
-      if (!autoSubActive || autoSubPlan.length === 0) return false;
 
       const staleFirstHalfSubs = autoSubPlan.filter(sub => !sub.executed && sub.half === 1);
       const halftimeSubs = autoSubPlan.filter(sub => !sub.executed && sub.half === 2 && sub.time === 0);
@@ -757,7 +756,16 @@ export function useAutoSubs({
         if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
       }
 
-      if (halftimeSubs.length === 0) return staleFirstHalfSubs.length > 0;
+      if (halftimeSubs.length === 0) {
+        // No halftime subs — still show a halftime notification popup
+        setTimeout(() => {
+          playSubAlertBeep("Half time!");
+          setPendingAutoSub(null);
+          setPendingBatchSubs([]);
+          setSubConfirmDialogOpen(true);
+        }, 500);
+        return true;
+      }
 
       setTimeout(() => {
         const [primarySub, ...additionalSubs] = halftimeSubs;
