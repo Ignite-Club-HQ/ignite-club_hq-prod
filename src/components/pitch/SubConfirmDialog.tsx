@@ -65,7 +65,8 @@ export default function SubConfirmDialog({
   const isBatchSub = allSubs.length > 1;
   const alreadyExecuted = substitution?.executed === true && !substitution?.skipped;
   const wasSkipped = substitution?.skipped === true;
-  const isHalftime = substitution?.half === 2 && substitution?.time === 0;
+  const isHalftime = !substitution || (substitution?.half === 2 && substitution?.time === 0);
+  const isHalftimeOnly = !substitution; // No subs, just a halftime notification
   
   useEffect(() => {
     setCountdown(secondsUntilDue);
@@ -79,7 +80,8 @@ export default function SubConfirmDialog({
     return () => clearInterval(interval);
   }, [open, countdown]);
   
-  if (!substitution) return null;
+  if (!open) return null;
+  if (!substitution && !isHalftimeOnly) return null;
   
   const isDue = countdown <= 0;
   
@@ -203,6 +205,11 @@ export default function SubConfirmDialog({
                 <Check className="h-5 w-5 text-muted-foreground" />
                 Substitution Already Made
               </>
+            ) : isHalftimeOnly ? (
+              <>
+                <Timer className="h-5 w-5" />
+                Half Time
+              </>
             ) : isHalftime ? (
               <>
                 <Timer className="h-5 w-5" />
@@ -221,7 +228,9 @@ export default function SubConfirmDialog({
             )}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            {wasSkipped
+            {isHalftimeOnly
+              ? "It's half time! No substitutions are scheduled for this break."
+              : wasSkipped
               ? "This substitution was skipped and not made"
               : alreadyExecuted
               ? "This substitution has already been completed"
@@ -229,7 +238,7 @@ export default function SubConfirmDialog({
               ? `${isBatchSub ? `${allSubs.length} substitutions are` : "A substitution is"} scheduled for the halftime break`
               : isDue 
                 ? undefined
-                : `${formatTime(substitution.time)} - ${substitution.half === 1 ? "1st" : "2nd"} Half`}
+                : `${formatTime(substitution!.time)} - ${substitution!.half === 1 ? "1st" : "2nd"} Half`}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
         
@@ -257,29 +266,40 @@ export default function SubConfirmDialog({
         )}
         
         {/* Scrollable area for sub steps */}
-        <div className="overflow-y-auto overscroll-contain py-2" style={{ maxHeight: '50vh' }}>
-          <div className="space-y-3 pr-1">
-            {allSubs.map((sub, index) => (
-              renderSubSteps(sub, getStepOffset(index), index)
-            ))}
+        {allSubs.length > 0 && (
+          <div className="overflow-y-auto overscroll-contain py-2" style={{ maxHeight: '50vh' }}>
+            <div className="space-y-3 pr-1">
+              {allSubs.map((sub, index) => (
+                renderSubSteps(sub, getStepOffset(index), index)
+              ))}
+            </div>
           </div>
-        </div>
+        )}
         
         <ResponsiveDialogFooter className="flex-row gap-2 sm:gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-2 h-12 text-base">
-            <X className="h-4 w-4" />
-            Close
-          </Button>
-          {isDue && !wasSkipped && (
+          {isHalftimeOnly ? (
+            <Button onClick={() => onOpenChange(false)} className="flex-1 gap-2 h-12 text-base">
+              <Check className="h-4 w-4" />
+              OK
+            </Button>
+          ) : (
             <>
-              <Button variant="outline" onClick={onSkip} disabled={alreadyExecuted} className="gap-2 h-12 text-base">
+              <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-2 h-12 text-base">
                 <X className="h-4 w-4" />
-                Skip
+                Close
               </Button>
-              <Button onClick={onConfirm} disabled={alreadyExecuted} className="flex-1 gap-2 h-12 text-base">
-                <Check className="h-4 w-4" />
-                {alreadyExecuted ? 'Done' : `Confirm${isBatchSub ? ` All` : ''}`}
-              </Button>
+              {isDue && !wasSkipped && (
+                <>
+                  <Button variant="outline" onClick={onSkip} disabled={alreadyExecuted} className="gap-2 h-12 text-base">
+                    <X className="h-4 w-4" />
+                    Skip
+                  </Button>
+                  <Button onClick={onConfirm} disabled={alreadyExecuted} className="flex-1 gap-2 h-12 text-base">
+                    <Check className="h-4 w-4" />
+                    {alreadyExecuted ? 'Done' : `Confirm${isBatchSub ? ` All` : ''}`}
+                  </Button>
+                </>
+              )}
             </>
           )}
         </ResponsiveDialogFooter>
