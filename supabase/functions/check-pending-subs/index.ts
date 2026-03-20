@@ -452,7 +452,7 @@ async function checkGames(supabase: any): Promise<number> {
           .from('active_games')
           .update({ last_sub_check_time: maxAbsTime })
           .eq('id', game.id)
-          .lt('last_sub_check_time', maxAbsTime)
+          .or(`last_sub_check_time.is.null,last_sub_check_time.lt.${maxAbsTime}`)
           .select('id');
         
         if (claimResult && claimResult.length > 0) {
