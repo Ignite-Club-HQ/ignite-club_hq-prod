@@ -237,6 +237,9 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       }
 
       const halfDurationSeconds = minutesPerHalf * 60;
+      const currentTotalSeconds = currentHalf === 1
+        ? currentElapsedSeconds
+        : halfDurationSeconds + currentElapsedSeconds;
       const { latestDueSubs: allDueSubs, olderDueSubs: olderSubs } = getDueSubGroups(
         sortedSubs,
         currentHalf,
@@ -266,7 +269,7 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       let secondsUntil = 0;
 
       for (const sub of sortedSubs) {
-        const subTotalSeconds = getSubTotalSeconds(sub);
+        const subTotalSeconds = sub.half === 1 ? sub.time : halfDurationSeconds + sub.time;
 
         if (subTotalSeconds <= currentTotalSeconds) {
           bestSub = sub;
