@@ -1995,8 +1995,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
     }
   ) => {
-    // Only notify during active games (not during setup or after game finishes)
-    if (!user?.id || readOnly || !gameInProgress || gameTimerRef.current?.isGameFinished()) return;
+    // Notify whenever formation changes (during setup or active game), skip only for read-only or finished games
+    if (!user?.id || readOnly || gameTimerRef.current?.isGameFinished()) return;
     try {
       const recipientIds = new Set<string>();
       const isEventGroup = teamId.startsWith("event-group-");
@@ -2084,7 +2084,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
     }
-  }, [user?.id, teamId, teamName, readOnly, linkedEventId, gameInProgress]);
+  }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
 
   const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
     const formation = FORMATIONS[teamSize][index];
