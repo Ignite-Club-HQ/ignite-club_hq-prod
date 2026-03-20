@@ -216,12 +216,14 @@ async function notifyTeamStaff(
     let recentNotifs;
 
     if (notificationType === 'full_time') {
+      const fullTimeDedupCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       const result = await supabase
         .from('notifications')
         .select('id')
         .eq('user_id', firstRecipient)
         .eq('type', inAppType)
-        .eq('related_id', gameId)
+        .eq('message', notificationMessage)
+        .gte('created_at', fullTimeDedupCutoff)
         .limit(1);
 
       recentNotifs = result.data;
@@ -536,10 +538,11 @@ async function checkGames(supabase: any): Promise<number> {
       
       if (!claimError && claimResult && claimResult.length > 0) {
         console.log(`[CHECK-SUBS] Game ${game.id} finished — claimed full-time notification`);
+        const fullTimeMessage = `🏆 ${teamName} - Full Time!`;
         notificationsSent += await notifyTeamStaff(
           supabase, staffUserIds, game.user_id, game.id,
           teamId, teamName, linkedEventId,
-          'full_time', `🏆 ${teamName} - Full Time!`, 'game_finished',
+          'full_time', fullTimeMessage, 'game_finished',
           `🏆 Full Time!`, `${teamName} - Full Time`,
           undefined, undefined, undefined, timerState.minutesPerHalf * 2, 2
         );
