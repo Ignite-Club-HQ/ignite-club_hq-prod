@@ -338,28 +338,28 @@ async function checkGames(supabase: any): Promise<number> {
         
         // Only send notification if WE claimed it (update affected a row)
         if (!claimError && claimResult && claimResult.length > 0) {
+          const teamId = game.team_id || timerState.teamId;
           const teamName = timerState.teamName || 'Your team';
-          const teamId = timerState.teamId || game.team_id;
           const linkedEventId = pitchState.linkedEventId;
           const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
-          
+
           notificationsSent += await notifyTeamStaff(
             supabase, staffUserIds, game.user_id, game.id,
-            teamId, teamName, linkedEventId,
+            teamId || undefined, teamName, linkedEventId,
             'half_time', `⏸️ ${teamName} - Half Time!`, 'half_time',
             `⏸️ Half Time!`, `${teamName} - Half Time`,
             undefined, undefined, undefined, timerState.minutesPerHalf, 1
           );
-          
-          console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id}`);
+
+          console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id} (team ${teamId})`);
         } else if (claimResult && claimResult.length === 0) {
           console.log(`[CHECK-SUBS] Half time already claimed by another invocation for game ${game.id}`);
         }
       }
       continue; // Skip sub processing during half-time
     }
+    const teamId = game.team_id || timerState.teamId;
     const teamName = timerState.teamName || 'Your team';
-    const teamId = timerState.teamId || game.team_id;
     const linkedEventId = pitchState.linkedEventId;
 
     // Get team staff (coaches + team_admins) for this specific team

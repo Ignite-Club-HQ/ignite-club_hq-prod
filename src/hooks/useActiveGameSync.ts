@@ -46,11 +46,16 @@ export function useActiveGameSync() {
 
   const loadPitchState = useCallback((teamId?: string): PitchState | null => {
     try {
-      // Try team-specific key first
       if (teamId) {
         const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
         if (teamSaved) return JSON.parse(teamSaved);
+
+        const activeSaved = localStorage.getItem(PITCH_STATE_KEY);
+        if (!activeSaved) return null;
+        const activeState = JSON.parse(activeSaved) as PitchState & { teamId?: string };
+        return activeState.teamId === teamId ? activeState : null;
       }
+
       const saved = localStorage.getItem(PITCH_STATE_KEY);
       return saved ? JSON.parse(saved) : null;
     } catch {
