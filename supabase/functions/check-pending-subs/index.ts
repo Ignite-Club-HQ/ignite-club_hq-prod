@@ -327,29 +327,36 @@ async function checkGames(supabase: any): Promise<number> {
 
     // If at half-time boundary, don't process subs - the game is paused between halves
     if (isAtHalfTimeBoundary) {
-      // Still send half-time notification if not already sent
+      // Atomically claim the half-time notification slot to prevent duplicates
+      // from concurrent cron invocations. Only the first invocation to update wins.
       const halfTimeMarker = game.last_sub_check_time || 0;
       if (halfTimeMarker < halfDurationSecs) {
-        const teamName = timerState.teamName || 'Your team';
-        const teamId = timerState.teamId || game.team_id;
-        const linkedEventId = pitchState.linkedEventId;
-        const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
-        
-        notificationsSent += await notifyTeamStaff(
-          supabase, staffUserIds, game.user_id, game.id,
-          teamId, teamName, linkedEventId,
-          'half_time', `⏸️ ${teamName} - Half Time!`, 'half_time',
-          `⏸️ Half Time!`, `${teamName} - Half Time`,
-          undefined, undefined, undefined, timerState.minutesPerHalf, 1
-        );
-        
-        // Mark half-time as notified
-        await supabase
+        const { data: claimResult, error: claimError } = await supabase
           .from('active_games')
           .update({ last_sub_check_time: halfDurationSecs })
-          .eq('id', game.id);
+          .eq('id', game.id)
+          .lt('last_sub_check_time', halfDurationSecs)
+          .select('id');
         
-        console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id}`);
+        // Only send notification if WE claimed it (update affected a row)
+        if (!claimError && claimResult && claimResult.length > 0) {
+          const teamName = timerState.teamName || 'Your team';
+          const teamId = timerState.teamId || game.team_id;
+          const linkedEventId = pitchState.linkedEventId;
+          const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
+          
+          notificationsSent += await notifyTeamStaff(
+            supabase, staffUserIds, game.user_id, game.id,
+            teamId, teamName, linkedEventId,
+            'half_time', `⏸️ ${teamName} - Half Time!`, 'half_time',
+            `⏸️ Half Time!`, `${teamName} - Half Time`,
+            undefined, undefined, undefined, timerState.minutesPerHalf, 1
+          );
+          
+          console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id}`);
+        } else if (claimResult && claimResult.length === 0) {
+          console.log(`[CHECK-SUBS] Half time already claimed by another invocation for game ${game.id}`);
+        }
       }
       continue; // Skip sub processing during half-time
     }
