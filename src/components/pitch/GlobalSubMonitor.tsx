@@ -106,6 +106,21 @@ export default function GlobalSubMonitor() {
   const lastCheckedSubRef = useRef<string | null>(null);
   const gameFinishedShownRef = useRef(false);
   const activeGameIdRef = useRef<string | null>(null);
+  const finishedSyncHandledRef = useRef<string | null>(null);
+
+  const triggerImmediateFullTimeCheck = useCallback(async () => {
+    try {
+      const { error } = await supabase.functions.invoke('check-pending-subs', {
+        body: { source: 'client-full-time-sync' },
+      });
+
+      if (error) {
+        console.error('[SYNC] Failed to trigger immediate full-time check:', error);
+      }
+    } catch (error) {
+      console.error('[SYNC] Error triggering immediate full-time check:', error);
+    }
+  }, []);
 
   // Sync game state to database for server-side push notifications
   const syncToDatabase = useCallback(async () => {
@@ -147,7 +162,16 @@ export default function GlobalSubMonitor() {
          (timerState.currentHalf === 2 && projectedElapsed >= halfDurationSecs))
       : false;
 
-    if (!timerState || !pitchState || !timerState.isRunning || !pitchState.autoSubActive || isFinished) {
+    const teamId = timerState?.teamId || pitchState?.teamId || null;
+    const finishedSyncKey = isFinished
+      ? `${teamId ?? 'no-team'}-${timerState?.gameFinishedAt ?? `${timerState?.currentHalf}-${halfDurationSecs}`}`
+      : null;
+
+    if (!isFinished) {
+      finishedSyncHandledRef.current = null;
+    }
+
+    if (!timerState || !pitchState) {
       if (activeGameIdRef.current) {
         console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
         await supabase
@@ -160,8 +184,106 @@ export default function GlobalSubMonitor() {
       return;
     }
 
-    // Get team ID from pitch state if not in timer state
-    const teamId = timerState.teamId || pitchState.teamId || null;
+    const syncedTimerState = isFinished
+      ? {
+          ...timerState,
+          currentHalf: 2,
+          elapsedSeconds: halfDurationSecs,
+          isRunning: false,
+          lastUpdateTime: Date.now(),
+          teamId: teamId || undefined,
+          teamName: timerState.teamName || 'Your team',
+          isGameFinished: true,
+          gameFinishedAt: timerState.gameFinishedAt || Date.now(),
+        }
+      : {
+          ...timerState,
+          teamId: teamId || undefined,
+          teamName: timerState.teamName || 'Your team',
+        };
+
+    if (isFinished) {
+      if (finishedSyncKey && finishedSyncHandledRef.current === finishedSyncKey) {
+        setSyncStatus({ status: "idle", lastSyncTime: null });
+        return;
+      }
+
+      setSyncStatus({ status: "syncing", lastSyncTime: null });
+
+      try {
+        if (!activeGameIdRef.current) {
+          const { data: existingGames, error: existingError } = await supabase
+            .from('active_games')
+            .select('id, team_id, updated_at')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .order('updated_at', { ascending: false });
+
+          if (existingError) {
+            console.error('[SYNC] Failed to locate active game for full-time sync:', existingError);
+          } else if (existingGames?.length) {
+            const matchingGame = existingGames.find((game) => game.team_id === teamId) ?? existingGames[0];
+            activeGameIdRef.current = matchingGame.id;
+
+            const duplicateIds = existingGames
+              .filter((game) => game.id !== matchingGame.id)
+              .map((game) => game.id);
+
+            if (duplicateIds.length > 0) {
+              await supabase
+                .from('active_games')
+                .update({ is_active: false })
+                .in('id', duplicateIds);
+            }
+          }
+        }
+
+        if (activeGameIdRef.current) {
+          const { error } = await supabase
+            .from('active_games')
+            .update({
+              user_id: user.id,
+              team_id: teamId,
+              timer_state: syncedTimerState as unknown as Json,
+              pitch_state: pitchState as unknown as Json,
+              is_active: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', activeGameIdRef.current);
+
+          if (error) {
+            console.error('[SYNC] Final full-time sync failed:', error);
+            setSyncStatus({ status: "error", lastSyncTime: Date.now(), error: error.message });
+            return;
+          }
+
+          finishedSyncHandledRef.current = finishedSyncKey;
+          await triggerImmediateFullTimeCheck();
+          setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
+          return;
+        }
+      } catch (err) {
+        console.error('[SYNC] Error during final full-time sync:', err);
+        setSyncStatus({ status: "error", lastSyncTime: Date.now(), error: String(err) });
+        return;
+      }
+
+      setSyncStatus({ status: "idle", lastSyncTime: null });
+      return;
+    }
+
+    if (!timerState.isRunning || !pitchState.autoSubActive) {
+      if (activeGameIdRef.current) {
+        console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
+        await supabase
+          .from('active_games')
+          .update({ is_active: false })
+          .eq('id', activeGameIdRef.current);
+        activeGameIdRef.current = null;
+      }
+      setSyncStatus({ status: "idle", lastSyncTime: null });
+      return;
+    }
     
     // Skip syncing to active_games for event-group based games
     // Those are synced via useEventGroupSync to the event_groups table
@@ -174,10 +296,7 @@ export default function GlobalSubMonitor() {
     const gameData = {
       user_id: user.id,
       team_id: teamId,
-      timer_state: {
-        ...timerState,
-        teamName: timerState.teamName || 'Your team',
-      } as unknown as Json,
+      timer_state: syncedTimerState as unknown as Json,
       pitch_state: pitchState as unknown as Json,
       is_active: true,
       updated_at: new Date().toISOString(),
@@ -203,15 +322,33 @@ export default function GlobalSubMonitor() {
         }
       } else {
         // Find existing active game or create new one
-        const { data: existing } = await supabase
+        const { data: existingGames, error: existingError } = await supabase
           .from('active_games')
-          .select('id')
+          .select('id, team_id, updated_at')
           .eq('user_id', user.id)
           .eq('is_active', true)
-          .single();
+          .order('updated_at', { ascending: false });
+
+        if (existingError) {
+          console.error('[SYNC] Failed to find existing active games:', existingError);
+        }
+
+        const existing = existingGames?.find((game) => game.team_id === teamId) ?? existingGames?.[0];
 
         if (existing) {
           activeGameIdRef.current = existing.id;
+
+          const duplicateIds = (existingGames || [])
+            .filter((game) => game.id !== existing.id)
+            .map((game) => game.id);
+
+          if (duplicateIds.length > 0) {
+            await supabase
+              .from('active_games')
+              .update({ is_active: false })
+              .in('id', duplicateIds);
+          }
+
           await supabase
             .from('active_games')
             .update(gameData)
@@ -247,7 +384,7 @@ export default function GlobalSubMonitor() {
       console.error('[SYNC] Error:', err);
       setSyncStatus({ status: "error", lastSyncTime: Date.now(), error: String(err) });
     }
-  }, [user?.id]);
+  }, [triggerImmediateFullTimeCheck, user?.id]);
 
   // Create database notification which triggers server-side push via database trigger
   const createPitchBoardNotification = useCallback(async (type: string, message: string) => {
@@ -508,6 +645,13 @@ export default function GlobalSubMonitor() {
     const pitchState = loadPitchState(timerState?.teamId);
     
     if (!timerState || !pitchState) return false;
+
+    const halfDuration = timerState.minutesPerHalf * 60;
+    const timeSinceUpdate = Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000));
+    const projectedElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0);
+    const isFinished = Boolean(timerState.isGameFinished) || (timerState.currentHalf === 2 && projectedElapsed >= halfDuration);
+
+    if (isFinished) return false;
     
     // Monitor when timer is running
     if (timerState.isRunning) return true;
