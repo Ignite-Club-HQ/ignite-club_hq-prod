@@ -217,11 +217,12 @@ Deno.serve(async (req) => {
     }
 
     // ============================================
-    // PART 2: Process attendance points for coaches/team admins
+    // PART 2: Process attendance points for ALL members
+    // Coaches/team_admins get 10 pts, regular members get 3 pts
     // ============================================
-    console.log('Processing attendance points for coaches/team admins...');
+    console.log('Processing attendance points for all members...');
 
-    // Find events that ended 24+ hours ago with RSVPs from coaches/team_admins that haven't been awarded
+    // Find events that ended 24+ hours ago with RSVPs that haven't been awarded
     const { data: eligibleRsvps, error: rsvpError } = await supabase
       .from('rsvps')
       .select(`
@@ -287,30 +288,27 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Check if user is a coach or team_admin for this team
+      // Determine points based on role: coaches/team_admins get 10, everyone else gets 3
       const teamId = event?.team_id;
-      if (!teamId) {
-        await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
-        attendanceProcessed++;
-        continue;
+      let attendancePts = 3; // Default for regular members
+      let roleLabel = 'member';
+
+      if (teamId) {
+        const { data: userRole } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', rsvp.user_id)
+          .eq('team_id', teamId)
+          .in('role', ['coach', 'team_admin'])
+          .maybeSingle();
+
+        if (userRole) {
+          attendancePts = 10;
+          roleLabel = userRole.role;
+        }
       }
 
-      const { data: userRole } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', rsvp.user_id)
-        .eq('team_id', teamId)
-        .in('role', ['coach', 'team_admin'])
-        .maybeSingle();
-
-      if (!userRole) {
-        // Not a coach/team_admin — mark processed, no points
-        await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
-        attendanceProcessed++;
-        continue;
-      }
-
-      // Award 10 points
+      // Award points
       const { data: profile } = await supabase
         .from('profiles')
         .select('ignite_points')
@@ -318,22 +316,26 @@ Deno.serve(async (req) => {
         .single();
 
       if (!profile) {
+        await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
+        attendanceProcessed++;
         continue;
       }
 
       const previousPts = profile.ignite_points || 0;
-      const newPts = previousPts + 10;
+      const newPts = previousPts + attendancePts;
 
       await supabase.from('profiles').update({ ignite_points: newPts }).eq('id', rsvp.user_id);
 
       await supabase.from('points_history').insert({
         user_id: rsvp.user_id,
         club_id: club?.id || null,
-        amount: 10,
+        amount: attendancePts,
         balance_after: newPts,
         source_type: 'attendance',
         source_id: event.id,
-        description: 'Match attendance (coach/admin)',
+        description: roleLabel === 'member'
+          ? 'Event attendance bonus'
+          : `Match attendance (${roleLabel})`,
       });
 
       await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
@@ -364,7 +366,7 @@ Deno.serve(async (req) => {
       await supabase.from('notifications').insert({
         user_id: rsvp.user_id,
         type: 'points_awarded',
-        message: 'You earned 10 points for attending a match! 🔥',
+        message: `You earned ${attendancePts} points for attending! 🔥`,
         related_id: event.id,
       });
 
@@ -373,8 +375,8 @@ Deno.serve(async (req) => {
         await supabase.functions.invoke('send-points-notification-email', {
           body: {
             recipientUserId: rsvp.user_id,
-            pointsAwarded: 10,
-            reason: 'Match attendance',
+            pointsAwarded: attendancePts,
+            reason: roleLabel === 'member' ? 'Event attendance' : `Match attendance (${roleLabel})`,
             totalPoints: newPts,
             clubName: club?.name || 'Your Club',
             clubLogoUrl: club?.logo_url,
@@ -388,8 +390,8 @@ Deno.serve(async (req) => {
       }
 
       attendanceProcessed++;
-      attendancePointsAwarded += 10;
-      console.log(`RSVP ${rsvp.id}: Awarded 10 attendance points to user ${rsvp.user_id} (total: ${newPts})`);
+      attendancePointsAwarded += attendancePts;
+      console.log(`RSVP ${rsvp.id}: Awarded ${attendancePts} attendance points to ${roleLabel} ${rsvp.user_id} (total: ${newPts})`);
     }
 
     const totalPoints = pointsAwarded + attendancePointsAwarded;

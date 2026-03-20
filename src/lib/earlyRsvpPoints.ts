@@ -4,7 +4,7 @@ import { recordPointsHistory } from "@/lib/pointsHistory";
 import { checkRewardThreshold } from "@/lib/rewardThresholdCheck";
 
 const EARLY_RSVP_DAYS_THRESHOLD = 3;
-const EARLY_RSVP_POINTS = 1;
+const EARLY_RSVP_POINTS = 3;
 
 interface AwardEarlyRsvpPointsParams {
   userId: string;
