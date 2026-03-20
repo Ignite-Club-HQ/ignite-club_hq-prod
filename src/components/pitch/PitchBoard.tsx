@@ -2909,7 +2909,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   // Reset game - clears all player minutes, timer, and positions
-  const handleResetGame = useCallback(() => {
+  const handleResetGame = useCallback((silent = false) => {
     // Stop the timer first
     gameTimerRef.current?.resetTimer();
     
@@ -2966,11 +2966,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Reset hasLoadedRef so fresh state can be saved
     hasLoadedRef.current = false;
     
-    toast({
-      title: "Game Reset",
-      description: "All player minutes and settings have been reset to defaults.",
-    });
+    if (!silent) {
+      toast({
+        title: "Game Reset",
+        description: "All player minutes and settings have been reset to defaults.",
+      });
+    }
   }, [players, autoPlacePlayersOnPitch, toast]);
+
+  // Helper: if the game is at full time, silently reset before showing lineup picker
+  const handleSetupGame = useCallback(() => {
+    if (gameTimerRef.current?.isGameFinished()) {
+      handleResetGame(true);
+    }
+    setShowLineupPicker(true);
+  }, [handleResetGame]);
 
   // Execute deferred auto-reset after handleResetGame is available
   useEffect(() => {
