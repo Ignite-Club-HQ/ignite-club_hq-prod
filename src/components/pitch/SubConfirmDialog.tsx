@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeftRight, Check, X, Clock, Users } from "lucide-react";
+import { ArrowLeftRight, Check, X, Clock, Users, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { getSpecificPositionLabel } from "./types";
@@ -65,6 +65,7 @@ export default function SubConfirmDialog({
   const isBatchSub = allSubs.length > 1;
   const alreadyExecuted = substitution?.executed === true && !substitution?.skipped;
   const wasSkipped = substitution?.skipped === true;
+  const isHalftime = substitution?.half === 2 && substitution?.time === 0;
   
   useEffect(() => {
     setCountdown(secondsUntilDue);
@@ -202,6 +203,11 @@ export default function SubConfirmDialog({
                 <Check className="h-5 w-5 text-muted-foreground" />
                 Substitution Already Made
               </>
+            ) : isHalftime ? (
+              <>
+                <Timer className="h-5 w-5" />
+                {isBatchSub ? `Halftime — ${allSubs.length} Substitutions` : "Halftime Substitution"}
+              </>
             ) : isBatchSub ? (
               <>
                 <Users className="h-5 w-5" />
@@ -219,16 +225,26 @@ export default function SubConfirmDialog({
               ? "This substitution was skipped and not made"
               : alreadyExecuted
               ? "This substitution has already been completed"
+              : isHalftime
+              ? `${isBatchSub ? `${allSubs.length} substitutions are` : "A substitution is"} scheduled for the halftime break`
               : isDue 
                 ? undefined
-                : substitution.time === 0 && substitution.half === 2 
-                  ? "Halftime substitution" 
-                  : `${formatTime(substitution.time)} - ${substitution.half === 1 ? "1st" : "2nd"} Half`}
+                : `${formatTime(substitution.time)} - ${substitution.half === 1 ? "1st" : "2nd"} Half`}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
         
+        {/* Halftime banner */}
+        {isHalftime && isDue && !alreadyExecuted && !wasSkipped && (
+          <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-amber-500/15 border border-amber-500/30">
+            <Timer className="h-5 w-5 text-amber-500" />
+            <span className="text-sm font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+              Half Time
+            </span>
+          </div>
+        )}
+        
         {/* Countdown timer when not yet due */}
-        {!isDue && (
+        {!isDue && !isHalftime && (
           <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
             <Clock className="h-5 w-5 text-primary animate-pulse" />
             <div className="text-center">

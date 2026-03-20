@@ -15,6 +15,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 interface GenerateOptions {
@@ -40,6 +41,7 @@ interface DemoUser {
 }
 
 export function GenerateDemoDataButton() {
+  const { signOut } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<string[] | null>(null);
@@ -108,8 +110,8 @@ export function GenerateDemoDataButton() {
   const handleLoginAs = async (user: DemoUser) => {
     setLoggingInAs(user.id);
     try {
-      // First sign out current user
-      await supabase.auth.signOut();
+      // First sign out current user and unregister native push for this device
+      await signOut();
       
       // Then sign in as demo user
       const { error } = await supabase.auth.signInWithPassword({

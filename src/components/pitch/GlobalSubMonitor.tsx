@@ -347,7 +347,6 @@ export default function GlobalSubMonitor() {
     const pitchState = loadPitchState(timerState?.teamId);
 
     if (!timerState || !pitchState) return;
-    if (!timerState.isRunning) return;
     if (!pitchState.autoSubActive || pitchState.autoSubPlan.length === 0) return;
     if (pitchState.autoSubPaused) return;
 
@@ -360,6 +359,36 @@ export default function GlobalSubMonitor() {
     // Don't show sub notifications if game is finished
     const halfDuration = timerState.minutesPerHalf * 60;
     if (timerState.currentHalf === 2 && currentElapsed >= halfDuration) return;
+
+    // Check for halftime subs during the break (timer stopped, half=2, elapsed=0)
+    const isHalftimeBreak = !timerState.isRunning && currentHalf === 2 && currentElapsed === 0;
+    
+    if (isHalftimeBreak) {
+      const halftimeSubs = pitchState.autoSubPlan.filter(sub =>
+        !sub.executed && sub.half === 2 && sub.time === 0
+      );
+      if (halftimeSubs.length > 0) {
+        const [primarySub, ...additionalSubs] = halftimeSubs;
+        const subKey = `halftime-batch-${halftimeSubs.length}`;
+        if (lastCheckedSubRef.current !== subKey) {
+          lastCheckedSubRef.current = subKey;
+          const notificationBody = halftimeSubs.length > 1
+            ? `Halftime: ${halftimeSubs.length} substitutions`
+            : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
+          if (timerState.soundEnabled) {
+            try { playSubAlertBeep(); } catch { /* Audio may fail */ }
+          }
+          setCurrentPlayers(pitchState.players);
+          setPendingAutoSub(primarySub);
+          setPendingBatchSubs(additionalSubs);
+          setSubConfirmDialogOpen(true);
+        }
+      }
+      return;
+    }
+
+    // For non-halftime subs, timer must be running
+    if (!timerState.isRunning) return;
 
     // Find all unexecuted subs for current half that are due
     const dueSubs = pitchState.autoSubPlan.filter(sub => 
@@ -425,8 +454,15 @@ export default function GlobalSubMonitor() {
     
     if (!timerState || !pitchState) return false;
     
-    // Also need to monitor for game finish even if subs not active
+    // Monitor when timer is running
     if (timerState.isRunning) return true;
+    
+    // Monitor during halftime break (half=2, elapsed=0, not running) for halftime subs
+    if (!timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0) {
+      if (pitchState.autoSubActive && pitchState.autoSubPlan.some(s => !s.executed && s.half === 2 && s.time === 0)) {
+        return true;
+      }
+    }
     
     if (!pitchState.autoSubActive || pitchState.autoSubPlan.length === 0) return false;
     if (pitchState.autoSubPaused) return false;
