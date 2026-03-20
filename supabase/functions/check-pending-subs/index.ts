@@ -347,13 +347,35 @@ async function checkGames(supabase: any): Promise<number> {
       // Atomically claim the half-time notification slot to prevent duplicates
       // from concurrent cron invocations. Only the first invocation to update wins.
       const halfTimeMarker = game.last_sub_check_time || 0;
-      if (halfTimeMarker < halfDurationSecs) {
-        const { data: claimResult, error: claimError } = await supabase
-          .from('active_games')
-          .update({ last_sub_check_time: halfDurationSecs })
-          .eq('id', game.id)
-          .or(`last_sub_check_time.is.null,last_sub_check_time.lt.${halfDurationSecs}`)
-          .select('id');
+      const halfTimeMarker = game.last_sub_check_time ?? null;
+      if (halfTimeMarker === null || halfTimeMarker < halfDurationSecs) {
+        // Use separate filter conditions instead of .or() which can silently fail
+        let claimResult: any[] | null = null;
+        let claimError: any = null;
+
+        if (halfTimeMarker === null || halfTimeMarker === undefined) {
+          const result = await supabase
+            .from('active_games')
+            .update({ last_sub_check_time: halfDurationSecs })
+            .eq('id', game.id)
+            .is('last_sub_check_time', null)
+            .select('id');
+          claimResult = result.data;
+          claimError = result.error;
+        } else {
+          const result = await supabase
+            .from('active_games')
+            .update({ last_sub_check_time: halfDurationSecs })
+            .eq('id', game.id)
+            .lt('last_sub_check_time', halfDurationSecs)
+            .select('id');
+          claimResult = result.data;
+          claimError = result.error;
+        }
+
+        if (claimError) {
+          console.error(`[CHECK-SUBS] Half time claim error for game ${game.id}:`, claimError.message);
+        }
         
         // Only send notification if WE claimed it (update affected a row)
         if (!claimError && claimResult && claimResult.length > 0) {
