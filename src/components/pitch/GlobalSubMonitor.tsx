@@ -26,11 +26,7 @@ const loadTimerState = (): TimerState | null => {
   try {
     const saved = localStorage.getItem(TIMER_STATE_KEY);
     if (!saved) return null;
-    const state = JSON.parse(saved);
-    return {
-      teamId: '', // Not stored in timer state, but we don't need it for global check
-      ...state,
-    } as TimerState;
+    return JSON.parse(saved) as TimerState;
   } catch {
     return null;
   }
@@ -38,12 +34,16 @@ const loadTimerState = (): TimerState | null => {
 
 const loadPitchState = (teamId?: string): PitchBoardState | null => {
   try {
-    // Try team-specific key first for isolation
     if (teamId) {
       const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
       if (teamSaved) return JSON.parse(teamSaved) as PitchBoardState;
+
+      const activeSaved = localStorage.getItem(PITCH_STATE_KEY);
+      if (!activeSaved) return null;
+      const activeState = JSON.parse(activeSaved) as PitchBoardState;
+      return activeState.teamId === teamId ? activeState : null;
     }
-    // Fallback to active key
+
     const saved = localStorage.getItem(PITCH_STATE_KEY);
     if (!saved) return null;
     return JSON.parse(saved) as PitchBoardState;

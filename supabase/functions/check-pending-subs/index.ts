@@ -46,8 +46,7 @@ const TOTAL_DURATION_MS = 55000;
 
 // Get notification recipients for a specific team/match
 // For mini-league matches (event-group-*), only the Referee receives notifications
-// For regular teams, only the game owner + assigned duty holders (Subs Manager, Referee) are notified
-// We do NOT notify all team_admin/coach roles — only the person who started the game
+// For regular teams, notify staff scoped to THIS team only, plus any assigned match duties
 async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefined, linkedEventId?: string): Promise<string[]> {
   const userIds = new Set<string>();
 
@@ -62,15 +61,27 @@ async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefi
       .eq('group_id', groupId)
       .eq('name', 'Referee')
       .not('assigned_to', 'is', null);
-    
+
     referees?.forEach((d: any) => {
       if (d.assigned_to) userIds.add(d.assigned_to);
     });
 
     console.log(`[CHECK-SUBS] Mini-league match ${groupId}: ${userIds.size} referee(s) found`);
   } else {
-    // Regular team: only include duty assignees (Subs Manager, Referee)
-    // The game owner is added separately in notifyTeamStaff
+    if (teamId) {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('team_id', teamId)
+        .in('role', ['team_admin', 'coach']);
+
+      if (error) {
+        console.error('[CHECK-SUBS] Error fetching team staff:', error?.message);
+      } else {
+        data?.forEach((r: any) => userIds.add(r.user_id as string));
+      }
+    }
+
     if (linkedEventId) {
       const { data: dutyAssignees } = await supabase
         .from('duties')
@@ -78,7 +89,7 @@ async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefi
         .eq('event_id', linkedEventId)
         .in('name', ['Subs Manager', 'Referee'])
         .not('assigned_to', 'is', null);
-      
+
       dutyAssignees?.forEach((d: any) => {
         if (d.assigned_to) userIds.add(d.assigned_to);
       });
@@ -327,28 +338,28 @@ async function checkGames(supabase: any): Promise<number> {
         
         // Only send notification if WE claimed it (update affected a row)
         if (!claimError && claimResult && claimResult.length > 0) {
+          const teamId = game.team_id || timerState.teamId;
           const teamName = timerState.teamName || 'Your team';
-          const teamId = timerState.teamId || game.team_id;
           const linkedEventId = pitchState.linkedEventId;
           const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
-          
+
           notificationsSent += await notifyTeamStaff(
             supabase, staffUserIds, game.user_id, game.id,
-            teamId, teamName, linkedEventId,
+            teamId || undefined, teamName, linkedEventId,
             'half_time', `⏸️ ${teamName} - Half Time!`, 'half_time',
             `⏸️ Half Time!`, `${teamName} - Half Time`,
             undefined, undefined, undefined, timerState.minutesPerHalf, 1
           );
-          
-          console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id}`);
+
+          console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id} (team ${teamId})`);
         } else if (claimResult && claimResult.length === 0) {
           console.log(`[CHECK-SUBS] Half time already claimed by another invocation for game ${game.id}`);
         }
       }
       continue; // Skip sub processing during half-time
     }
+    const teamId = game.team_id || timerState.teamId;
     const teamName = timerState.teamName || 'Your team';
-    const teamId = timerState.teamId || game.team_id;
     const linkedEventId = pitchState.linkedEventId;
 
     // Get team staff (coaches + team_admins) for this specific team
