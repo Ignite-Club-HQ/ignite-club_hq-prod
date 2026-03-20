@@ -2848,7 +2848,18 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           setPendingBatchSubs([]);
           setSubConfirmDialogOpen(true);
         }, 500);
+        return;
       }
+    }
+
+    // Case 3: No subs and no GK swap — still show halftime notification
+    if (newHalf === 2) {
+      setTimeout(() => {
+        playSubAlertBeep("Half Time!");
+        setPendingAutoSub(null);
+        setPendingBatchSubs([]);
+        setSubConfirmDialogOpen(true);
+      }, 500);
     }
   }, [checkHalftimeSubs, preferredSecondHalfGkId, players, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen]);
 
