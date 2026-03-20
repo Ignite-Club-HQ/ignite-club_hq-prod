@@ -204,26 +204,40 @@ async function notifyTeamStaff(
     : new Set<string>([gameOwnerId, ...staffUserIds]);
   let notificationsSent = 0;
 
-  // Dedup window: for milestone notifications (half_time, full_time), check if we already 
-  // sent this exact notification type for this game recently. This prevents duplicates
-  // from concurrent cron invocations or retries.
-  const DEDUP_WINDOW_SECONDS = notificationType === 'pending_sub' ? 30 : 120;
-  
-  // Check for ANY recent notification of this type for this game (check first recipient only)
+  // Deduplicate notifications before fan-out.
+  // Full-time should only ever fire once per game, even if a stale client accidentally
+  // re-syncs the same active_game row after the server marked it inactive.
   const firstRecipient = Array.from(allRecipients)[0];
   if (firstRecipient) {
-    const cutoff = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
-    const { data: recentNotifs } = await supabase
-      .from('notifications')
-      .select('id')
-      .eq('user_id', firstRecipient)
-      .eq('type', inAppType)
-      .eq('related_id', gameId)
-      .gte('created_at', cutoff)
-      .limit(1);
-    
+    let recentNotifs;
+
+    if (notificationType === 'full_time') {
+      const result = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', firstRecipient)
+        .eq('type', inAppType)
+        .eq('related_id', gameId)
+        .limit(1);
+
+      recentNotifs = result.data;
+    } else {
+      const dedupWindowSeconds = notificationType === 'pending_sub' ? 30 : 120;
+      const cutoff = new Date(Date.now() - dedupWindowSeconds * 1000).toISOString();
+      const result = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', firstRecipient)
+        .eq('type', inAppType)
+        .eq('related_id', gameId)
+        .gte('created_at', cutoff)
+        .limit(1);
+
+      recentNotifs = result.data;
+    }
+
     if (recentNotifs && recentNotifs.length > 0) {
-      console.log(`[CHECK-SUBS] Skipping duplicate ${notificationType} for game ${gameId} (sent within ${DEDUP_WINDOW_SECONDS}s)`);
+      console.log(`[CHECK-SUBS] Skipping duplicate ${notificationType} for game ${gameId}`);
       return 0;
     }
   }
