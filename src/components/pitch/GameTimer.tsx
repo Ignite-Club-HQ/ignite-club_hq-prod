@@ -216,6 +216,13 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
   const halfDurationSeconds = minutesPerHalf * 60;
 
+  // Cap elapsed time if half duration was reduced (e.g. user changed from 10 to 5 min halves)
+  useEffect(() => {
+    if (hasInitialized && elapsedSeconds > halfDurationSeconds) {
+      setElapsedSeconds(halfDurationSeconds);
+    }
+  }, [halfDurationSeconds, hasInitialized]);
+
   // Load state from localStorage on mount
   useEffect(() => {
     const saved = loadTimerState(teamId);
