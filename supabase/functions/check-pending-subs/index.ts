@@ -262,8 +262,13 @@ async function notifyTeamStaff(
       console.error(`[CHECK-SUBS] Notification insert error for ${userId}:`, notifError.message);
     }
 
-    // Push notification is handled automatically by the DB trigger on notifications table insert
-    // No need to call sendPushNotification explicitly here
+    // Send push notification explicitly (no DB trigger exists on notifications table)
+    await sendPushNotification(
+      supabase, userId, pushTitle, pushBody,
+      linkedEventId ? `/events/${linkedEventId}` : '/notifications',
+      `pitch-${notificationType}-${gameId}`,
+      'pitch_board'
+    );
 
     // Email notification
     await sendPitchBoardEmail(
