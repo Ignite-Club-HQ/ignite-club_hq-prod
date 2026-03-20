@@ -279,10 +279,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     return () => clearInterval(interval);
   }, []);
 
-  const formatTime = useCallback((seconds: number, half: 1 | 2, minutesPerHalf: number) => {
-    const totalSeconds = half === 1 ? seconds : (minutesPerHalf * 60) + seconds;
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
+  const formatTime = useCallback((seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }, []);
 
