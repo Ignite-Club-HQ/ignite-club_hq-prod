@@ -226,7 +226,7 @@ async function notifyTeamStaff(
 
       recentNotifs = result.data;
     } else {
-      const dedupWindowSeconds = notificationType === 'pending_sub' ? 120 : 120;
+      const dedupWindowSeconds = 120; // 2 minutes covers cron interval gaps
       const cutoff = new Date(Date.now() - dedupWindowSeconds * 1000).toISOString();
       const result = await supabase
         .from('notifications')
