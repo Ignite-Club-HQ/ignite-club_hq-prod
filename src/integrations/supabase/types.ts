@@ -5859,6 +5859,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      notify_formation_change: {
+        Args: {
+          _message: string
+          _recipient_ids: string[]
+          _related_id: string
+        }
+        Returns: undefined
+      }
       notify_team_members: {
         Args: {
           _exclude_user_id: string

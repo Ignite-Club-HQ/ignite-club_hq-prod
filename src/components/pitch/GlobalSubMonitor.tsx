@@ -717,9 +717,18 @@ export default function GlobalSubMonitor() {
       const halfDuration = timerState.minutesPerHalf * 60;
       const delaySeconds = calculateSubDelay(pendingAutoSub, currentElapsed, timerState.currentHalf as 1 | 2, halfDuration);
       
-      if (delaySeconds > 30) {
-        console.log(`[GlobalSubMonitor] Sub was ${Math.round(delaySeconds / 60)}m late, recalculating remaining plan`);
+      // Also detect early execution
+      const scheduledTime = pendingAutoSub.time;
+      const earlyBySeconds = pendingAutoSub.half === (timerState.currentHalf as 1 | 2)
+        ? Math.max(0, scheduledTime - currentElapsed)
+        : 0;
+      const isSignificantlyEarly = earlyBySeconds > 15;
+      const isSignificantlyLate = delaySeconds > 30;
+
+      if (isSignificantlyLate || isSignificantlyEarly) {
+        console.log(`[GlobalSubMonitor] Sub was ${isSignificantlyLate ? Math.round(delaySeconds / 60) + 'm late' : Math.round(earlyBySeconds) + 's early'}, recalculating remaining plan`);
         const executedPlan = finalPlan.filter(sub => sub.executed);
+        const remainingSubs = finalPlan.filter(sub => !sub.executed);
         const recalculated = recalculateRemainingPlan(
           updatedPlayers,
           getTeamSizeNumber(pitchState.teamSize),
@@ -729,7 +738,18 @@ export default function GlobalSubMonitor() {
           { ...pendingAutoSub, executed: true },
           true
         );
-        finalPlan = [...executedPlan, ...recalculated];
+        // Safety guard: don't let recalculation wipe the plan
+        if (recalculated.length > 0 || remainingSubs.length === 0) {
+          finalPlan = [...executedPlan, ...recalculated];
+        } else {
+          const benchPlayers = updatedPlayers.filter((p: Player) => p.position === null && !p.isInjured);
+          if (benchPlayers.length > 0) {
+            console.warn("[GlobalSubMonitor] Recalculation returned empty but bench players remain — preserving existing plan");
+            finalPlan = [...executedPlan, ...remainingSubs];
+          } else {
+            finalPlan = [...executedPlan, ...recalculated];
+          }
+        }
       }
     }
 

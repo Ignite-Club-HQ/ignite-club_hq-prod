@@ -1995,8 +1995,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
     }
   ) => {
-    // Only notify during active games (not during setup or after game finishes)
-    if (!user?.id || readOnly || !gameInProgress || gameTimerRef.current?.isGameFinished()) return;
+    // Notify whenever formation changes (during setup or active game), skip only for read-only or finished games
+    if (!user?.id || readOnly || gameTimerRef.current?.isGameFinished()) return;
     try {
       const recipientIds = new Set<string>();
       const isEventGroup = teamId.startsWith("event-group-");
@@ -2067,24 +2067,27 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? `${baseSummary}\n${changeParts.join("\n")}`
         : baseSummary;
 
-      // Create in-app notifications with details
+      // Create in-app notifications with details via SECURITY DEFINER RPC
+      // (direct inserts fail RLS when the current user isn't a coach/admin in the same team)
       const notificationMessage = changeParts.length > 0
         ? `${baseSummary} — ${changeParts.join(" • ")}`
         : baseSummary;
 
-      for (const recipientId of recipientIds) {
-        // In-app notification (DB trigger handles push delivery automatically)
-        supabase.from("notifications").insert({
-          user_id: recipientId,
-          type: "formation_change",
-          message: notificationMessage,
-          related_id: teamId,
-        }).then(() => {});
+      const recipientArray = Array.from(recipientIds);
+      if (recipientArray.length > 0) {
+        const { error: rpcError } = await supabase.rpc("notify_formation_change", {
+          _recipient_ids: recipientArray,
+          _message: notificationMessage,
+          _related_id: teamId,
+        });
+        if (rpcError) {
+          console.error("Formation notification RPC error:", rpcError);
+        }
       }
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
     }
-  }, [user?.id, teamId, teamName, readOnly, linkedEventId, gameInProgress]);
+  }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
 
   const applyFormationChange = useCallback((index: number, changeDetails?: { positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[]; benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[] }) => {
     const formation = FORMATIONS[teamSize][index];
@@ -3566,7 +3569,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           p.id === playerId ? { ...p, isInjured: true } : p
         );
         
-        const recalculatedPlan = recalculateRemainingPlan(
+        const executedSubs = autoSubPlan.filter(s => s.executed);
+        const remainingSubs = autoSubPlan.filter(s => !s.executed);
+        const recalculated = recalculateRemainingPlan(
           updatedPlayers,
           parseInt(teamSize),
           minutesPerHalfSecs,
@@ -3576,7 +3581,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           rotateGkAtHalftime
         );
         
-        setAutoSubPlan(recalculatedPlan);
+        // Safety guard: don't let recalculation wipe remaining plan
+        let finalPlan: typeof autoSubPlan;
+        if (recalculated.length > 0 || remainingSubs.length === 0) {
+          finalPlan = [...executedSubs, ...recalculated];
+        } else {
+          const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+          if (benchPlayers.length > 0) {
+            console.warn("[PitchBoard] Injury recalculation returned empty — preserving existing plan");
+            finalPlan = [...executedSubs, ...remainingSubs];
+          } else {
+            finalPlan = [...executedSubs, ...recalculated];
+          }
+        }
+        setAutoSubPlan(finalPlan);
         toast({
           title: "Sub plan updated",
           description: "Auto-substitution plan recalculated due to injury",
@@ -3643,7 +3661,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           (replacement && (sub.playerOut.id === replacement.id || sub.playerIn.id === replacement.id)))
       );
       if (relevantSub) {
-        const recalculatedPlan = recalculateRemainingPlan(
+        const executedSubs = autoSubPlan.filter(s => s.executed);
+        const remainingSubs = autoSubPlan.filter(s => !s.executed);
+        const recalculated = recalculateRemainingPlan(
           updatedPlayers,
           parseInt(teamSize),
           minutesPerHalfSecs,
@@ -3652,7 +3672,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           relevantSub,
           rotateGkAtHalftime
         );
-        setAutoSubPlan(recalculatedPlan);
+        
+        // Safety guard: don't let recalculation wipe remaining plan
+        let finalPlan: typeof autoSubPlan;
+        if (recalculated.length > 0 || remainingSubs.length === 0) {
+          finalPlan = [...executedSubs, ...recalculated];
+        } else {
+          const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+          if (benchPlayers.length > 0) {
+            console.warn("[PitchBoard] Injury recalculation returned empty — preserving existing plan");
+            finalPlan = [...executedSubs, ...remainingSubs];
+          } else {
+            finalPlan = [...executedSubs, ...recalculated];
+          }
+        }
+        setAutoSubPlan(finalPlan);
         toast({
           title: "Sub plan updated",
           description: "Auto-substitution plan recalculated due to injury",
@@ -3988,7 +4022,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <>
                       <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                       <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
-                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !gameTimerRef.current?.isGameFinished()} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
                           <Play className="h-4 w-4" />
                           Setup Game
                         </button>
@@ -4916,7 +4950,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
                       {/* Auto Subs Quick Access - Landscape (inside sticky area) */}
-                      {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
+                      {!readOnly && !disableAutoSubs && (
                         <>
                           {autoSubPlan.length > 0 ? (
                             <button
@@ -5433,7 +5467,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                   <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[170px] py-1">
                     {!readOnly && (
-                      <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !gameTimerRef.current?.isGameFinished()} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                      <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
                         <Play className="h-4 w-4" />
                         Setup Game
                       </button>
@@ -5895,7 +5929,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                       </div>
                     </div>
                     {/* Auto Subs Quick Access - Portrait */}
-                    {!readOnly && !disableAutoSubs && (gameInProgress || autoSubPlan.length > 0) && (
+                    {!readOnly && !disableAutoSubs && (
                       <div className="py-1">
                         {autoSubPlan.length > 0 ? (
                           <button
