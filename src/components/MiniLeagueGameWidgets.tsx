@@ -267,10 +267,9 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
     refetchInterval: 5000, // Refresh every 5 seconds to get updated timer states
   });
 
-  const formatTime = useCallback((seconds: number, half: 1 | 2, minutesPerHalf: number) => {
-    const totalSeconds = half === 1 ? seconds : (minutesPerHalf * 60) + seconds;
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
+  const formatTime = useCallback((seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }, []);
 
