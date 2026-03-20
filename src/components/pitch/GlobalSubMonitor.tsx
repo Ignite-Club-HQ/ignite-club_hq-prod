@@ -412,30 +412,33 @@ export default function GlobalSubMonitor() {
     );
 
     if (dueSubs.length > 0) {
-      // Check for multiple time groups — auto-skip older ones
+      let activePitchState = pitchState;
+      let batchSubs = dueSubs;
+
       const dueTimes = [...new Set(dueSubs.map(s => s.time))].sort((a, b) => a - b);
-      
       if (dueTimes.length > 1) {
-        // Skip all but the latest time group
         const latestTime = dueTimes[dueTimes.length - 1];
         const olderSubs = dueSubs.filter(s => s.time < latestTime);
-        const olderKeys = new Set(olderSubs.map(s => getSubKey(s)));
-        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, [...olderKeys], true);
-        savePitchState({ ...pitchState, autoSubPlan: updatedPlan });
-        return; // Next tick will handle the latest due sub
+
+        if (olderSubs.length > 0) {
+          const olderKeys = olderSubs.map(s => getSubKey(s));
+          const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, olderKeys, true);
+          activePitchState = { ...pitchState, autoSubPlan: updatedPlan };
+          savePitchState(activePitchState);
+          batchSubs = updatedPlan.filter(
+            sub => !sub.executed && sub.half === currentHalf && sub.time === latestTime
+          );
+        }
       }
-      
-      // All due subs are at the same time
-      const batchSubs = dueSubs;
+
+      if (batchSubs.length === 0) return;
+
       const [primarySub, ...additionalSubs] = batchSubs;
-      
-      // Create unique key to avoid duplicate alerts
       const subKey = `${primarySub.half}-${primarySub.time}-batch-${batchSubs.length}`;
-      
+
       if (lastCheckedSubRef.current !== subKey) {
         lastCheckedSubRef.current = subKey;
-        
-        // Play alert beep (dialog itself is the in-app alert)
+
         const notificationBody = batchSubs.length > 1
           ? `Time for ${batchSubs.length} substitutions`
           : `${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} → Bench. ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`} → ${primarySub.playerOut.currentPitchPosition || 'Unknown'}`;
@@ -452,8 +455,7 @@ export default function GlobalSubMonitor() {
         // Server-side check-pending-subs already sends pending_sub notifications,
         // and triggering them here causes duplicate device notifications.
 
-        // Set up dialog with batch subs
-        setCurrentPlayers(pitchState.players);
+        setCurrentPlayers(activePitchState.players);
         setPendingAutoSub(primarySub);
         setPendingBatchSubs(additionalSubs);
         setSubConfirmDialogOpen(true);

@@ -596,24 +596,38 @@ export function useAutoSubs({
 
       if (allDueSubs.length === 0) return false;
 
-      // Multiple time groups → auto-skip older ones
-      const dueTimes = [...new Set(allDueSubs.map(s => s.time))].sort((a, b) => a - b);
-      if (dueTimes.length > 1) {
-        const latestTime = dueTimes[dueTimes.length - 1];
-        const olderSubs = allDueSubs.filter(s => s.time < latestTime);
+      let latestDueSub = allDueSubs[0];
+      for (const sub of allDueSubs) {
+        if (
+          sub.half > latestDueSub.half ||
+          (sub.half === latestDueSub.half && sub.time > latestDueSub.time)
+        ) {
+          latestDueSub = sub;
+        }
+      }
+
+      const latestDueSubs = allDueSubs.filter(
+        sub => sub.half === latestDueSub.half && sub.time === latestDueSub.time
+      );
+      const olderSubs = allDueSubs.filter(
+        sub => sub.half !== latestDueSub.half || sub.time !== latestDueSub.time
+      );
+
+      if (olderSubs.length > 0) {
         const olderKeys = olderSubs.map(s => getSubKey(s));
         const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
         const halfDurationSeconds = minsPerHalf * 60;
+        const shouldRecalculate = shouldRecalculateAfterSkip(
+          olderSubs,
+          elapsedSeconds,
+          currentHalf,
+          halfDurationSeconds
+        );
+
         setAutoSubPlan(prev => {
           const markedPlan = markSubsExecuted(prev, olderKeys, true);
           const executedSubs = markedPlan.filter(s => s.executed);
           const existingUnexecuted = markedPlan.filter(s => !s.executed);
-          const shouldRecalculate = shouldRecalculateAfterSkip(
-            olderSubs,
-            elapsedSeconds,
-            currentHalf,
-            halfDurationSeconds
-          );
           const recalculated = shouldRecalculate
             ? safeRecalculate(
                 playersRef.current,
@@ -624,31 +638,45 @@ export function useAutoSubs({
                 existingUnexecuted
               )
             : existingUnexecuted;
+
           return validateAndFixRemainingPlan([...executedSubs, ...recalculated], playersRef.current);
         });
+
         toast({
           title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? "s" : ""} skipped`,
-          description: shouldRecalculateAfterSkip(olderSubs, elapsedSeconds, currentHalf, halfDurationSeconds)
+          description: shouldRecalculate
             ? "Plan recalculated for remaining time"
             : "Remaining substitutions preserved",
         });
-        // If a dialog was already open for an older sub, dismiss it so the new
-        // latest-due subs can be presented on the next tick
-        if (pendingAutoSub) {
+      }
+
+      const dueSubs = latestDueSubs.filter(sub => !lockedPlayerIds.has(sub.playerOut.id));
+      if (dueSubs.length === 0) {
+        if (olderSubs.length > 0 && pendingAutoSub) {
           setPendingAutoSub(null);
           setPendingBatchSubs([]);
           setSubConfirmDialogOpen(false);
           setSubDuePlayerIds(new Set());
           if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
         }
-        return true;
+        return olderSubs.length > 0;
       }
 
-      if (pendingAutoSub) return false;
+      if (
+        pendingAutoSub &&
+        pendingAutoSub.half === latestDueSub.half &&
+        pendingAutoSub.time === latestDueSub.time
+      ) {
+        return olderSubs.length > 0;
+      }
 
-      // Filter locked players
-      const dueSubs = allDueSubs.filter(sub => !lockedPlayerIds.has(sub.playerOut.id));
-      if (dueSubs.length === 0) return false;
+      if (pendingAutoSub) {
+        setPendingAutoSub(null);
+        setPendingBatchSubs([]);
+        setSubConfirmDialogOpen(false);
+        setSubDuePlayerIds(new Set());
+        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      }
 
       const [primarySub, ...additionalSubs] = dueSubs;
 
@@ -660,7 +688,6 @@ export function useAutoSubs({
           : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
       playSubAlertBeep(notificationBody);
 
-      // Set sub-due pulsing
       const dueIds = new Set<string>();
       dueSubs.forEach(s => {
         dueIds.add(s.playerOut.id);
