@@ -14,7 +14,7 @@ import { checkRewardThreshold } from "@/lib/rewardThresholdCheck";
 type EngagementAction = 'chat_message' | 'photo_upload' | 'photo_comment';
 
 const ACTION_CONFIG: Record<EngagementAction, { points: number; dailyCap: number }> = {
-  chat_message: { points: 1, dailyCap: 3 },
+  chat_message: { points: 1, dailyCap: 2 },
   photo_upload: { points: 2, dailyCap: 4 },   // 4 pts = 2 uploads max
   photo_comment: { points: 1, dailyCap: 3 },
 };

@@ -173,7 +173,7 @@ export default function AwardPointsDialog({
                 type="button"
                 variant="outline"
                 size="icon"
-                onClick={() => setPoints(Math.max(-100, points - 5))}
+                onClick={() => setPoints(Math.max(-50, points - 5))}
               >
                 <Minus className="h-4 w-4" />
               </Button>
