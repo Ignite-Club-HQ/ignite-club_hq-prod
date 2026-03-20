@@ -219,6 +219,14 @@ export default function GlobalSubMonitor() {
           console.log('[SYNC] Resumed existing game:', existing.id);
           setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
         } else {
+          // Deactivate ALL previous games for this user before creating a new one
+          // This prevents stale games from triggering false half-time notifications
+          await supabase
+            .from('active_games')
+            .update({ is_active: false })
+            .eq('user_id', user.id)
+            .eq('is_active', true);
+
           const { data: newGame, error } = await supabase
             .from('active_games')
             .insert(gameData)
