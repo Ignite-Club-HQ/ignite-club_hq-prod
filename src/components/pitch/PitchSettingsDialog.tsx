@@ -63,6 +63,8 @@ interface PitchSettingsDialogProps {
   
   // Game in progress
   gameInProgress?: boolean;
+  gameTimerRunning?: boolean;
+  gameFinished?: boolean;
   
   // Optional trigger button customization
   triggerClassName?: string;
@@ -127,6 +129,8 @@ export function PitchSettingsDialog({
   onMockModeChange,
   readOnly = false,
   gameInProgress = false,
+  gameTimerRunning = false,
+  gameFinished = false,
   triggerClassName,
   externalOpen,
   onExternalOpenChange,
@@ -450,7 +454,7 @@ export function PitchSettingsDialog({
                     variant="default" 
                     size="sm"
                     className="h-9 text-xs gap-1.5"
-                    disabled={gameInProgress}
+                    disabled={gameInProgress && gameTimerRunning && !gameFinished}
                     onClick={() => {
                       onOpenLineupPicker();
                       setOpen(false);

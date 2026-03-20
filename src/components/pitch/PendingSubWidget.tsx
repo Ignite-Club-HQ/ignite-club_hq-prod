@@ -30,13 +30,19 @@ const getPitchStateKeyForTeam = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${t
 const SNOOZE_KEY = "ignite-pending-sub-snoozed";
 const SNOOZE_DURATION_MS = 60000; // 1 minute snooze
 
-// Read pitch state: prefer team-specific key, fall back to active key
+// Read pitch state: prefer team-specific key and only fall back to active key if it matches the same team
 const readPitchState = (teamId?: string): PitchBoardState | null => {
   try {
     if (teamId) {
       const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
       if (teamSaved) return JSON.parse(teamSaved);
+
+      const activeSaved = localStorage.getItem(PITCH_STATE_KEY);
+      if (!activeSaved) return null;
+      const activeState = JSON.parse(activeSaved) as PitchBoardState;
+      return activeState.teamId === teamId ? activeState : null;
     }
+
     const saved = localStorage.getItem(PITCH_STATE_KEY);
     return saved ? JSON.parse(saved) : null;
   } catch { return null; }
@@ -214,8 +220,8 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
         return;
       }
 
-      // Sort subs by half then time
-      const sortedSubs = [...unexecutedSubs].sort((a, b) => {
+      let activePlan = pitchState.autoSubPlan || [];
+      let sortedSubs = [...unexecutedSubs].sort((a, b) => {
         if (a.half !== b.half) return a.half - b.half;
         return a.time - b.time;
       });
@@ -223,62 +229,59 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       const minutesPerHalf = timerState.minutesPerHalf || 20;
       const currentHalf = timerState.currentHalf || 1;
 
-      // Calculate current elapsed time in seconds
       let currentElapsedSeconds = timerState.elapsedSeconds || 0;
       if (timerState.isRunning && timerState.lastUpdateTime) {
         const secondsPassed = Math.floor((Date.now() - timerState.lastUpdateTime) / 1000);
         currentElapsedSeconds = Math.min(currentElapsedSeconds + secondsPassed, minutesPerHalf * 60);
       }
 
-      // Calculate total game seconds (for comparing across halves)
-      const currentTotalSeconds = currentHalf === 1 
-        ? currentElapsedSeconds 
+      const currentTotalSeconds = currentHalf === 1
+        ? currentElapsedSeconds
         : (minutesPerHalf * 60) + currentElapsedSeconds;
 
-      // Find all due subs first to check for stale ones
-      const allDueSubs = sortedSubs.filter(sub => {
-        const subTotalSeconds = sub.half === 1 
-          ? sub.time 
-          : (minutesPerHalf * 60) + sub.time;
-        return subTotalSeconds <= currentTotalSeconds;
-      });
-      
-      // If multiple time groups are due, auto-skip older ones
+      const getSubTotalSeconds = (sub: SubstitutionEvent) => (
+        sub.half === 1 ? sub.time : (minutesPerHalf * 60) + sub.time
+      );
+
+      const allDueSubs = sortedSubs.filter(sub => getSubTotalSeconds(sub) <= currentTotalSeconds);
+
       if (allDueSubs.length > 0) {
-        const dueTimes = [...new Set(allDueSubs.map(s => `${s.half}-${s.time}`))].sort();
-        if (dueTimes.length > 1) {
-          const latestTimeKey = dueTimes[dueTimes.length - 1];
-          const [latestHalf, latestTime] = latestTimeKey.split('-').map(Number);
-          const olderSubs = allDueSubs.filter(s => !(s.half === latestHalf && s.time === latestTime));
+        const latestDueTotalSeconds = Math.max(...allDueSubs.map(getSubTotalSeconds));
+        const olderSubs = allDueSubs.filter(sub => getSubTotalSeconds(sub) < latestDueTotalSeconds);
+
+        if (olderSubs.length > 0) {
           const olderKeys = new Set(olderSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}`));
-          const updatedPlan = (pitchState.autoSubPlan || []).map(s =>
-            olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`) ? { ...s, executed: true, skipped: true } : s
+          activePlan = activePlan.map(s =>
+            olderKeys.has(`${s.half}-${s.time}-${s.playerOut.id}`)
+              ? { ...s, executed: true, skipped: true }
+              : s
           );
-          writePitchState({ ...pitchState, autoSubPlan: updatedPlan });
+
+          sortedSubs = activePlan
+            .filter(sub => !sub.executed)
+            .sort((a, b) => {
+              if (a.half !== b.half) return a.half - b.half;
+              return a.time - b.time;
+            });
+
+          writePitchState({ ...pitchState, autoSubPlan: activePlan });
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
-          return; // Will re-check on next tick
         }
       }
 
-      // Find the best sub to show
       let bestSub: SubstitutionEvent | null = null;
       let isDue = false;
       let secondsUntil = 0;
 
       for (const sub of sortedSubs) {
-        // sub.time is already in seconds
-        const subTotalSeconds = sub.half === 1 
-          ? sub.time 
-          : (minutesPerHalf * 60) + sub.time;
-        
+        const subTotalSeconds = getSubTotalSeconds(sub);
+
         if (subTotalSeconds <= currentTotalSeconds) {
-          // This sub is due NOW
           bestSub = sub;
           isDue = true;
           secondsUntil = 0;
-          break; // Due subs take priority
+          break;
         } else if (!bestSub) {
-          // First upcoming sub
           bestSub = sub;
           isDue = false;
           secondsUntil = subTotalSeconds - currentTotalSeconds;
@@ -286,11 +289,11 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       }
 
       if (bestSub) {
-        console.log("[PendingSubWidget] Found sub:", { 
-          subTime: bestSub.time, 
-          currentTotalSeconds, 
-          isDue, 
-          secondsUntil 
+        console.log("[PendingSubWidget] Found sub:", {
+          subTime: bestSub.time,
+          currentTotalSeconds,
+          isDue,
+          secondsUntil
         });
         setSubInfo({ sub: bestSub, isDue, secondsUntil });
       } else {
@@ -414,11 +417,10 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           
           toast({
-            title: "Sub couldn't be made",
+            title: "Sub expired — auto-skipped",
             description: !currentPlayerOut?.position 
               ? `${playerOut.name} is already off the pitch` 
               : `${playerIn.name} is already on the pitch`,
-            variant: "destructive",
           });
           
           setShowConfirmDialog(false);

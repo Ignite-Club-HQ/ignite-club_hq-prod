@@ -46,11 +46,16 @@ export function useActiveGameSync() {
 
   const loadPitchState = useCallback((teamId?: string): PitchState | null => {
     try {
-      // Try team-specific key first
       if (teamId) {
         const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
         if (teamSaved) return JSON.parse(teamSaved);
+
+        const activeSaved = localStorage.getItem(PITCH_STATE_KEY);
+        if (!activeSaved) return null;
+        const activeState = JSON.parse(activeSaved) as PitchState & { teamId?: string };
+        return activeState.teamId === teamId ? activeState : null;
       }
+
       const saved = localStorage.getItem(PITCH_STATE_KEY);
       return saved ? JSON.parse(saved) : null;
     } catch {
@@ -64,27 +69,34 @@ export function useActiveGameSync() {
     const timerState = loadTimerState();
     const pitchState = loadPitchState(timerState?.teamId);
 
+    const deactivateActiveGame = async () => {
+      if (!activeGameIdRef.current) return;
+
+      await supabase
+        .from('active_games')
+        .update({ is_active: false })
+        .eq('id', activeGameIdRef.current);
+
+      activeGameIdRef.current = null;
+    };
+
     // If no active game state, deactivate any existing game
     if (!timerState || !pitchState) {
-      if (activeGameIdRef.current) {
-        await supabase
-          .from('active_games')
-          .update({ is_active: false })
-          .eq('id', activeGameIdRef.current);
-        activeGameIdRef.current = null;
-      }
+      await deactivateActiveGame();
       return;
     }
 
-    // Only sync if timer is running and auto-sub is active
-    if (!timerState.isRunning || !pitchState.autoSubActive) {
-      if (activeGameIdRef.current) {
-        await supabase
-          .from('active_games')
-          .update({ is_active: false })
-          .eq('id', activeGameIdRef.current);
-        activeGameIdRef.current = null;
-      }
+    const halfDurationSeconds = timerState.minutesPerHalf * 60;
+    const secondsSinceLastUpdate = timerState.lastUpdateTime
+      ? Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000))
+      : 0;
+    const projectedElapsedSeconds = timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceLastUpdate : 0);
+    const isFinishedByState = Boolean((timerState as TimerState & { isGameFinished?: boolean }).isGameFinished)
+      || (timerState.currentHalf === 2 && projectedElapsedSeconds >= halfDurationSeconds);
+
+    // Never re-sync or resurrect a game after full time
+    if (isFinishedByState || !timerState.isRunning || !pitchState.autoSubActive) {
+      await deactivateActiveGame();
       return;
     }
 

@@ -26,11 +26,7 @@ const loadTimerState = (): TimerState | null => {
   try {
     const saved = localStorage.getItem(TIMER_STATE_KEY);
     if (!saved) return null;
-    const state = JSON.parse(saved);
-    return {
-      teamId: '', // Not stored in timer state, but we don't need it for global check
-      ...state,
-    } as TimerState;
+    return JSON.parse(saved) as TimerState;
   } catch {
     return null;
   }
@@ -38,12 +34,16 @@ const loadTimerState = (): TimerState | null => {
 
 const loadPitchState = (teamId?: string): PitchBoardState | null => {
   try {
-    // Try team-specific key first for isolation
     if (teamId) {
       const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
       if (teamSaved) return JSON.parse(teamSaved) as PitchBoardState;
+
+      const activeSaved = localStorage.getItem(PITCH_STATE_KEY);
+      if (!activeSaved) return null;
+      const activeState = JSON.parse(activeSaved) as PitchBoardState;
+      return activeState.teamId === teamId ? activeState : null;
     }
-    // Fallback to active key
+
     const saved = localStorage.getItem(PITCH_STATE_KEY);
     if (!saved) return null;
     return JSON.parse(saved) as PitchBoardState;
@@ -116,6 +116,7 @@ export default function GlobalSubMonitor() {
       isRunning: timerState.isRunning,
       currentHalf: timerState.currentHalf,
       elapsedSeconds: timerState.elapsedSeconds,
+      minutesPerHalf: timerState.minutesPerHalf,
       teamId: timerState.teamId,
     } : null);
     console.log('[SYNC] Pitch state:', pitchState ? {
@@ -126,9 +127,23 @@ export default function GlobalSubMonitor() {
 
     // If no active game or timer not running with auto-subs, deactivate any existing game
     // Note: We sync even if autoSubPaused is true, so server can track the game
-    if (!timerState || !pitchState || !timerState.isRunning || !pitchState.autoSubActive) {
+    // CRITICAL: Also check if the game is actually finished — if so, don't re-sync as active.
+    // This prevents resurrecting finished games which causes duplicate full-time notifications.
+    const halfDurationSecs = timerState ? timerState.minutesPerHalf * 60 : 0;
+    const secondsSinceUpdate = timerState?.lastUpdateTime
+      ? Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000))
+      : 0;
+    const projectedElapsed = timerState
+      ? timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceUpdate : 0)
+      : 0;
+    const isFinished = timerState
+      ? (Boolean((timerState as any).isGameFinished) ||
+         (timerState.currentHalf === 2 && projectedElapsed >= halfDurationSecs))
+      : false;
+
+    if (!timerState || !pitchState || !timerState.isRunning || !pitchState.autoSubActive || isFinished) {
       if (activeGameIdRef.current) {
-        console.log('[SYNC] Deactivating game - conditions not met');
+        console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
         await supabase
           .from('active_games')
           .update({ is_active: false })
@@ -364,23 +379,47 @@ export default function GlobalSubMonitor() {
     const isHalftimeBreak = !timerState.isRunning && currentHalf === 2 && currentElapsed === 0;
     
     if (isHalftimeBreak) {
+      const staleFirstHalfSubs = pitchState.autoSubPlan.filter(sub => !sub.executed && sub.half === 1);
       const halftimeSubs = pitchState.autoSubPlan.filter(sub =>
         !sub.executed && sub.half === 2 && sub.time === 0
       );
+
+      let nextPitchState = pitchState;
+      if (staleFirstHalfSubs.length > 0) {
+        const staleKeys = staleFirstHalfSubs.map(getSubKey);
+        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, staleKeys, true);
+        nextPitchState = { ...pitchState, autoSubPlan: updatedPlan, lastUpdateTime: Date.now() };
+        savePitchState(nextPitchState);
+        setPendingAutoSub(null);
+        setPendingBatchSubs([]);
+        setSubConfirmDialogOpen(false);
+        lastCheckedSubRef.current = null;
+      }
+
       if (halftimeSubs.length > 0) {
         const [primarySub, ...additionalSubs] = halftimeSubs;
         const subKey = `halftime-batch-${halftimeSubs.length}`;
         if (lastCheckedSubRef.current !== subKey) {
           lastCheckedSubRef.current = subKey;
-          const notificationBody = halftimeSubs.length > 1
-            ? `Halftime: ${halftimeSubs.length} substitutions`
-            : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
           if (timerState.soundEnabled) {
             try { playSubAlertBeep(); } catch { /* Audio may fail */ }
           }
-          setCurrentPlayers(pitchState.players);
+          setCurrentPlayers(nextPitchState.players);
           setPendingAutoSub(primarySub);
           setPendingBatchSubs(additionalSubs);
+          setSubConfirmDialogOpen(true);
+        }
+      } else {
+        // No halftime subs — still show a halftime notification
+        const subKey = `halftime-no-subs`;
+        if (lastCheckedSubRef.current !== subKey) {
+          lastCheckedSubRef.current = subKey;
+          if (timerState.soundEnabled) {
+            try { playSubAlertBeep(); } catch { /* Audio may fail */ }
+          }
+          setCurrentPlayers(nextPitchState.players);
+          setPendingAutoSub(null);
+          setPendingBatchSubs([]);
           setSubConfirmDialogOpen(true);
         }
       }
@@ -398,30 +437,33 @@ export default function GlobalSubMonitor() {
     );
 
     if (dueSubs.length > 0) {
-      // Check for multiple time groups — auto-skip older ones
+      let activePitchState = pitchState;
+      let batchSubs = dueSubs;
+
       const dueTimes = [...new Set(dueSubs.map(s => s.time))].sort((a, b) => a - b);
-      
       if (dueTimes.length > 1) {
-        // Skip all but the latest time group
         const latestTime = dueTimes[dueTimes.length - 1];
         const olderSubs = dueSubs.filter(s => s.time < latestTime);
-        const olderKeys = new Set(olderSubs.map(s => getSubKey(s)));
-        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, [...olderKeys], true);
-        savePitchState({ ...pitchState, autoSubPlan: updatedPlan });
-        return; // Next tick will handle the latest due sub
+
+        if (olderSubs.length > 0) {
+          const olderKeys = olderSubs.map(s => getSubKey(s));
+          const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, olderKeys, true);
+          activePitchState = { ...pitchState, autoSubPlan: updatedPlan };
+          savePitchState(activePitchState);
+          batchSubs = updatedPlan.filter(
+            sub => !sub.executed && sub.half === currentHalf && sub.time === latestTime
+          );
+        }
       }
-      
-      // All due subs are at the same time
-      const batchSubs = dueSubs;
+
+      if (batchSubs.length === 0) return;
+
       const [primarySub, ...additionalSubs] = batchSubs;
-      
-      // Create unique key to avoid duplicate alerts
       const subKey = `${primarySub.half}-${primarySub.time}-batch-${batchSubs.length}`;
-      
+
       if (lastCheckedSubRef.current !== subKey) {
         lastCheckedSubRef.current = subKey;
-        
-        // Play alert beep (dialog itself is the in-app alert)
+
         const notificationBody = batchSubs.length > 1
           ? `Time for ${batchSubs.length} substitutions`
           : `${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} → Bench. ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`} → ${primarySub.playerOut.currentPitchPosition || 'Unknown'}`;
@@ -438,8 +480,7 @@ export default function GlobalSubMonitor() {
         // Server-side check-pending-subs already sends pending_sub notifications,
         // and triggering them here causes duplicate device notifications.
 
-        // Set up dialog with batch subs
-        setCurrentPlayers(pitchState.players);
+        setCurrentPlayers(activePitchState.players);
         setPendingAutoSub(primarySub);
         setPendingBatchSubs(additionalSubs);
         setSubConfirmDialogOpen(true);
@@ -457,9 +498,9 @@ export default function GlobalSubMonitor() {
     // Monitor when timer is running
     if (timerState.isRunning) return true;
     
-    // Monitor during halftime break (half=2, elapsed=0, not running) for halftime subs
+    // Monitor during halftime break (half=2, elapsed=0, not running) — always show halftime popup
     if (!timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0) {
-      if (pitchState.autoSubActive && pitchState.autoSubPlan.some(s => !s.executed && s.half === 2 && s.time === 0)) {
+      if (pitchState.autoSubActive) {
         return true;
       }
     }

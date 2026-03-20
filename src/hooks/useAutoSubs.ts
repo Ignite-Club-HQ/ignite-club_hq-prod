@@ -360,22 +360,62 @@ export function useAutoSubs({
 
     const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
 
+    // Guard: validate player positions before executing
+    // If playerOut is already off pitch or playerIn is already on pitch,
+    // the sub is stale — auto-skip it instead of showing an error
+    const staleSubs = allPendingSubs.filter(sub => {
+      const currentOut = players.find(p => p.id === sub.playerOut.id);
+      const currentIn = players.find(p => p.id === sub.playerIn.id);
+      return !currentOut?.position || (currentIn && currentIn.position !== null);
+    });
+
+    if (staleSubs.length === allPendingSubs.length) {
+      // ALL subs are stale — skip them all gracefully
+      const skippedKeys = allPendingSubs.map(s => getSubKey(s));
+      const updatedPlan = markSubsExecuted(autoSubPlan, skippedKeys, true);
+      setAutoSubPlan(validateAndFixRemainingPlan(updatedPlan, players));
+      toast({
+        title: "Substitution expired",
+        description: "Players have already moved — sub auto-skipped",
+      });
+      setSubConfirmDialogOpen(false);
+      setPendingAutoSub(null);
+      setPendingBatchSubs([]);
+      setSubDuePlayerIds(new Set());
+      if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      return;
+    }
+
+    // Filter out any stale subs from the batch, keep valid ones
+    const validSubs = allPendingSubs.filter(sub => {
+      const currentOut = players.find(p => p.id === sub.playerOut.id);
+      const currentIn = players.find(p => p.id === sub.playerIn.id);
+      return currentOut?.position && (!currentIn || currentIn.position === null);
+    });
+
     // Push undo
     const subDescription =
-      allPendingSubs.length > 1
-        ? `Batch sub: ${allPendingSubs.length} substitutions`
-        : `Auto-sub: ${pendingAutoSub.playerIn.name} for ${pendingAutoSub.playerOut.name}`;
+      validSubs.length > 1
+        ? `Batch sub: ${validSubs.length} substitutions`
+        : `Auto-sub: ${validSubs[0].playerIn.name} for ${validSubs[0].playerOut.name}`;
     pushToUndoHistoryRef.current?.(subDescription, players);
 
     // Execute subs using shared helper
-    const { updatedPlayers, executedSubKeys, successCount } = executeSubsOnPlayers(allPendingSubs, players);
+    const { updatedPlayers, executedSubKeys, successCount } = executeSubsOnPlayers(validSubs, players);
 
-    // Animation
-    const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
-    runSubAnimationRef.current?.(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
+    // Animation — only if the primary sub was among valid ones
+    if (validSubs.some(s => s.playerOut.id === pendingAutoSub.playerOut.id)) {
+      const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
+      runSubAnimationRef.current?.(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
+    }
 
-    // Mark executed
-    let finalPlan = markSubsExecuted(autoSubPlan, executedSubKeys);
+    // Mark executed (include any stale subs that were filtered out)
+    const staleSubKeys = staleSubs.map(s => getSubKey(s));
+    let finalPlan = markSubsExecuted(autoSubPlan, [...executedSubKeys, ...staleSubKeys], false);
+    // Mark stale ones as skipped
+    if (staleSubKeys.length > 0) {
+      finalPlan = markSubsExecuted(finalPlan, staleSubKeys, true);
+    }
 
     // Recalculate if significantly late (>30s)
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
@@ -430,12 +470,17 @@ export function useAutoSubs({
     setAutoSubPlan(finalPlan);
     setPlayers(updatedPlayers);
 
+    const staleCount = staleSubs.length;
     const toastDescription =
-      allPendingSubs.length > 1
-        ? `${successCount} substitutions made`
-        : `${pendingAutoSub.playerIn.name} replaces ${pendingAutoSub.playerOut.name}`;
+      validSubs.length > 1
+        ? `${successCount} substitutions made${staleCount > 0 ? `, ${staleCount} expired` : ''}`
+        : successCount > 0
+          ? `${validSubs[0].playerIn.name} replaces ${validSubs[0].playerOut.name}`
+          : 'Sub expired — players already moved';
     toast({
-      title: allPendingSubs.length > 1 ? "Substitutions made" : "Substitution made",
+      title: successCount > 0
+        ? (validSubs.length > 1 ? "Substitutions made" : "Substitution made")
+        : "Substitution expired",
       description: toastDescription,
     });
 
@@ -551,24 +596,38 @@ export function useAutoSubs({
 
       if (allDueSubs.length === 0) return false;
 
-      // Multiple time groups → auto-skip older ones
-      const dueTimes = [...new Set(allDueSubs.map(s => s.time))].sort((a, b) => a - b);
-      if (dueTimes.length > 1) {
-        const latestTime = dueTimes[dueTimes.length - 1];
-        const olderSubs = allDueSubs.filter(s => s.time < latestTime);
+      let latestDueSub = allDueSubs[0];
+      for (const sub of allDueSubs) {
+        if (
+          sub.half > latestDueSub.half ||
+          (sub.half === latestDueSub.half && sub.time > latestDueSub.time)
+        ) {
+          latestDueSub = sub;
+        }
+      }
+
+      const latestDueSubs = allDueSubs.filter(
+        sub => sub.half === latestDueSub.half && sub.time === latestDueSub.time
+      );
+      const olderSubs = allDueSubs.filter(
+        sub => sub.half !== latestDueSub.half || sub.time !== latestDueSub.time
+      );
+
+      if (olderSubs.length > 0) {
         const olderKeys = olderSubs.map(s => getSubKey(s));
         const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
         const halfDurationSeconds = minsPerHalf * 60;
+        const shouldRecalculate = shouldRecalculateAfterSkip(
+          olderSubs,
+          elapsedSeconds,
+          currentHalf,
+          halfDurationSeconds
+        );
+
         setAutoSubPlan(prev => {
           const markedPlan = markSubsExecuted(prev, olderKeys, true);
           const executedSubs = markedPlan.filter(s => s.executed);
           const existingUnexecuted = markedPlan.filter(s => !s.executed);
-          const shouldRecalculate = shouldRecalculateAfterSkip(
-            olderSubs,
-            elapsedSeconds,
-            currentHalf,
-            halfDurationSeconds
-          );
           const recalculated = shouldRecalculate
             ? safeRecalculate(
                 playersRef.current,
@@ -579,22 +638,45 @@ export function useAutoSubs({
                 existingUnexecuted
               )
             : existingUnexecuted;
+
           return validateAndFixRemainingPlan([...executedSubs, ...recalculated], playersRef.current);
         });
+
         toast({
           title: `${olderSubs.length} missed sub${olderSubs.length > 1 ? "s" : ""} skipped`,
-          description: shouldRecalculateAfterSkip(olderSubs, elapsedSeconds, currentHalf, halfDurationSeconds)
+          description: shouldRecalculate
             ? "Plan recalculated for remaining time"
             : "Remaining substitutions preserved",
         });
-        return true;
       }
 
-      if (pendingAutoSub) return false;
+      const dueSubs = latestDueSubs.filter(sub => !lockedPlayerIds.has(sub.playerOut.id));
+      if (dueSubs.length === 0) {
+        if (olderSubs.length > 0 && pendingAutoSub) {
+          setPendingAutoSub(null);
+          setPendingBatchSubs([]);
+          setSubConfirmDialogOpen(false);
+          setSubDuePlayerIds(new Set());
+          if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+        }
+        return olderSubs.length > 0;
+      }
 
-      // Filter locked players
-      const dueSubs = allDueSubs.filter(sub => !lockedPlayerIds.has(sub.playerOut.id));
-      if (dueSubs.length === 0) return false;
+      if (
+        pendingAutoSub &&
+        pendingAutoSub.half === latestDueSub.half &&
+        pendingAutoSub.time === latestDueSub.time
+      ) {
+        return olderSubs.length > 0;
+      }
+
+      if (pendingAutoSub) {
+        setPendingAutoSub(null);
+        setPendingBatchSubs([]);
+        setSubConfirmDialogOpen(false);
+        setSubDuePlayerIds(new Set());
+        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      }
 
       const [primarySub, ...additionalSubs] = dueSubs;
 
@@ -606,7 +688,6 @@ export function useAutoSubs({
           : `Time to sub: ${playerOutName} ➜ ${playerInName}`;
       playSubAlertBeep(notificationBody);
 
-      // Set sub-due pulsing
       const dueIds = new Set<string>();
       dueSubs.forEach(s => {
         dueIds.add(s.playerOut.id);
@@ -676,8 +757,20 @@ export function useAutoSubs({
       if (newHalf !== 2) return false;
       if (!autoSubActive || autoSubPlan.length === 0) return false;
 
+      const staleFirstHalfSubs = autoSubPlan.filter(sub => !sub.executed && sub.half === 1);
       const halftimeSubs = autoSubPlan.filter(sub => !sub.executed && sub.half === 2 && sub.time === 0);
-      if (halftimeSubs.length === 0) return false;
+
+      if (staleFirstHalfSubs.length > 0) {
+        const staleKeys = staleFirstHalfSubs.map(getSubKey);
+        setAutoSubPlan(prev => markSubsExecuted(prev, staleKeys, true));
+        setPendingAutoSub(null);
+        setPendingBatchSubs([]);
+        setSubConfirmDialogOpen(false);
+        setSubDuePlayerIds(new Set());
+        if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      }
+
+      if (halftimeSubs.length === 0) return staleFirstHalfSubs.length > 0;
 
       setTimeout(() => {
         const [primarySub, ...additionalSubs] = halftimeSubs;

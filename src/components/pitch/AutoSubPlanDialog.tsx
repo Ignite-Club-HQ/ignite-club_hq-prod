@@ -380,12 +380,32 @@ function createSubPlan(
     return candidates[0] || null;
   };
   
+  // Threshold: subs within this many seconds of half-end get snapped
+  const END_OF_HALF_SNAP_THRESHOLD = 60;
+
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
     const isStartHalf = half === startHalf;
     const halfRemaining = isStartHalf ? halfDurationSeconds - startElapsedSeconds : halfDurationSeconds;
-    const subTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
+    const rawSubTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
       .map(t => isStartHalf ? t + startElapsedSeconds : t); // Offset times for current half
+
+    // Filter subs too close to end of half:
+    // - First half: snap to halftime (half 2, time 0)
+    // - Second half: drop entirely (don't sub someone off within 1 min of full time)
+    const subTimes: number[] = [];
+    const deferredToHalftime: number[] = [];
+    for (const t of rawSubTimes) {
+      if ((halfDurationSeconds - t) <= END_OF_HALF_SNAP_THRESHOLD) {
+        if (half === 1) {
+          deferredToHalftime.push(t);
+        }
+        // half === 2: drop — no point subbing within 1 min of full time
+      } else {
+        subTimes.push(t);
+      }
+    }
+
     let lastEventTime = isStartHalf ? startElapsedSeconds : 0;
     
     for (const subTime of subTimes) {
@@ -470,6 +490,48 @@ function createSubPlan(
     currentOnPitch.forEach((_, id) => {
       playingTime.set(id, (playingTime.get(id) || 0) + remainingTime);
     });
+
+    // Process deferred end-of-half subs as halftime subs (half 2, time 0)
+    if (half === 1 && deferredToHalftime.length > 0) {
+      const onPitchSorted = Array.from(currentOnPitch.keys())
+        .map(id => ({ id, time: playingTime.get(id) || 0, player: getPlayer(id)! }))
+        .filter(p => p.player)
+        .sort((a, b) => b.time - a.time);
+      const benchSorted = outfieldPlayers
+        .filter(p => !currentOnPitch.has(p.id))
+        .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
+        .sort((a, b) => a.time - b.time);
+      const usedOutIds = new Set<string>();
+      const usedInIds = new Set<string>();
+      for (let di = 0; di < deferredToHalftime.length; di++) {
+        const availableOnPitch = onPitchSorted.filter(p => !usedOutIds.has(p.id));
+        const availableBench = benchSorted.filter(p => !usedInIds.has(p.id));
+        if (availableOnPitch.length === 0 || availableBench.length === 0) break;
+        const best = findBestSubCandidate(onPitchSorted, benchSorted, usedOutIds, usedInIds);
+        if (best) {
+          const incomingPosition = best.positionSwap
+            ? best.positionSwap.fromPosition
+            : currentOnPitch.get(best.playerOut.id);
+          plan.push({
+            time: 0,
+            half: 2,
+            playerOut: best.playerOut,
+            playerIn: best.playerIn,
+            positionSwap: best.positionSwap,
+            executed: false,
+          });
+          usedOutIds.add(best.playerOut.id);
+          usedInIds.add(best.playerIn.id);
+          currentOnPitch.delete(best.playerOut.id);
+          currentOnPitch.set(best.playerIn.id, incomingPosition!);
+          if (best.positionSwap) {
+            currentOnPitch.set(best.positionSwap.player.id, best.positionSwap.toPosition);
+          }
+        } else {
+          break;
+        }
+      }
+    }
   }
   
   // Handle GK substitution at halftime (only if we haven't passed halftime)
@@ -681,7 +743,9 @@ function DialogInner({
   isSetupFlow?: boolean;
   miniLeagueTeams?: MiniLeagueTeams;
 }) {
-  const [plan, setPlan] = useState<SubstitutionEvent[] | null>(existingPlan || null);
+  // Treat empty existing plans (all executed/empty) as no plan so auto-generation kicks in
+  const effectiveExistingPlan = existingPlan && existingPlan.some(s => !s.executed) ? existingPlan : undefined;
+  const [plan, setPlan] = useState<SubstitutionEvent[] | null>(effectiveExistingPlan || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'forecast' | 'edit'>(editMode ? 'edit' : 'forecast');
   

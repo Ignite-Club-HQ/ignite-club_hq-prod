@@ -46,7 +46,7 @@ const TOTAL_DURATION_MS = 55000;
 
 // Get notification recipients for a specific team/match
 // For mini-league matches (event-group-*), only the Referee receives notifications
-// For regular teams, coaches/admins and Subs Manager assignees receive notifications
+// For regular teams, notify staff scoped to THIS team only, plus any assigned match duties
 async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefined, linkedEventId?: string): Promise<string[]> {
   const userIds = new Set<string>();
 
@@ -61,14 +61,13 @@ async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefi
       .eq('group_id', groupId)
       .eq('name', 'Referee')
       .not('assigned_to', 'is', null);
-    
+
     referees?.forEach((d: any) => {
       if (d.assigned_to) userIds.add(d.assigned_to);
     });
 
     console.log(`[CHECK-SUBS] Mini-league match ${groupId}: ${userIds.size} referee(s) found`);
   } else {
-    // Regular team: notify coaches/admins
     if (teamId) {
       const { data, error } = await supabase
         .from('user_roles')
@@ -78,20 +77,19 @@ async function getTeamStaffUserIds(supabase: any, teamId: string | null | undefi
 
       if (error) {
         console.error('[CHECK-SUBS] Error fetching team staff:', error?.message);
-      } else if (data) {
-        data.forEach((r: any) => userIds.add(r.user_id as string));
+      } else {
+        data?.forEach((r: any) => userIds.add(r.user_id as string));
       }
     }
 
-    // Also include Subs Manager duty assignees for regular events
     if (linkedEventId) {
       const { data: dutyAssignees } = await supabase
         .from('duties')
         .select('assigned_to')
         .eq('event_id', linkedEventId)
-        .eq('name', 'Subs Manager')
+        .in('name', ['Subs Manager', 'Referee'])
         .not('assigned_to', 'is', null);
-      
+
       dutyAssignees?.forEach((d: any) => {
         if (d.assigned_to) userIds.add(d.assigned_to);
       });
@@ -206,26 +204,40 @@ async function notifyTeamStaff(
     : new Set<string>([gameOwnerId, ...staffUserIds]);
   let notificationsSent = 0;
 
-  // Dedup window: for milestone notifications (half_time, full_time), check if we already 
-  // sent this exact notification type for this game recently. This prevents duplicates
-  // from concurrent cron invocations or retries.
-  const DEDUP_WINDOW_SECONDS = notificationType === 'pending_sub' ? 30 : 120;
-  
-  // Check for ANY recent notification of this type for this game (check first recipient only)
+  // Deduplicate notifications before fan-out.
+  // Full-time should only ever fire once per game, even if a stale client accidentally
+  // re-syncs the same active_game row after the server marked it inactive.
   const firstRecipient = Array.from(allRecipients)[0];
   if (firstRecipient) {
-    const cutoff = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
-    const { data: recentNotifs } = await supabase
-      .from('notifications')
-      .select('id')
-      .eq('user_id', firstRecipient)
-      .eq('type', inAppType)
-      .eq('related_id', gameId)
-      .gte('created_at', cutoff)
-      .limit(1);
-    
+    let recentNotifs;
+
+    if (notificationType === 'full_time') {
+      const result = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', firstRecipient)
+        .eq('type', inAppType)
+        .eq('related_id', gameId)
+        .limit(1);
+
+      recentNotifs = result.data;
+    } else {
+      const dedupWindowSeconds = notificationType === 'pending_sub' ? 30 : 120;
+      const cutoff = new Date(Date.now() - dedupWindowSeconds * 1000).toISOString();
+      const result = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', firstRecipient)
+        .eq('type', inAppType)
+        .eq('related_id', gameId)
+        .gte('created_at', cutoff)
+        .limit(1);
+
+      recentNotifs = result.data;
+    }
+
     if (recentNotifs && recentNotifs.length > 0) {
-      console.log(`[CHECK-SUBS] Skipping duplicate ${notificationType} for game ${gameId} (sent within ${DEDUP_WINDOW_SECONDS}s)`);
+      console.log(`[CHECK-SUBS] Skipping duplicate ${notificationType} for game ${gameId}`);
       return 0;
     }
   }
@@ -340,28 +352,28 @@ async function checkGames(supabase: any): Promise<number> {
         
         // Only send notification if WE claimed it (update affected a row)
         if (!claimError && claimResult && claimResult.length > 0) {
+          const teamId = game.team_id || timerState.teamId;
           const teamName = timerState.teamName || 'Your team';
-          const teamId = timerState.teamId || game.team_id;
           const linkedEventId = pitchState.linkedEventId;
           const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
-          
+
           notificationsSent += await notifyTeamStaff(
             supabase, staffUserIds, game.user_id, game.id,
-            teamId, teamName, linkedEventId,
+            teamId || undefined, teamName, linkedEventId,
             'half_time', `⏸️ ${teamName} - Half Time!`, 'half_time',
             `⏸️ Half Time!`, `${teamName} - Half Time`,
             undefined, undefined, undefined, timerState.minutesPerHalf, 1
           );
-          
-          console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id}`);
+
+          console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id} (team ${teamId})`);
         } else if (claimResult && claimResult.length === 0) {
           console.log(`[CHECK-SUBS] Half time already claimed by another invocation for game ${game.id}`);
         }
       }
       continue; // Skip sub processing during half-time
     }
+    const teamId = game.team_id || timerState.teamId;
     const teamName = timerState.teamName || 'Your team';
-    const teamId = timerState.teamId || game.team_id;
     const linkedEventId = pitchState.linkedEventId;
 
     // Get team staff (coaches + team_admins) for this specific team
