@@ -403,9 +403,11 @@ export function useAutoSubs({
     // Execute subs using shared helper
     const { updatedPlayers, executedSubKeys, successCount } = executeSubsOnPlayers(validSubs, players);
 
-    // Animation
-    const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
-    runSubAnimationRef.current?.(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
+    // Animation — only if the primary sub was among valid ones
+    if (validSubs.some(s => s.playerOut.id === pendingAutoSub.playerOut.id)) {
+      const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
+      runSubAnimationRef.current?.(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
+    }
 
     // Mark executed (include any stale subs that were filtered out)
     const staleSubKeys = staleSubs.map(s => getSubKey(s));
