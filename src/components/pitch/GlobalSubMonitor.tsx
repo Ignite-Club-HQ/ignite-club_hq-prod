@@ -17,7 +17,13 @@ import {
   PITCH_BOARD_OPEN_KEY,
   TIMER_STORAGE_KEY,
 } from "./types";
-import { getSubKey, executeSubsOnPlayers, markSubsExecuted, calculateSubDelay } from "./autoSubHelpers";
+import {
+  getSubKey,
+  executeSubsOnPlayers,
+  markSubsExecuted,
+  calculateSubDelay,
+  getDueSubGroups,
+} from "./autoSubHelpers";
 
 const TIMER_STATE_KEY = TIMER_STORAGE_KEY;
 const getPitchStateKeyForTeam = getPitchStateKey;
@@ -429,31 +435,23 @@ export default function GlobalSubMonitor() {
     // For non-halftime subs, timer must be running
     if (!timerState.isRunning) return;
 
-    // Find all unexecuted subs for current half that are due
-    const dueSubs = pitchState.autoSubPlan.filter(sub => 
-      !sub.executed && 
-      sub.half === currentHalf && 
-      currentElapsed >= sub.time
+    const { latestDueSubs: dueSubs, olderDueSubs: olderSubs } = getDueSubGroups(
+      pitchState.autoSubPlan,
+      currentHalf,
+      currentElapsed,
+      halfDuration
     );
 
     if (dueSubs.length > 0) {
       let activePitchState = pitchState;
       let batchSubs = dueSubs;
 
-      const dueTimes = [...new Set(dueSubs.map(s => s.time))].sort((a, b) => a - b);
-      if (dueTimes.length > 1) {
-        const latestTime = dueTimes[dueTimes.length - 1];
-        const olderSubs = dueSubs.filter(s => s.time < latestTime);
-
-        if (olderSubs.length > 0) {
-          const olderKeys = olderSubs.map(s => getSubKey(s));
-          const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, olderKeys, true);
-          activePitchState = { ...pitchState, autoSubPlan: updatedPlan };
-          savePitchState(activePitchState);
-          batchSubs = updatedPlan.filter(
-            sub => !sub.executed && sub.half === currentHalf && sub.time === latestTime
-          );
-        }
+      if (olderSubs.length > 0) {
+        const olderKeys = olderSubs.map(s => getSubKey(s));
+        const updatedPlan = markSubsExecuted(pitchState.autoSubPlan, olderKeys, true);
+        activePitchState = { ...pitchState, autoSubPlan: updatedPlan };
+        savePitchState(activePitchState);
+        batchSubs = dueSubs;
       }
 
       if (batchSubs.length === 0) return;
@@ -523,22 +521,20 @@ export default function GlobalSubMonitor() {
     const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
     const currentHalf = timerState.currentHalf;
 
-    // Find unexecuted subs that are due
-    const dueSubs = pitchState.autoSubPlan?.filter(sub => 
-      !sub.executed && 
-      sub.half === currentHalf && 
-      currentElapsed >= sub.time
-    ) || [];
+    const { latestDueSubs: dueSubs, olderDueSubs: olderSubs } = getDueSubGroups(
+      pitchState.autoSubPlan || [],
+      currentHalf,
+      currentElapsed,
+      timerState.minutesPerHalf * 60
+    );
 
     if (dueSubs.length > 0) {
       // Auto-skip older time groups, then rebuild future subs from the current game state.
-      const dueTimes = [...new Set(dueSubs.map(s => s.time))].sort((a, b) => a - b);
       let nextPitchState = pitchState;
-      let latestTime = Math.max(...dueSubs.map(s => s.time));
+      const latestDueSub = dueSubs[0];
+      let latestTime = latestDueSub.time;
 
-      if (dueTimes.length > 1) {
-        latestTime = dueTimes[dueTimes.length - 1];
-        const olderSubs = dueSubs.filter(s => s.time < latestTime);
+      if (olderSubs.length > 0) {
         const olderKeys = olderSubs.map(s => getSubKey(s));
         const latestMissedSub = olderSubs[olderSubs.length - 1];
 
@@ -585,12 +581,12 @@ export default function GlobalSubMonitor() {
         window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
       }
 
-      const refreshedDueSubs = nextPitchState.autoSubPlan?.filter(sub =>
-        !sub.executed &&
-        sub.half === currentHalf &&
-        currentElapsed >= sub.time &&
-        sub.time === latestTime
-      ) || [];
+      const refreshedDueSubs = getDueSubGroups(
+        nextPitchState.autoSubPlan || [],
+        currentHalf,
+        currentElapsed,
+        timerState.minutesPerHalf * 60
+      ).latestDueSubs.filter(sub => sub.time === latestTime);
       const [primarySub, ...additionalSubs] = refreshedDueSubs;
       setCurrentPlayers(nextPitchState.players);
       setPendingAutoSub(primarySub);

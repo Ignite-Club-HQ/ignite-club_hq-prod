@@ -2003,6 +2003,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     if (!user?.id || readOnly || gameTimerRef.current?.isGameFinished()) return;
     try {
       const recipientIds = new Set<string>();
+      // Always include the current user so they get a record of the change
+      recipientIds.add(user.id);
       const isEventGroup = teamId.startsWith("event-group-");
 
       if (isEventGroup) {

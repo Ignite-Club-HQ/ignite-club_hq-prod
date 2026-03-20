@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Player, SubstitutionEvent } from "./types";
 import { PitchPosition } from "./PositionBadge";
+import { findRelevantNextSub } from "./autoSubHelpers";
 
 interface AutoSubManagerProps {
   autoSubPlan: SubstitutionEvent[];
@@ -60,10 +61,13 @@ export default function AutoSubManager({
   const remainingSubs = useMemo(() => autoSubPlan.filter(s => !s.executed), [autoSubPlan]);
   
   const nextSub = useMemo(() => {
-    return remainingSubs.find(s => s.half === currentHalf && s.time >= currentElapsedSeconds)
-      || remainingSubs.find(s => s.half > currentHalf)
-      || remainingSubs[0];
-  }, [remainingSubs, currentHalf, currentElapsedSeconds]);
+    return findRelevantNextSub(
+      remainingSubs,
+      currentHalf,
+      currentElapsedSeconds,
+      minutesPerHalf * 60
+    );
+  }, [remainingSubs, currentHalf, currentElapsedSeconds, minutesPerHalf]);
 
   const onPitchPlayers = useMemo(() => 
     players.filter(p => p.position !== null && p.currentPitchPosition !== "GK"),
