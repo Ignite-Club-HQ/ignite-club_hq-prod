@@ -205,6 +205,11 @@ export default function SubConfirmDialog({
                 <Check className="h-5 w-5 text-muted-foreground" />
                 Substitution Already Made
               </>
+            ) : isHalftimeOnly ? (
+              <>
+                <Timer className="h-5 w-5" />
+                Half Time
+              </>
             ) : isHalftime ? (
               <>
                 <Timer className="h-5 w-5" />
@@ -223,7 +228,9 @@ export default function SubConfirmDialog({
             )}
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            {wasSkipped
+            {isHalftimeOnly
+              ? "It's half time! No substitutions are scheduled for this break."
+              : wasSkipped
               ? "This substitution was skipped and not made"
               : alreadyExecuted
               ? "This substitution has already been completed"
@@ -231,7 +238,7 @@ export default function SubConfirmDialog({
               ? `${isBatchSub ? `${allSubs.length} substitutions are` : "A substitution is"} scheduled for the halftime break`
               : isDue 
                 ? undefined
-                : `${formatTime(substitution.time)} - ${substitution.half === 1 ? "1st" : "2nd"} Half`}
+                : `${formatTime(substitution!.time)} - ${substitution!.half === 1 ? "1st" : "2nd"} Half`}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
         
