@@ -123,8 +123,24 @@ export default function GameFinishedDialog({
       }
     }
 
-    // Clear all game state including auto-sub plan
-    localStorage.removeItem(TIMER_STATE_KEY);
+    // Clear timer state — team-specific key first, then only clear active key if it matches
+    if (teamId) {
+      const teamTimerKey = `pitch-board-timer-state-team-${teamId}`;
+      localStorage.removeItem(teamTimerKey);
+      
+      // Only clear the shared active key if it belongs to THIS team
+      const activeTimerRaw = localStorage.getItem(TIMER_STATE_KEY);
+      if (activeTimerRaw) {
+        try {
+          const activeTimer = JSON.parse(activeTimerRaw);
+          if (activeTimer.teamId === teamId) {
+            localStorage.removeItem(TIMER_STATE_KEY);
+          }
+        } catch { localStorage.removeItem(TIMER_STATE_KEY); }
+      }
+    } else {
+      localStorage.removeItem(TIMER_STATE_KEY);
+    }
     
     // Clear pitch state but also ensure auto-sub plan is cancelled
     const pitchStateKey = teamId ? getPitchStateKeyForTeam(teamId) : PITCH_STATE_KEY;
