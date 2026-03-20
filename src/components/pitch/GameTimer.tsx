@@ -297,8 +297,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }, []);
 
-  const getDisplayTime = useCallback(() => {
-    if (currentHalf === 1) {
+  const getDisplayTime = useCallback((cumulative = false) => {
+    if (currentHalf === 1 || !cumulative) {
       return formatTime(elapsedSeconds);
     } else {
       return formatTime(halfDurationSeconds + elapsedSeconds);
