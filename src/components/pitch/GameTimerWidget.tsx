@@ -22,6 +22,7 @@ import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
 import { validateAndFixRemainingPlan } from "./pitchStateUtils";
+import { snapSubTime } from "./autoSubHelpers";
 
 
 // Storage keys
@@ -376,10 +377,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           let nextSubTime = currentTotal + interval;
           updatedPlan = updatedPlan.map(s => {
             if (s.executed) return s;
-            const newHalf: 1 | 2 = nextSubTime < halfDur ? 1 : 2;
-            const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDur;
+            const snapped = snapSubTime(nextSubTime, halfDur);
             nextSubTime += interval;
-            return { ...s, half: newHalf, time: Math.floor(newTime) };
+            if (!snapped) return { ...s, executed: true, skipped: true }; // Too close to full time
+            return { ...s, half: snapped.half, time: snapped.time };
           });
         }
 
@@ -435,10 +436,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             if (s.executed) return s;
             const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
             if (!futureSubKeys.has(subKey)) return s;
-            const newHalf: 1 | 2 = nextSubTime < halfDur ? 1 : 2;
-            const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDur;
+            const snapped = snapSubTime(nextSubTime, halfDur);
             nextSubTime += interval;
-            return { ...s, half: newHalf, time: Math.floor(newTime) };
+            if (!snapped) return { ...s, executed: true, skipped: true };
+            return { ...s, half: snapped.half, time: snapped.time };
           });
         }
       }
@@ -496,11 +497,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
           if (!futureSubKeys.has(subKey)) return s; // Keep due subs unchanged
           
-          const newHalf: 1 | 2 = nextSubTime < halfDur ? 1 : 2;
-          const newTime = newHalf === 1 ? nextSubTime : nextSubTime - halfDur;
+          const snapped = snapSubTime(nextSubTime, halfDur);
           nextSubTime += interval;
-          
-          return { ...s, half: newHalf, time: Math.floor(newTime) };
+          if (!snapped) return { ...s, executed: true, skipped: true };
+          return { ...s, half: snapped.half, time: snapped.time };
         });
       }
 

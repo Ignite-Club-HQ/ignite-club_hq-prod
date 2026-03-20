@@ -22,7 +22,7 @@ import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { getSpecificPositionLabel } from "./types";
 import { toast } from "@/hooks/use-toast";
 import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan, validateAndFixRemainingPlan } from "./pitchStateUtils";
-import { getDueSubGroups, getSubKey, markSubsExecuted } from "./autoSubHelpers";
+import { getDueSubGroups, getSubKey, markSubsExecuted, snapSubTime } from "./autoSubHelpers";
 
 const TIMER_STATE_KEY = "pitch-board-timer-state";
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
