@@ -380,8 +380,8 @@ function createSubPlan(
     return candidates[0] || null;
   };
   
-  // Threshold: subs within this many seconds of half-end get moved to halftime
-  const END_OF_HALF_SNAP_THRESHOLD = 30;
+  // Threshold: subs within this many seconds of half-end get snapped
+  const END_OF_HALF_SNAP_THRESHOLD = 60;
 
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
@@ -390,12 +390,17 @@ function createSubPlan(
     const rawSubTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
       .map(t => isStartHalf ? t + startElapsedSeconds : t); // Offset times for current half
 
-    // Snap subs too close to end of first half → halftime (half 2, time 0)
+    // Filter subs too close to end of half:
+    // - First half: snap to halftime (half 2, time 0)
+    // - Second half: drop entirely (don't sub someone off within 1 min of full time)
     const subTimes: number[] = [];
     const deferredToHalftime: number[] = [];
     for (const t of rawSubTimes) {
-      if (half === 1 && (halfDurationSeconds - t) <= END_OF_HALF_SNAP_THRESHOLD) {
-        deferredToHalftime.push(t);
+      if ((halfDurationSeconds - t) <= END_OF_HALF_SNAP_THRESHOLD) {
+        if (half === 1) {
+          deferredToHalftime.push(t);
+        }
+        // half === 2: drop — no point subbing within 1 min of full time
       } else {
         subTimes.push(t);
       }
