@@ -63,6 +63,8 @@ interface PitchSettingsDialogProps {
   
   // Game in progress
   gameInProgress?: boolean;
+  gameTimerRunning?: boolean;
+  gameFinished?: boolean;
   
   // Optional trigger button customization
   triggerClassName?: string;
