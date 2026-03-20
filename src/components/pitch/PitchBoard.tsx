@@ -456,7 +456,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [persistShowLineupPicker]);
 
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
-    setPlayers(updatedPlayers);
+    // Reset player minutes for a fresh game setup
+    const freshPlayers = updatedPlayers.map(p => ({ ...p, minutesPlayed: 0 }));
+    setPlayers(freshPlayers);
     setShowLineupPicker(false);
     if (secondHalfGkId) {
       setPreferredSecondHalfGkId(secondHalfGkId);
@@ -2909,7 +2911,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   };
 
   // Reset game - clears all player minutes, timer, and positions
-  const handleResetGame = useCallback(() => {
+  const handleResetGame = useCallback((silent = false) => {
     // Stop the timer first
     gameTimerRef.current?.resetTimer();
     
@@ -2966,11 +2968,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Reset hasLoadedRef so fresh state can be saved
     hasLoadedRef.current = false;
     
-    toast({
-      title: "Game Reset",
-      description: "All player minutes and settings have been reset to defaults.",
-    });
+    if (!silent) {
+      toast({
+        title: "Game Reset",
+        description: "All player minutes and settings have been reset to defaults.",
+      });
+    }
   }, [players, autoPlacePlayersOnPitch, toast]);
+
+  // Helper: if the game is at full time, silently reset before showing lineup picker
+  const handleSetupGame = useCallback(() => {
+    if (gameTimerRef.current?.isGameFinished()) {
+      handleResetGame(true);
+    }
+    setShowLineupPicker(true);
+  }, [handleResetGame]);
 
   // Execute deferred auto-reset after handleResetGame is available
   useEffect(() => {
@@ -4022,7 +4034,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                     <>
                       <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                       <div className="fixed top-12 right-2 bg-background border rounded-lg shadow-xl z-[99999] min-w-[180px] py-1">
-                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                        <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
                           <Play className="h-4 w-4" />
                           Setup Game
                         </button>
@@ -4088,7 +4100,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onHideScoresChange={setHideScores}
                   showLineupPicker={showLineupPickerSetting}
                   onShowLineupPickerChange={handleShowLineupPickerSettingChange}
-                  onOpenLineupPicker={() => setShowLineupPicker(true)}
+                   onOpenLineupPicker={handleSetupGame}
                   onAddFillInPlayer={() => {
                     setToolbarCollapsed(false);
                     setSheetHeightPct(50);
@@ -5469,7 +5481,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   <div className="fixed inset-0 z-[99998]" onClick={() => setSettingsMenuOpen(false)} />
                   <div className="absolute top-full right-0 mt-1 bg-background border rounded-lg shadow-xl z-[99999] min-w-[170px] py-1">
                     {!readOnly && (
-                      <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { setShowLineupPicker(true); setSettingsMenuOpen(false); }}>
+                      <button className={cn("w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors", (gameInProgress && gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()) ? "opacity-40 cursor-not-allowed" : "hover:bg-muted")} disabled={gameInProgress && !!gameTimerRef.current?.isRunning() && !gameTimerRef.current?.isGameFinished()} onClick={() => { handleSetupGame(); setSettingsMenuOpen(false); }}>
                         <Play className="h-4 w-4" />
                         Setup Game
                       </button>
@@ -5544,7 +5556,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onHideScoresChange={setHideScores}
                 showLineupPicker={showLineupPickerSetting}
                 onShowLineupPickerChange={handleShowLineupPickerSettingChange}
-                onOpenLineupPicker={() => setShowLineupPicker(true)}
+                onOpenLineupPicker={handleSetupGame}
                 hideTrigger
                 externalOpen={settingsDialogOpen}
                 onExternalOpenChange={setSettingsDialogOpen}
