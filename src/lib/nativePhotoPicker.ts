@@ -67,10 +67,8 @@ export async function ensureCameraPermissions(): Promise<void> {
         const result = await Camera.requestPermissions({ permissions: ["photos"] });
         console.log("[nativePhotoPicker] Permission result:", JSON.stringify(result));
 
-        // iOS needs time to fully register the permission grant internally.
-        // Without this delay, Camera.getPhoto() can fail even though the
-        // permission was just granted (race condition in the OS).
-        await new Promise((r) => setTimeout(r, 500));
+        // Brief delay for iOS to register the permission grant
+        await new Promise((r) => setTimeout(r, 150));
 
         // Re-verify the permission actually took effect
         const verified = await Camera.checkPermissions();
@@ -144,8 +142,8 @@ export async function pickNativePhoto(options?: {
 
     if (isLoadingError(uriError)) {
       // iCloud photo not ready — wait and retry URI once
-      console.log("[nativePhotoPicker] iCloud loading error, waiting 1.5s before retry...");
-      await wait(1500);
+      console.log("[nativePhotoPicker] iCloud loading error, waiting 500ms before retry...");
+      await wait(500);
 
       try {
         photo = await Camera.getPhoto({
