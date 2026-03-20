@@ -226,7 +226,7 @@ async function notifyTeamStaff(
 
       recentNotifs = result.data;
     } else {
-      const dedupWindowSeconds = notificationType === 'pending_sub' ? 30 : 120;
+      const dedupWindowSeconds = notificationType === 'pending_sub' ? 120 : 120;
       const cutoff = new Date(Date.now() - dedupWindowSeconds * 1000).toISOString();
       const result = await supabase
         .from('notifications')

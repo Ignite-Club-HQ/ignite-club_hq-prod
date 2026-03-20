@@ -75,7 +75,10 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const loggedIds = new Set((existingLogs || []).map(l => l.notification_id));
-    const missedNotifications = recentNotifications.filter(n => !loggedIds.has(n.id));
+    // Exclude skip_push=true notifications — those are handled by edge functions
+    // (e.g. check-pending-subs) which send their own pushes directly.
+    // Retrying them here would cause duplicate push notifications.
+    const missedNotifications = recentNotifications.filter(n => !loggedIds.has(n.id) && !n.skip_push);
 
     if (missedNotifications.length === 0) {
       return new Response(
