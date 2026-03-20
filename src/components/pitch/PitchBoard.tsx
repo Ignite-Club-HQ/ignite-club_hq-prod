@@ -2081,14 +2081,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
       const recipientArray = Array.from(recipientIds);
       if (recipientArray.length > 0) {
+        console.log("[Formation notify] Sending to", recipientArray.length, "recipients, teamId:", teamId);
         const { error: rpcError } = await supabase.rpc("notify_formation_change", {
           _recipient_ids: recipientArray,
           _message: notificationMessage,
           _related_id: teamId,
         });
         if (rpcError) {
-          console.error("Formation notification RPC error:", rpcError);
+          console.error("Formation notification RPC error:", JSON.stringify(rpcError));
+        } else {
+          console.log("[Formation notify] RPC success — notifications inserted");
         }
+      } else {
+        console.warn("[Formation notify] No recipients found");
       }
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
