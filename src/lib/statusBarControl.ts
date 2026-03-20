@@ -48,6 +48,9 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
   lastApplied = theme;
 
   try {
+    // Ensure status bar is visible first
+    await StatusBar.show();
+
     if (theme === 'dark') {
       await StatusBar.setStyle({ style: Style.Dark });
       if (Capacitor.getPlatform() === 'android') {
@@ -60,6 +63,7 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
       }
     }
 
+    // Ensure WebView is NOT behind status bar so content doesn't overlap
     await StatusBar.setOverlaysWebView({ overlay: false });
   } catch (error) {
     console.warn('[StatusBar] Error configuring status bar:', error);
