@@ -491,12 +491,8 @@ export const validateAndFixRemainingPlan = (
         playerIn = replacement;
         needsFix = true;
       } else {
-        // Can't fix — leave as-is
-        onPitch.delete(playerOut.id);
-        onBench.add(playerOut.id);
-        onBench.delete(playerIn.id);
-        onPitch.add(playerIn.id);
-        return sub;
+        // Can't fix — mark as skipped so it doesn't block future subs
+        return { ...sub, executed: true, skipped: true };
       }
     }
     
