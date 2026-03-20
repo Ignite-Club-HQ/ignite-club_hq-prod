@@ -437,13 +437,35 @@ async function checkGames(supabase: any): Promise<number> {
 
         // Atomically claim this sub time slot before sending notifications
         const maxAbsTime = Math.max(...batchSubs.map((s: SubstitutionEvent) => getAbsoluteSubTime(s)));
+        const currentCheckTime = game.last_sub_check_time ?? null;
         
-        const { data: claimResult } = await supabase
-          .from('active_games')
-          .update({ last_sub_check_time: maxAbsTime })
-          .eq('id', game.id)
-          .or(`last_sub_check_time.is.null,last_sub_check_time.lt.${maxAbsTime}`)
-          .select('id');
+        // Use separate filter conditions instead of .or() which can silently fail with .update()
+        let claimResult: any[] | null = null;
+        let claimError: any = null;
+
+        if (currentCheckTime === null || currentCheckTime === undefined) {
+          const result = await supabase
+            .from('active_games')
+            .update({ last_sub_check_time: maxAbsTime })
+            .eq('id', game.id)
+            .is('last_sub_check_time', null)
+            .select('id');
+          claimResult = result.data;
+          claimError = result.error;
+        } else if (currentCheckTime < maxAbsTime) {
+          const result = await supabase
+            .from('active_games')
+            .update({ last_sub_check_time: maxAbsTime })
+            .eq('id', game.id)
+            .lt('last_sub_check_time', maxAbsTime)
+            .select('id');
+          claimResult = result.data;
+          claimError = result.error;
+        }
+
+        if (claimError) {
+          console.error(`[CHECK-SUBS] Game ${game.id}: Claim error for sub at ${earliestTime}s:`, claimError.message);
+        }
         
         if (claimResult && claimResult.length > 0) {
           console.log(`[CHECK-SUBS] Game ${game.id}: ${batchSubs.length} sub(s) due at ${earliestTime}s (overdue ${overdueSeconds}s), current=${Math.floor(currentElapsed)}s, claiming absTime=${maxAbsTime}`);
@@ -457,8 +479,8 @@ async function checkGames(supabase: any): Promise<number> {
           );
           console.log(`[CHECK-SUBS] Game ${game.id}: notifyTeamStaff sent=${sent} (staff=${staffUserIds.length}, owner=${game.user_id})`);
           notificationsSent += sent;
-        } else {
-          console.log(`[CHECK-SUBS] Game ${game.id}: Sub at ${earliestTime}s already claimed (last_sub_check_time=${game.last_sub_check_time || 0}, target=${maxAbsTime})`);
+        } else if (!claimError) {
+          console.log(`[CHECK-SUBS] Game ${game.id}: Sub at ${earliestTime}s already claimed (last_sub_check_time=${currentCheckTime}, target=${maxAbsTime})`);
         }
       }
     }
