@@ -261,6 +261,9 @@ export const recalculateRemainingPlan = (
   // Calculate number of sub windows - fewer windows = fewer interruptions
   const numWindows = Math.max(1, Math.ceil(subsNeeded / subsAtOnce));
   
+  // Threshold: subs within this many seconds of half-end get moved to halftime
+  const END_OF_HALF_SNAP_THRESHOLD = 30;
+
   const generateRemainingSubTimes = (): { time: number; half: 1 | 2 }[] => {
     const times: { time: number; half: 1 | 2 }[] = [];
     const interval = totalRemainingSeconds / (numWindows + 1);
@@ -270,11 +273,14 @@ export const recalculateRemainingPlan = (
       accumulatedTime += interval;
       
       if (currentHalf === 1) {
-        if (accumulatedTime + currentElapsedSeconds <= halfDurationSeconds) {
-          times.push({ 
-            time: Math.floor(currentElapsedSeconds + accumulatedTime), 
-            half: 1 
-          });
+        const absTime = currentElapsedSeconds + accumulatedTime;
+        if (absTime <= halfDurationSeconds) {
+          // Snap subs too close to end of first half → halftime
+          if ((halfDurationSeconds - absTime) <= END_OF_HALF_SNAP_THRESHOLD) {
+            times.push({ time: 0, half: 2 });
+          } else {
+            times.push({ time: Math.floor(absTime), half: 1 });
+          }
         } else {
           const timeInSecondHalf = accumulatedTime - remainingInCurrentHalf;
           times.push({ 

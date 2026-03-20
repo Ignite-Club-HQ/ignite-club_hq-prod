@@ -380,12 +380,27 @@ function createSubPlan(
     return candidates[0] || null;
   };
   
+  // Threshold: subs within this many seconds of half-end get moved to halftime
+  const END_OF_HALF_SNAP_THRESHOLD = 30;
+
   // Process each half (start from current half for mid-game)
   for (let half = startHalf; half <= 2; half++) {
     const isStartHalf = half === startHalf;
     const halfRemaining = isStartHalf ? halfDurationSeconds - startElapsedSeconds : halfDurationSeconds;
-    const subTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
+    const rawSubTimes = generateSubTimes(halfRemaining, actualWindowsPerHalf)
       .map(t => isStartHalf ? t + startElapsedSeconds : t); // Offset times for current half
+
+    // Snap subs too close to end of first half → halftime (half 2, time 0)
+    const subTimes: number[] = [];
+    const deferredToHalftime: number[] = [];
+    for (const t of rawSubTimes) {
+      if (half === 1 && (halfDurationSeconds - t) <= END_OF_HALF_SNAP_THRESHOLD) {
+        deferredToHalftime.push(t);
+      } else {
+        subTimes.push(t);
+      }
+    }
+
     let lastEventTime = isStartHalf ? startElapsedSeconds : 0;
     
     for (const subTime of subTimes) {
@@ -470,6 +485,48 @@ function createSubPlan(
     currentOnPitch.forEach((_, id) => {
       playingTime.set(id, (playingTime.get(id) || 0) + remainingTime);
     });
+
+    // Process deferred end-of-half subs as halftime subs (half 2, time 0)
+    if (half === 1 && deferredToHalftime.length > 0) {
+      const onPitchSorted = Array.from(currentOnPitch.keys())
+        .map(id => ({ id, time: playingTime.get(id) || 0, player: getPlayer(id)! }))
+        .filter(p => p.player)
+        .sort((a, b) => b.time - a.time);
+      const benchSorted = outfieldPlayers
+        .filter(p => !currentOnPitch.has(p.id))
+        .map(p => ({ id: p.id, time: playingTime.get(p.id) || 0, player: p }))
+        .sort((a, b) => a.time - b.time);
+      const usedOutIds = new Set<string>();
+      const usedInIds = new Set<string>();
+      for (let di = 0; di < deferredToHalftime.length; di++) {
+        const availableOnPitch = onPitchSorted.filter(p => !usedOutIds.has(p.id));
+        const availableBench = benchSorted.filter(p => !usedInIds.has(p.id));
+        if (availableOnPitch.length === 0 || availableBench.length === 0) break;
+        const best = findBestSubCandidate(onPitchSorted, benchSorted, usedOutIds, usedInIds);
+        if (best) {
+          const incomingPosition = best.positionSwap
+            ? best.positionSwap.fromPosition
+            : currentOnPitch.get(best.playerOut.id);
+          plan.push({
+            time: 0,
+            half: 2,
+            playerOut: best.playerOut,
+            playerIn: best.playerIn,
+            positionSwap: best.positionSwap,
+            executed: false,
+          });
+          usedOutIds.add(best.playerOut.id);
+          usedInIds.add(best.playerIn.id);
+          currentOnPitch.delete(best.playerOut.id);
+          currentOnPitch.set(best.playerIn.id, incomingPosition!);
+          if (best.positionSwap) {
+            currentOnPitch.set(best.positionSwap.player.id, best.positionSwap.toPosition);
+          }
+        } else {
+          break;
+        }
+      }
+    }
   }
   
   // Handle GK substitution at halftime (only if we haven't passed halftime)
