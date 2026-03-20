@@ -311,8 +311,12 @@ async function checkGames(supabase: any): Promise<number> {
     const halfDurationSecs = timerState.minutesPerHalf * 60;
 
     // Calculate current elapsed time
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const rawElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    // IMPORTANT: Use the DB-side updated_at timestamp as the time anchor instead of
+    // the client-side lastUpdateTime. Client clocks can drift vs server, causing
+    // early/late sub notifications. The DB timestamp is authoritative.
+    const dbUpdatedAtMs = new Date(game.updated_at).getTime();
+    const timeSinceDbUpdate = Math.max(0, Math.floor((now - dbUpdatedAtMs) / 1000));
+    const rawElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceDbUpdate : 0);
     
     // Cap elapsed at half duration - if we're past it, the client is at half-time/full-time
     // and hasn't transitioned yet. Don't let the elapsed overshoot.
