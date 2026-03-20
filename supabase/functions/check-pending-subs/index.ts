@@ -246,7 +246,7 @@ async function notifyTeamStaff(
     const enabled = await isNotificationEnabled(supabase, userId);
     if (!enabled) continue;
 
-    // In-app notification
+    // In-app notification (skip_push=true to avoid duplicate push from DB trigger)
     const { error: notifError } = await supabase
       .from('notifications')
       .insert({
@@ -254,6 +254,7 @@ async function notifyTeamStaff(
         type: inAppType,
         message: notificationMessage,
         related_id: gameId,
+        skip_push: true,
       });
 
     if (!notifError) {
