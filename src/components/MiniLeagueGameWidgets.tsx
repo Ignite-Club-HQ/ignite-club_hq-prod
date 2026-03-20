@@ -369,7 +369,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
                         </div>
                         {timerState && (
                           <span className="font-mono text-lg font-bold text-primary">
-                            {formatTime(currentTime, timerState.currentHalf, timerState.minutesPerHalf)}
+                            {formatTime(currentTime)}
                           </span>
                         )}
                       </div>
