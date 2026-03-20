@@ -129,6 +129,8 @@ export function PitchSettingsDialog({
   onMockModeChange,
   readOnly = false,
   gameInProgress = false,
+  gameTimerRunning = false,
+  gameFinished = false,
   triggerClassName,
   externalOpen,
   onExternalOpenChange,
