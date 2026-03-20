@@ -316,8 +316,10 @@ export default function GlobalSubMonitor() {
         });
       }
 
-      // Create database notification (triggers server-side push)
-      createPitchBoardNotification('game_finished', notificationBody);
+      // NOTE: Do NOT create a client-side 'game_finished' notification here.
+      // The server-side 'check-pending-subs' edge function already detects game
+      // completion and sends push notifications with atomic dedup. Inserting
+      // a notification from the client as well causes duplicate pushes.
 
       // Fetch event details if linked
       let eventTitle: string | undefined;
