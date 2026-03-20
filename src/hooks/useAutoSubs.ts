@@ -360,22 +360,62 @@ export function useAutoSubs({
 
     const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
 
+    // Guard: validate player positions before executing
+    // If playerOut is already off pitch or playerIn is already on pitch,
+    // the sub is stale — auto-skip it instead of showing an error
+    const staleSubs = allPendingSubs.filter(sub => {
+      const currentOut = players.find(p => p.id === sub.playerOut.id);
+      const currentIn = players.find(p => p.id === sub.playerIn.id);
+      return !currentOut?.position || (currentIn && currentIn.position !== null);
+    });
+
+    if (staleSubs.length === allPendingSubs.length) {
+      // ALL subs are stale — skip them all gracefully
+      const skippedKeys = allPendingSubs.map(s => getSubKey(s));
+      const updatedPlan = markSubsExecuted(autoSubPlan, skippedKeys, true);
+      setAutoSubPlan(validateAndFixRemainingPlan(updatedPlan, players));
+      toast({
+        title: "Substitution expired",
+        description: "Players have already moved — sub auto-skipped",
+      });
+      setSubConfirmDialogOpen(false);
+      setPendingAutoSub(null);
+      setPendingBatchSubs([]);
+      setSubDuePlayerIds(new Set());
+      if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+      return;
+    }
+
+    // Filter out any stale subs from the batch, keep valid ones
+    const validSubs = allPendingSubs.filter(sub => {
+      const currentOut = players.find(p => p.id === sub.playerOut.id);
+      const currentIn = players.find(p => p.id === sub.playerIn.id);
+      return currentOut?.position && (!currentIn || currentIn.position === null);
+    });
+
     // Push undo
     const subDescription =
-      allPendingSubs.length > 1
-        ? `Batch sub: ${allPendingSubs.length} substitutions`
-        : `Auto-sub: ${pendingAutoSub.playerIn.name} for ${pendingAutoSub.playerOut.name}`;
+      validSubs.length > 1
+        ? `Batch sub: ${validSubs.length} substitutions`
+        : `Auto-sub: ${validSubs[0].playerIn.name} for ${validSubs[0].playerOut.name}`;
     pushToUndoHistoryRef.current?.(subDescription, players);
 
     // Execute subs using shared helper
-    const { updatedPlayers, executedSubKeys, successCount } = executeSubsOnPlayers(allPendingSubs, players);
+    const { updatedPlayers, executedSubKeys, successCount } = executeSubsOnPlayers(validSubs, players);
 
-    // Animation
-    const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
-    runSubAnimationRef.current?.(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
+    // Animation — only if the primary sub was among valid ones
+    if (validSubs.some(s => s.playerOut.id === pendingAutoSub.playerOut.id)) {
+      const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
+      runSubAnimationRef.current?.(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
+    }
 
-    // Mark executed
-    let finalPlan = markSubsExecuted(autoSubPlan, executedSubKeys);
+    // Mark executed (include any stale subs that were filtered out)
+    const staleSubKeys = staleSubs.map(s => getSubKey(s));
+    let finalPlan = markSubsExecuted(autoSubPlan, [...executedSubKeys, ...staleSubKeys], false);
+    // Mark stale ones as skipped
+    if (staleSubKeys.length > 0) {
+      finalPlan = markSubsExecuted(finalPlan, staleSubKeys, true);
+    }
 
     // Recalculate if significantly late (>30s)
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
@@ -430,12 +470,17 @@ export function useAutoSubs({
     setAutoSubPlan(finalPlan);
     setPlayers(updatedPlayers);
 
+    const staleCount = staleSubs.length;
     const toastDescription =
-      allPendingSubs.length > 1
-        ? `${successCount} substitutions made`
-        : `${pendingAutoSub.playerIn.name} replaces ${pendingAutoSub.playerOut.name}`;
+      validSubs.length > 1
+        ? `${successCount} substitutions made${staleCount > 0 ? `, ${staleCount} expired` : ''}`
+        : successCount > 0
+          ? `${validSubs[0].playerIn.name} replaces ${validSubs[0].playerOut.name}`
+          : 'Sub expired — players already moved';
     toast({
-      title: allPendingSubs.length > 1 ? "Substitutions made" : "Substitution made",
+      title: successCount > 0
+        ? (validSubs.length > 1 ? "Substitutions made" : "Substitution made")
+        : "Substitution expired",
       description: toastDescription,
     });
 
