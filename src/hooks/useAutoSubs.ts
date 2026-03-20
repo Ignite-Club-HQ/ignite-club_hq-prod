@@ -587,6 +587,15 @@ export function useAutoSubs({
             ? "Plan recalculated for remaining time"
             : "Remaining substitutions preserved",
         });
+        // If a dialog was already open for an older sub, dismiss it so the new
+        // latest-due subs can be presented on the next tick
+        if (pendingAutoSub) {
+          setPendingAutoSub(null);
+          setPendingBatchSubs([]);
+          setSubConfirmDialogOpen(false);
+          setSubDuePlayerIds(new Set());
+          if (subDueTimerRef.current) clearTimeout(subDueTimerRef.current);
+        }
         return true;
       }
 
