@@ -308,7 +308,19 @@ export function useAutoSubs({
     const isUnchanged = currentRemainingSignature === recalculatedSignature;
 
     const executedSubs = autoSubPlan.filter(s => s.executed);
-    setAutoSubPlan([...executedSubs, ...recalculated]);
+    const remainingSubs = autoSubPlan.filter(s => !s.executed);
+    // Safety guard: don't let regeneration wipe remaining plan
+    if (recalculated.length > 0 || remainingSubs.length === 0) {
+      setAutoSubPlan([...executedSubs, ...recalculated]);
+    } else {
+      const benchPlayers = players.filter(p => p.position === null && !p.isInjured);
+      if (benchPlayers.length > 0) {
+        console.warn("[AutoSub] Regeneration returned empty but bench players remain — preserving existing plan");
+        // Keep existing plan unchanged
+      } else {
+        setAutoSubPlan([...executedSubs, ...recalculated]);
+      }
+    }
     toast({
       title: isUnchanged ? "Plan unchanged" : "Plan regenerated",
       description: isUnchanged
