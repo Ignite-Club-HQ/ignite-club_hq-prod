@@ -114,6 +114,8 @@ const saveTimerState = (state: TimerState) => {
     if (state.teamId) {
       localStorage.setItem(getTeamTimerStorageKey(state.teamId), JSON.stringify(state));
     }
+    // Clear dismissed flag when timer state is actively saved (new game or state change)
+    localStorage.removeItem(WIDGET_DISMISSED_KEY);
     // Dispatch custom event for same-tab sync (Android WebView)
     window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'timer-widget' } }));
   } catch { /* ignore */ }
