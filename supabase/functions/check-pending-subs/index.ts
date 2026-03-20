@@ -266,7 +266,7 @@ async function notifyTeamStaff(
     // Send push notification explicitly (DB trigger skipped via skip_push flag)
     await sendPushNotification(
       supabase, userId, pushTitle, pushBody,
-      linkedEventId ? `/events/${linkedEventId}` : '/notifications',
+      '/',
       `pitch-${notificationType}-${gameId}`,
       'pitch_board'
     );
