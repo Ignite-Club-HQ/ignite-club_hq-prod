@@ -126,9 +126,23 @@ export default function GlobalSubMonitor() {
 
     // If no active game or timer not running with auto-subs, deactivate any existing game
     // Note: We sync even if autoSubPaused is true, so server can track the game
-    if (!timerState || !pitchState || !timerState.isRunning || !pitchState.autoSubActive) {
+    // CRITICAL: Also check if the game is actually finished — if so, don't re-sync as active.
+    // This prevents resurrecting finished games which causes duplicate full-time notifications.
+    const halfDurationSecs = timerState ? timerState.minutesPerHalf * 60 : 0;
+    const secondsSinceUpdate = timerState?.lastUpdateTime
+      ? Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000))
+      : 0;
+    const projectedElapsed = timerState
+      ? timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceUpdate : 0)
+      : 0;
+    const isFinished = timerState
+      ? (Boolean((timerState as any).isGameFinished) ||
+         (timerState.currentHalf === 2 && projectedElapsed >= halfDurationSecs))
+      : false;
+
+    if (!timerState || !pitchState || !timerState.isRunning || !pitchState.autoSubActive || isFinished) {
       if (activeGameIdRef.current) {
-        console.log('[SYNC] Deactivating game - conditions not met');
+        console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
         await supabase
           .from('active_games')
           .update({ is_active: false })

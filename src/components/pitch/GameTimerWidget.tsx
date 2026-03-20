@@ -121,12 +121,18 @@ const saveTimerState = (state: TimerState) => {
   } catch { /* ignore */ }
 };
 
-// Read pitch state: prefer team-specific key, fall back to active key
+// Read pitch state: prefer team-specific key, fall back to active key ONLY if teamId matches
 const readPitchState = (teamId?: string): PitchBoardState | null => {
   try {
     if (teamId) {
       const teamSaved = localStorage.getItem(getPitchStateKeyForTeam(teamId));
       if (teamSaved) return JSON.parse(teamSaved);
+
+      // Fallback to active key — but ONLY if it belongs to the same team
+      const activeSaved = localStorage.getItem(PITCH_STATE_KEY);
+      if (!activeSaved) return null;
+      const activeState = JSON.parse(activeSaved) as PitchBoardState;
+      return activeState.teamId === teamId ? activeState : null;
     }
     const saved = localStorage.getItem(PITCH_STATE_KEY);
     return saved ? JSON.parse(saved) : null;
