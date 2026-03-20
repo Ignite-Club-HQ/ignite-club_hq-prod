@@ -317,6 +317,12 @@ function PitchToolbar({
   const [timerRunning, setTimerRunning] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
+
+  const handleTimerToggle = () => {
+    if (readOnly || !gameTimerRef.current) return;
+    const nextRunning = gameTimerRef.current.toggleTimer();
+    setTimerRunning(nextRunning);
+  };
   
   // Persist expanded section states across collapse/expand cycles
   const [subsOpen, setSubsOpen] = useState(true);
@@ -727,19 +733,13 @@ function PitchToolbar({
             <Button
               variant="outline"
               className={collapsedTimerClass}
-              onClick={() => {
-                if (!readOnly) {
-                  gameTimerRef.current?.toggleTimer();
-                  // Read actual state from ref to stay in sync after auto-pauses (e.g. halftime)
-                  setTimeout(() => {
-                    if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning());
-                  }, 0);
-                }
-              }}
+              onClick={handleTimerToggle}
               disabled={readOnly}
             >
               {timerRunning ? <Pause size={collapsedIconSizeNum} /> : <Play size={collapsedIconSizeNum} />}
-              <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
+              <span className="pointer-events-none">
+                <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
+              </span>
             </Button>
             <SyncStatusIndicator />
             {!readOnly && (
@@ -880,19 +880,13 @@ function PitchToolbar({
           <Button
             variant="outline"
             className={timerButtonClass}
-            onClick={() => {
-              if (!readOnly) {
-                gameTimerRef.current?.toggleTimer();
-                // Read actual state from ref to stay in sync after auto-pauses (e.g. halftime)
-                setTimeout(() => {
-                  if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning());
-                }, 0);
-              }
-            }}
+            onClick={handleTimerToggle}
             disabled={readOnly}
           >
             {timerRunning ? <Pause size={iconSizeNum} /> : <Play size={iconSizeNum} />}
-            <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
+            <span className="pointer-events-none">
+              <GameTimer ref={gameTimerRef} teamId={teamId} teamName={teamName} onTimeUpdate={(elapsed, half) => { onTimerUpdate?.(elapsed, half); if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning()); }} onHalfChange={onHalfChange} readOnly={readOnly} compact hidePlayPause hideExtras minutesPerHalf={minutesPerHalf} onMinutesPerHalfChange={onMinutesPerHalfChange} />
+            </span>
           </Button>
           {!readOnly && (
             <Button
