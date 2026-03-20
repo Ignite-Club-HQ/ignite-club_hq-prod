@@ -182,8 +182,8 @@ export default function AwardPointsDialog({
                 value={points}
                 onChange={(e) => setPoints(parseInt(e.target.value) || 0)}
                 className="text-center text-lg font-bold"
-                min={-100}
-                max={100}
+                min={-50}
+                max={50}
               />
               <Button
                 type="button"
