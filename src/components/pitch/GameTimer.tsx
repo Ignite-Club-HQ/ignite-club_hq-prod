@@ -411,7 +411,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
             {isGameFinished ? "FT" : `H${currentHalf}`}
           </span>
           <span className={cn("font-mono font-bold ml-1", isLarge ? "text-lg" : "")}>
-            {getDisplayTime()}
+            {getDisplayTime(false)}
           </span>
         </div>
         {!readOnly && !hidePlayPause && (
