@@ -35,6 +35,25 @@ export function useActiveGameSync() {
   const activeGameIdRef = useRef<string | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const deactivateOtherActiveGames = useCallback(async (currentGameId?: string | null) => {
+    if (!user?.id) return;
+
+    let query = supabase
+      .from('active_games')
+      .update({ is_active: false })
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    if (currentGameId) {
+      query = query.neq('id', currentGameId);
+    }
+
+    const { error } = await query;
+    if (error) {
+      console.error('[SYNC] Failed to deactivate other active games:', error);
+    }
+  }, [user?.id]);
+
   const loadTimerState = useCallback((): TimerState | null => {
     try {
       const saved = localStorage.getItem(TIMER_STATE_KEY);
@@ -118,6 +137,8 @@ export function useActiveGameSync() {
 
     try {
       if (activeGameIdRef.current) {
+        await deactivateOtherActiveGames(activeGameIdRef.current);
+
         // Update existing game
         const { error } = await supabase
           .from('active_games')
@@ -129,16 +150,26 @@ export function useActiveGameSync() {
           activeGameIdRef.current = null;
         }
       } else {
-        // Create new game or find existing active one
-        const { data: existing } = await supabase
+        // Reuse the most recent active game for this user and deactivate any extras.
+        const { data: existingGames, error: existingError } = await supabase
           .from('active_games')
-          .select('id')
+          .select('id, team_id, updated_at')
           .eq('user_id', user.id)
           .eq('is_active', true)
-          .single();
+          .order('updated_at', { ascending: false })
+          .limit(20);
+
+        if (existingError) {
+          console.error('[SYNC] Failed to fetch existing active games:', existingError);
+        }
+
+        const matchingGame = existingGames?.find((game) => game.team_id === (timerState.teamId || null));
+        const fallbackGame = existingGames?.[0];
+        const existing = matchingGame || fallbackGame;
 
         if (existing) {
           activeGameIdRef.current = existing.id;
+          await deactivateOtherActiveGames(existing.id);
           await supabase
             .from('active_games')
             .update(gameData)
@@ -154,6 +185,7 @@ export function useActiveGameSync() {
             console.error('[SYNC] Failed to create game:', error);
           } else {
             activeGameIdRef.current = newGame.id;
+            await deactivateOtherActiveGames(newGame.id);
             console.log('[SYNC] Created new active game:', newGame.id);
           }
         }
@@ -161,7 +193,7 @@ export function useActiveGameSync() {
     } catch (err) {
       console.error('[SYNC] Sync error:', err);
     }
-  }, [user?.id, loadTimerState, loadPitchState]);
+  }, [user?.id, loadTimerState, loadPitchState, deactivateOtherActiveGames]);
 
   const startSync = useCallback(() => {
     if (syncIntervalRef.current) return;
