@@ -444,25 +444,29 @@ async function checkGames(supabase: any): Promise<number> {
           position = batchSubs[0].playerOut.currentPitchPosition || 'Pitch';
         }
 
-        console.log(`[CHECK-SUBS] Game ${game.id}: ${batchSubs.length} sub(s) due at ${earliestTime}s, current=${currentElapsed}s`);
-
-        notificationsSent += await notifyTeamStaff(
-          supabase, staffUserIds, game.user_id, game.id,
-          teamId, teamName, linkedEventId,
-          'pending_sub', notificationBody, 'pending_sub',
-          pushTitle, notificationBody,
-          playerOutName, playerInName, position, elapsedMinutes, currentHalf
-        );
-
-        // Update last_sub_check_time with the max ABSOLUTE time of the batch
+        // Atomically claim this sub time slot before sending notifications
         const maxAbsTime = Math.max(...batchSubs.map((s: SubstitutionEvent) => getAbsoluteSubTime(s)));
-        const { error: updateError } = await supabase
+        const currentMarker = game.last_sub_check_time || 0;
+        
+        const { data: claimResult } = await supabase
           .from('active_games')
           .update({ last_sub_check_time: maxAbsTime })
-          .eq('id', game.id);
+          .eq('id', game.id)
+          .lt('last_sub_check_time', maxAbsTime)
+          .select('id');
+        
+        if (claimResult && claimResult.length > 0) {
+          console.log(`[CHECK-SUBS] Game ${game.id}: ${batchSubs.length} sub(s) due at ${earliestTime}s, current=${currentElapsed}s`);
 
-        if (updateError) {
-          console.error(`[CHECK-SUBS] Failed to update last_sub_check_time:`, updateError.message);
+          notificationsSent += await notifyTeamStaff(
+            supabase, staffUserIds, game.user_id, game.id,
+            teamId, teamName, linkedEventId,
+            'pending_sub', notificationBody, 'pending_sub',
+            pushTitle, notificationBody,
+            playerOutName, playerInName, position, elapsedMinutes, currentHalf
+          );
+        } else {
+          console.log(`[CHECK-SUBS] Game ${game.id}: Sub at ${earliestTime}s already claimed by another invocation`);
         }
       }
     }
