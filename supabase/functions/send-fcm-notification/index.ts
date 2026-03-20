@@ -123,7 +123,7 @@ serve(async (req) => {
   }
 
   try {
-    const { userId, title, body, url, notificationId, tag, data } = await req.json();
+    const { userId, title, body, url, notificationId, tag, data, notificationType } = await req.json();
 
     console.log(`[FCM] Starting FCM notification for user ${userId}`);
 
@@ -263,6 +263,8 @@ serve(async (req) => {
                   url: url || '/notifications',
                   notificationId: notificationId?.toString() || '',
                   tag: tag || `notification-${notificationId || Date.now()}`,
+                  notificationType: String(notificationType || data?.notificationType || ''),
+                  type: String(data?.type || notificationType || ''),
                   ...(data || {}),
                 },
                 android: {

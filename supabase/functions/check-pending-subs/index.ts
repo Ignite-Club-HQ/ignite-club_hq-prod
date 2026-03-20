@@ -117,7 +117,7 @@ async function sendPushNotification(
         body,
         url,
         tag,
-        notificationType: 'pitch_board',
+        notificationType,
       },
     });
   } catch (err) {

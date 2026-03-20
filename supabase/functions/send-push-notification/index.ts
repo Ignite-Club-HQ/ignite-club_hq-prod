@@ -378,13 +378,18 @@ async function sendFCMNotifications(
   body: string,
   url: string,
   notificationId: string | null,
-  tag: string
+  tag: string,
+  notificationType?: string
 ): Promise<{ sent: number; total: number }> {
-  // Check if FCM is configured (service account for v1 API)
-  const fcmServiceAccount = Deno.env.get('FCM_SERVICE_ACCOUNT');
+  const hasSeparateSecrets = Boolean(
+    Deno.env.get('FCM_PROJECT_ID') &&
+    Deno.env.get('FCM_CLIENT_EMAIL') &&
+    Deno.env.get('FCM_PRIVATE_KEY')
+  );
+  const hasLegacyServiceAccount = Boolean(Deno.env.get('FCM_SERVICE_ACCOUNT'));
   
-  if (!fcmServiceAccount) {
-    console.log('[PUSH] FCM_SERVICE_ACCOUNT not configured, skipping native push');
+  if (!hasSeparateSecrets && !hasLegacyServiceAccount) {
+    console.log('[PUSH] FCM secrets not configured, skipping native push');
     return { sent: 0, total: 0 };
   }
 
@@ -400,6 +405,11 @@ async function sendFCMNotifications(
         url: url || '/notifications',
         notificationId,
         tag: tag || `notification-${notificationId || Date.now()}`,
+        notificationType,
+        data: notificationType ? {
+          notificationType,
+          type: notificationType,
+        } : undefined,
       },
     });
 
@@ -566,7 +576,8 @@ serve(async (req) => {
       body || 'You have a new notification',
       url || '/notifications',
       notificationId,
-      tag || `notification-${notificationId || Date.now()}`
+      tag || `notification-${notificationId || Date.now()}`,
+      notificationType
     );
     
     // Check for web push subscriptions
