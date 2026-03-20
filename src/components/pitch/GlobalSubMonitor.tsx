@@ -400,15 +400,25 @@ export default function GlobalSubMonitor() {
         const subKey = `halftime-batch-${halftimeSubs.length}`;
         if (lastCheckedSubRef.current !== subKey) {
           lastCheckedSubRef.current = subKey;
-          const notificationBody = halftimeSubs.length > 1
-            ? `Halftime: ${halftimeSubs.length} substitutions`
-            : `Halftime sub: ${primarySub.playerOut.name || `#${primarySub.playerOut.number}`} ➜ ${primarySub.playerIn.name || `#${primarySub.playerIn.number}`}`;
           if (timerState.soundEnabled) {
             try { playSubAlertBeep(); } catch { /* Audio may fail */ }
           }
           setCurrentPlayers(nextPitchState.players);
           setPendingAutoSub(primarySub);
           setPendingBatchSubs(additionalSubs);
+          setSubConfirmDialogOpen(true);
+        }
+      } else {
+        // No halftime subs — still show a halftime notification
+        const subKey = `halftime-no-subs`;
+        if (lastCheckedSubRef.current !== subKey) {
+          lastCheckedSubRef.current = subKey;
+          if (timerState.soundEnabled) {
+            try { playSubAlertBeep(); } catch { /* Audio may fail */ }
+          }
+          setCurrentPlayers(nextPitchState.players);
+          setPendingAutoSub(null);
+          setPendingBatchSubs([]);
           setSubConfirmDialogOpen(true);
         }
       }
