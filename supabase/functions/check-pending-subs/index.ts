@@ -390,46 +390,23 @@ async function checkGames(supabase: any): Promise<number> {
         return sub.half === 1 ? sub.time : halfDurationSecs + sub.time;
       };
 
-      // Find all unexecuted subs for current half that are due and not overdue
-      const AUTO_SKIP_THRESHOLD_SECS = 60;
-      const dueSubs = pitchState.autoSubPlan.filter((sub: SubstitutionEvent) => {
+      // Find ALL unexecuted subs for current half that are due (removed overdue skip - always notify)
+      const allDueSubs = pitchState.autoSubPlan.filter((sub: SubstitutionEvent) => {
         const absoluteSubTime = getAbsoluteSubTime(sub);
-        const overdueSeconds = currentElapsed - sub.time;
         return !sub.executed &&
           sub.half === currentHalf &&
           currentElapsed >= sub.time &&
-          overdueSeconds <= AUTO_SKIP_THRESHOLD_SECS &&
           absoluteSubTime > (game.last_sub_check_time || 0);
       });
 
-      // Also advance last_sub_check_time past any severely overdue subs so we don't re-check them
-      const overdueSubs = pitchState.autoSubPlan.filter((sub: SubstitutionEvent) => {
-        const absoluteSubTime = getAbsoluteSubTime(sub);
-        const overdueSeconds = currentElapsed - sub.time;
-        return !sub.executed &&
-          sub.half === currentHalf &&
-          currentElapsed >= sub.time &&
-          overdueSeconds > AUTO_SKIP_THRESHOLD_SECS &&
-          absoluteSubTime > (game.last_sub_check_time || 0);
-      });
-
-      if (overdueSubs.length > 0) {
-        const maxOverdueAbsTime = Math.max(...overdueSubs.map((s: SubstitutionEvent) => getAbsoluteSubTime(s)));
-        console.log(`[CHECK-SUBS] Game ${game.id}: Skipping ${overdueSubs.length} overdue sub(s) (>90s past due)`);
-        await supabase
-          .from('active_games')
-          .update({ last_sub_check_time: Math.max(maxOverdueAbsTime, game.last_sub_check_time || 0) })
-          .eq('id', game.id);
-      }
-
-      if (dueSubs.length > 0) {
+      if (allDueSubs.length > 0) {
         // Group by time to find concurrent subs (batch)
-        const dueTimes = [...new Set(dueSubs.map((s: SubstitutionEvent) => s.time))].sort((a: number, b: number) => a - b);
-        // Take the earliest due time group
+        const dueTimes = [...new Set(allDueSubs.map((s: SubstitutionEvent) => s.time))].sort((a: number, b: number) => a - b);
         const earliestTime = dueTimes[0];
-        const batchSubs = dueSubs.filter((s: SubstitutionEvent) => s.time === earliestTime);
+        const batchSubs = allDueSubs.filter((s: SubstitutionEvent) => s.time === earliestTime);
         
         const elapsedMinutes = Math.floor(currentElapsed / 60);
+        const overdueSeconds = Math.floor(currentElapsed - earliestTime);
 
         let notificationBody: string;
         let pushTitle: string;
@@ -438,7 +415,6 @@ async function checkGames(supabase: any): Promise<number> {
         let position: string | undefined;
 
         if (batchSubs.length === 1) {
-          // Single sub
           const sub = batchSubs[0];
           playerOutName = sub.playerOut.name || `#${sub.playerOut.number}`;
           playerInName = sub.playerIn.name || `#${sub.playerIn.number}`;
@@ -446,7 +422,6 @@ async function checkGames(supabase: any): Promise<number> {
           notificationBody = `${playerOutName} → Bench. ${playerInName} → ${position}`;
           pushTitle = `🔄 ${teamName} - Sub Due!`;
         } else {
-          // Multiple concurrent subs — list all of them
           const subDescriptions = batchSubs.map((sub: SubstitutionEvent) => {
             const outName = sub.playerOut.name || `#${sub.playerOut.number}`;
             const inName = sub.playerIn.name || `#${sub.playerIn.number}`;
@@ -455,7 +430,6 @@ async function checkGames(supabase: any): Promise<number> {
           });
           notificationBody = `${batchSubs.length} subs due: ${subDescriptions.join(' • ')}`;
           pushTitle = `🔄 ${teamName} - ${batchSubs.length} Subs Due!`;
-          // Use first sub's details for email template fields
           playerOutName = batchSubs[0].playerOut.name || `#${batchSubs[0].playerOut.number}`;
           playerInName = batchSubs[0].playerIn.name || `#${batchSubs[0].playerIn.number}`;
           position = batchSubs[0].playerOut.currentPitchPosition || 'Pitch';
@@ -463,7 +437,6 @@ async function checkGames(supabase: any): Promise<number> {
 
         // Atomically claim this sub time slot before sending notifications
         const maxAbsTime = Math.max(...batchSubs.map((s: SubstitutionEvent) => getAbsoluteSubTime(s)));
-        const currentMarker = game.last_sub_check_time || 0;
         
         const { data: claimResult } = await supabase
           .from('active_games')
@@ -473,17 +446,19 @@ async function checkGames(supabase: any): Promise<number> {
           .select('id');
         
         if (claimResult && claimResult.length > 0) {
-          console.log(`[CHECK-SUBS] Game ${game.id}: ${batchSubs.length} sub(s) due at ${earliestTime}s, current=${currentElapsed}s`);
+          console.log(`[CHECK-SUBS] Game ${game.id}: ${batchSubs.length} sub(s) due at ${earliestTime}s (overdue ${overdueSeconds}s), current=${Math.floor(currentElapsed)}s, claiming absTime=${maxAbsTime}`);
 
-          notificationsSent += await notifyTeamStaff(
+          const sent = await notifyTeamStaff(
             supabase, staffUserIds, game.user_id, game.id,
             teamId, teamName, linkedEventId,
             'pending_sub', notificationBody, 'pending_sub',
             pushTitle, notificationBody,
             playerOutName, playerInName, position, elapsedMinutes, currentHalf
           );
+          console.log(`[CHECK-SUBS] Game ${game.id}: notifyTeamStaff sent=${sent} (staff=${staffUserIds.length}, owner=${game.user_id})`);
+          notificationsSent += sent;
         } else {
-          console.log(`[CHECK-SUBS] Game ${game.id}: Sub at ${earliestTime}s already claimed by another invocation`);
+          console.log(`[CHECK-SUBS] Game ${game.id}: Sub at ${earliestTime}s already claimed (last_sub_check_time=${game.last_sub_check_time || 0}, target=${maxAbsTime})`);
         }
       }
     }
