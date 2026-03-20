@@ -456,7 +456,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [persistShowLineupPicker]);
 
   const handleLineupConfirm = useCallback((updatedPlayers: Player[], firstHalfGkId?: string, secondHalfGkId?: string) => {
-    setPlayers(updatedPlayers);
+    // Reset player minutes for a fresh game setup
+    const freshPlayers = updatedPlayers.map(p => ({ ...p, minutesPlayed: 0 }));
+    setPlayers(freshPlayers);
     setShowLineupPicker(false);
     if (secondHalfGkId) {
       setPreferredSecondHalfGkId(secondHalfGkId);
