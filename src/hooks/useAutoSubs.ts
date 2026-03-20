@@ -407,8 +407,13 @@ export function useAutoSubs({
     const primarySwapPlayer = pendingAutoSub.positionSwap?.player?.id;
     runSubAnimationRef.current?.(pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id, primarySwapPlayer);
 
-    // Mark executed
-    let finalPlan = markSubsExecuted(autoSubPlan, executedSubKeys);
+    // Mark executed (include any stale subs that were filtered out)
+    const staleSubKeys = staleSubs.map(s => getSubKey(s));
+    let finalPlan = markSubsExecuted(autoSubPlan, [...executedSubKeys, ...staleSubKeys], false);
+    // Mark stale ones as skipped
+    if (staleSubKeys.length > 0) {
+      finalPlan = markSubsExecuted(finalPlan, staleSubKeys, true);
+    }
 
     // Recalculate if significantly late (>30s)
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
