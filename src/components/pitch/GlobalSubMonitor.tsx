@@ -116,6 +116,7 @@ export default function GlobalSubMonitor() {
       isRunning: timerState.isRunning,
       currentHalf: timerState.currentHalf,
       elapsedSeconds: timerState.elapsedSeconds,
+      minutesPerHalf: timerState.minutesPerHalf,
       teamId: timerState.teamId,
     } : null);
     console.log('[SYNC] Pitch state:', pitchState ? {
