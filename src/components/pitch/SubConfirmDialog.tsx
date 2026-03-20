@@ -266,29 +266,40 @@ export default function SubConfirmDialog({
         )}
         
         {/* Scrollable area for sub steps */}
-        <div className="overflow-y-auto overscroll-contain py-2" style={{ maxHeight: '50vh' }}>
-          <div className="space-y-3 pr-1">
-            {allSubs.map((sub, index) => (
-              renderSubSteps(sub, getStepOffset(index), index)
-            ))}
+        {allSubs.length > 0 && (
+          <div className="overflow-y-auto overscroll-contain py-2" style={{ maxHeight: '50vh' }}>
+            <div className="space-y-3 pr-1">
+              {allSubs.map((sub, index) => (
+                renderSubSteps(sub, getStepOffset(index), index)
+              ))}
+            </div>
           </div>
-        </div>
+        )}
         
         <ResponsiveDialogFooter className="flex-row gap-2 sm:gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-2 h-12 text-base">
-            <X className="h-4 w-4" />
-            Close
-          </Button>
-          {isDue && !wasSkipped && (
+          {isHalftimeOnly ? (
+            <Button onClick={() => onOpenChange(false)} className="flex-1 gap-2 h-12 text-base">
+              <Check className="h-4 w-4" />
+              OK
+            </Button>
+          ) : (
             <>
-              <Button variant="outline" onClick={onSkip} disabled={alreadyExecuted} className="gap-2 h-12 text-base">
+              <Button variant="outline" onClick={() => onOpenChange(false)} className="gap-2 h-12 text-base">
                 <X className="h-4 w-4" />
-                Skip
+                Close
               </Button>
-              <Button onClick={onConfirm} disabled={alreadyExecuted} className="flex-1 gap-2 h-12 text-base">
-                <Check className="h-4 w-4" />
-                {alreadyExecuted ? 'Done' : `Confirm${isBatchSub ? ` All` : ''}`}
-              </Button>
+              {isDue && !wasSkipped && (
+                <>
+                  <Button variant="outline" onClick={onSkip} disabled={alreadyExecuted} className="gap-2 h-12 text-base">
+                    <X className="h-4 w-4" />
+                    Skip
+                  </Button>
+                  <Button onClick={onConfirm} disabled={alreadyExecuted} className="flex-1 gap-2 h-12 text-base">
+                    <Check className="h-4 w-4" />
+                    {alreadyExecuted ? 'Done' : `Confirm${isBatchSub ? ` All` : ''}`}
+                  </Button>
+                </>
+              )}
             </>
           )}
         </ResponsiveDialogFooter>
