@@ -132,7 +132,7 @@ export default function AutoSubControlPanel({
                 <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
                   {nextSub!.half === 2 && nextSub!.time === 0
                     ? "HT"
-                    : `${nextSub!.half === 2 ? "2H " : ""}${formatTime(nextSub!.time)}`}
+                    : formatTime(nextSub!.time)}
                 </Badge>
               </div>
               <div className="space-y-1.5">

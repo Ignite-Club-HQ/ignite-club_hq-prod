@@ -247,7 +247,7 @@ export default function AutoSubManager({
                       {groups.map((group) => {
                         const timeLabel = group.time === 0 && half === 2
                           ? "HT"
-                          : `${half === 2 ? "2H " : ""}${formatTime(group.time)}`;
+                          : formatTime(group.time);
                         const allExecuted = group.items.every(({ sub }) => sub.executed);
                         const anyNext = group.items.some(({ sub }) => nextSub && sub === nextSub);
                         const anyDue = group.items.some(({ sub }) => !sub.executed && sub.half === currentHalf && sub.time <= currentElapsedSeconds);
