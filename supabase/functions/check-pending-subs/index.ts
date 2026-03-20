@@ -263,7 +263,7 @@ async function notifyTeamStaff(
       console.error(`[CHECK-SUBS] Notification insert error for ${userId}:`, notifError.message);
     }
 
-    // Send push notification explicitly (no DB trigger exists on notifications table)
+    // Send push notification explicitly (DB trigger skipped via skip_push flag)
     await sendPushNotification(
       supabase, userId, pushTitle, pushBody,
       linkedEventId ? `/events/${linkedEventId}` : '/notifications',
