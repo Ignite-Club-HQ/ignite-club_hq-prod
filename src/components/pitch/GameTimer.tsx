@@ -275,8 +275,15 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
 
   const toggleTimer = useCallback(() => {
     // Cannot resume if game is finished
-    if (isGameFinished) return;
-    setIsRunning(prev => !prev);
+    if (isGameFinished) return false;
+
+    let nextIsRunning = false;
+    setIsRunning(prev => {
+      nextIsRunning = !prev;
+      return nextIsRunning;
+    });
+
+    return nextIsRunning;
   }, [isGameFinished]);
 
   const resetTimer = useCallback(() => {
