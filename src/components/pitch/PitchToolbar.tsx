@@ -883,7 +883,10 @@ function PitchToolbar({
             onClick={() => {
               if (!readOnly) {
                 gameTimerRef.current?.toggleTimer();
-                setTimerRunning(!timerRunning);
+                // Read actual state from ref to stay in sync after auto-pauses (e.g. halftime)
+                setTimeout(() => {
+                  if (gameTimerRef.current) setTimerRunning(gameTimerRef.current.isRunning());
+                }, 0);
               }
             }}
             disabled={readOnly}
