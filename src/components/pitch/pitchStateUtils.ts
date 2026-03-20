@@ -303,10 +303,15 @@ export const recalculateRemainingPlan = (
         if ((halfDurationSeconds - absTime) <= END_OF_HALF_SNAP_THRESHOLD) {
           continue;
         }
-        times.push({ 
-          time: Math.floor(absTime), 
-          half: 2 
-        });
+        // Snap subs within 60s of start of second half → halftime (time 0)
+        if (absTime <= END_OF_HALF_SNAP_THRESHOLD) {
+          times.push({ time: 0, half: 2 });
+        } else {
+          times.push({ 
+            time: Math.floor(absTime), 
+            half: 2 
+          });
+        }
       }
     }
     return times;
