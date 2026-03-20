@@ -22,6 +22,7 @@ import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
 import { validateAndFixRemainingPlan } from "./pitchStateUtils";
+import { snapSubTime } from "./autoSubHelpers";
 
 
 // Storage keys
