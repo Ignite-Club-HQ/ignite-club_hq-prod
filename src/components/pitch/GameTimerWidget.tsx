@@ -92,6 +92,13 @@ const loadActiveTimerState = (): TimerState | null => {
     const activeRaw = localStorage.getItem(ACTIVE_TIMER_KEY);
     if (!activeRaw) return null;
     const activeState = JSON.parse(activeRaw) as TimerState;
+
+    // If widget was dismissed for this team, don't show it
+    const dismissed = localStorage.getItem(WIDGET_DISMISSED_KEY);
+    if (dismissed && (dismissed === 'true' || dismissed === activeState.teamId)) {
+      return null;
+    }
+
     if (activeState.teamId) {
       const teamKey = getTeamTimerStorageKey(activeState.teamId);
       const teamRaw = localStorage.getItem(teamKey);
