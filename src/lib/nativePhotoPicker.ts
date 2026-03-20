@@ -142,8 +142,8 @@ export async function pickNativePhoto(options?: {
 
     if (isLoadingError(uriError)) {
       // iCloud photo not ready — wait and retry URI once
-      console.log("[nativePhotoPicker] iCloud loading error, waiting 1.5s before retry...");
-      await wait(1500);
+      console.log("[nativePhotoPicker] iCloud loading error, waiting 500ms before retry...");
+      await wait(500);
 
       try {
         photo = await Camera.getPhoto({
