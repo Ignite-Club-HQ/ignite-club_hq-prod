@@ -414,11 +414,10 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
           window.dispatchEvent(new StorageEvent('storage', { key: PITCH_STATE_KEY }));
           
           toast({
-            title: "Sub couldn't be made",
+            title: "Sub expired — auto-skipped",
             description: !currentPlayerOut?.position 
               ? `${playerOut.name} is already off the pitch` 
               : `${playerIn.name} is already on the pitch`,
-            variant: "destructive",
           });
           
           setShowConfirmDialog(false);
