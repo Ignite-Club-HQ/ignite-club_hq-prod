@@ -4075,6 +4075,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                   onMockModeChange={handleMockModeChange}
                   readOnly={readOnly}
                   gameInProgress={gameInProgress}
+                  gameTimerRunning={!!gameTimerRef.current?.isRunning()}
+                  gameFinished={!!gameTimerRef.current?.isGameFinished()}
                   onResetGame={handleResetGame}
                   onResetFormation={handleResetFormation}
                   onOpenStats={() => setStatsOpen(true)}
@@ -5529,6 +5531,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
                 onMockModeChange={handleMockModeChange}
                 readOnly={readOnly}
                 gameInProgress={gameInProgress}
+                gameTimerRunning={!!gameTimerRef.current?.isRunning()}
+                gameFinished={!!gameTimerRef.current?.isGameFinished()}
                 onResetGame={handleResetGame}
                 onResetFormation={handleResetFormation}
                 onOpenStats={() => setStatsOpen(true)}
