@@ -547,7 +547,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xl font-bold text-primary">
-                  {formatTime(displaySeconds, timerState.currentHalf, timerState.minutesPerHalf)}
+                  {formatTime(displaySeconds)}
                 </span>
                {timerState.isRunning && (
                   <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-destructive/50 text-destructive gap-1">
