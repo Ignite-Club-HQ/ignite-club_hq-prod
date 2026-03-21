@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { getCurrentGameSeconds } from "./timerUtils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -154,16 +155,7 @@ const writePitchState = (state: PitchBoardState) => {
 };
 
 const getCurrentElapsed = (timer: TimerState): number => {
-  let elapsed = timer.elapsedSeconds;
-  if (timer.isRunning && timer.lastUpdateTime) {
-    const MAX_EXTRAPOLATION_SECS = 30;
-    const secondsPassed = Math.min(
-      Math.max(0, Math.floor((Date.now() - timer.lastUpdateTime) / 1000)),
-      MAX_EXTRAPOLATION_SECS
-    );
-    elapsed = Math.min(elapsed + secondsPassed, timer.minutesPerHalf * 60);
-  }
-  return elapsed;
+  return getCurrentGameSeconds(timer);
 };
 
 const getTotalSeconds = (elapsed: number, half: 1 | 2, minutesPerHalf: number): number => {

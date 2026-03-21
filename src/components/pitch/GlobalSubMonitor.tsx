@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import type { Json } from "@/integrations/supabase/types";
 import { setSyncStatus } from "@/hooks/useSyncStatus";
+import { getCurrentGameSeconds, getSecondsSinceUpdate, MAX_EXTRAPOLATION_SECS } from "./timerUtils";
 import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan, validateAndFixRemainingPlan } from "./pitchStateUtils";
 import type { Player, SubstitutionEvent, TimerState, PitchBoardState, Goal } from "./types";
 import {
@@ -27,7 +28,7 @@ import {
 
 const TIMER_STATE_KEY = TIMER_STORAGE_KEY;
 const getPitchStateKeyForTeam = getPitchStateKey;
-const MAX_CLIENT_EXTRAPOLATION_SECS = 30;
+const MAX_CLIENT_EXTRAPOLATION_SECS = MAX_EXTRAPOLATION_SECS;
 
 const loadTimerState = (): TimerState | null => {
   try {
@@ -162,23 +163,7 @@ export default function GlobalSubMonitor() {
     // CRITICAL: Also check if the game is actually finished — if so, don't re-sync as active.
     // This prevents resurrecting finished games which causes duplicate full-time notifications.
     const halfDurationSecs = timerState ? timerState.minutesPerHalf * 60 : 0;
-    // Cap extrapolation to 30s to match server-side cap. When the app backgrounds,
-    // JS timers freeze but Date.now() keeps ticking. Without this cap, projectedElapsed
-    // overshoots the half boundary, causing the server to see an inflated elapsedSeconds
-    // and prematurely trigger halftime/fulltime notifications.
-    const MAX_CLIENT_EXTRAPOLATION_SECS = 30;
-    const secondsSinceUpdateRaw = timerState?.lastUpdateTime
-      ? Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000))
-      : 0;
-    const secondsSinceUpdate = Math.min(secondsSinceUpdateRaw, MAX_CLIENT_EXTRAPOLATION_SECS);
-    const projectedElapsedRaw = timerState
-      ? timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceUpdate : 0)
-      : 0;
-    // Also cap at half duration — never send elapsed > halfDuration to the server.
-    // The server detects halftime/fulltime from this value; overshooting causes false positives.
-    const projectedElapsed = halfDurationSecs > 0
-      ? Math.min(projectedElapsedRaw, halfDurationSecs)
-      : projectedElapsedRaw;
+    const projectedElapsed = timerState ? getCurrentGameSeconds(timerState) : 0;
     const isFinished = timerState
       ? (Boolean((timerState as any).isGameFinished) ||
          (timerState.currentHalf === 2 && projectedElapsed >= halfDurationSecs))
@@ -446,17 +431,9 @@ export default function GlobalSubMonitor() {
 
     if (!timerState || !pitchState) return;
 
-    // Calculate current elapsed time (capped to prevent overshoot on foreground resume)
-    const now = Date.now();
-    const timeSinceLastUpdate = Math.min(
-      Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)),
-      MAX_CLIENT_EXTRAPOLATION_SECS
-    );
+    // Calculate current elapsed time using centralized utility
     const halfDuration = timerState.minutesPerHalf * 60;
-    const currentElapsed = Math.min(
-      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0),
-      halfDuration
-    );
+    const currentElapsed = getCurrentGameSeconds(timerState);
 
     // Game is finished when 2nd half timer reaches full time
     const isGameFinished = timerState.currentHalf === 2 && currentElapsed >= halfDuration;
@@ -551,17 +528,8 @@ export default function GlobalSubMonitor() {
     if (pitchState.autoSubPaused) return;
 
     // Calculate halftime state before early-returning on empty plan
-    // Cap extrapolation to prevent false triggers on foreground resume
-    const now = Date.now();
-    const timeSinceUpdate = Math.min(
-      Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)),
-      MAX_CLIENT_EXTRAPOLATION_SECS
-    );
     const halfDuration = timerState.minutesPerHalf * 60;
-    const elapsed = Math.min(
-      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0),
-      halfDuration
-    );
+    const elapsed = getCurrentGameSeconds(timerState);
     const isHalftimeBreakEarly = !timerState.isRunning && timerState.currentHalf === 2 && elapsed === 0;
 
     // Allow halftime check to proceed even with empty plan
@@ -706,14 +674,7 @@ export default function GlobalSubMonitor() {
     if (!timerState || !pitchState) return false;
 
     const halfDuration = timerState.minutesPerHalf * 60;
-    const timeSinceUpdate = Math.min(
-      Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)),
-      MAX_CLIENT_EXTRAPOLATION_SECS
-    );
-    const projectedElapsed = Math.min(
-      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0),
-      halfDuration
-    );
+    const projectedElapsed = getCurrentGameSeconds(timerState);
     const isFinished = Boolean(timerState.isGameFinished) || (timerState.currentHalf === 2 && projectedElapsed >= halfDuration);
 
     if (isFinished) return false;
@@ -740,17 +701,9 @@ export default function GlobalSubMonitor() {
     const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState || !timerState) return;
 
-    // Calculate current elapsed time (capped to prevent overshoot on foreground resume)
-    const now = Date.now();
-    const timeSinceLastUpdate = Math.min(
-      Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)),
-      MAX_CLIENT_EXTRAPOLATION_SECS
-    );
+    // Calculate current elapsed time using centralized utility
     const halfDuration = timerState.minutesPerHalf * 60;
-    const currentElapsed = Math.min(
-      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0),
-      halfDuration
-    );
+    const currentElapsed = getCurrentGameSeconds(timerState);
     const currentHalf = timerState.currentHalf;
 
     const { latestDueSubs: dueSubs, olderDueSubs: olderSubs } = getDueSubGroups(
@@ -980,10 +933,8 @@ export default function GlobalSubMonitor() {
     
     // Recalculate if significantly late (>30s)
     if (timerState && finalPlan.some(sub => !sub.executed)) {
-      const now = Date.now();
-      const timeSinceLastUpdate = Math.min(Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)), MAX_CLIENT_EXTRAPOLATION_SECS);
       const halfDuration = timerState.minutesPerHalf * 60;
-      const currentElapsed = Math.min(timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0), halfDuration);
+      const currentElapsed = getCurrentGameSeconds(timerState);
       const delaySeconds = calculateSubDelay(pendingAutoSub, currentElapsed, timerState.currentHalf as 1 | 2, halfDuration);
       
       // Also detect early execution
@@ -1059,10 +1010,8 @@ export default function GlobalSubMonitor() {
     let finalPlan = updatedPlan;
 
     if (timerState && existingUnexecuted.length > 0) {
-      const now = Date.now();
-      const timeSinceLastUpdate = Math.min(Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)), MAX_CLIENT_EXTRAPOLATION_SECS);
       const halfDuration = timerState.minutesPerHalf * 60;
-      const currentElapsed = Math.min(timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0), halfDuration);
+      const currentElapsed = getCurrentGameSeconds(timerState);
       const currentHalf = timerState.currentHalf as 1 | 2;
 
       // Only recalculate if the skip was significantly late (>30s overdue)
