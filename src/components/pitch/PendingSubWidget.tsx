@@ -232,7 +232,12 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
 
       let currentElapsedSeconds = timerState.elapsedSeconds || 0;
       if (timerState.isRunning && timerState.lastUpdateTime) {
-        const secondsPassed = Math.floor((Date.now() - timerState.lastUpdateTime) / 1000);
+        // Cap extrapolation to 30s to prevent overshoot when app resumes from background
+        const MAX_EXTRAPOLATION_SECS = 30;
+        const secondsPassed = Math.min(
+          Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)),
+          MAX_EXTRAPOLATION_SECS
+        );
         currentElapsedSeconds = Math.min(currentElapsedSeconds + secondsPassed, minutesPerHalf * 60);
       }
 
