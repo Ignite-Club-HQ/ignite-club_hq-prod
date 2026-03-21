@@ -489,6 +489,7 @@ export function useAutoSubs({
         finalPlan = validateAndFixRemainingPlan([...executedPlan, ...rescued], updatedPlayers);
       }
     }
+    setAutoSubPlan(finalPlan);
     setPlayers(updatedPlayers);
 
     const staleCount = staleSubs.length;
