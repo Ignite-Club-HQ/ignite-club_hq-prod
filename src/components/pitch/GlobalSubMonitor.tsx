@@ -740,10 +740,17 @@ export default function GlobalSubMonitor() {
     const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState || !timerState) return;
 
-    // Calculate current elapsed time
+    // Calculate current elapsed time (capped to prevent overshoot on foreground resume)
     const now = Date.now();
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    const timeSinceLastUpdate = Math.min(
+      Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)),
+      MAX_CLIENT_EXTRAPOLATION_SECS
+    );
+    const halfDuration = timerState.minutesPerHalf * 60;
+    const currentElapsed = Math.min(
+      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0),
+      halfDuration
+    );
     const currentHalf = timerState.currentHalf;
 
     const { latestDueSubs: dueSubs, olderDueSubs: olderSubs } = getDueSubGroups(
