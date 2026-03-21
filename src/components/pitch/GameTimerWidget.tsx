@@ -221,6 +221,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   // Poll state
   useEffect(() => {
     const checkState = () => {
+      // Skip polling for 1.5s after a user action to avoid reverting the toggle
+      if (Date.now() - userActionAtRef.current < 1500) return;
+
       const saved = loadActiveTimerState();
       if (!saved) { setTimerState(null); return; }
 
@@ -250,9 +253,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
-          // Display-only: sort subs by time, mark which are due.
-          // Do NOT modify the plan here — GlobalSubMonitor handles auto-skip/recalculation
-          // to avoid race conditions that can silently wipe subs.
           const sorted = [...unexecuted].sort((a, b) => {
             if (a.half !== b.half) return a.half - b.half;
             return a.time - b.time;
@@ -264,7 +264,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             return { sub, isDue, secondsUntil: Math.max(0, subTotal - currentTotal) };
           });
           
-          // Put due subs first
           subInfos.sort((a, b) => {
             if (a.isDue && !b.isDue) return -1;
             if (!a.isDue && b.isDue) return 1;
