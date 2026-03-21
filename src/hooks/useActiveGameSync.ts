@@ -106,10 +106,14 @@ export function useActiveGameSync() {
     }
 
     const halfDurationSeconds = timerState.minutesPerHalf * 60;
+    const MAX_EXTRAPOLATION_SECS = 30;
     const secondsSinceLastUpdate = timerState.lastUpdateTime
-      ? Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000))
+      ? Math.min(Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)), MAX_EXTRAPOLATION_SECS)
       : 0;
-    const projectedElapsedSeconds = timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceLastUpdate : 0);
+    const projectedElapsedSeconds = Math.min(
+      timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceLastUpdate : 0),
+      halfDurationSeconds
+    );
     const isFinishedByState = Boolean((timerState as TimerState & { isGameFinished?: boolean }).isGameFinished)
       || (timerState.currentHalf === 2 && projectedElapsedSeconds >= halfDurationSeconds);
 
