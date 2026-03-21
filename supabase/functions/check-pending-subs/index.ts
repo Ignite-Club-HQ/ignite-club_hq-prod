@@ -381,7 +381,12 @@ async function checkGames(supabase: any): Promise<number> {
 
     // Detect half-time boundary: elapsed has reached/exceeded half duration
     // This works whether timer is running (extrapolated) or paused (elapsedSeconds already at boundary)
-    const isAtHalfTimeBoundary = timerState.currentHalf === 1 && rawElapsed >= halfDurationSecs;
+    const isAtHalfTimeBoundaryClassic = timerState.currentHalf === 1 && rawElapsed >= halfDurationSecs;
+    // Also detect halftime when the client has already transitioned to half 2:
+    // The client syncs currentHalf=2, elapsedSeconds=0, isRunning=false immediately at halftime.
+    // If the cron's 10s cycle missed the narrow half=1 boundary window, this catches it.
+    const isAtHalfTimeBreakState = timerState.currentHalf === 2 && timerState.elapsedSeconds === 0 && !timerState.isRunning;
+    const isAtHalfTimeBoundary = isAtHalfTimeBoundaryClassic || isAtHalfTimeBreakState;
     const isAtFullTimeBoundary = timerState.currentHalf === 2 && rawElapsed >= halfDurationSecs;
 
     // Skip stale games - if the DB row hasn't been updated recently,
