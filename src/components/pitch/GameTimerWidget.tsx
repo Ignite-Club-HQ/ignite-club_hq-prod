@@ -326,6 +326,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       } catch {}
     })();
 
+    // Run immediately on mount to catch resumes where the event already fired
+    reconcileAfterResume();
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       appListener?.remove?.();
