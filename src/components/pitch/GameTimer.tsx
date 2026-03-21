@@ -243,8 +243,12 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(false);
       } else if (saved.isRunning && saved.lastUpdateTime) {
-        // Calculate time passed while away
-        const secondsPassed = Math.floor((Date.now() - saved.lastUpdateTime) / 1000);
+        // Cap resume extrapolation to avoid overshoot after backgrounding
+        const MAX_EXTRAPOLATION_SECS = 30;
+        const secondsPassed = Math.min(
+          Math.max(0, Math.floor((Date.now() - saved.lastUpdateTime) / 1000)),
+          MAX_EXTRAPOLATION_SECS
+        );
         const newElapsed = saved.elapsedSeconds + secondsPassed;
         // Cap at half duration
         setElapsedSeconds(Math.min(newElapsed, halfDuration));
