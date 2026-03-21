@@ -275,16 +275,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
   }, []);
 
   const calculateCurrentTime = (timerState: TimerState) => {
-    let currentElapsed = timerState.elapsedSeconds;
-    if (timerState.isRunning && timerState.lastUpdateTime) {
-      const MAX_EXTRAPOLATION_SECS = 30;
-      const secondsPassed = Math.min(
-        Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)),
-        MAX_EXTRAPOLATION_SECS
-      );
-      currentElapsed = Math.min(timerState.elapsedSeconds + secondsPassed, timerState.minutesPerHalf * 60);
-    }
-    return currentElapsed;
+    return getCurrentGameSeconds(timerState);
   };
 
   const openPitchBoard = (match: ActiveMiniLeagueMatch) => {
