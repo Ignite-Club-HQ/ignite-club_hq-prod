@@ -415,7 +415,7 @@ export function useAutoSubs({
       finalPlan = markSubsExecuted(finalPlan, staleSubKeys, true);
     }
 
-    // Recalculate if significantly late (>30s)
+    // Recalculate if significantly late, early, or halftime sub (positions may have changed)
     const currentElapsed = gameTimerRef.current?.getElapsedSeconds() || 0;
     const half = gameTimerRef.current?.getCurrentHalf() || 1;
     const minsPerHalf = gameTimerRef.current?.getMinutesPerHalf() || 45;
@@ -436,8 +436,11 @@ export function useAutoSubs({
         : 0;
       const isSignificantlyEarly = earlyBySeconds > 15;
       const isSignificantlyLate = delaySeconds > 30;
+      // Always recalculate after halftime subs — player positions change at the break
+      // and the remaining plan references pre-halftime positions, causing cascade skips.
+      const isHalftimeSub = pendingAutoSub.half === 2 && pendingAutoSub.time === 0;
 
-      if (isSignificantlyLate || isSignificantlyEarly) {
+      if (isSignificantlyLate || isSignificantlyEarly || isHalftimeSub) {
         const executedPlan = finalPlan.filter(sub => sub.executed);
         const recalculated = recalculateRemainingPlan(
           updatedPlayers,
@@ -455,7 +458,7 @@ export function useAutoSubs({
           // Preserve existing remaining subs if recalculation returns empty
           const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
           if (benchPlayers.length > 0) {
-            console.warn("[AutoSub] Early-sub recalculation returned empty — preserving remaining plan");
+            console.warn("[AutoSub] Halftime/late recalculation returned empty — preserving remaining plan");
             finalPlan = [...executedPlan, ...remainingSubs];
           } else {
             finalPlan = [...executedPlan, ...recalculated];
@@ -465,6 +468,27 @@ export function useAutoSubs({
     }
 
     finalPlan = validateAndFixRemainingPlan(finalPlan, updatedPlayers);
+    
+    // Safety net: if validation cascade-skipped all remaining subs but bench players exist,
+    // force a full recalculation to regenerate valid subs for the rest of the match.
+    const remainingAfterValidation = finalPlan.filter(sub => !sub.executed);
+    const benchAfterSub = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+    if (remainingAfterValidation.length === 0 && remainingSubs.length > 0 && benchAfterSub.length > 0) {
+      console.warn("[AutoSub] Validation wiped all remaining subs — forcing recalculation");
+      const executedPlan = finalPlan.filter(sub => sub.executed);
+      const rescued = recalculateRemainingPlan(
+        updatedPlayers,
+        parseInt(teamSize),
+        halfDurationSeconds,
+        currentElapsed,
+        half as 1 | 2,
+        { ...pendingAutoSub, executed: true },
+        rotateGkAtHalftime
+      );
+      if (rescued.length > 0) {
+        finalPlan = validateAndFixRemainingPlan([...executedPlan, ...rescued], updatedPlayers);
+      }
+    }
     setAutoSubPlan(finalPlan);
     setPlayers(updatedPlayers);
 
