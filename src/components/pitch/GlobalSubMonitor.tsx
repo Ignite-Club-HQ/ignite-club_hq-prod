@@ -993,8 +993,11 @@ export default function GlobalSubMonitor() {
         : 0;
       const isSignificantlyEarly = earlyBySeconds > 15;
       const isSignificantlyLate = delaySeconds > 30;
+      // Always recalculate after halftime subs — player positions change at the break
+      // and the remaining plan references pre-halftime positions, causing cascade skips.
+      const isHalftimeSub = pendingAutoSub.half === 2 && pendingAutoSub.time === 0;
 
-      if (isSignificantlyLate || isSignificantlyEarly) {
+      if (isSignificantlyLate || isSignificantlyEarly || isHalftimeSub) {
         console.log(`[GlobalSubMonitor] Sub was ${isSignificantlyLate ? Math.round(delaySeconds / 60) + 'm late' : Math.round(earlyBySeconds) + 's early'}, recalculating remaining plan`);
         const executedPlan = finalPlan.filter(sub => sub.executed);
         const remainingSubs = finalPlan.filter(sub => !sub.executed);
