@@ -1058,9 +1058,9 @@ export default function GlobalSubMonitor() {
 
     if (timerState && existingUnexecuted.length > 0) {
       const now = Date.now();
-      const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-      const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+      const timeSinceLastUpdate = Math.min(Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)), MAX_CLIENT_EXTRAPOLATION_SECS);
       const halfDuration = timerState.minutesPerHalf * 60;
+      const currentElapsed = Math.min(timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0), halfDuration);
       const currentHalf = timerState.currentHalf as 1 | 2;
 
       // Only recalculate if the skip was significantly late (>30s overdue)

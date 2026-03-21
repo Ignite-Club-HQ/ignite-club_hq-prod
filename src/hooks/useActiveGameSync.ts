@@ -138,9 +138,9 @@ export function useActiveGameSync() {
     // the timer state last changed (start/pause). Real elapsed = snapshot + drift.
     const nowMs = Date.now();
     const secondsSinceFrozen = timerState.isRunning && timerState.lastUpdateTime
-      ? Math.max(0, Math.floor((nowMs - timerState.lastUpdateTime) / 1000))
+      ? Math.min(Math.max(0, Math.floor((nowMs - timerState.lastUpdateTime) / 1000)), MAX_EXTRAPOLATION_SECS)
       : 0;
-    const actualElapsed = timerState.elapsedSeconds + secondsSinceFrozen;
+    const actualElapsed = Math.min(timerState.elapsedSeconds + secondsSinceFrozen, halfDurationSeconds);
 
     const syncedTimerState: TimerState = {
       ...timerState,
