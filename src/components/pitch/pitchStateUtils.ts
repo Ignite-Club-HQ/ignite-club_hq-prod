@@ -136,26 +136,10 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
       }
     }
     
-    const timerState = loadTimerStateForMinutes(teamId);
-    if (timerState && state.lastTimerSeconds !== undefined) {
-      let currentTimerSeconds = getCurrentGameSeconds(timerState);
-      if (timerState.currentHalf === 2) {
-        currentTimerSeconds += timerState.minutesPerHalf * 60;
-      }
-      
-      const gameSecondsElapsed = currentTimerSeconds - state.lastTimerSeconds;
-      console.log("[PitchState] Minutes catchup:", { lastTimerSeconds: state.lastTimerSeconds, currentTimerSeconds, gameSecondsElapsed });
-      
-      if (gameSecondsElapsed > 0) {
-        state.players = state.players.map(p => {
-          if (p.position !== null) {
-            return { ...p, minutesPlayed: (p.minutesPlayed || 0) + gameSecondsElapsed };
-          }
-          return p;
-        });
-        console.log("[PitchState] Added", gameSecondsElapsed, "seconds to on-pitch players");
-      }
-    }
+    // NOTE: minutesPlayed catchup removed — handleTimerUpdate in PitchBoard is
+    // the single source of truth for player minute tracking. The old catchup
+    // logic here could double-count time that handleTimerUpdate had already
+    // accumulated, leading to inflated player minutes.
     
     console.log("[PitchState] LOADED state:", { teamId: state.teamId, playerCount: state.players.length });
     return state;
