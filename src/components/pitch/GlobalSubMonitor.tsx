@@ -926,10 +926,11 @@ export default function GlobalSubMonitor() {
 
     // Use shared helper to execute subs
     const allPendingSubs = [pendingAutoSub, ...pendingBatchSubs];
-    const { updatedPlayers, executedSubKeys } = executeSubsOnPlayers(allPendingSubs, pitchState.players);
+    const { updatedPlayers, executedSubKeys, skippedSubKeys } = executeSubsOnPlayers(allPendingSubs, pitchState.players);
 
-    // Mark processed subs as executed
+    // Mark processed subs as executed, and skipped subs as skipped
     let finalPlan = markSubsExecuted(pitchState.autoSubPlan, executedSubKeys);
+    finalPlan = markSubsExecuted(finalPlan, skippedSubKeys, true);
     
     // Recalculate if significantly late (>30s)
     if (timerState && finalPlan.some(sub => !sub.executed)) {
