@@ -124,10 +124,12 @@ export const executeSubsOnPlayers = (
 ): {
   updatedPlayers: Player[];
   executedSubKeys: string[];
+  skippedSubKeys: string[];
   successCount: number;
 } => {
   let updatedPlayers = [...currentPlayers];
   const executedSubKeys: string[] = [];
+  const skippedSubKeys: string[] = [];
   let successCount = 0;
 
   for (const sub of allSubs) {
@@ -153,14 +155,14 @@ export const executeSubsOnPlayers = (
         currentPlayerIn = benchReplacement;
         actualPlayerInId = benchReplacement.id;
       } else {
-        executedSubKeys.push(getSubKey(sub));
+        skippedSubKeys.push(getSubKey(sub));
         continue;
       }
     }
 
     // Validate playerOut is on pitch
     if (!currentPlayerOut?.position) {
-      executedSubKeys.push(getSubKey(sub));
+      skippedSubKeys.push(getSubKey(sub));
       continue;
     }
 
@@ -197,7 +199,7 @@ export const executeSubsOnPlayers = (
     successCount++;
   }
 
-  return { updatedPlayers, executedSubKeys, successCount };
+  return { updatedPlayers, executedSubKeys, skippedSubKeys, successCount };
 };
 
 /**
