@@ -245,7 +245,12 @@ async function notifyTeamStaff(
 
       recentNotifs = result.data;
     } else {
-      const dedupWindowSeconds = 120; // 2 minutes covers cron interval gaps
+      // Use a tight dedup window (30s) for pending_sub notifications.
+      // The old 120s window blocked sequential sub batches in short halves
+      // (e.g., subs at 1:40 and 3:20 would be only 100s apart, causing the
+      // second to be silently dropped). 30s is enough to cover concurrent
+      // cron invocations without blocking legitimate back-to-back subs.
+      const dedupWindowSeconds = 30;
       const cutoff = new Date(Date.now() - dedupWindowSeconds * 1000).toISOString();
       const result = await supabase
         .from('notifications')
@@ -563,7 +568,11 @@ async function checkGames(supabase: any): Promise<number> {
     }
 
     // Check for game finished — use atomic claim to prevent duplicate full-time notifications
-    const isGameFinished = timerState.currentHalf === 2 && currentElapsed >= halfDurationSecs;
+    // Use rawElapsed (not capped currentElapsed) for consistency with halftime boundary check.
+    // currentElapsed is capped at halfDurationSecs, so `currentElapsed >= halfDurationSecs`
+    // would always be true when rawElapsed >= halfDurationSecs, but using rawElapsed makes
+    // the intent explicit and consistent with isAtFullTimeBoundary.
+    const isGameFinished = isAtFullTimeBoundary;
 
     if (isGameFinished) {
       // Atomically claim by marking inactive — only the winner sends notifications

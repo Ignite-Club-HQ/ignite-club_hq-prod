@@ -161,12 +161,23 @@ export default function GlobalSubMonitor() {
     // CRITICAL: Also check if the game is actually finished — if so, don't re-sync as active.
     // This prevents resurrecting finished games which causes duplicate full-time notifications.
     const halfDurationSecs = timerState ? timerState.minutesPerHalf * 60 : 0;
-    const secondsSinceUpdate = timerState?.lastUpdateTime
+    // Cap extrapolation to 30s to match server-side cap. When the app backgrounds,
+    // JS timers freeze but Date.now() keeps ticking. Without this cap, projectedElapsed
+    // overshoots the half boundary, causing the server to see an inflated elapsedSeconds
+    // and prematurely trigger halftime/fulltime notifications.
+    const MAX_CLIENT_EXTRAPOLATION_SECS = 30;
+    const secondsSinceUpdateRaw = timerState?.lastUpdateTime
       ? Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000))
       : 0;
-    const projectedElapsed = timerState
+    const secondsSinceUpdate = Math.min(secondsSinceUpdateRaw, MAX_CLIENT_EXTRAPOLATION_SECS);
+    const projectedElapsedRaw = timerState
       ? timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceUpdate : 0)
       : 0;
+    // Also cap at half duration — never send elapsed > halfDuration to the server.
+    // The server detects halftime/fulltime from this value; overshooting causes false positives.
+    const projectedElapsed = halfDurationSecs > 0
+      ? Math.min(projectedElapsedRaw, halfDurationSecs)
+      : projectedElapsedRaw;
     const isFinished = timerState
       ? (Boolean((timerState as any).isGameFinished) ||
          (timerState.currentHalf === 2 && projectedElapsed >= halfDurationSecs))
