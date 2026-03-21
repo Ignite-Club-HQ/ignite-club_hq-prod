@@ -1221,6 +1221,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     };
   }, []);
 
+  // Handle expired sub notification taps — if opened from a pending_sub notification
+  // but no sub dialog appears, show a toast and let the user see the pitch board
+  useEffect(() => {
+    const source = localStorage.getItem('pitch-board-open-source');
+    if (source !== 'pending_sub') return;
+    localStorage.removeItem('pitch-board-open-source');
+    
+    // Wait a moment for auto-sub system to potentially open the dialog
+    const timer = setTimeout(() => {
+      if (!subConfirmDialogOpen) {
+        toast({
+          title: "Substitution has passed",
+          description: "That substitution is no longer pending. You can review the current game state here.",
+        });
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Auto-reset game 30 minutes after completion
   const autoResetDoneRef = useRef(false);
   const shouldAutoReset = useRef(false);
