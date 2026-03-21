@@ -27,6 +27,7 @@ import {
 
 const TIMER_STATE_KEY = TIMER_STORAGE_KEY;
 const getPitchStateKeyForTeam = getPitchStateKey;
+const MAX_CLIENT_EXTRAPOLATION_SECS = 30;
 
 const loadTimerState = (): TimerState | null => {
   try {
@@ -445,11 +446,17 @@ export default function GlobalSubMonitor() {
 
     if (!timerState || !pitchState) return;
 
-    // Calculate current elapsed time
+    // Calculate current elapsed time (capped to prevent overshoot on foreground resume)
     const now = Date.now();
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    const timeSinceLastUpdate = Math.min(
+      Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)),
+      MAX_CLIENT_EXTRAPOLATION_SECS
+    );
     const halfDuration = timerState.minutesPerHalf * 60;
+    const currentElapsed = Math.min(
+      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0),
+      halfDuration
+    );
 
     // Game is finished when 2nd half timer reaches full time
     const isGameFinished = timerState.currentHalf === 2 && currentElapsed >= halfDuration;
@@ -544,9 +551,17 @@ export default function GlobalSubMonitor() {
     if (pitchState.autoSubPaused) return;
 
     // Calculate halftime state before early-returning on empty plan
+    // Cap extrapolation to prevent false triggers on foreground resume
     const now = Date.now();
-    const timeSinceUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const elapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0);
+    const timeSinceUpdate = Math.min(
+      Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)),
+      MAX_CLIENT_EXTRAPOLATION_SECS
+    );
+    const halfDuration = timerState.minutesPerHalf * 60;
+    const elapsed = Math.min(
+      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0),
+      halfDuration
+    );
     const isHalftimeBreakEarly = !timerState.isRunning && timerState.currentHalf === 2 && elapsed === 0;
 
     // Allow halftime check to proceed even with empty plan
@@ -557,7 +572,6 @@ export default function GlobalSubMonitor() {
     const currentHalf = timerState.currentHalf;
 
     // Don't show sub notifications if game is finished
-    const halfDuration = timerState.minutesPerHalf * 60;
     if (timerState.currentHalf === 2 && currentElapsed >= halfDuration) return;
 
     // Check for halftime subs during the break (timer stopped, half=2, elapsed=0)
@@ -692,8 +706,14 @@ export default function GlobalSubMonitor() {
     if (!timerState || !pitchState) return false;
 
     const halfDuration = timerState.minutesPerHalf * 60;
-    const timeSinceUpdate = Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000));
-    const projectedElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0);
+    const timeSinceUpdate = Math.min(
+      Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)),
+      MAX_CLIENT_EXTRAPOLATION_SECS
+    );
+    const projectedElapsed = Math.min(
+      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0),
+      halfDuration
+    );
     const isFinished = Boolean(timerState.isGameFinished) || (timerState.currentHalf === 2 && projectedElapsed >= halfDuration);
 
     if (isFinished) return false;
@@ -720,10 +740,17 @@ export default function GlobalSubMonitor() {
     const pitchState = loadPitchState(timerState?.teamId);
     if (!pitchState || !timerState) return;
 
-    // Calculate current elapsed time
+    // Calculate current elapsed time (capped to prevent overshoot on foreground resume)
     const now = Date.now();
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    const timeSinceLastUpdate = Math.min(
+      Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)),
+      MAX_CLIENT_EXTRAPOLATION_SECS
+    );
+    const halfDuration = timerState.minutesPerHalf * 60;
+    const currentElapsed = Math.min(
+      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0),
+      halfDuration
+    );
     const currentHalf = timerState.currentHalf;
 
     const { latestDueSubs: dueSubs, olderDueSubs: olderSubs } = getDueSubGroups(
@@ -954,9 +981,9 @@ export default function GlobalSubMonitor() {
     // Recalculate if significantly late (>30s)
     if (timerState && finalPlan.some(sub => !sub.executed)) {
       const now = Date.now();
-      const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-      const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+      const timeSinceLastUpdate = Math.min(Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)), MAX_CLIENT_EXTRAPOLATION_SECS);
       const halfDuration = timerState.minutesPerHalf * 60;
+      const currentElapsed = Math.min(timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0), halfDuration);
       const delaySeconds = calculateSubDelay(pendingAutoSub, currentElapsed, timerState.currentHalf as 1 | 2, halfDuration);
       
       // Also detect early execution
@@ -1030,9 +1057,9 @@ export default function GlobalSubMonitor() {
 
     if (timerState && existingUnexecuted.length > 0) {
       const now = Date.now();
-      const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-      const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+      const timeSinceLastUpdate = Math.min(Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)), MAX_CLIENT_EXTRAPOLATION_SECS);
       const halfDuration = timerState.minutesPerHalf * 60;
+      const currentElapsed = Math.min(timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0), halfDuration);
       const currentHalf = timerState.currentHalf as 1 | 2;
 
       // Only recalculate if the skip was significantly late (>30s overdue)
