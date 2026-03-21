@@ -69,7 +69,6 @@ export const savePitchState = (teamId: string, state: Omit<PitchBoardState, 'tea
     let currentTimerSeconds = 0;
     if (timerState) {
       currentTimerSeconds = getCurrentGameSeconds(timerState);
-    }
       if (timerState.currentHalf === 2) {
         currentTimerSeconds += timerState.minutesPerHalf * 60;
       }
