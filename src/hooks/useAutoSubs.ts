@@ -468,7 +468,27 @@ export function useAutoSubs({
     }
 
     finalPlan = validateAndFixRemainingPlan(finalPlan, updatedPlayers);
-    setAutoSubPlan(finalPlan);
+    
+    // Safety net: if validation cascade-skipped all remaining subs but bench players exist,
+    // force a full recalculation to regenerate valid subs for the rest of the match.
+    const remainingAfterValidation = finalPlan.filter(sub => !sub.executed);
+    const benchAfterSub = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+    if (remainingAfterValidation.length === 0 && remainingSubs.length > 0 && benchAfterSub.length > 0) {
+      console.warn("[AutoSub] Validation wiped all remaining subs — forcing recalculation");
+      const executedPlan = finalPlan.filter(sub => sub.executed);
+      const rescued = recalculateRemainingPlan(
+        updatedPlayers,
+        parseInt(teamSize),
+        halfDurationSeconds,
+        currentElapsed,
+        half as 1 | 2,
+        { ...pendingAutoSub, executed: true },
+        rotateGkAtHalftime
+      );
+      if (rescued.length > 0) {
+        finalPlan = validateAndFixRemainingPlan([...executedPlan, ...rescued], updatedPlayers);
+      }
+    }
     setPlayers(updatedPlayers);
 
     const staleCount = staleSubs.length;
