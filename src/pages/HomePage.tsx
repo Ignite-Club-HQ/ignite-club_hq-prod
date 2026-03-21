@@ -1365,7 +1365,7 @@ export default function HomePage() {
 
   // Listen for notification-triggered pitch board opens
   useEffect(() => {
-    const handleOpenPitchBoard = () => {
+    const handleOpenPitchBoard = (e: Event) => {
       try {
         const timerStateRaw = localStorage.getItem('pitch-board-timer-state');
         if (!timerStateRaw) return;
