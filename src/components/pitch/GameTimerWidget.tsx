@@ -290,14 +290,20 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   const toggleTimer = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!timerState) return;
+    // Read fresh state from localStorage to avoid stale-closure race with polling
+    const fresh = loadActiveTimerState();
+    if (!fresh) return;
+
+    // Mark user action so polling doesn't revert this change
+    userActionAtRef.current = Date.now();
     
-    const mph = timerState.minutesPerHalf || 20;
-    const atHalfTimeLimit = displaySeconds >= mph * 60;
+    const currentElapsed = getCurrentElapsed(fresh);
+    const mph = fresh.minutesPerHalf || 20;
+    const atHalfTimeLimit = currentElapsed >= mph * 60;
     
     // If currently in 1st half and at the time limit, transition to 2nd half
-    if (!timerState.isRunning && timerState.currentHalf === 1 && atHalfTimeLimit) {
-      const newState = { ...timerState, currentHalf: 2 as 1 | 2, elapsedSeconds: 0, isRunning: true, lastUpdateTime: Date.now() };
+    if (!fresh.isRunning && fresh.currentHalf === 1 && atHalfTimeLimit) {
+      const newState = { ...fresh, currentHalf: 2 as 1 | 2, elapsedSeconds: 0, isRunning: true, lastUpdateTime: Date.now() };
       saveTimerState(newState);
       setTimerState(newState);
       setDisplaySeconds(0);
@@ -305,10 +311,12 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     }
     
     // Don't allow resuming if game is finished (2nd half at limit)
-    if (!timerState.isRunning && timerState.currentHalf === 2 && atHalfTimeLimit) return;
+    if (!fresh.isRunning && fresh.currentHalf === 2 && atHalfTimeLimit) return;
     
-    saveTimerState({ ...timerState, isRunning: !timerState.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds });
-    setTimerState(prev => prev ? { ...prev, isRunning: !prev.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds } : null);
+    const newState = { ...fresh, isRunning: !fresh.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: currentElapsed };
+    saveTimerState(newState);
+    setTimerState(newState);
+    setDisplaySeconds(currentElapsed);
   };
 
   const handleOpenPitchBoard = (e: React.MouseEvent) => {
