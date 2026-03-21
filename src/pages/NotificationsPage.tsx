@@ -639,9 +639,10 @@ export default function NotificationsPage() {
         break;
       case "pending_sub":
         // Navigate to home and open the pitch board
+        localStorage.setItem('pitch-board-open-source', 'pending_sub');
         navigate("/");
         window.setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('open-pitch-board'));
+          window.dispatchEvent(new CustomEvent('open-pitch-board', { detail: { notificationType: 'pending_sub' } }));
         }, 300);
         break;
       case "half_time":
