@@ -591,11 +591,34 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  console.log('[CHECK-SUBS] Starting - will check every 10s for ~55s');
-
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Client-triggered calls: run a single check and return immediately.
+  // Background cron calls: loop for ~55s checking every 10s.
+  let isClientTriggered = false;
+  try {
+    const body = await req.json().catch(() => null);
+    if (body?.source && typeof body.source === 'string' && body.source.startsWith('client-')) {
+      isClientTriggered = true;
+    }
+  } catch { /* no body = cron */ }
+
+  if (isClientTriggered) {
+    console.log('[CHECK-SUBS] Client-triggered — single check');
+    const notifications = await checkGames(supabase);
+    console.log(`[CHECK-SUBS] Client check complete: ${notifications} notification(s)`);
+    return new Response(JSON.stringify({
+      message: 'Client check complete',
+      checksPerformed: 1,
+      totalNotifications: notifications
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  console.log('[CHECK-SUBS] Starting - will check every 10s for ~55s');
 
   const startTime = Date.now();
   let totalNotifications = 0;

@@ -113,8 +113,11 @@ export function useActiveGameSync() {
     const isFinishedByState = Boolean((timerState as TimerState & { isGameFinished?: boolean }).isGameFinished)
       || (timerState.currentHalf === 2 && projectedElapsedSeconds >= halfDurationSeconds);
 
-    // Never re-sync or resurrect a game after full time
-    if (isFinishedByState || !timerState.isRunning || !pitchState.autoSubActive) {
+    // Never re-sync or resurrect a game after full time.
+    // BUT keep active during halftime break (half 2, elapsed 0, paused) so server
+    // can detect and send halftime push notifications.
+    const isHalftimeBreak = !timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0 && pitchState.autoSubActive;
+    if (isFinishedByState || (!timerState.isRunning && !isHalftimeBreak) || !pitchState.autoSubActive) {
       await deactivateActiveGame();
       return;
     }
