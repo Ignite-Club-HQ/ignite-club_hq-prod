@@ -490,7 +490,7 @@ async function checkGames(supabase: any): Promise<number> {
         const absoluteSubTime = getAbsoluteSubTime(sub);
         return !sub.executed &&
           sub.half === currentHalf &&
-          currentElapsed >= sub.time &&
+          currentElapsedForSubs >= sub.time &&
           absoluteSubTime > (game.last_sub_check_time || 0);
       });
 
