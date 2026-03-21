@@ -550,9 +550,17 @@ export default function GlobalSubMonitor() {
     if (pitchState.autoSubPaused) return;
 
     // Calculate halftime state before early-returning on empty plan
+    // Cap extrapolation to prevent false triggers on foreground resume
     const now = Date.now();
-    const timeSinceUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const elapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0);
+    const timeSinceUpdate = Math.min(
+      Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)),
+      MAX_CLIENT_EXTRAPOLATION_SECS
+    );
+    const halfDuration = timerState.minutesPerHalf * 60;
+    const elapsed = Math.min(
+      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0),
+      halfDuration
+    );
     const isHalftimeBreakEarly = !timerState.isRunning && timerState.currentHalf === 2 && elapsed === 0;
 
     // Allow halftime check to proceed even with empty plan
