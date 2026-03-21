@@ -284,7 +284,10 @@ export default function GlobalSubMonitor() {
       return;
     }
 
-    if (!timerState.isRunning || !pitchState.autoSubActive) {
+    // Keep the game active during halftime break so the server can send
+    // halftime push notifications. Halftime = half 2, elapsed 0, paused.
+    const isHalftimeBreak = !timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0 && pitchState.autoSubActive;
+    if ((!timerState.isRunning && !isHalftimeBreak) || !pitchState.autoSubActive) {
       if (activeGameIdRef.current) {
         console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
         await supabase
