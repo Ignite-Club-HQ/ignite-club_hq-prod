@@ -572,7 +572,6 @@ export default function GlobalSubMonitor() {
     const currentHalf = timerState.currentHalf;
 
     // Don't show sub notifications if game is finished
-    const halfDuration = timerState.minutesPerHalf * 60;
     if (timerState.currentHalf === 2 && currentElapsed >= halfDuration) return;
 
     // Check for halftime subs during the break (timer stopped, half=2, elapsed=0)
