@@ -27,6 +27,7 @@ import {
 
 const TIMER_STATE_KEY = TIMER_STORAGE_KEY;
 const getPitchStateKeyForTeam = getPitchStateKey;
+const MAX_CLIENT_EXTRAPOLATION_SECS = 30;
 
 const loadTimerState = (): TimerState | null => {
   try {
