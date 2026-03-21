@@ -551,7 +551,7 @@ export function useAutoSubs({
       currentElapsed,
       half,
       halfDurationSeconds
-    );
+    ) || (pendingAutoSub.half === 2 && pendingAutoSub.time === 0); // Always recalculate halftime skips
     const recalculated = shouldRecalculate
       ? safeRecalculate(
           players,

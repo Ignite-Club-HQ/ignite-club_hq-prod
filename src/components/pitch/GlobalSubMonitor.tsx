@@ -1014,8 +1014,10 @@ export default function GlobalSubMonitor() {
       const currentElapsed = getCurrentGameSeconds(timerState);
       const currentHalf = timerState.currentHalf as 1 | 2;
 
-      // Only recalculate if the skip was significantly late (>30s overdue)
-      const shouldRecalculate = subsToSkip.some(sub =>
+      // Recalculate if significantly late (>30s overdue) OR if skipping a halftime sub
+      // (player positions change at the break, so remaining plan would reference stale positions)
+      const isHalftimeSkip = pendingAutoSub.half === 2 && pendingAutoSub.time === 0;
+      const shouldRecalculate = isHalftimeSkip || subsToSkip.some(sub =>
         calculateSubDelay(sub, currentElapsed, currentHalf, halfDuration) > 30
       );
 
