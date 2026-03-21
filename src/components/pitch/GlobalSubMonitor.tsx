@@ -107,18 +107,28 @@ export default function GlobalSubMonitor() {
   const gameFinishedShownRef = useRef(false);
   const activeGameIdRef = useRef<string | null>(null);
   const finishedSyncHandledRef = useRef<string | null>(null);
+  const immediateCheckRef = useRef<{ key: string; at: number } | null>(null);
 
-  const triggerImmediateFullTimeCheck = useCallback(async () => {
+  const triggerImmediatePitchCheck = useCallback(async (source: string, dedupeKey?: string) => {
+    const now = Date.now();
+    if (dedupeKey && immediateCheckRef.current?.key === dedupeKey && (now - immediateCheckRef.current.at) < 4000) {
+      return;
+    }
+
+    if (dedupeKey) {
+      immediateCheckRef.current = { key: dedupeKey, at: now };
+    }
+
     try {
       const { error } = await supabase.functions.invoke('check-pending-subs', {
-        body: { source: 'client-full-time-sync' },
+        body: { source },
       });
 
       if (error) {
-        console.error('[SYNC] Failed to trigger immediate full-time check:', error);
+        console.error('[SYNC] Failed to trigger immediate pitch check:', error);
       }
     } catch (error) {
-      console.error('[SYNC] Error triggering immediate full-time check:', error);
+      console.error('[SYNC] Error triggering immediate pitch check:', error);
     }
   }, []);
 
@@ -198,6 +208,8 @@ export default function GlobalSubMonitor() {
         }
       : {
           ...timerState,
+          elapsedSeconds: projectedElapsed,
+          lastUpdateTime: Date.now(),
           teamId: teamId || undefined,
           teamName: timerState.teamName || 'Your team',
         };
@@ -258,7 +270,7 @@ export default function GlobalSubMonitor() {
           }
 
           finishedSyncHandledRef.current = finishedSyncKey;
-          await triggerImmediateFullTimeCheck();
+          await triggerImmediatePitchCheck('client-full-time-sync', `full-time-${finishedSyncKey}`);
           setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
           return;
         }
@@ -384,7 +396,7 @@ export default function GlobalSubMonitor() {
       console.error('[SYNC] Error:', err);
       setSyncStatus({ status: "error", lastSyncTime: Date.now(), error: String(err) });
     }
-  }, [triggerImmediateFullTimeCheck, user?.id]);
+  }, [triggerImmediatePitchCheck, user?.id]);
 
   // Create database notification which triggers server-side push via database trigger
   const createPitchBoardNotification = useCallback(async (type: string, message: string) => {
@@ -563,6 +575,12 @@ export default function GlobalSubMonitor() {
           if (timerState.soundEnabled) {
             try { playSubAlertBeep(); } catch { /* Audio may fail */ }
           }
+
+          void (async () => {
+            await syncToDatabase();
+            await triggerImmediatePitchCheck('client-halftime-sync', subKey);
+          })();
+
           setCurrentPlayers(nextPitchState.players);
           setPendingAutoSub(primarySub);
           setPendingBatchSubs(additionalSubs);
@@ -576,6 +594,12 @@ export default function GlobalSubMonitor() {
           if (timerState.soundEnabled) {
             try { playSubAlertBeep(); } catch { /* Audio may fail */ }
           }
+
+          void (async () => {
+            await syncToDatabase();
+            await triggerImmediatePitchCheck('client-halftime-sync', subKey);
+          })();
+
           setCurrentPlayers(nextPitchState.players);
           setPendingAutoSub(null);
           setPendingBatchSubs([]);
@@ -631,9 +655,12 @@ export default function GlobalSubMonitor() {
         // Server-side check-pending-subs already sends pending_sub notifications,
         // and triggering them here causes duplicate device notifications.
 
-        // Trigger immediate DB sync so the server detects the due sub ASAP
-        // instead of waiting up to 10s for the next periodic sync.
-        syncToDatabase();
+        // Trigger immediate DB sync AND immediate server-side check so push
+        // fires right away instead of waiting for the next background cycle.
+        void (async () => {
+          await syncToDatabase();
+          await triggerImmediatePitchCheck('client-pending-sub-sync', subKey);
+        })();
 
         setCurrentPlayers(activePitchState.players);
         setPendingAutoSub(primarySub);
@@ -641,7 +668,7 @@ export default function GlobalSubMonitor() {
         setSubConfirmDialogOpen(true);
       }
     }
-  }, [createPitchBoardNotification, pitchBoardNotificationsEnabled]);
+  }, [syncToDatabase, triggerImmediatePitchCheck]);
 
   // Check if there's an active game that needs monitoring
   const hasActiveGame = useCallback(() => {
