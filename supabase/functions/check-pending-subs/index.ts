@@ -500,8 +500,8 @@ async function checkGames(supabase: any): Promise<number> {
         const earliestTime = dueTimes[0];
         const batchSubs = allDueSubs.filter((s: SubstitutionEvent) => s.time === earliestTime);
         
-        const elapsedMinutes = Math.floor(currentElapsed / 60);
-        const overdueSeconds = Math.floor(currentElapsed - earliestTime);
+        const elapsedMinutes = Math.floor(currentElapsedForSubs / 60);
+        const overdueSeconds = Math.floor(currentElapsedForSubs - earliestTime);
 
         let notificationBody: string;
         let pushTitle: string;
