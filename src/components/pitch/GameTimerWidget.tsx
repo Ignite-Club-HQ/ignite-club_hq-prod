@@ -21,8 +21,10 @@ import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundChec
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
-import { validateAndFixRemainingPlan } from "./pitchStateUtils";
-import { snapSubTime } from "./autoSubHelpers";
+import {
+  recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
+  validateAndFixRemainingPlan,
+} from "./pitchStateUtils";
 
 
 // Storage keys
@@ -370,28 +372,37 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       const currentPlayerIn = pitchState.players.find(p => p.id === playerIn.id);
 
       if (!currentPlayerOut?.position || !currentPlayerIn || !!currentPlayerIn.position) {
-        // Invalid state - skip this sub and recalculate remaining plan
+        // Invalid state - skip this sub and refresh remaining plan against live players
         let updatedPlan = pitchState.autoSubPlan.map(s =>
           s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
             ? { ...s, executed: true, skipped: true } : s
         );
 
-        // Redistribute remaining future subs evenly
         const halfDur = minutesPerHalf * 60;
-        const totalGameSeconds = minutesPerHalf * 2 * 60;
-        const currentTotal = getTotalSeconds(currentElapsedSeconds, currentHalf, minutesPerHalf);
         const remaining = updatedPlan.filter(s => !s.executed);
         if (remaining.length > 0) {
-          const remainingGameSeconds = totalGameSeconds - currentTotal;
-          const interval = Math.max(Math.floor(remainingGameSeconds / (remaining.length + 1)), 60);
-          let nextSubTime = currentTotal + interval;
-          updatedPlan = updatedPlan.map(s => {
-            if (s.executed) return s;
-            const snapped = snapSubTime(nextSubTime, halfDur);
-            nextSubTime += interval;
-            if (!snapped) return { ...s, executed: true, skipped: true }; // Too close to full time
-            return { ...s, half: snapped.half, time: snapped.time };
-          });
+          const recalculated = recalculateRemainingPlan(
+            pitchState.players,
+            parseInt(pitchState.teamSize),
+            halfDur,
+            currentElapsedSeconds,
+            currentHalf as 1 | 2,
+            { ...sub, executed: true, skipped: true },
+            true
+          );
+
+          const executedSubs = updatedPlan.filter(s => s.executed);
+          if (recalculated.length > 0 || remaining.length === 0) {
+            updatedPlan = [...executedSubs, ...recalculated];
+          } else {
+            const benchPlayers = pitchState.players.filter(p => p.position === null && !p.isInjured);
+            if (benchPlayers.length > 0) {
+              console.warn("[GameTimerWidget] Invalid-state recalculation returned empty but bench players remain — preserving existing plan");
+              updatedPlan = [...executedSubs, ...remaining];
+            } else {
+              updatedPlan = [...executedSubs, ...recalculated];
+            }
+          }
         }
 
         // Validate remaining plan entries against current player positions
@@ -421,36 +432,36 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           ? { ...s, executed: true } : s
       );
 
-      // If the sub was confirmed early (>15s) or late (>30s), redistribute the TIMING
-      // of remaining future subs evenly. We only adjust times, not player assignments,
-      // since the widget lacks live minutesPlayed data for full recalculation.
+      // If the sub was confirmed early/late or at halftime, rebuild remaining assignments
+      // from live pitch state so skipped/changed players don't cause stale future subs.
       const isSignificantlyEarly = earlyBySeconds > 15;
       const isSignificantlyLate = delaySeconds > 30;
+      const isHalftimeSub = sub.half === 2 && sub.time === 0;
 
-      if (isSignificantlyEarly || isSignificantlyLate) {
+      if ((isSignificantlyEarly || isSignificantlyLate || isHalftimeSub) && updatedPlan.some(s => !s.executed)) {
         const halfDur = minutesPerHalf * 60;
-        const totalGameSeconds = minutesPerHalf * 2 * 60;
-        const futureSubs = updatedPlan.filter(s => {
-          if (s.executed) return false;
-          const sTotal = getTotalSeconds(s.time, s.half, minutesPerHalf);
-          return sTotal > currentTotal;
-        });
+        const remaining = updatedPlan.filter(s => !s.executed);
+        const recalculated = recalculateRemainingPlan(
+          updatedPlayers,
+          parseInt(pitchState.teamSize),
+          halfDur,
+          currentElapsedSeconds,
+          currentHalf as 1 | 2,
+          { ...sub, executed: true },
+          true
+        );
+        const executedSubs = updatedPlan.filter(s => s.executed);
 
-        if (futureSubs.length > 0) {
-          const remainingGameSeconds = totalGameSeconds - currentTotal;
-          const interval = Math.max(Math.floor(remainingGameSeconds / (futureSubs.length + 1)), 60);
-          const futureSubKeys = new Set(futureSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`));
-          let nextSubTime = currentTotal + interval;
-
-          updatedPlan = updatedPlan.map(s => {
-            if (s.executed) return s;
-            const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
-            if (!futureSubKeys.has(subKey)) return s;
-            const snapped = snapSubTime(nextSubTime, halfDur);
-            nextSubTime += interval;
-            if (!snapped) return { ...s, executed: true, skipped: true };
-            return { ...s, half: snapped.half, time: snapped.time };
-          });
+        if (recalculated.length > 0 || remaining.length === 0) {
+          updatedPlan = [...executedSubs, ...recalculated];
+        } else {
+          const benchPlayers = updatedPlayers.filter(p => p.position === null && !p.isInjured);
+          if (benchPlayers.length > 0) {
+            console.warn("[GameTimerWidget] Early/late recalculation returned empty but bench players remain — preserving existing plan");
+            updatedPlan = [...executedSubs, ...remaining];
+          } else {
+            updatedPlan = [...executedSubs, ...recalculated];
+          }
         }
       }
 
@@ -478,40 +489,37 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         currentHalf = timerState.currentHalf || 1;
         currentElapsedSeconds = getCurrentElapsed(timerState);
       }
-      const currentTotal = getTotalSeconds(currentElapsedSeconds, currentHalf, minutesPerHalf);
-
       let updatedPlan = pitchState.autoSubPlan.map(s =>
         s.playerOut.id === sub.playerOut.id && s.playerIn.id === sub.playerIn.id && s.time === sub.time && s.half === sub.half
           ? { ...s, executed: true, skipped: true } : s
       );
 
-      const halfDur = minutesPerHalf * 60;
       const remaining = updatedPlan.filter(s => !s.executed);
-      
-      // Separate due subs (keep them) from future subs (redistribute them)
-      const futureSubs = remaining.filter(s => {
-        const subTotal = getTotalSeconds(s.time, s.half, minutesPerHalf);
-        return subTotal > currentTotal;
-      });
-      
-      if (futureSubs.length > 0) {
-        const totalGameSeconds = minutesPerHalf * 2 * 60;
-        const remainingGameSeconds = totalGameSeconds - currentTotal;
-        const interval = Math.max(Math.floor(remainingGameSeconds / (futureSubs.length + 1)), 60);
-        
-        const futureSubKeys = new Set(futureSubs.map(s => `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`));
-        let nextSubTime = currentTotal + interval;
-        
-        updatedPlan = updatedPlan.map(s => {
-          if (s.executed) return s;
-          const subKey = `${s.half}-${s.time}-${s.playerOut.id}-${s.playerIn.id}`;
-          if (!futureSubKeys.has(subKey)) return s; // Keep due subs unchanged
-          
-          const snapped = snapSubTime(nextSubTime, halfDur);
-          nextSubTime += interval;
-          if (!snapped) return { ...s, executed: true, skipped: true };
-          return { ...s, half: snapped.half, time: snapped.time };
-        });
+
+      if (remaining.length > 0) {
+        const halfDur = minutesPerHalf * 60;
+        const recalculated = recalculateRemainingPlan(
+          pitchState.players,
+          parseInt(pitchState.teamSize),
+          halfDur,
+          currentElapsedSeconds,
+          currentHalf as 1 | 2,
+          { ...sub, executed: true, skipped: true },
+          true
+        );
+
+        const executedSubs = updatedPlan.filter(s => s.executed);
+        if (recalculated.length > 0 || remaining.length === 0) {
+          updatedPlan = [...executedSubs, ...recalculated];
+        } else {
+          const benchPlayers = pitchState.players.filter(p => p.position === null && !p.isInjured);
+          if (benchPlayers.length > 0) {
+            console.warn("[GameTimerWidget] Skip recalculation returned empty but bench players remain — preserving existing plan");
+            updatedPlan = [...executedSubs, ...remaining];
+          } else {
+            updatedPlan = [...executedSubs, ...recalculated];
+          }
+        }
       }
 
       // Validate remaining plan entries against current player positions
