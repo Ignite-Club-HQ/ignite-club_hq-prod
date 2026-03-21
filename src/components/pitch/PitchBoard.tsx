@@ -2800,12 +2800,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       setGameInProgress(true);
     }
     
-    // On first call, just set the ref without adding time
-    // This prevents counting time that elapsed while pitch board was closed
+    // On first call, initialize the ref so the next tick computes a correct delta.
+    // We do NOT return early — we still want sub checks below to run.
     if (!hasInitializedTimeRef.current) {
       hasInitializedTimeRef.current = true;
       lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
-      return;
+      // Fall through — no time is added because delta will be 0 on this call
     }
     
     // Track minutes played for players on pitch
