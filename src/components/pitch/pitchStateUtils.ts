@@ -308,7 +308,7 @@ export const recalculateRemainingPlan = (
     for (let subIdx = 0; subIdx < subsThisWindow; subIdx++) {
       const onPitchSorted = Array.from(currentOnPitch.keys())
         .map(id => ({ id, time: getPlayer(id)?.minutesPlayed || 0, player: getPlayer(id)! }))
-        .filter(p => p.player && !usedPlayerOutIds.has(p.id))
+        .filter(p => p.player && !usedPlayerOutIds.has(p.id) && !usedPlayerInIds.has(p.id))
         .sort((a, b) => b.time - a.time);
       
       const benchSorted = outfieldPlayers
