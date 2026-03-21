@@ -265,49 +265,63 @@ async function notifyTeamStaff(
     }
   }
 
-  for (const userId of allRecipients) {
-    const enabled = await isNotificationEnabled(supabase, userId);
-    if (!enabled) continue;
+  // Batch-check preferences for all recipients at once (single DB query)
+  const enabledUsers = await getEnabledUserIds(supabase, Array.from(allRecipients));
 
-    // In-app notification (skip_push=true to avoid duplicate push from DB trigger)
+  // Batch-insert all in-app notifications at once
+  const notifInserts = Array.from(enabledUsers).map(userId => ({
+    user_id: userId,
+    type: inAppType,
+    message: notificationMessage,
+    related_id: gameId,
+    skip_push: true,
+  }));
+
+  const insertedNotifMap = new Map<string, string>();
+  if (notifInserts.length > 0) {
     const { data: notifData, error: notifError } = await supabase
       .from('notifications')
-      .insert({
-        user_id: userId,
-        type: inAppType,
-        message: notificationMessage,
-        related_id: gameId,
-        skip_push: true,
-      })
-      .select('id')
-      .single();
+      .insert(notifInserts)
+      .select('id, user_id');
 
-    const insertedNotifId = notifData?.id;
-
-    if (!notifError) {
-      notificationsSent++;
+    if (notifError) {
+      console.error(`[CHECK-SUBS] Batch notification insert error:`, notifError.message);
     } else {
-      console.error(`[CHECK-SUBS] Notification insert error for ${userId}:`, notifError.message);
+      notificationsSent = (notifData || []).length;
+      for (const n of (notifData || [])) {
+        insertedNotifMap.set(n.user_id, n.id);
+      }
     }
+  }
 
-    // Send push notification explicitly (DB trigger skipped via skip_push flag)
-    // Pass the notification ID so a push_notification_log entry is created,
-    // preventing the retry function from re-sending this push.
-    await sendPushNotification(
-      supabase, userId, pushTitle, pushBody,
-      '/',
-      `pitch-${notificationType}-${gameId}`,
-      'pitch_board',
-      insertedNotifId
+  // Fire push + email for ALL recipients in parallel (no more sequential awaits)
+  const deliveryPromises: Promise<void>[] = [];
+  for (const userId of enabledUsers) {
+    const insertedNotifId = insertedNotifMap.get(userId);
+
+    // Push notification (don't await individually)
+    deliveryPromises.push(
+      sendPushNotification(
+        supabase, userId, pushTitle, pushBody,
+        '/',
+        `pitch-${notificationType}-${gameId}`,
+        'pitch_board',
+        insertedNotifId
+      )
     );
 
-    // Email notification
-    await sendPitchBoardEmail(
-      supabase, userId, teamId, teamName, notificationType,
-      notificationMessage, linkedEventId,
-      playerOutName, playerInName, position, elapsedMinutes, currentHalf
+    // Email notification (don't await individually)
+    deliveryPromises.push(
+      sendPitchBoardEmail(
+        supabase, userId, teamId, teamName, notificationType,
+        notificationMessage, linkedEventId,
+        playerOutName, playerInName, position, elapsedMinutes, currentHalf
+      )
     );
   }
+
+  // Wait for all push + email deliveries in parallel
+  await Promise.allSettled(deliveryPromises);
 
   return notificationsSent;
 }
