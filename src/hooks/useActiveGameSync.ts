@@ -106,9 +106,8 @@ export function useActiveGameSync() {
     }
 
     const halfDurationSeconds = timerState.minutesPerHalf * 60;
-    const MAX_EXTRAPOLATION_SECS = 30;
     const secondsSinceLastUpdate = timerState.lastUpdateTime
-      ? Math.min(Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)), MAX_EXTRAPOLATION_SECS)
+      ? Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000))
       : 0;
     const projectedElapsedSeconds = Math.min(
       timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceLastUpdate : 0),
@@ -134,11 +133,10 @@ export function useActiveGameSync() {
     }
 
     // Compute the ACTUAL elapsed time so the server sees real game progress.
-    // The localStorage snapshot freezes elapsedSeconds at the value from when
-    // the timer state last changed (start/pause). Real elapsed = snapshot + drift.
+    // Use uncapped drift here so long background periods don't freeze synced time.
     const nowMs = Date.now();
     const secondsSinceFrozen = timerState.isRunning && timerState.lastUpdateTime
-      ? Math.min(Math.max(0, Math.floor((nowMs - timerState.lastUpdateTime) / 1000)), MAX_EXTRAPOLATION_SECS)
+      ? Math.max(0, Math.floor((nowMs - timerState.lastUpdateTime) / 1000))
       : 0;
     const actualElapsed = Math.min(timerState.elapsedSeconds + secondsSinceFrozen, halfDurationSeconds);
 

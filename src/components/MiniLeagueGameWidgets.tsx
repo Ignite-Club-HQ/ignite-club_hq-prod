@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { getCurrentGameSeconds } from "@/components/pitch/timerUtils";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -274,16 +275,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
   }, []);
 
   const calculateCurrentTime = (timerState: TimerState) => {
-    let currentElapsed = timerState.elapsedSeconds;
-    if (timerState.isRunning && timerState.lastUpdateTime) {
-      const MAX_EXTRAPOLATION_SECS = 30;
-      const secondsPassed = Math.min(
-        Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)),
-        MAX_EXTRAPOLATION_SECS
-      );
-      currentElapsed = Math.min(timerState.elapsedSeconds + secondsPassed, timerState.minutesPerHalf * 60);
-    }
-    return currentElapsed;
+    return getCurrentGameSeconds(timerState as any);
   };
 
   const openPitchBoard = (match: ActiveMiniLeagueMatch) => {

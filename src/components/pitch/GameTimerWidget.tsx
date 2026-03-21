@@ -155,7 +155,9 @@ const writePitchState = (state: PitchBoardState) => {
 };
 
 const getCurrentElapsed = (timer: TimerState): number => {
-  return getCurrentGameSeconds(timer);
+  if (!timer.isRunning || !timer.lastUpdateTime) return Math.min(timer.elapsedSeconds || 0, timer.minutesPerHalf * 60);
+  const uncapped = (timer.elapsedSeconds || 0) + getSecondsSinceUpdateUncapped(timer.lastUpdateTime);
+  return Math.min(uncapped, timer.minutesPerHalf * 60);
 };
 
 const getTotalSeconds = (elapsed: number, half: 1 | 2, minutesPerHalf: number): number => {
@@ -325,6 +327,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         });
       } catch {}
     })();
+
+    // Run immediately on mount to catch resumes where the event already fired
+    reconcileAfterResume();
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
