@@ -27,6 +27,7 @@ import {
 } from "./autoSubHelpers";
 
 const TIMER_STATE_KEY = TIMER_STORAGE_KEY;
+const getPitchStateKeyForTeam = getPitchStateKey;
 const MAX_CLIENT_EXTRAPOLATION_SECS = MAX_EXTRAPOLATION_SECS;
 
 const loadTimerState = (): TimerState | null => {
