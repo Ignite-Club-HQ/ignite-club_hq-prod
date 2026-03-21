@@ -275,7 +275,7 @@ export function MiniLeagueGameWidgets({ activeClubFilter }: MiniLeagueGameWidget
   }, []);
 
   const calculateCurrentTime = (timerState: TimerState) => {
-    return getCurrentGameSeconds(timerState);
+    return getCurrentGameSeconds(timerState as any);
   };
 
   const openPitchBoard = (match: ActiveMiniLeagueMatch) => {
