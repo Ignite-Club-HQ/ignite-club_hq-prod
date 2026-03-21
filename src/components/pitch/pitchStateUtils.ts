@@ -68,16 +68,8 @@ export const savePitchState = (teamId: string, state: Omit<PitchBoardState, 'tea
     const timerState = loadTimerStateForMinutes(teamId);
     let currentTimerSeconds = 0;
     if (timerState) {
-      if (timerState.isRunning && timerState.lastUpdateTime) {
-        const MAX_EXTRAPOLATION_SECS = 30;
-        const secondsPassed = Math.min(
-          Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)),
-          MAX_EXTRAPOLATION_SECS
-        );
-        currentTimerSeconds = Math.min(timerState.elapsedSeconds + secondsPassed, timerState.minutesPerHalf * 60);
-      } else {
-        currentTimerSeconds = timerState.elapsedSeconds;
-      }
+      currentTimerSeconds = getCurrentGameSeconds(timerState);
+    }
       if (timerState.currentHalf === 2) {
         currentTimerSeconds += timerState.minutesPerHalf * 60;
       }
