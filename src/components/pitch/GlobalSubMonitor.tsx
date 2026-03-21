@@ -445,11 +445,17 @@ export default function GlobalSubMonitor() {
 
     if (!timerState || !pitchState) return;
 
-    // Calculate current elapsed time
+    // Calculate current elapsed time (capped to prevent overshoot on foreground resume)
     const now = Date.now();
-    const timeSinceLastUpdate = Math.floor((now - timerState.lastUpdateTime) / 1000);
-    const currentElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0);
+    const timeSinceLastUpdate = Math.min(
+      Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)),
+      MAX_CLIENT_EXTRAPOLATION_SECS
+    );
     const halfDuration = timerState.minutesPerHalf * 60;
+    const currentElapsed = Math.min(
+      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0),
+      halfDuration
+    );
 
     // Game is finished when 2nd half timer reaches full time
     const isGameFinished = timerState.currentHalf === 2 && currentElapsed >= halfDuration;
