@@ -674,14 +674,7 @@ export default function GlobalSubMonitor() {
     if (!timerState || !pitchState) return false;
 
     const halfDuration = timerState.minutesPerHalf * 60;
-    const timeSinceUpdate = Math.min(
-      Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)),
-      MAX_CLIENT_EXTRAPOLATION_SECS
-    );
-    const projectedElapsed = Math.min(
-      timerState.elapsedSeconds + (timerState.isRunning ? timeSinceUpdate : 0),
-      halfDuration
-    );
+    const projectedElapsed = getCurrentGameSeconds(timerState);
     const isFinished = Boolean(timerState.isGameFinished) || (timerState.currentHalf === 2 && projectedElapsed >= halfDuration);
 
     if (isFinished) return false;
