@@ -106,10 +106,14 @@ export function useActiveGameSync() {
     }
 
     const halfDurationSeconds = timerState.minutesPerHalf * 60;
+    const MAX_EXTRAPOLATION_SECS = 30;
     const secondsSinceLastUpdate = timerState.lastUpdateTime
-      ? Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000))
+      ? Math.min(Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)), MAX_EXTRAPOLATION_SECS)
       : 0;
-    const projectedElapsedSeconds = timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceLastUpdate : 0);
+    const projectedElapsedSeconds = Math.min(
+      timerState.elapsedSeconds + (timerState.isRunning ? secondsSinceLastUpdate : 0),
+      halfDurationSeconds
+    );
     const isFinishedByState = Boolean((timerState as TimerState & { isGameFinished?: boolean }).isGameFinished)
       || (timerState.currentHalf === 2 && projectedElapsedSeconds >= halfDurationSeconds);
 
@@ -134,9 +138,9 @@ export function useActiveGameSync() {
     // the timer state last changed (start/pause). Real elapsed = snapshot + drift.
     const nowMs = Date.now();
     const secondsSinceFrozen = timerState.isRunning && timerState.lastUpdateTime
-      ? Math.max(0, Math.floor((nowMs - timerState.lastUpdateTime) / 1000))
+      ? Math.min(Math.max(0, Math.floor((nowMs - timerState.lastUpdateTime) / 1000)), MAX_EXTRAPOLATION_SECS)
       : 0;
-    const actualElapsed = timerState.elapsedSeconds + secondsSinceFrozen;
+    const actualElapsed = Math.min(timerState.elapsedSeconds + secondsSinceFrozen, halfDurationSeconds);
 
     const syncedTimerState: TimerState = {
       ...timerState,

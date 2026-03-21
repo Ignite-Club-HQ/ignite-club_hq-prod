@@ -245,7 +245,12 @@ async function notifyTeamStaff(
 
       recentNotifs = result.data;
     } else {
-      const dedupWindowSeconds = 120; // 2 minutes covers cron interval gaps
+      // Use a tight dedup window (30s) for pending_sub notifications.
+      // The old 120s window blocked sequential sub batches in short halves
+      // (e.g., subs at 1:40 and 3:20 would be only 100s apart, causing the
+      // second to be silently dropped). 30s is enough to cover concurrent
+      // cron invocations without blocking legitimate back-to-back subs.
+      const dedupWindowSeconds = 30;
       const cutoff = new Date(Date.now() - dedupWindowSeconds * 1000).toISOString();
       const result = await supabase
         .from('notifications')
@@ -359,7 +364,14 @@ async function checkGames(supabase: any): Promise<number> {
     // the client-side lastUpdateTime. Client clocks can drift vs server, causing
     // early/late sub notifications. The DB timestamp is authoritative.
     const dbUpdatedAtMs = new Date(game.updated_at).getTime();
-    const timeSinceDbUpdate = Math.max(0, Math.floor((now - dbUpdatedAtMs) / 1000));
+    const timeSinceDbUpdateRaw = Math.max(0, Math.floor((now - dbUpdatedAtMs) / 1000));
+    
+    // Cap extrapolation to 30s. The client syncs every 10s, so gaps > 30s mean
+    // the app is backgrounded/frozen and we shouldn't keep extrapolating — otherwise
+    // we falsely trigger halftime/fulltime notifications while the game is still mid-half.
+    // For sub-level precision we still extrapolate within the cap window.
+    const MAX_EXTRAPOLATION_SECS = 30;
+    const timeSinceDbUpdate = Math.min(timeSinceDbUpdateRaw, MAX_EXTRAPOLATION_SECS);
     const rawElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceDbUpdate : 0);
     
     // Cap elapsed at half duration - if we're past it, the client is at half-time/full-time
@@ -369,7 +381,12 @@ async function checkGames(supabase: any): Promise<number> {
 
     // Detect half-time boundary: elapsed has reached/exceeded half duration
     // This works whether timer is running (extrapolated) or paused (elapsedSeconds already at boundary)
-    const isAtHalfTimeBoundary = timerState.currentHalf === 1 && rawElapsed >= halfDurationSecs;
+    const isAtHalfTimeBoundaryClassic = timerState.currentHalf === 1 && rawElapsed >= halfDurationSecs;
+    // Also detect halftime when the client has already transitioned to half 2:
+    // The client syncs currentHalf=2, elapsedSeconds=0, isRunning=false immediately at halftime.
+    // If the cron's 10s cycle missed the narrow half=1 boundary window, this catches it.
+    const isAtHalfTimeBreakState = timerState.currentHalf === 2 && timerState.elapsedSeconds === 0 && !timerState.isRunning;
+    const isAtHalfTimeBoundary = isAtHalfTimeBoundaryClassic || isAtHalfTimeBreakState;
     const isAtFullTimeBoundary = timerState.currentHalf === 2 && rawElapsed >= halfDurationSecs;
 
     // Skip stale games - if the DB row hasn't been updated recently,
@@ -556,7 +573,11 @@ async function checkGames(supabase: any): Promise<number> {
     }
 
     // Check for game finished — use atomic claim to prevent duplicate full-time notifications
-    const isGameFinished = timerState.currentHalf === 2 && currentElapsed >= halfDurationSecs;
+    // Use rawElapsed (not capped currentElapsed) for consistency with halftime boundary check.
+    // currentElapsed is capped at halfDurationSecs, so `currentElapsed >= halfDurationSecs`
+    // would always be true when rawElapsed >= halfDurationSecs, but using rawElapsed makes
+    // the intent explicit and consistent with isAtFullTimeBoundary.
+    const isGameFinished = isAtFullTimeBoundary;
 
     if (isGameFinished) {
       // Atomically claim by marking inactive — only the winner sends notifications

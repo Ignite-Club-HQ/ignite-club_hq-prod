@@ -172,9 +172,9 @@ export default function AutoSubControlPanel({
             </div>
           )}
 
-          {/* Primary Actions: Pause + Skip */}
+          {/* Primary Action: Pause */}
           {remainingSubs.length > 0 && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <Button
                 variant={autoSubPaused ? "default" : "outline"}
                 className="h-11 gap-1.5"
@@ -182,15 +182,6 @@ export default function AutoSubControlPanel({
               >
                 {autoSubPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
                 {autoSubPaused ? "Resume" : "Pause"}
-              </Button>
-              <Button
-                variant="outline"
-                className="h-11 gap-1.5"
-                onClick={onSkipNext}
-                disabled={!nextSub || autoSubPaused}
-              >
-                <SkipForward className="h-4 w-4" />
-                Skip
               </Button>
             </div>
           )}

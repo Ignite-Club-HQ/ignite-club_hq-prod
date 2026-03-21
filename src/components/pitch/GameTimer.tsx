@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
+import { getSecondsSinceUpdate } from "./timerUtils";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -243,8 +244,8 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(false);
       } else if (saved.isRunning && saved.lastUpdateTime) {
-        // Calculate time passed while away
-        const secondsPassed = Math.floor((Date.now() - saved.lastUpdateTime) / 1000);
+        // Cap resume extrapolation to avoid overshoot after backgrounding
+        const secondsPassed = getSecondsSinceUpdate(saved.lastUpdateTime);
         const newElapsed = saved.elapsedSeconds + secondsPassed;
         // Cap at half duration
         setElapsedSeconds(Math.min(newElapsed, halfDuration));

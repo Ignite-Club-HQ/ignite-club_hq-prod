@@ -9,6 +9,7 @@ import {
   TeamSize
 } from "./types";
 import { PitchPosition } from "./PositionBadge";
+import { getCurrentGameSeconds } from "./timerUtils";
 
 // Legacy key used by widgets to find any active timer
 const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
@@ -67,12 +68,7 @@ export const savePitchState = (teamId: string, state: Omit<PitchBoardState, 'tea
     const timerState = loadTimerStateForMinutes(teamId);
     let currentTimerSeconds = 0;
     if (timerState) {
-      if (timerState.isRunning && timerState.lastUpdateTime) {
-        const secondsPassed = Math.floor((Date.now() - timerState.lastUpdateTime) / 1000);
-        currentTimerSeconds = Math.min(timerState.elapsedSeconds + secondsPassed, timerState.minutesPerHalf * 60);
-      } else {
-        currentTimerSeconds = timerState.elapsedSeconds;
-      }
+      currentTimerSeconds = getCurrentGameSeconds(timerState);
       if (timerState.currentHalf === 2) {
         currentTimerSeconds += timerState.minutesPerHalf * 60;
       }
@@ -142,13 +138,7 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
     
     const timerState = loadTimerStateForMinutes(teamId);
     if (timerState && state.lastTimerSeconds !== undefined) {
-      let currentTimerSeconds = 0;
-      if (timerState.isRunning && timerState.lastUpdateTime) {
-        const secondsPassed = Math.floor((Date.now() - timerState.lastUpdateTime) / 1000);
-        currentTimerSeconds = Math.min(timerState.elapsedSeconds + secondsPassed, timerState.minutesPerHalf * 60);
-      } else {
-        currentTimerSeconds = timerState.elapsedSeconds;
-      }
+      let currentTimerSeconds = getCurrentGameSeconds(timerState);
       if (timerState.currentHalf === 2) {
         currentTimerSeconds += timerState.minutesPerHalf * 60;
       }
