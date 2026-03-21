@@ -124,10 +124,12 @@ export const executeSubsOnPlayers = (
 ): {
   updatedPlayers: Player[];
   executedSubKeys: string[];
+  skippedSubKeys: string[];
   successCount: number;
 } => {
   let updatedPlayers = [...currentPlayers];
   const executedSubKeys: string[] = [];
+  const skippedSubKeys: string[] = [];
   let successCount = 0;
 
   for (const sub of allSubs) {
@@ -153,51 +155,18 @@ export const executeSubsOnPlayers = (
         currentPlayerIn = benchReplacement;
         actualPlayerInId = benchReplacement.id;
       } else {
-        executedSubKeys.push(getSubKey(sub));
+        skippedSubKeys.push(getSubKey(sub));
         continue;
       }
     }
 
     // Validate playerOut is on pitch
     if (!currentPlayerOut?.position) {
-      executedSubKeys.push(getSubKey(sub));
+      skippedSubKeys.push(getSubKey(sub));
       continue;
     }
-
-    const pitchPosition = { ...currentPlayerOut.position };
-    const pitchPositionType = currentPlayerOut.currentPitchPosition;
-
-    // Apply position swap if using original playerIn
-    if (positionSwap && actualPlayerInId === playerIn.id) {
-      const swapPlayer = updatedPlayers.find(p => p.id === positionSwap.player.id);
-      if (swapPlayer?.position) {
-        const swapPosition = { ...swapPlayer.position };
-        updatedPlayers = updatedPlayers.map(p => {
-          if (p.id === playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
-          if (p.id === positionSwap.player.id) return { ...p, position: pitchPosition, currentPitchPosition: positionSwap.toPosition };
-          if (p.id === actualPlayerInId) return { ...p, position: swapPosition, currentPitchPosition: positionSwap.fromPosition };
-          return p;
-        });
-      } else {
-        updatedPlayers = updatedPlayers.map(p => {
-          if (p.id === playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
-          if (p.id === actualPlayerInId) return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-          return p;
-        });
-      }
-    } else {
-      updatedPlayers = updatedPlayers.map(p => {
-        if (p.id === playerOut.id) return { ...p, position: null, currentPitchPosition: undefined };
-        if (p.id === actualPlayerInId) return { ...p, position: pitchPosition, currentPitchPosition: pitchPositionType };
-        return p;
-      });
-    }
-
-    executedSubKeys.push(getSubKey(sub));
-    successCount++;
-  }
-
-  return { updatedPlayers, executedSubKeys, successCount };
+...
+  return { updatedPlayers, executedSubKeys, skippedSubKeys, successCount };
 };
 
 /**
