@@ -173,6 +173,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const [timerState, setTimerState] = useState<TimerState | null>(null);
   const [displaySeconds, setDisplaySeconds] = useState(0);
   const [homeGoals, setHomeGoals] = useState(0);
+  // Guard: skip polling reads for a short window after a user action
+  // to prevent the stale-closure poll from reverting the toggle
+  const userActionAtRef = useRef(0);
   const [awayGoals, setAwayGoals] = useState(0);
   const [allSubs, setAllSubs] = useState<SubInfo[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
