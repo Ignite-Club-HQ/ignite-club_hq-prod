@@ -280,6 +280,58 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     return () => clearInterval(interval);
   }, []);
 
+  // Reconcile timer after app resumes from background (uncapped drift)
+  useEffect(() => {
+    const reconcileAfterResume = () => {
+      const saved = loadActiveTimerState();
+      if (!saved || !saved.isRunning || saved.isGameFinished) return;
+
+      const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
+      if (uncappedDrift <= 30) return;
+
+      const halfDuration = saved.minutesPerHalf * 60;
+      const reconciledElapsed = Math.min((saved.elapsedSeconds || 0) + uncappedDrift, halfDuration);
+
+      if (reconciledElapsed >= halfDuration) {
+        if (saved.currentHalf === 1) {
+          saved.elapsedSeconds = halfDuration;
+          saved.isRunning = false;
+        } else {
+          saved.elapsedSeconds = halfDuration;
+          saved.isRunning = false;
+          saved.isGameFinished = true;
+        }
+      } else {
+        saved.elapsedSeconds = reconciledElapsed;
+      }
+
+      saved.lastUpdateTime = Date.now();
+      saveTimerState(saved);
+      setTimerState({ ...saved });
+      setDisplaySeconds(saved.elapsedSeconds);
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') reconcileAfterResume();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    let appListener: any;
+    (async () => {
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        appListener = await CapApp.addListener('appStateChange', ({ isActive }: { isActive: boolean }) => {
+          if (isActive) reconcileAfterResume();
+        });
+      } catch {}
+    })();
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      appListener?.remove?.();
+    };
+  }, []);
+
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
