@@ -180,6 +180,23 @@ async function isNotificationEnabled(supabase: any, userId: string): Promise<boo
   return data?.pitch_board_enabled !== false;
 }
 
+// Batch-check notification preferences for multiple users
+async function getEnabledUserIds(supabase: any, userIds: string[]): Promise<Set<string>> {
+  if (userIds.length === 0) return new Set();
+  
+  const { data } = await supabase
+    .from('notification_preferences')
+    .select('user_id, pitch_board_enabled')
+    .in('user_id', userIds);
+
+  const disabledUsers = new Set(
+    (data || []).filter((p: any) => p.pitch_board_enabled === false).map((p: any) => p.user_id)
+  );
+
+  // Users without preferences default to enabled
+  return new Set(userIds.filter(id => !disabledUsers.has(id)));
+}
+
 // Notify all team staff (in-app, push, email) for a pitch board event
 async function notifyTeamStaff(
   supabase: any,
