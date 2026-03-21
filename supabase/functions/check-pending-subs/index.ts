@@ -359,7 +359,14 @@ async function checkGames(supabase: any): Promise<number> {
     // the client-side lastUpdateTime. Client clocks can drift vs server, causing
     // early/late sub notifications. The DB timestamp is authoritative.
     const dbUpdatedAtMs = new Date(game.updated_at).getTime();
-    const timeSinceDbUpdate = Math.max(0, Math.floor((now - dbUpdatedAtMs) / 1000));
+    const timeSinceDbUpdateRaw = Math.max(0, Math.floor((now - dbUpdatedAtMs) / 1000));
+    
+    // Cap extrapolation to 30s. The client syncs every 10s, so gaps > 30s mean
+    // the app is backgrounded/frozen and we shouldn't keep extrapolating — otherwise
+    // we falsely trigger halftime/fulltime notifications while the game is still mid-half.
+    // For sub-level precision we still extrapolate within the cap window.
+    const MAX_EXTRAPOLATION_SECS = 30;
+    const timeSinceDbUpdate = Math.min(timeSinceDbUpdateRaw, MAX_EXTRAPOLATION_SECS);
     const rawElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceDbUpdate : 0);
     
     // Cap elapsed at half duration - if we're past it, the client is at half-time/full-time
