@@ -25,6 +25,19 @@ export const getSecondsSinceUpdate = (
 };
 
 /**
+ * Like getSecondsSinceUpdate but WITHOUT the 30s cap.
+ * Used when the app resumes from background to reconcile the full elapsed time.
+ * Capped only by halfDuration to prevent overshoot.
+ */
+export const getSecondsSinceUpdateUncapped = (
+  lastUpdateTime: number | undefined | null,
+  now: number = Date.now()
+): number => {
+  if (!lastUpdateTime) return 0;
+  return Math.max(0, Math.floor((now - lastUpdateTime) / 1000));
+};
+
+/**
  * Get the current projected elapsed seconds for the active half.
  * This is the ONE function all code should call instead of inline extrapolation.
  *

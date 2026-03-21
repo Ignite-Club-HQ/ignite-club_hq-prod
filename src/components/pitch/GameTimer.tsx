@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
-import { getSecondsSinceUpdate } from "./timerUtils";
+import { getSecondsSinceUpdate, getSecondsSinceUpdateUncapped } from "./timerUtils";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -378,6 +378,63 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       }
     };
   }, [isRunning, halfDurationSeconds, currentHalf, onHalfChange]);
+
+  // Reconcile timer when app resumes from background (no 30s cap)
+  useEffect(() => {
+    const reconcileAfterResume = () => {
+      if (!isRunning || isGameFinished) return;
+      // Re-read from localStorage to get the lastUpdateTime from when we were last active
+      const saved = loadTimerState(teamId);
+      if (!saved || !saved.isRunning || !saved.lastUpdateTime) return;
+      
+      const uncappedDrift = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
+      if (uncappedDrift <= 30) return; // Normal tick would have handled this
+      
+      const reconciledElapsed = Math.min(saved.elapsedSeconds + uncappedDrift, halfDurationSeconds);
+      console.log(`[Timer] Resume reconciliation: +${uncappedDrift}s drift, elapsed ${saved.elapsedSeconds} -> ${reconciledElapsed}`);
+      setElapsedSeconds(reconciledElapsed);
+      
+      // Check if half ended during background
+      if (reconciledElapsed >= halfDurationSeconds) {
+        if (currentHalf === 1) {
+          setIsRunning(false);
+          setCurrentHalf(2);
+          onHalfChange?.(2);
+          setElapsedSeconds(0);
+          playTimerBeep("Half Time! First half complete.");
+        } else {
+          setIsRunning(false);
+          setIsGameFinished(true);
+          setElapsedSeconds(halfDurationSeconds);
+          playTimerBeep("Full Time! Match complete.");
+        }
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        reconcileAfterResume();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Also listen for Capacitor app resume
+    let appListener: any = null;
+    const setupNative = async () => {
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        appListener = await CapApp.addListener('appStateChange', ({ isActive }: { isActive: boolean }) => {
+          if (isActive) reconcileAfterResume();
+        });
+      } catch {}
+    };
+    setupNative();
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      appListener?.remove?.();
+    };
+  }, [isRunning, isGameFinished, teamId, halfDurationSeconds, currentHalf, onHalfChange]);
 
   // Notify parent of time updates
   useEffect(() => {
