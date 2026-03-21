@@ -366,14 +366,22 @@ async function checkGames(supabase: any): Promise<number> {
     const dbUpdatedAtMs = new Date(game.updated_at).getTime();
     const timeSinceDbUpdateRaw = Math.max(0, Math.floor((now - dbUpdatedAtMs) / 1000));
     
-    // Cap extrapolation to 30s. The client syncs every 10s, so gaps > 30s mean
-    // the app is backgrounded/frozen and we shouldn't keep extrapolating — otherwise
-    // we falsely trigger halftime/fulltime notifications while the game is still mid-half.
-    // For sub-level precision we still extrapolate within the cap window.
+    // Cap extrapolation to 30s for BOUNDARY detection (halftime/fulltime) only.
+    // Without the cap, a backgrounded app (no syncs for minutes) would cause the
+    // server to falsely trigger halftime/fulltime notifications mid-half.
     const MAX_EXTRAPOLATION_SECS = 30;
-    const timeSinceDbUpdate = Math.min(timeSinceDbUpdateRaw, MAX_EXTRAPOLATION_SECS);
-    const rawElapsed = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceDbUpdate : 0);
+    const timeSinceDbUpdateCapped = Math.min(timeSinceDbUpdateRaw, MAX_EXTRAPOLATION_SECS);
+    const rawElapsedCapped = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceDbUpdateCapped : 0);
     
+    // For SUB detection, use UNCAPPED extrapolation (still bounded by half duration).
+    // When the app is backgrounded, the whole point of server-side checking is to
+    // detect subs that the client can't process. Without uncapped extrapolation,
+    // subs due >30s after the last sync are invisible to the server.
+    const rawElapsedUncapped = timerState.elapsedSeconds + (timerState.isRunning ? timeSinceDbUpdateRaw : 0);
+    const currentElapsedForSubs = Math.min(rawElapsedUncapped, halfDurationSecs);
+    
+    // Capped version for boundary detection
+    const rawElapsed = rawElapsedCapped;
     // Cap elapsed at half duration - if we're past it, the client is at half-time/full-time
     // and hasn't transitioned yet. Don't let the elapsed overshoot.
     const currentElapsed = Math.min(rawElapsed, halfDurationSecs);
