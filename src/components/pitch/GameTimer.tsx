@@ -244,12 +244,29 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(false);
       } else if (saved.isRunning && saved.lastUpdateTime) {
-        // Cap resume extrapolation to avoid overshoot after backgrounding
-        const secondsPassed = getSecondsSinceUpdate(saved.lastUpdateTime);
-        const newElapsed = saved.elapsedSeconds + secondsPassed;
-        // Cap at half duration
-        setElapsedSeconds(Math.min(newElapsed, halfDuration));
-        setIsRunning(true);
+        // Use UNCAPPED drift so the timer catches up fully after backgrounding.
+        // Previously this used a 30s cap, but the save-effect would then overwrite
+        // lastUpdateTime with Date.now(), preventing the reconcile effect from
+        // ever seeing the real drift.
+        const secondsPassed = getSecondsSinceUpdateUncapped(saved.lastUpdateTime);
+        const newElapsed = Math.min(saved.elapsedSeconds + secondsPassed, halfDuration);
+        
+        // Check if half ended while backgrounded
+        if (newElapsed >= halfDuration) {
+          if (saved.currentHalf === 1) {
+            setCurrentHalf(2);
+            setElapsedSeconds(0);
+            setIsRunning(false);
+            onHalfChange?.(2);
+          } else {
+            setElapsedSeconds(halfDuration);
+            setIsRunning(false);
+            setIsGameFinished(true);
+          }
+        } else {
+          setElapsedSeconds(newElapsed);
+          setIsRunning(true);
+        }
       } else {
         setElapsedSeconds(saved.elapsedSeconds);
         setIsRunning(saved.isRunning);
