@@ -430,6 +430,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     };
     setupNative();
 
+    // Run reconciliation immediately on mount — handles the case where
+    // the app resumed (visibilitychange/appStateChange already fired)
+    // BEFORE this effect registered its listeners.
+    reconcileAfterResume();
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       appListener?.remove?.();
