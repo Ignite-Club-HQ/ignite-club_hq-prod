@@ -631,6 +631,10 @@ export default function GlobalSubMonitor() {
         // Server-side check-pending-subs already sends pending_sub notifications,
         // and triggering them here causes duplicate device notifications.
 
+        // Trigger immediate DB sync so the server detects the due sub ASAP
+        // instead of waiting up to 10s for the next periodic sync.
+        syncToDatabase();
+
         setCurrentPlayers(activePitchState.players);
         setPendingAutoSub(primarySub);
         setPendingBatchSubs(additionalSubs);
