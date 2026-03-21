@@ -529,11 +529,23 @@ export default function PendingSubWidget({ onAcceptSub, readOnly = false }: Pend
       
       if (pitchState) {
         
+        // Calculate extrapolated elapsed time for accurate batch detection
+        let skipElapsed = timerState?.elapsedSeconds || 0;
+        const skipMinutesPerHalf = timerState?.minutesPerHalf || 20;
+        if (timerState?.isRunning && timerState?.lastUpdateTime) {
+          const MAX_EXTRAPOLATION_SECS = 30;
+          const secondsPassed = Math.min(
+            Math.max(0, Math.floor((Date.now() - timerState.lastUpdateTime) / 1000)),
+            MAX_EXTRAPOLATION_SECS
+          );
+          skipElapsed = Math.min(skipElapsed + secondsPassed, skipMinutesPerHalf * 60);
+        }
+        
         const relevantDueSubs = getDueSubGroups(
           pitchState.autoSubPlan,
           timerState?.currentHalf || 1,
-          timerState?.elapsedSeconds || 0,
-          (timerState?.minutesPerHalf || 20) * 60
+          skipElapsed,
+          skipMinutesPerHalf * 60
         ).latestDueSubs;
 
         const subsToSkip = relevantDueSubs.some(s => getSubKey(s) === getSubKey(sub))
