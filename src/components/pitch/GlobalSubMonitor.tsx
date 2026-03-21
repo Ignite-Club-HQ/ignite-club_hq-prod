@@ -984,7 +984,6 @@ export default function GlobalSubMonitor() {
       const timeSinceLastUpdate = Math.min(Math.max(0, Math.floor((now - timerState.lastUpdateTime) / 1000)), MAX_CLIENT_EXTRAPOLATION_SECS);
       const halfDuration = timerState.minutesPerHalf * 60;
       const currentElapsed = Math.min(timerState.elapsedSeconds + (timerState.isRunning ? timeSinceLastUpdate : 0), halfDuration);
-      const halfDuration = timerState.minutesPerHalf * 60;
       const delaySeconds = calculateSubDelay(pendingAutoSub, currentElapsed, timerState.currentHalf as 1 | 2, halfDuration);
       
       // Also detect early execution
