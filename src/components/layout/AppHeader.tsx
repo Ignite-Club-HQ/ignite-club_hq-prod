@@ -593,9 +593,10 @@ export function AppHeader() {
           navigate(`/events/${relatedId}`);
           return;
         case "pending_sub":
+          localStorage.setItem('pitch-board-open-source', 'pending_sub');
           navigate("/");
           window.setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('open-pitch-board'));
+            window.dispatchEvent(new CustomEvent('open-pitch-board', { detail: { notificationType: 'pending_sub' } }));
           }, 300);
           return;
         case "formation_change":

@@ -128,8 +128,12 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   navigate(path);
 
                   if (isPitchBoard) {
+                    // Store the notification type so the pitch board can handle expired subs
+                    if (type) {
+                      localStorage.setItem('pitch-board-open-source', type);
+                    }
                     window.setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent('open-pitch-board'));
+                      window.dispatchEvent(new CustomEvent('open-pitch-board', { detail: { notificationType: type } }));
                     }, 500);
                   }
                 }
