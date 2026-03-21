@@ -568,7 +568,11 @@ async function checkGames(supabase: any): Promise<number> {
     }
 
     // Check for game finished — use atomic claim to prevent duplicate full-time notifications
-    const isGameFinished = timerState.currentHalf === 2 && currentElapsed >= halfDurationSecs;
+    // Use rawElapsed (not capped currentElapsed) for consistency with halftime boundary check.
+    // currentElapsed is capped at halfDurationSecs, so `currentElapsed >= halfDurationSecs`
+    // would always be true when rawElapsed >= halfDurationSecs, but using rawElapsed makes
+    // the intent explicit and consistent with isAtFullTimeBoundary.
+    const isGameFinished = isAtFullTimeBoundary;
 
     if (isGameFinished) {
       // Atomically claim by marking inactive — only the winner sends notifications
