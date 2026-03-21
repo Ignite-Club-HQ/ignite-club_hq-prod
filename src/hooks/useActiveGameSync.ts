@@ -126,10 +126,25 @@ export function useActiveGameSync() {
       return;
     }
 
+    // Compute the ACTUAL elapsed time so the server sees real game progress.
+    // The localStorage snapshot freezes elapsedSeconds at the value from when
+    // the timer state last changed (start/pause). Real elapsed = snapshot + drift.
+    const nowMs = Date.now();
+    const secondsSinceFrozen = timerState.isRunning && timerState.lastUpdateTime
+      ? Math.max(0, Math.floor((nowMs - timerState.lastUpdateTime) / 1000))
+      : 0;
+    const actualElapsed = timerState.elapsedSeconds + secondsSinceFrozen;
+
+    const syncedTimerState: TimerState = {
+      ...timerState,
+      elapsedSeconds: actualElapsed,
+      lastUpdateTime: nowMs,
+    };
+
     const gameData = {
       user_id: user.id,
       team_id: timerState.teamId || null,
-      timer_state: timerState as unknown as Json,
+      timer_state: syncedTimerState as unknown as Json,
       pitch_state: pitchState as unknown as Json,
       is_active: true,
       updated_at: new Date().toISOString(),

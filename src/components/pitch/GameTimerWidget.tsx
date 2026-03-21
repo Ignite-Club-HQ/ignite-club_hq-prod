@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -173,6 +173,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const [timerState, setTimerState] = useState<TimerState | null>(null);
   const [displaySeconds, setDisplaySeconds] = useState(0);
   const [homeGoals, setHomeGoals] = useState(0);
+  // Guard: skip polling reads for a short window after a user action
+  // to prevent the stale-closure poll from reverting the toggle
+  const userActionAtRef = useRef(0);
   const [awayGoals, setAwayGoals] = useState(0);
   const [allSubs, setAllSubs] = useState<SubInfo[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -218,6 +221,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   // Poll state
   useEffect(() => {
     const checkState = () => {
+      // Skip polling for 1.5s after a user action to avoid reverting the toggle
+      if (Date.now() - userActionAtRef.current < 1500) return;
+
       const saved = loadActiveTimerState();
       if (!saved) { setTimerState(null); return; }
 
@@ -247,9 +253,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
-          // Display-only: sort subs by time, mark which are due.
-          // Do NOT modify the plan here — GlobalSubMonitor handles auto-skip/recalculation
-          // to avoid race conditions that can silently wipe subs.
           const sorted = [...unexecuted].sort((a, b) => {
             if (a.half !== b.half) return a.half - b.half;
             return a.time - b.time;
@@ -261,7 +264,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             return { sub, isDue, secondsUntil: Math.max(0, subTotal - currentTotal) };
           });
           
-          // Put due subs first
           subInfos.sort((a, b) => {
             if (a.isDue && !b.isDue) return -1;
             if (!a.isDue && b.isDue) return 1;
@@ -288,14 +290,20 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   const toggleTimer = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!timerState) return;
+    // Read fresh state from localStorage to avoid stale-closure race with polling
+    const fresh = loadActiveTimerState();
+    if (!fresh) return;
+
+    // Mark user action so polling doesn't revert this change
+    userActionAtRef.current = Date.now();
     
-    const mph = timerState.minutesPerHalf || 20;
-    const atHalfTimeLimit = displaySeconds >= mph * 60;
+    const currentElapsed = getCurrentElapsed(fresh);
+    const mph = fresh.minutesPerHalf || 20;
+    const atHalfTimeLimit = currentElapsed >= mph * 60;
     
     // If currently in 1st half and at the time limit, transition to 2nd half
-    if (!timerState.isRunning && timerState.currentHalf === 1 && atHalfTimeLimit) {
-      const newState = { ...timerState, currentHalf: 2 as 1 | 2, elapsedSeconds: 0, isRunning: true, lastUpdateTime: Date.now() };
+    if (!fresh.isRunning && fresh.currentHalf === 1 && atHalfTimeLimit) {
+      const newState = { ...fresh, currentHalf: 2 as 1 | 2, elapsedSeconds: 0, isRunning: true, lastUpdateTime: Date.now() };
       saveTimerState(newState);
       setTimerState(newState);
       setDisplaySeconds(0);
@@ -303,10 +311,12 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     }
     
     // Don't allow resuming if game is finished (2nd half at limit)
-    if (!timerState.isRunning && timerState.currentHalf === 2 && atHalfTimeLimit) return;
+    if (!fresh.isRunning && fresh.currentHalf === 2 && atHalfTimeLimit) return;
     
-    saveTimerState({ ...timerState, isRunning: !timerState.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds });
-    setTimerState(prev => prev ? { ...prev, isRunning: !prev.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: displaySeconds } : null);
+    const newState = { ...fresh, isRunning: !fresh.isRunning, lastUpdateTime: Date.now(), elapsedSeconds: currentElapsed };
+    saveTimerState(newState);
+    setTimerState(newState);
+    setDisplaySeconds(currentElapsed);
   };
 
   const handleOpenPitchBoard = (e: React.MouseEvent) => {
