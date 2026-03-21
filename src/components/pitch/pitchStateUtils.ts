@@ -9,6 +9,7 @@ import {
   TeamSize
 } from "./types";
 import { PitchPosition } from "./PositionBadge";
+import { getCurrentGameSeconds } from "./timerUtils";
 
 // Legacy key used by widgets to find any active timer
 const ACTIVE_TIMER_KEY = 'pitch-board-timer-state';
