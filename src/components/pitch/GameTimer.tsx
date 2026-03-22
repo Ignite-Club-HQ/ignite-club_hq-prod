@@ -469,10 +469,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     };
   }, [isRunning, isGameFinished, teamId, halfDurationSeconds, currentHalf]);
 
-  // Notify parent of time updates
+  // Notify parent of time updates — use stable ref to avoid re-firing
+  // when the callback identity changes (which was doubling player minutes).
   useEffect(() => {
-    onTimeUpdate?.(elapsedSeconds, currentHalf);
-  }, [elapsedSeconds, currentHalf, onTimeUpdate]);
+    onTimeUpdateRef.current?.(elapsedSeconds, currentHalf);
+  }, [elapsedSeconds, currentHalf]);
 
   // toggleTimer moved above useImperativeHandle
 
