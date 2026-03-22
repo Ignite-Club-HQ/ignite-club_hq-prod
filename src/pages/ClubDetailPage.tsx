@@ -110,9 +110,6 @@ export default function ClubDetailPage() {
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const draggedTeamRef = useRef<string | null>(null);
   
-  // Member action state
-  const [removeMemberTarget, setRemoveMemberTarget] = useState<{ userId: string; name: string } | null>(null);
-  
   // Folder management state
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<{ id: string; name: string; description: string | null; color: string } | null>(null);
