@@ -204,6 +204,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const [hasInitialized, setHasInitialized] = useState(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Stable ref for onHalfChange to avoid restarting the interval every time
+  // the callback identity changes (e.g. when `players` updates minutesPlayed).
+  const onHalfChangeRef = useRef(onHalfChange);
+  onHalfChangeRef.current = onHalfChange;
 
   // Use external minutesPerHalf if provided, otherwise use internal
   const minutesPerHalf = externalMinutesPerHalf !== undefined ? externalMinutesPerHalf : internalMinutesPerHalf;
