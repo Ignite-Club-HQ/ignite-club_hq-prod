@@ -421,7 +421,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         if (currentHalf === 1) {
           setIsRunning(false);
           setCurrentHalf(2);
-          onHalfChange?.(2);
+          onHalfChangeRef.current?.(2);
           setElapsedSeconds(0);
           playTimerBeep("Half Time! First half complete.");
         } else {
