@@ -1064,24 +1064,10 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         
         return playersWithTeamSide;
       }
-      // Catch up player minutes for time elapsed while PitchBoard was unmounted.
-      // savePitchState stores lastTimerSeconds; compare with current timer to find the gap.
-      const timerNow = loadTimerStateForMinutes(teamId);
-      if (timerNow && savedState.lastTimerSeconds !== undefined) {
-        let currentTimerSeconds = getCurrentGameSeconds(timerNow);
-        if (timerNow.currentHalf === 2) {
-          currentTimerSeconds += timerNow.minutesPerHalf * 60;
-        }
-        const catchupSeconds = Math.max(0, currentTimerSeconds - savedState.lastTimerSeconds);
-        if (catchupSeconds > 1) {
-          console.log(`[PitchState] Catching up ${catchupSeconds}s of player minutes (saved: ${savedState.lastTimerSeconds}, now: ${currentTimerSeconds})`);
-          return savedState.players.map(p => 
-            p.position !== null 
-              ? { ...p, minutesPlayed: (p.minutesPlayed || 0) + catchupSeconds }
-              : p
-          );
-        }
-      }
+      // NOTE: Player minute catchup removed — handleTimerUpdate is the single
+      // source of truth for minute tracking. The catchup here was adding minutes
+      // that handleTimerUpdate would ALSO add via its delta calculation, causing
+      // double-counted player minutes (e.g. showing 15 min at 7 min game time).
       return savedState.players;
     }
     // For mini-league mode, auto-place players on both halves
