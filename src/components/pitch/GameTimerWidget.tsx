@@ -752,32 +752,49 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           {/* Expanded sub list */}
           {subsExpanded && allSubs.length > 0 && (
             <div className="mt-1.5 space-y-0.5">
-              {allSubs.map((subInfo, idx) => (
+              {allSubs.map((subInfo, idx) => {
+                const isSkipped = subInfo.sub.skipped === true;
+                const isExecuted = subInfo.sub.executed === true && !isSkipped;
+                const isInactive = isSkipped || isExecuted || gameFinished;
+                return (
                 <div
                   key={`${subInfo.sub.playerOut.id}-${subInfo.sub.playerIn.id}-${subInfo.sub.time}`}
                   className={`flex items-center gap-2 rounded-md px-2.5 py-2 ${
+                    isSkipped ? "bg-muted/20 opacity-60" :
+                    isExecuted ? "bg-muted/30" :
+                    gameFinished ? "bg-muted/20 opacity-60" :
                     subInfo.isDue ? "bg-warning/10 border border-warning/20" : "bg-muted/30"
                   }`}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium ${subInfo.isDue ? "text-warning" : "text-foreground"}`}>
+                    <p className={`text-xs font-medium ${
+                      isSkipped ? "text-muted-foreground line-through" :
+                      isExecuted ? "text-muted-foreground" :
+                      gameFinished ? "text-muted-foreground" :
+                      subInfo.isDue ? "text-warning" : "text-foreground"
+                    }`}>
                       {formatSubCountdown(subInfo)}
                     </p>
-                    <p className="text-[11px] text-muted-foreground truncate">
+                    <p className={`text-[11px] truncate ${isInactive ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
                       OUT {subInfo.sub.playerOut.name} · IN {subInfo.sub.playerIn.name}
                     </p>
                   </div>
                   {!readOnly && (() => {
-                    const actionable = isSubActionable(subInfo, idx);
+                    const actionable = !isInactive && isSubActionable(subInfo, idx);
                     return (
                       <Button
                         variant={subInfo.isDue && actionable ? "default" : "outline"}
                         size="sm"
                         className={`h-8 px-2.5 text-xs gap-1 shrink-0 ${subInfo.isDue && actionable ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
                         onClick={(e) => { e.stopPropagation(); openSubDialog(idx); }}
-                        disabled={subInfo.isDue && !actionable}
+                        disabled={subInfo.isDue && !actionable && !isInactive}
                       >
-                        {subInfo.isDue && actionable ? (
+                        {isInactive ? (
+                          <>
+                            <Eye className="h-3.5 w-3.5" />
+                            View
+                          </>
+                        ) : subInfo.isDue && actionable ? (
                           <>
                             <UserRoundCheck className="h-3.5 w-3.5" />
                             Accept
@@ -802,7 +819,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                     );
                   })()}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
