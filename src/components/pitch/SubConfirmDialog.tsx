@@ -47,6 +47,7 @@ interface SubConfirmDialogProps {
   onSkip: () => void;
   players: Player[];
   secondsUntilDue?: number;
+  isGameFinished?: boolean;
 }
 
 export default function SubConfirmDialog({
@@ -58,6 +59,7 @@ export default function SubConfirmDialog({
   onSkip,
   players,
   secondsUntilDue = 0,
+  isGameFinished = false,
 }: SubConfirmDialogProps) {
   const [countdown, setCountdown] = useState(secondsUntilDue);
   
@@ -205,6 +207,11 @@ export default function SubConfirmDialog({
                 <Check className="h-5 w-5 text-muted-foreground" />
                 Substitution Already Made
               </>
+            ) : isGameFinished ? (
+              <>
+                <Timer className="h-5 w-5 text-muted-foreground" />
+                Game Has Finished
+              </>
             ) : isHalftimeOnly ? (
               <>
                 <Timer className="h-5 w-5" />
@@ -234,6 +241,8 @@ export default function SubConfirmDialog({
               ? "This substitution was skipped and not made"
               : alreadyExecuted
               ? "This substitution has already been completed"
+              : isGameFinished
+              ? "This substitution was not made before the game ended"
               : isHalftime
               ? `${isBatchSub ? `${allSubs.length} substitutions are` : "A substitution is"} scheduled for the halftime break`
               : isDue 
@@ -288,7 +297,7 @@ export default function SubConfirmDialog({
                 <X className="h-4 w-4" />
                 Close
               </Button>
-              {isDue && !wasSkipped && (
+              {isDue && !wasSkipped && !isGameFinished && (
                 <>
                   <Button variant="outline" onClick={onSkip} disabled={alreadyExecuted} className="gap-2 h-12 text-base">
                     <X className="h-4 w-4" />
