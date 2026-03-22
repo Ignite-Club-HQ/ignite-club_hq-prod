@@ -461,7 +461,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       document.removeEventListener('visibilitychange', handleVisibility);
       appListener?.remove?.();
     };
-  }, [isRunning, isGameFinished, teamId, halfDurationSeconds, currentHalf, onHalfChange]);
+  }, [isRunning, isGameFinished, teamId, halfDurationSeconds, currentHalf]);
 
   // Notify parent of time updates
   useEffect(() => {
