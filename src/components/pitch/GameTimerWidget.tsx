@@ -344,7 +344,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
       if (reconciledElapsed >= halfDuration) {
         if (saved.currentHalf === 1) {
-          saved.elapsedSeconds = halfDuration;
+          // Half 1 ended during background — transition to half 2 properly
+          // so GameTimer sees the correct state on mount.
+          saved.currentHalf = 2;
+          saved.elapsedSeconds = 0;
           saved.isRunning = false;
         } else {
           saved.elapsedSeconds = halfDuration;
@@ -353,12 +356,13 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         }
       } else {
         saved.elapsedSeconds = reconciledElapsed;
+        // Keep isRunning = true so GameTimer resumes on mount
       }
 
       saved.lastUpdateTime = Date.now();
       saveTimerState(saved);
       setTimerState({ ...saved });
-      setDisplaySeconds(saved.elapsedSeconds);
+      setDisplaySeconds(saved.currentHalf === 2 && saved.elapsedSeconds === 0 ? 0 : saved.elapsedSeconds);
     };
 
     const handleVisibility = () => {
