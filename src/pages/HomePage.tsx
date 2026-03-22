@@ -520,6 +520,7 @@ export default function HomePage() {
       return false;
     },
     enabled: !!user && !!userRoles,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes to prevent flash on re-renders
   });
   
   // Show PRO badge only after we've confirmed they don't have Pro access
