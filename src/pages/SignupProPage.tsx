@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
+import FindOrCreateClubWizard from "@/components/FindOrCreateClubWizard";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { isNativePlatform } from "@/lib/nativePush";
 import { z } from "zod";
@@ -682,92 +683,17 @@ export default function SignupProPage() {
         Back
       </Button>
 
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold">Create Your Club</h2>
-        <p className="text-muted-foreground">Set up your organization</p>
-      </div>
-
-      {/* Logo Upload */}
-      <Card>
-        <CardContent className="py-6">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative">
-              <Avatar className="h-24 w-24 border-4 border-primary/20">
-                <AvatarImage src={clubLogoUrl || undefined} />
-                <AvatarFallback className="bg-primary/10 text-primary text-2xl">
-                  {clubName.charAt(0)?.toUpperCase() || <Building2 className="h-8 w-8" />}
-                </AvatarFallback>
-              </Avatar>
-              <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary cursor-pointer hover:bg-primary/90 transition-colors shadow-lg">
-                <Camera className="h-4 w-4 text-primary-foreground" />
-                <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif" className="hidden" onChange={handleClubLogoUpload} />
-              </label>
-            </div>
-            <p className="text-sm text-muted-foreground">Tap to add logo</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="py-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="clubName">Club Name *</Label>
-            <Input
-              id="clubName"
-              placeholder="Enter club name"
-              value={clubName}
-              onChange={(e) => setClubName(e.target.value)}
-              className="h-12"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Sport</Label>
-            <Select value={clubSport} onValueChange={setClubSport}>
-              <SelectTrigger className="h-12">
-                <SelectValue placeholder="Select a sport">
-                  {clubSport && (
-                    <span className="flex items-center gap-2">
-                      <span>{getSportEmoji(clubSport)}</span>
-                      <span>{clubSport}</span>
-                    </span>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {SPORTS.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    <span className="flex items-center gap-2">
-                      <span>{getSportEmoji(s)}</span>
-                      <span>{s}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="clubDescription">Description</Label>
-            <Textarea
-              id="clubDescription"
-              placeholder="Tell us about your club..."
-              value={clubDescription}
-              onChange={(e) => setClubDescription(e.target.value)}
-              rows={3}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Button className="w-full" size="lg" onClick={handleCreateClub} disabled={saving || !clubName.trim()}>
-        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-          <>
-            Continue
-            <ChevronRight className="h-4 w-4 ml-2" />
-          </>
-        )}
-      </Button>
+      <FindOrCreateClubWizard
+        defaultSport={selectedPlan === "pro_football" ? "Soccer" : clubSport}
+        onClubCreated={(clubId) => {
+          setCreatedClubId(clubId);
+          setStep(4);
+        }}
+        onJoinRequestSent={(_clubId, clubName) => {
+          // User chose to join an existing club - they'll need to wait for approval
+          // For now they stay on this step with the confirmation shown inside the wizard
+        }}
+      />
     </div>
   );
 
