@@ -520,6 +520,7 @@ export default function HomePage() {
       return false;
     },
     enabled: !!user && !!userRoles,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes to prevent flash on re-renders
   });
   
   // Show PRO badge only after we've confirmed they don't have Pro access
@@ -1568,7 +1569,7 @@ export default function HomePage() {
                   <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-5 w-5 rounded object-cover" />
                 )}
                 <p className="text-primary-foreground/80 text-sm font-medium">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</p>
-                {!isLoadingProAccess && !isLoadingUserRoles && !hasProAccess && !isAppAdmin && (
+                {showProBadge && (
                   <Badge variant="outline" className="text-xs bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground py-0 h-5">
                     <Lock className="h-3 w-3 mr-1" />
                     Pro
@@ -2212,8 +2213,9 @@ export default function HomePage() {
             const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
               ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
             );
+            const proResolved = !isLoadingProAccess && !isLoadingUserRoles;
             const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
-            const showVaultRestricted = !canAccessVault;
+            const showVaultRestricted = proResolved && !canAccessVault;
             
             return (
               <Button 

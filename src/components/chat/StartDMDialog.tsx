@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Search, MessageCircle, Loader2, Crown, Lock, Check, X, Users, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -504,7 +504,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4 px-1">
           {checkingPro || checkingCanSend || loadingUsers ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -558,7 +558,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="All Clubs" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[100000]">
                     {!isClubFilterLocked && <SelectItem value="all">All Clubs</SelectItem>}
                     {availableClubs.map(club => (
                       <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
@@ -570,7 +570,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="All Teams" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[100000]">
                     <SelectItem value="all">All Teams</SelectItem>
                     {filteredTeams.map(team => (
                       <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
@@ -589,7 +589,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                 />
               </div>
 
-              <ScrollArea className="max-h-[40vh]">
+              <div>
                 <div className="space-y-1">
                   {filteredUsers.length === 0 ? (
                     <div className="py-8 text-center text-muted-foreground">
@@ -635,7 +635,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                     })
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </>
           )}
         </div>
