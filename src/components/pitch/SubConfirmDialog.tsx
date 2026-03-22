@@ -207,6 +207,11 @@ export default function SubConfirmDialog({
                 <Check className="h-5 w-5 text-muted-foreground" />
                 Substitution Already Made
               </>
+            ) : isGameFinished ? (
+              <>
+                <Timer className="h-5 w-5 text-muted-foreground" />
+                Game Has Finished
+              </>
             ) : isHalftimeOnly ? (
               <>
                 <Timer className="h-5 w-5" />
