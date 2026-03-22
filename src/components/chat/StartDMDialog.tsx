@@ -558,7 +558,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="All Clubs" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[100000]">
                     {!isClubFilterLocked && <SelectItem value="all">All Clubs</SelectItem>}
                     {availableClubs.map(club => (
                       <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
