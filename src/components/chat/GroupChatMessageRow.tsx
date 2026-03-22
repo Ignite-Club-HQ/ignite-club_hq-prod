@@ -58,8 +58,22 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+
+  const closeActionUi = useCallback(() => {
+    setShowMenu(false);
+    setShowReactionPicker(false);
+    setIsDropdownOpen(false);
+  }, []);
+
+  const handleDropdownOpenChange = useCallback((open: boolean) => {
+    setIsDropdownOpen(open);
+    if (!open && !showReactionPicker) {
+      setShowMenu(false);
+    }
+  }, [showReactionPicker]);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -103,21 +117,17 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
   // Close menu/reactions on outside tap
   useEffect(() => {
-    if (!showMenu && !showReactionPicker) return;
-    const close = () => {
-      setShowMenu(false);
-      setShowReactionPicker(false);
-    };
+    if ((!showMenu && !showReactionPicker) || isDropdownOpen) return;
     const timer = setTimeout(() => {
-      document.addEventListener("touchstart", close);
-      document.addEventListener("click", close);
+      document.addEventListener("touchstart", closeActionUi);
+      document.addEventListener("click", closeActionUi);
     }, 0);
     return () => {
       clearTimeout(timer);
-      document.removeEventListener("touchstart", close);
-      document.removeEventListener("click", close);
+      document.removeEventListener("touchstart", closeActionUi);
+      document.removeEventListener("click", closeActionUi);
     };
-  }, [showMenu, showReactionPicker]);
+  }, [showMenu, showReactionPicker, isDropdownOpen, closeActionUi]);
 
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
@@ -227,13 +237,16 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
         {/* Three-dot button - visible after long press, opens dropdown on tap */}
         {showMenu && (
-          <DropdownMenu onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
+          <DropdownMenu open={isDropdownOpen} onOpenChange={handleDropdownOpenChange}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDropdownOpen(true);
+                }}
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
               >
@@ -241,17 +254,17 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align={isOwnMessage ? "end" : "start"} side="top" collisionPadding={16} className="bg-popover border">
-              <DropdownMenuItem onClick={() => { handleReply(msg); setShowMenu(false); }}>
+              <DropdownMenuItem onClick={() => { handleReply(msg); closeActionUi(); }}>
                 <Reply className="h-4 w-4 mr-2" /> Reply
               </DropdownMenuItem>
               {isOwnMessage && (
-                <DropdownMenuItem onClick={() => { handleEdit(msg); setShowMenu(false); }}>
+                <DropdownMenuItem onClick={() => { handleEdit(msg); closeActionUi(); }}>
                   <Pencil className="h-4 w-4 mr-2" /> Edit
                 </DropdownMenuItem>
               )}
               {(isOwnMessage || isAdmin) && (
                 <DropdownMenuItem
-                  onClick={() => { deleteMessageMutation.mutate(msg.id); setShowMenu(false); }}
+                  onClick={() => { deleteMessageMutation.mutate(msg.id); closeActionUi(); }}
                   className="text-destructive"
                 >
                   <Trash2 className="h-4 w-4 mr-2" /> Delete
