@@ -2213,8 +2213,9 @@ export default function HomePage() {
             const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
               ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
             );
+            const proResolved = !isLoadingProAccess && !isLoadingUserRoles;
             const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
-            const showVaultRestricted = !canAccessVault;
+            const showVaultRestricted = proResolved && !canAccessVault;
             
             return (
               <Button 
