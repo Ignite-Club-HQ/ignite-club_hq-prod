@@ -635,7 +635,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                     })
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </>
           )}
         </div>
