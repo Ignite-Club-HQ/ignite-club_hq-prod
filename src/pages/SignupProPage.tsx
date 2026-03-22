@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
+import FindOrCreateClubWizard from "@/components/FindOrCreateClubWizard";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { isNativePlatform } from "@/lib/nativePush";
 import { z } from "zod";
