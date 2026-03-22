@@ -2884,6 +2884,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
 
+    // Update reactive elapsed game time for MatchStatsPanel
+    const totalElapsed = currentHalf === 2 
+      ? (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60 + elapsedSeconds 
+      : elapsedSeconds;
+    setElapsedGameTime(totalElapsed);
+
     // Delegate next-sub countdown and due-sub detection to the hook
     updateNextSubInfo(elapsedSeconds, currentHalf);
     checkForDueSubs(elapsedSeconds, currentHalf);
