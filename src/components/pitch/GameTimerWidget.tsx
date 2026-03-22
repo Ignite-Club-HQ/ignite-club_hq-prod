@@ -18,7 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil, Eye } from "lucide-react";
+import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil, Eye, Check, Ban } from "lucide-react";
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
@@ -180,6 +180,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const [allSubs, setAllSubs] = useState<SubInfo[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [subsExpanded, setSubsExpanded] = useState(false);
+  const [gameFinished, setGameFinished] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedSubIndex, setSelectedSubIndex] = useState<number>(0);
   const [editedPlayerOutId, setEditedPlayerOutId] = useState<string | null>(null);
@@ -204,7 +205,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     return !firstDueTimeKey && idx === 0;
   };
   
-  const isSelectedSubActionable = selectedSub ? isSubActionable(selectedSub, selectedSubIndex) : false;
+  const isSelectedSubActionable = selectedSub && !selectedSub.sub.skipped && !selectedSub.sub.executed && !gameFinished
+    ? isSubActionable(selectedSub, selectedSubIndex) : false;
 
   const actualPlayerOut = useMemo(() => {
     if (!selectedSub) return null;
@@ -232,7 +234,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       setDisplaySeconds(currentElapsed);
 
       try {
-        const pitchState = readPitchState(saved.teamId);
+        let pitchState = readPitchState(saved.teamId);
         if (!pitchState) {
           setHomeGoals(0); setAwayGoals(0); setAllSubs([]); setAllPlayers([]);
           return;
@@ -248,21 +250,67 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
         // Subs - don't show if game is finished
         const mph = saved.minutesPerHalf || 20;
-        const isGameFinished = saved.currentHalf === 2 && currentElapsed >= mph * 60;
-        const unexecuted = pitchState.autoSubPlan?.filter(s => !s.executed) || [];
-        if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
+        const halfDur = mph * 60;
+        const isGameFinished = saved.currentHalf === 2 && currentElapsed >= halfDur;
+        const isHalftimeBreak = !saved.isRunning && saved.currentHalf === 2 && currentElapsed === 0;
+
+        // At halftime, auto-skip stale first-half subs that were never executed
+        if (isHalftimeBreak) {
+          const staleFirstHalfSubs = (pitchState.autoSubPlan || []).filter(
+            s => !s.executed && s.half === 1
+          );
+          if (staleFirstHalfSubs.length > 0) {
+            const updatedPlan = pitchState.autoSubPlan.map(s =>
+              !s.executed && s.half === 1
+                ? { ...s, executed: true, skipped: true }
+                : s
+            );
+            const updatedState = { ...pitchState, autoSubPlan: updatedPlan, lastUpdateTime: Date.now() };
+            writePitchState(updatedState);
+            pitchState = updatedState;
+          }
+        }
+
+        setGameFinished(isGameFinished);
+
+        const allPlanSubs = pitchState.autoSubPlan || [];
+        const unexecuted = allPlanSubs.filter(s => !s.executed);
+        
+        if (pitchState.autoSubActive && (unexecuted.length > 0 || isGameFinished)) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
-          const sorted = [...unexecuted].sort((a, b) => {
+          // When game is finished, show all subs (executed, skipped, and unexecuted) for reference
+          const subsToShow = isGameFinished ? allPlanSubs : unexecuted;
+          
+          const sorted = [...subsToShow].sort((a, b) => {
             if (a.half !== b.half) return a.half - b.half;
             return a.time - b.time;
           });
           
+          // Find the first (earliest) due time slot
+          let firstDueTimeSlot: string | null = null;
           const subInfos: SubInfo[] = sorted.map(sub => {
+            // Skipped/executed subs are never "due"
+            if (sub.executed || sub.skipped || isGameFinished) {
+              return { sub, isDue: false, secondsUntil: 0 };
+            }
             const subTotal = getTotalSeconds(sub.time, sub.half, mph);
             const isDue = subTotal <= currentTotal;
+            if (isDue && !firstDueTimeSlot) {
+              firstDueTimeSlot = `${sub.half}-${sub.time}`;
+            }
             return { sub, isDue, secondsUntil: Math.max(0, subTotal - currentTotal) };
           });
+
+          // Only mark the FIRST due time-slot batch as "due now";
+          // later overdue batches show as upcoming so they don't pile up
+          if (firstDueTimeSlot) {
+            for (const info of subInfos) {
+              if (info.isDue && `${info.sub.half}-${info.sub.time}` !== firstDueTimeSlot) {
+                info.isDue = false;
+              }
+            }
+          }
           
           subInfos.sort((a, b) => {
             if (a.isDue && !b.isDue) return -1;
@@ -598,6 +646,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const firstSub = allSubs[0] || null;
 
   const formatSubCountdown = (info: SubInfo) => {
+    if (info.sub.skipped) return "Skipped";
+    if (info.sub.executed) return "Done";
+    if (gameFinished) return "Game over";
     if (info.isDue) return "Sub due now";
     const mins = Math.floor(info.secondsUntil / 60);
     const secs = info.secondsUntil % 60;
@@ -702,32 +753,49 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           {/* Expanded sub list */}
           {subsExpanded && allSubs.length > 0 && (
             <div className="mt-1.5 space-y-0.5">
-              {allSubs.map((subInfo, idx) => (
+              {allSubs.map((subInfo, idx) => {
+                const isSkipped = subInfo.sub.skipped === true;
+                const isExecuted = subInfo.sub.executed === true && !isSkipped;
+                const isInactive = isSkipped || isExecuted || gameFinished;
+                return (
                 <div
                   key={`${subInfo.sub.playerOut.id}-${subInfo.sub.playerIn.id}-${subInfo.sub.time}`}
                   className={`flex items-center gap-2 rounded-md px-2.5 py-2 ${
+                    isSkipped ? "bg-muted/20 opacity-60" :
+                    isExecuted ? "bg-muted/30" :
+                    gameFinished ? "bg-muted/20 opacity-60" :
                     subInfo.isDue ? "bg-warning/10 border border-warning/20" : "bg-muted/30"
                   }`}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium ${subInfo.isDue ? "text-warning" : "text-foreground"}`}>
+                    <p className={`text-xs font-medium ${
+                      isSkipped ? "text-muted-foreground line-through" :
+                      isExecuted ? "text-muted-foreground" :
+                      gameFinished ? "text-muted-foreground" :
+                      subInfo.isDue ? "text-warning" : "text-foreground"
+                    }`}>
                       {formatSubCountdown(subInfo)}
                     </p>
-                    <p className="text-[11px] text-muted-foreground truncate">
+                    <p className={`text-[11px] truncate ${isInactive ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
                       OUT {subInfo.sub.playerOut.name} · IN {subInfo.sub.playerIn.name}
                     </p>
                   </div>
                   {!readOnly && (() => {
-                    const actionable = isSubActionable(subInfo, idx);
+                    const actionable = !isInactive && isSubActionable(subInfo, idx);
                     return (
                       <Button
                         variant={subInfo.isDue && actionable ? "default" : "outline"}
                         size="sm"
                         className={`h-8 px-2.5 text-xs gap-1 shrink-0 ${subInfo.isDue && actionable ? "bg-warning text-warning-foreground hover:bg-warning/90" : ""}`}
                         onClick={(e) => { e.stopPropagation(); openSubDialog(idx); }}
-                        disabled={subInfo.isDue && !actionable}
+                        disabled={subInfo.isDue && !actionable && !isInactive}
                       >
-                        {subInfo.isDue && actionable ? (
+                        {isInactive ? (
+                          <>
+                            <Eye className="h-3.5 w-3.5" />
+                            View
+                          </>
+                        ) : subInfo.isDue && actionable ? (
                           <>
                             <UserRoundCheck className="h-3.5 w-3.5" />
                             Accept
@@ -752,7 +820,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                     );
                   })()}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -764,15 +833,40 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           <ResponsiveDialogContent className="sm:max-w-md">
             <ResponsiveDialogHeader>
               <ResponsiveDialogTitle className="flex items-center gap-2">
-                <ArrowRightLeft className="h-5 w-5" />
-                {selectedSub.isDue ? "Make This Substitution" : "Upcoming Substitution"}
+                {selectedSub.sub.skipped ? (
+                  <>
+                    <Ban className="h-5 w-5 text-muted-foreground" />
+                    Substitution Was Skipped
+                  </>
+                ) : selectedSub.sub.executed ? (
+                  <>
+                    <Check className="h-5 w-5 text-muted-foreground" />
+                    Substitution Already Made
+                  </>
+                ) : gameFinished ? (
+                  <>
+                    <Timer className="h-5 w-5 text-muted-foreground" />
+                    Game Has Finished
+                  </>
+                ) : (
+                  <>
+                    <ArrowRightLeft className="h-5 w-5" />
+                    {selectedSub.isDue ? "Make This Substitution" : "Upcoming Substitution"}
+                  </>
+                )}
               </ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
-                {undefined}
+                {selectedSub.sub.skipped
+                  ? "This substitution was skipped and not made"
+                  : selectedSub.sub.executed
+                  ? "This substitution has already been completed"
+                  : gameFinished
+                  ? "This substitution was not made before the game ended"
+                  : undefined}
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
             
-            {!selectedSub.isDue && (
+            {!selectedSub.isDue && !selectedSub.sub.executed && !selectedSub.sub.skipped && !gameFinished && (
               <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
                 <Clock className="h-5 w-5 text-primary animate-pulse" />
                 <div className="text-center">
