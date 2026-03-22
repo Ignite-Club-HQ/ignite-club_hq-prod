@@ -1959,18 +1959,6 @@ export default function ClubDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Award Points Dialog - extracted from per-card to avoid blocking scroll */}
-      {awardPointsTarget && (
-        <AwardPointsDialog
-          memberId={awardPointsTarget.userId}
-          memberName={awardPointsTarget.name}
-          currentPoints={awardPointsTarget.points}
-          clubId={id!}
-          clubName={club?.name || "Club"}
-          open={!!awardPointsTarget}
-          onOpenChange={(open) => { if (!open) setAwardPointsTarget(null); }}
-        />
-      )}
     </div>
   );
 }
