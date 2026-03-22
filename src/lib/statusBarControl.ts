@@ -80,3 +80,20 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
     console.warn('[StatusBar] Error configuring status bar:', error);
   }
 }
+
+// ── viewer (fullscreen black background) ────────────────────
+async function applyViewerInternal() {
+  if (!Capacitor.isNativePlatform()) return;
+
+  lastApplied = null; // ensure refresh works after viewer closes
+
+  try {
+    await StatusBar.setStyle({ style: Style.Dark });
+    if (Capacitor.getPlatform() === 'android') {
+      await StatusBar.setBackgroundColor({ color: '#000000' });
+      await StatusBar.setOverlaysWebView({ overlay: true });
+    }
+  } catch (error) {
+    console.warn('[StatusBar] Error configuring viewer status bar:', error);
+  }
+}
