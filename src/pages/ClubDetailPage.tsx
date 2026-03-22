@@ -1549,41 +1549,6 @@ export default function ClubDetailPage() {
                             );
                           })}
                         </div>
-                        {isAdmin && (userId !== user?.id || isAppAdmin) && (
-                          <DropdownMenu modal={false}>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => {
-                                setAwardPointsTarget({
-                                  userId,
-                                  name: member.profile?.display_name || "Member",
-                                  points: member.profile?.ignite_points || 0,
-                                });
-                              }}>
-                                <Flame className="h-4 w-4 mr-2 text-amber-500" />
-                                Award Points
-                              </DropdownMenuItem>
-                              {userId !== user?.id && (
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onSelect={() => {
-                                    setRemoveMemberTarget({
-                                      userId,
-                                      name: member.profile?.display_name || "Unknown User",
-                                    });
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Remove Member
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
                       </CardContent>
                     </Card>
                   ))}
