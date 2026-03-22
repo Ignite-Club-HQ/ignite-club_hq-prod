@@ -589,7 +589,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                 />
               </div>
 
-              <ScrollArea className="max-h-[40vh]">
+              <div>
                 <div className="space-y-1">
                   {filteredUsers.length === 0 ? (
                     <div className="py-8 text-center text-muted-foreground">
