@@ -832,15 +832,40 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           <ResponsiveDialogContent className="sm:max-w-md">
             <ResponsiveDialogHeader>
               <ResponsiveDialogTitle className="flex items-center gap-2">
-                <ArrowRightLeft className="h-5 w-5" />
-                {selectedSub.isDue ? "Make This Substitution" : "Upcoming Substitution"}
+                {selectedSub.sub.skipped ? (
+                  <>
+                    <Ban className="h-5 w-5 text-muted-foreground" />
+                    Substitution Was Skipped
+                  </>
+                ) : selectedSub.sub.executed ? (
+                  <>
+                    <Check className="h-5 w-5 text-muted-foreground" />
+                    Substitution Already Made
+                  </>
+                ) : gameFinished ? (
+                  <>
+                    <Timer className="h-5 w-5 text-muted-foreground" />
+                    Game Has Finished
+                  </>
+                ) : (
+                  <>
+                    <ArrowRightLeft className="h-5 w-5" />
+                    {selectedSub.isDue ? "Make This Substitution" : "Upcoming Substitution"}
+                  </>
+                )}
               </ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
-                {undefined}
+                {selectedSub.sub.skipped
+                  ? "This substitution was skipped and not made"
+                  : selectedSub.sub.executed
+                  ? "This substitution has already been completed"
+                  : gameFinished
+                  ? "This substitution was not made before the game ended"
+                  : undefined}
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
             
-            {!selectedSub.isDue && (
+            {!selectedSub.isDue && !selectedSub.sub.executed && !selectedSub.sub.skipped && !gameFinished && (
               <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
                 <Clock className="h-5 w-5 text-primary animate-pulse" />
                 <div className="text-center">
