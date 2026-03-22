@@ -1547,7 +1547,7 @@ export default function ClubDetailPage() {
                         </div>
                         {isAdmin && (userId !== user?.id || isAppAdmin) && (
                           <>
-                          <DropdownMenu>
+                          <DropdownMenu modal={false}>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
                                 <MoreVertical className="h-4 w-4" />
