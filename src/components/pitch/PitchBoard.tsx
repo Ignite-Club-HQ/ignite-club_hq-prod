@@ -1229,6 +1229,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
+  const [elapsedGameTime, setElapsedGameTime] = useState(0);
 
   // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
   useEffect(() => {
