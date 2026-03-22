@@ -34,10 +34,21 @@ export const applyStatusBar = (theme?: 'light' | 'dark', force = false): void =>
 
 /**
  * Re-read the current theme from DOM and force-apply.
- * Useful after app resume or PitchBoard unmount.
+ * Useful after app resume or overlay unmount.
  */
 export const refreshStatusBar = (): void => {
+  lastApplied = null; // force re-apply even if theme hasn't changed
   applyStatusBar(getThemeSync(), true);
+};
+
+/**
+ * Apply dark status bar for fullscreen image/video viewers.
+ * Goes through the serial queue to prevent interleaving.
+ */
+export const applyStatusBarForViewer = (): void => {
+  pending = pending
+    .then(() => applyViewerInternal())
+    .catch((err) => console.warn('[StatusBar] viewer queue error', err));
 };
 
 // ── internal ────────────────────────────────────────────────
@@ -67,5 +78,22 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
     await StatusBar.setOverlaysWebView({ overlay: false });
   } catch (error) {
     console.warn('[StatusBar] Error configuring status bar:', error);
+  }
+}
+
+// ── viewer (fullscreen black background) ────────────────────
+async function applyViewerInternal() {
+  if (!Capacitor.isNativePlatform()) return;
+
+  lastApplied = null; // ensure refresh works after viewer closes
+
+  try {
+    await StatusBar.setStyle({ style: Style.Dark });
+    if (Capacitor.getPlatform() === 'android') {
+      await StatusBar.setBackgroundColor({ color: '#000000' });
+      await StatusBar.setOverlaysWebView({ overlay: true });
+    }
+  } catch (error) {
+    console.warn('[StatusBar] Error configuring viewer status bar:', error);
   }
 }
