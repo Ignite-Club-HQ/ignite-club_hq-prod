@@ -18,7 +18,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil, Eye } from "lucide-react";
+import { Play, Pause, Timer, LayoutGrid, X, ArrowRightLeft, Clock, UserRoundCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp, SkipForward, Pencil, Eye, Check, Ban } from "lucide-react";
 import { Goal, getSpecificPositionLabel } from "./types";
 import { PitchPosition, POSITION_COLORS } from "./PositionBadge";
 import { toast } from "@/hooks/use-toast";
