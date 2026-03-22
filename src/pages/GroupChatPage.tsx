@@ -1322,149 +1322,23 @@ export default function GroupChatPage() {
             return (
               <div key={msg.id}>
                 {showDateSeparator && <ChatDateSeparator date={currentDate} />}
-                <div
-                  id={`message-${msg.id}`}
-                  className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${
-                    highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
-                  }`}
-                >
-                  <div className={`flex gap-2 max-w-[85%] group ${isOwnMessage ? "flex-row-reverse" : ""}`}>
-                    <Avatar className="h-8 w-8 shrink-0">
-                      <AvatarImage src={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || undefined} />
-                      <AvatarFallback>
-                        {(getProfile(msg.author_id)?.display_name || msg.author?.display_name)?.[0]?.toUpperCase() || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    
-                    <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium">
-                          {getProfile(msg.author_id)?.display_name || msg.author?.display_name || "Loading..."}
-                        </span>
-                        {msg.id.startsWith("queued-") && (
-                          <span className="flex items-center text-amber-500" title="Pending sync">
-                            <Clock className="h-3 w-3" />
-                          </span>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(msg.created_at), "HH:mm")}
-                        </span>
-                      </div>
-                      
-                      {msg.reply_to && (
-                        <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded mb-1 border-l-2 border-primary">
-                          <span className="font-medium">{msg.reply_to.author?.display_name || "..."}: </span>
-                          <span className="line-clamp-1">{msg.reply_to.text}</span>
-                        </div>
-                      )}
-                      
-                      <div className={`rounded-lg px-3 py-2 ${
-                        isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                      }`}>
-                        {msg.image_url && (
-                          <img 
-                            src={msg.image_url} 
-                            alt="Attachment" 
-                            className="max-w-xs rounded mb-2"
-                          />
-                        )}
-                        <MessageContent text={msg.text} />
-                      </div>
-                      
-                      {/* Read indicator */}
-                      {isOwnMessage && index === arr.length - 1 ? (
-                        (readFrontier[msg.id] || []).length > 0 ? (
-                          <MessageReadAvatars readers={readFrontier[msg.id]} isOwn={true} />
-                        ) : (
-                          <div className="mt-0.5">
-                            <span className="text-[10px] text-muted-foreground">Sent</span>
-                          </div>
-                        )
-                      ) : isOwnMessage ? (
-                        <div className="mt-0.5">
-                          <span className="text-[10px] text-muted-foreground">
-                            {(readCounts[msg.id] || 0) > 0 ? `Read by ${readCounts[msg.id]}` : "Sent"}
-                          </span>
-                        </div>
-                      ) : null}
-                      
-                      {/* Reactions */}
-                      <div className="flex items-center gap-1 mt-1">
-                        {messageReactions.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {messageReactions.map((r) => (
-                              <span key={r.id} className="text-xs bg-muted px-1 rounded">
-                                {r.reaction_type}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
-                              <SmilePlus className="h-3 w-3" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-2">
-                            <div className="flex gap-1">
-                              {REACTION_EMOJIS.map((emoji) => {
-                                // Check if user has ANY reaction on this message
-                                const userReaction = reactions.find(
-                                  r => r.group_message_id === msg.id && r.user_id === user?.id
-                                );
-                                const isSelected = userReaction?.reaction_type === emoji;
-                                return (
-                                  <Button
-                                    key={emoji}
-                                    variant="ghost"
-                                    size="sm"
-                                    className={`h-8 w-8 p-0 ${isSelected ? 'bg-primary/20 ring-2 ring-primary' : ''}`}
-                                    onClick={() => toggleReactionMutation.mutate({ 
-                                      messageId: msg.id, 
-                                      reactionType: emoji
-                                    })}
-                                  >
-                                    {emoji}
-                                  </Button>
-                                );
-                              })}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    </div>
-                    
-                    {/* Actions dropdown */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => handleReply(msg)}>
-                          <Reply className="h-4 w-4 mr-2" />
-                          Reply
-                        </DropdownMenuItem>
-                        {isOwnMessage && (
-                          <DropdownMenuItem onClick={() => handleEdit(msg)}>
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                        )}
-                        {(isOwnMessage || isAdmin) && (
-                          <DropdownMenuItem 
-                            onClick={() => deleteMessageMutation.mutate(msg.id)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
+                <GroupChatMessageRow
+                  msg={msg}
+                  isOwnMessage={isOwnMessage}
+                  isAdmin={isAdmin}
+                  highlightedMessageId={highlightedMessageId}
+                  messageReactions={messageReactions}
+                  reactions={reactions}
+                  userId={user?.id}
+                  getProfile={getProfile}
+                  readFrontier={readFrontier}
+                  readCounts={readCounts}
+                  handleReply={handleReply}
+                  handleEdit={handleEdit}
+                  deleteMessageMutation={deleteMessageMutation}
+                  toggleReactionMutation={toggleReactionMutation}
+                  REACTION_EMOJIS={REACTION_EMOJIS}
+                />
               </div>
             );
           })}
