@@ -360,7 +360,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               // End of first half - pause and switch to second half
               setIsRunning(false);
               setCurrentHalf(2);
-              onHalfChange?.(2);
+              onHalfChangeRef.current?.(2);
               playTimerBeep("Half Time! First half complete.");
               return 0;
             } else {
@@ -399,7 +399,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, halfDurationSeconds, currentHalf, onHalfChange]);
+  }, [isRunning, halfDurationSeconds, currentHalf]);
 
   // Reconcile timer when app resumes from background (no 30s cap)
   useEffect(() => {
