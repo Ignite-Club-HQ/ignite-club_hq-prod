@@ -25,7 +25,11 @@ interface AwardPointsDialogProps {
   clubId: string;
   clubName: string;
   clubLogoUrl?: string;
+  /** Legacy: render with an inline trigger button */
   triggerId?: string;
+  /** Controlled mode: pass open + onOpenChange */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function AwardPointsDialog({
@@ -36,14 +40,23 @@ export default function AwardPointsDialog({
   clubName,
   clubLogoUrl,
   triggerId,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: AwardPointsDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const pointsName = usePointsDisplayName(clubId);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [points, setPoints] = useState(10);
   const [reason, setReason] = useState("");
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (isControlled) controlledOnOpenChange?.(v);
+    else setInternalOpen(v);
+  };
 
   const awardMutation = useMutation({
     mutationFn: async () => {
@@ -145,11 +158,13 @@ export default function AwardPointsDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8" title="Award Points" id={triggerId}>
-          <Flame className="h-4 w-4 text-amber-500" />
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8" title="Award Points" id={triggerId}>
+            <Flame className="h-4 w-4 text-amber-500" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
