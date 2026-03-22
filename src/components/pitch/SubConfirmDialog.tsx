@@ -241,6 +241,8 @@ export default function SubConfirmDialog({
               ? "This substitution was skipped and not made"
               : alreadyExecuted
               ? "This substitution has already been completed"
+              : isGameFinished
+              ? "This substitution was not made before the game ended"
               : isHalftime
               ? `${isBatchSub ? `${allSubs.length} substitutions are` : "A substitution is"} scheduled for the halftime break`
               : isDue 
