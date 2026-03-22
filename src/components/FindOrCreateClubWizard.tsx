@@ -355,7 +355,7 @@ export default function FindOrCreateClubWizard({
             className="pl-10 h-12"
           />
         </div>
-        <Select value={stateFilter} onValueChange={setStateFilter}>
+        <Select value={stateFilter} onValueChange={(v) => setStateFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="h-10">
             <SelectValue placeholder="Filter by state (optional)" />
           </SelectTrigger>
