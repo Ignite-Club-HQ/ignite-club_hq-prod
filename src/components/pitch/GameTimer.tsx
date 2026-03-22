@@ -210,6 +210,12 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const onHalfChangeRef = useRef(onHalfChange);
   onHalfChangeRef.current = onHalfChange;
 
+  // Stable ref for onTimeUpdate to prevent the notification effect from
+  // re-firing when the callback identity changes (e.g. gameInProgress flip).
+  // Re-firing can cause duplicate delta calculations, doubling player minutes.
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  onTimeUpdateRef.current = onTimeUpdate;
+
   // Use external minutesPerHalf if provided, otherwise use internal
   const minutesPerHalf = externalMinutesPerHalf !== undefined ? externalMinutesPerHalf : internalMinutesPerHalf;
   const setMinutesPerHalf = (mins: number) => {
