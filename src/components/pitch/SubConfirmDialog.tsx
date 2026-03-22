@@ -297,7 +297,7 @@ export default function SubConfirmDialog({
                 <X className="h-4 w-4" />
                 Close
               </Button>
-              {isDue && !wasSkipped && (
+              {isDue && !wasSkipped && !isGameFinished && (
                 <>
                   <Button variant="outline" onClick={onSkip} disabled={alreadyExecuted} className="gap-2 h-12 text-base">
                     <X className="h-4 w-4" />
