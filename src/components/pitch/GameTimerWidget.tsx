@@ -645,6 +645,9 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const firstSub = allSubs[0] || null;
 
   const formatSubCountdown = (info: SubInfo) => {
+    if (info.sub.skipped) return "Skipped";
+    if (info.sub.executed) return "Done";
+    if (gameFinished) return "Game over";
     if (info.isDue) return "Sub due now";
     const mins = Math.floor(info.secondsUntil / 60);
     const secs = info.secondsUntil % 60;
