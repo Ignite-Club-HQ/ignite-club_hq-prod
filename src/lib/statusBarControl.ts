@@ -34,10 +34,21 @@ export const applyStatusBar = (theme?: 'light' | 'dark', force = false): void =>
 
 /**
  * Re-read the current theme from DOM and force-apply.
- * Useful after app resume or PitchBoard unmount.
+ * Useful after app resume or overlay unmount.
  */
 export const refreshStatusBar = (): void => {
+  lastApplied = null; // force re-apply even if theme hasn't changed
   applyStatusBar(getThemeSync(), true);
+};
+
+/**
+ * Apply dark status bar for fullscreen image/video viewers.
+ * Goes through the serial queue to prevent interleaving.
+ */
+export const applyStatusBarForViewer = (): void => {
+  pending = pending
+    .then(() => applyViewerInternal())
+    .catch((err) => console.warn('[StatusBar] viewer queue error', err));
 };
 
 // ── internal ────────────────────────────────────────────────

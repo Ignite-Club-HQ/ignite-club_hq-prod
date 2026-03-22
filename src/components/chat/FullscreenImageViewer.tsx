@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 import { Capacitor } from "@capacitor/core";
-import { StatusBar, Style } from "@capacitor/status-bar";
+import { applyStatusBarForViewer, refreshStatusBar } from "@/lib/statusBarControl";
 
 interface FullscreenImageViewerProps {
   src: string;
@@ -24,17 +24,9 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   // Force status bar to light icons on black background, restore on unmount
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
-    if (Capacitor.getPlatform() === 'android') {
-      StatusBar.setBackgroundColor({ color: '#000000' }).catch(() => {});
-      StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
-    }
+    applyStatusBarForViewer();
     return () => {
-      // Restore via centralized control
-      import('@/lib/statusBarControl').then(m => m.refreshStatusBar());
-      if (Capacitor.getPlatform() === 'android') {
-        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
-      }
+      refreshStatusBar();
     };
   }, []);
 
