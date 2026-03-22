@@ -83,6 +83,7 @@ import {
   recalculateRemainingPlanTeamAware as recalculateRemainingPlan,
   validateAndFixRemainingPlan
 } from "./pitchStateUtils";
+import { getCurrentGameSeconds } from "./timerUtils";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 
 const SAVED_DEFAULT_TEAM_SIZES: TeamSize[] = ["3", "4", "5", "7", "9", "11"];
@@ -1044,6 +1045,24 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         
         return playersWithTeamSide;
       }
+      // Catch up player minutes for time elapsed while PitchBoard was unmounted.
+      // savePitchState stores lastTimerSeconds; compare with current timer to find the gap.
+      const timerNow = loadTimerStateForMinutes(teamId);
+      if (timerNow && savedState.lastTimerSeconds !== undefined) {
+        let currentTimerSeconds = getCurrentGameSeconds(timerNow);
+        if (timerNow.currentHalf === 2) {
+          currentTimerSeconds += timerNow.minutesPerHalf * 60;
+        }
+        const catchupSeconds = Math.max(0, currentTimerSeconds - savedState.lastTimerSeconds);
+        if (catchupSeconds > 1) {
+          console.log(`[PitchState] Catching up ${catchupSeconds}s of player minutes (saved: ${savedState.lastTimerSeconds}, now: ${currentTimerSeconds})`);
+          return savedState.players.map(p => 
+            p.position !== null 
+              ? { ...p, minutesPlayed: (p.minutesPlayed || 0) + catchupSeconds }
+              : p
+          );
+        }
+      }
       return savedState.players;
     }
     // For mini-league mode, auto-place players on both halves
@@ -1210,6 +1229,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
+  const [elapsedGameTime, setElapsedGameTime] = useState(0);
 
   // Set flag to indicate pitch board is open (for GlobalSubMonitor to know)
   useEffect(() => {
@@ -2839,19 +2859,36 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     // Track minutes played for players on pitch
     const lastUpdate = lastTimeUpdateRef.current;
-    if (lastUpdate && lastUpdate.half === currentHalf && elapsedSeconds > lastUpdate.seconds) {
-      const secondsElapsed = elapsedSeconds - lastUpdate.seconds;
-      // Always add time to players on pitch - the initialization guard handles the first call
-      // and loadPitchState handles catching up time when component remounts
-      setPlayers(prev => prev.map(p => {
-        if (p.position !== null) {
-          // Player is on pitch, add time
-          return { ...p, minutesPlayed: (p.minutesPlayed || 0) + secondsElapsed };
-        }
-        return p;
-      }));
+    if (lastUpdate) {
+      let secondsElapsed = 0;
+      if (lastUpdate.half === currentHalf && elapsedSeconds > lastUpdate.seconds) {
+        // Normal tick within the same half
+        secondsElapsed = elapsedSeconds - lastUpdate.seconds;
+      } else if (lastUpdate.half === 1 && currentHalf === 2 && elapsedSeconds === 0) {
+        // Half transition: account for the final second of half 1
+        // GameTimer jumps from (halfDuration-1) to 0 when switching halves,
+        // so the last second would otherwise be lost
+        const halfDuration = gameTimerRef.current?.getMinutesPerHalf() 
+          ? gameTimerRef.current.getMinutesPerHalf() * 60 
+          : minutesPerHalf * 60;
+        secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds);
+      }
+      if (secondsElapsed > 0) {
+        setPlayers(prev => prev.map(p => {
+          if (p.position !== null) {
+            return { ...p, minutesPlayed: (p.minutesPlayed || 0) + secondsElapsed };
+          }
+          return p;
+        }));
+      }
     }
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
+
+    // Update reactive elapsed game time for MatchStatsPanel
+    const totalElapsed = currentHalf === 2 
+      ? (gameTimerRef.current?.getMinutesPerHalf() || minutesPerHalf) * 60 + elapsedSeconds 
+      : elapsedSeconds;
+    setElapsedGameTime(totalElapsed);
 
     // Delegate next-sub countdown and due-sub detection to the hook
     updateNextSubInfo(elapsedSeconds, currentHalf);
@@ -5389,7 +5426,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           open={statsOpen}
           onOpenChange={setStatsOpen}
           players={players}
-          elapsedGameTime={((gameTimerRef.current?.getCurrentHalf() || 1) === 2 ? (gameTimerRef.current?.getMinutesPerHalf() || 0) * 60 : 0) + (gameTimerRef.current?.getElapsedSeconds() || 0)}
+          elapsedGameTime={elapsedGameTime}
           goals={goals}
           teamName={teamName}
           opponentName={opponentName}
@@ -6690,7 +6727,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         open={statsOpen}
         onOpenChange={setStatsOpen}
         players={players}
-        elapsedGameTime={((gameTimerRef.current?.getCurrentHalf() || 1) === 2 ? (gameTimerRef.current?.getMinutesPerHalf() || 0) * 60 : 0) + (gameTimerRef.current?.getElapsedSeconds() || 0)}
+        elapsedGameTime={elapsedGameTime}
         goals={goals}
         teamName={teamName}
         opponentName={opponentName}
