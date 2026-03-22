@@ -59,6 +59,7 @@ export default function SubConfirmDialog({
   onSkip,
   players,
   secondsUntilDue = 0,
+  isGameFinished = false,
 }: SubConfirmDialogProps) {
   const [countdown, setCountdown] = useState(secondsUntilDue);
   
