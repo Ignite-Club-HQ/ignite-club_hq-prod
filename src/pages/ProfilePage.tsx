@@ -605,6 +605,19 @@ export default function ProfilePage() {
                   <div className="text-xs text-muted-foreground">Balance</div>
                 </div>
               </div>
+              {(() => {
+                const balance = profile?.ignite_points || 0;
+                const calculatedBalance = pointsEarned - pointsSpent;
+                const untracked = balance - calculatedBalance;
+                if (untracked > 0 && !pointsHistoryLoading && !redemptionsLoading) {
+                  return (
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      +{untracked} pts earned before history tracking began
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </CardContent>
 
             <CollapsibleContent>

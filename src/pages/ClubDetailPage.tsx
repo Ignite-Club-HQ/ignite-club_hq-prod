@@ -70,7 +70,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import AddClubAdminSheet from "@/components/AddClubAdminSheet";
-import AwardPointsDialog from "@/components/AwardPointsDialog";
+
 import { getFolderColorClass, FOLDER_COLORS } from "@/components/TeamFoldersManager";
 import { SponsorsManager } from "@/components/SponsorsManager";
 import ClubRewardsManager from "@/components/ClubRewardsManager";
@@ -109,10 +109,6 @@ export default function ClubDetailPage() {
   const [showAllTeams, setShowAllTeams] = useState<boolean | null>(null); // null = not yet initialized
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const draggedTeamRef = useRef<string | null>(null);
-  
-  // Member action state (extracted from per-card rendering to avoid touch/scroll issues)
-  const [removeMemberTarget, setRemoveMemberTarget] = useState<{ userId: string; name: string } | null>(null);
-  const [awardPointsTarget, setAwardPointsTarget] = useState<{ userId: string; name: string; points: number } | null>(null);
   
   // Folder management state
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
@@ -1549,41 +1545,6 @@ export default function ClubDetailPage() {
                             );
                           })}
                         </div>
-                        {isAdmin && (userId !== user?.id || isAppAdmin) && (
-                          <DropdownMenu modal={false}>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => {
-                                setAwardPointsTarget({
-                                  userId,
-                                  name: member.profile?.display_name || "Member",
-                                  points: member.profile?.ignite_points || 0,
-                                });
-                              }}>
-                                <Flame className="h-4 w-4 mr-2 text-amber-500" />
-                                Award Points
-                              </DropdownMenuItem>
-                              {userId !== user?.id && (
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onSelect={() => {
-                                    setRemoveMemberTarget({
-                                      userId,
-                                      name: member.profile?.display_name || "Unknown User",
-                                    });
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Remove Member
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
                       </CardContent>
                     </Card>
                   ))}
@@ -1954,59 +1915,7 @@ export default function ClubDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Remove Member Dialog - extracted from per-card to avoid blocking scroll */}
-      <AlertDialog open={!!removeMemberTarget} onOpenChange={(open) => !open && setRemoveMemberTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Member?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove {removeMemberTarget?.name} from the club. They can request to join again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={async () => {
-                if (!removeMemberTarget) return;
-                const { error } = await supabase
-                  .from("user_roles")
-                  .delete()
-                  .eq("user_id", removeMemberTarget.userId)
-                  .eq("club_id", id!);
-                if (error) {
-                  toast({ title: "Failed to remove member", variant: "destructive" });
-                } else {
-                  await supabase.from("notifications").insert({
-                    user_id: removeMemberTarget.userId,
-                    type: "membership",
-                    message: `You have been removed from ${club?.name || "the club"}`,
-                    related_id: id,
-                  });
-                  queryClient.invalidateQueries({ queryKey: ["club-members-roles", id] });
-                  toast({ title: "Member removed" });
-                }
-                setRemoveMemberTarget(null);
-              }}
-              className="bg-destructive text-destructive-foreground"
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
-      {/* Award Points Dialog - extracted from per-card to avoid blocking scroll */}
-      {awardPointsTarget && (
-        <AwardPointsDialog
-          memberId={awardPointsTarget.userId}
-          memberName={awardPointsTarget.name}
-          currentPoints={awardPointsTarget.points}
-          clubId={id!}
-          clubName={club?.name || "Club"}
-          open={!!awardPointsTarget}
-          onOpenChange={(open) => { if (!open) setAwardPointsTarget(null); }}
-        />
-      )}
     </div>
   );
 }
