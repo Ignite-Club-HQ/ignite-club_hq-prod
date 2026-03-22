@@ -204,6 +204,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const [hasInitialized, setHasInitialized] = useState(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Stable ref for onHalfChange to avoid restarting the interval every time
+  // the callback identity changes (e.g. when `players` updates minutesPlayed).
+  const onHalfChangeRef = useRef(onHalfChange);
+  onHalfChangeRef.current = onHalfChange;
 
   // Use external minutesPerHalf if provided, otherwise use internal
   const minutesPerHalf = externalMinutesPerHalf !== undefined ? externalMinutesPerHalf : internalMinutesPerHalf;
@@ -257,7 +262,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
             setCurrentHalf(2);
             setElapsedSeconds(0);
             setIsRunning(false);
-            onHalfChange?.(2);
+            onHalfChangeRef.current?.(2);
           } else {
             setElapsedSeconds(halfDuration);
             setIsRunning(false);
@@ -355,7 +360,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
               // End of first half - pause and switch to second half
               setIsRunning(false);
               setCurrentHalf(2);
-              onHalfChange?.(2);
+              onHalfChangeRef.current?.(2);
               playTimerBeep("Half Time! First half complete.");
               return 0;
             } else {
@@ -394,7 +399,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, halfDurationSeconds, currentHalf, onHalfChange]);
+  }, [isRunning, halfDurationSeconds, currentHalf]);
 
   // Reconcile timer when app resumes from background (no 30s cap)
   useEffect(() => {
@@ -416,7 +421,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
         if (currentHalf === 1) {
           setIsRunning(false);
           setCurrentHalf(2);
-          onHalfChange?.(2);
+          onHalfChangeRef.current?.(2);
           setElapsedSeconds(0);
           playTimerBeep("Half Time! First half complete.");
         } else {
@@ -456,7 +461,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       document.removeEventListener('visibilitychange', handleVisibility);
       appListener?.remove?.();
     };
-  }, [isRunning, isGameFinished, teamId, halfDurationSeconds, currentHalf, onHalfChange]);
+  }, [isRunning, isGameFinished, teamId, halfDurationSeconds, currentHalf]);
 
   // Notify parent of time updates
   useEffect(() => {
