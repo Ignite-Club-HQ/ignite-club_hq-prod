@@ -2857,17 +2857,28 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     
     // Track minutes played for players on pitch
     const lastUpdate = lastTimeUpdateRef.current;
-    if (lastUpdate && lastUpdate.half === currentHalf && elapsedSeconds > lastUpdate.seconds) {
-      const secondsElapsed = elapsedSeconds - lastUpdate.seconds;
-      // Always add time to players on pitch - the initialization guard handles the first call
-      // and loadPitchState handles catching up time when component remounts
-      setPlayers(prev => prev.map(p => {
-        if (p.position !== null) {
-          // Player is on pitch, add time
-          return { ...p, minutesPlayed: (p.minutesPlayed || 0) + secondsElapsed };
-        }
-        return p;
-      }));
+    if (lastUpdate) {
+      let secondsElapsed = 0;
+      if (lastUpdate.half === currentHalf && elapsedSeconds > lastUpdate.seconds) {
+        // Normal tick within the same half
+        secondsElapsed = elapsedSeconds - lastUpdate.seconds;
+      } else if (lastUpdate.half === 1 && currentHalf === 2 && elapsedSeconds === 0) {
+        // Half transition: account for the final second of half 1
+        // GameTimer jumps from (halfDuration-1) to 0 when switching halves,
+        // so the last second would otherwise be lost
+        const halfDuration = gameTimerRef.current?.getMinutesPerHalf() 
+          ? gameTimerRef.current.getMinutesPerHalf() * 60 
+          : minutesPerHalf * 60;
+        secondsElapsed = Math.max(0, halfDuration - lastUpdate.seconds);
+      }
+      if (secondsElapsed > 0) {
+        setPlayers(prev => prev.map(p => {
+          if (p.position !== null) {
+            return { ...p, minutesPlayed: (p.minutesPlayed || 0) + secondsElapsed };
+          }
+          return p;
+        }));
+      }
     }
     lastTimeUpdateRef.current = { seconds: elapsedSeconds, half: currentHalf };
 
