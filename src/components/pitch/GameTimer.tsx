@@ -210,6 +210,12 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   const onHalfChangeRef = useRef(onHalfChange);
   onHalfChangeRef.current = onHalfChange;
 
+  // Stable ref for onTimeUpdate to prevent the notification effect from
+  // re-firing when the callback identity changes (e.g. gameInProgress flip).
+  // Re-firing can cause duplicate delta calculations, doubling player minutes.
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  onTimeUpdateRef.current = onTimeUpdate;
+
   // Use external minutesPerHalf if provided, otherwise use internal
   const minutesPerHalf = externalMinutesPerHalf !== undefined ? externalMinutesPerHalf : internalMinutesPerHalf;
   const setMinutesPerHalf = (mins: number) => {
@@ -463,10 +469,11 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     };
   }, [isRunning, isGameFinished, teamId, halfDurationSeconds, currentHalf]);
 
-  // Notify parent of time updates
+  // Notify parent of time updates — use stable ref to avoid re-firing
+  // when the callback identity changes (which was doubling player minutes).
   useEffect(() => {
-    onTimeUpdate?.(elapsedSeconds, currentHalf);
-  }, [elapsedSeconds, currentHalf, onTimeUpdate]);
+    onTimeUpdateRef.current?.(elapsedSeconds, currentHalf);
+  }, [elapsedSeconds, currentHalf]);
 
   // toggleTimer moved above useImperativeHandle
 
