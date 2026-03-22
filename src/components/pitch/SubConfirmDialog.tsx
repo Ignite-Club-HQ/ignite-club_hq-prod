@@ -47,6 +47,7 @@ interface SubConfirmDialogProps {
   onSkip: () => void;
   players: Player[];
   secondsUntilDue?: number;
+  isGameFinished?: boolean;
 }
 
 export default function SubConfirmDialog({
