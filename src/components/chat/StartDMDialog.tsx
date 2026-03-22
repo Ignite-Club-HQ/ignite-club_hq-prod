@@ -504,7 +504,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 py-4 px-1">
           {checkingPro || checkingCanSend || loadingUsers ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
