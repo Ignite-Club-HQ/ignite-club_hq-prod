@@ -2858,8 +2858,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   pushToUndoHistoryRef_autoSubs.current = pushToUndoHistory;
   runSubAnimationRef_autoSubs.current = runSubAnimation;
 
-  const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
-  const hasInitializedTimeRef = useRef(false);
+  // lastTimeUpdateRef and hasInitializedTimeRef are declared near the top of the component
+  // (after savedState loading) to allow pre-initialization from saved timer state.
 
   // Timer update callback - check for pending subs and track minutes played
   const handleTimerUpdate = useCallback((elapsedSeconds: number, currentHalf: 1 | 2) => {
