@@ -70,7 +70,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import AddClubAdminSheet from "@/components/AddClubAdminSheet";
-import AwardPointsDialog from "@/components/AwardPointsDialog";
+
 import { getFolderColorClass, FOLDER_COLORS } from "@/components/TeamFoldersManager";
 import { SponsorsManager } from "@/components/SponsorsManager";
 import ClubRewardsManager from "@/components/ClubRewardsManager";
