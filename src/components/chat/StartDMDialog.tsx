@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Search, MessageCircle, Loader2, Crown, Lock, Check, X, Users, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
