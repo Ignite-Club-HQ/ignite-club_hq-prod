@@ -511,7 +511,7 @@ export const ChatMessage = memo(function ChatMessage({
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="flex items-start gap-1">
           {isOwn && showMenu && (
-            <DropdownMenu defaultOpen onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
+            <DropdownMenu onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
@@ -577,7 +577,7 @@ export const ChatMessage = memo(function ChatMessage({
             />
           </div>
           {!isOwn && showMenu && (
-            <DropdownMenu defaultOpen onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
+            <DropdownMenu onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
