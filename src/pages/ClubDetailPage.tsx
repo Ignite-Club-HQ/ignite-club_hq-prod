@@ -1915,46 +1915,6 @@ export default function ClubDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Remove Member Dialog - extracted from per-card to avoid blocking scroll */}
-      <AlertDialog open={!!removeMemberTarget} onOpenChange={(open) => !open && setRemoveMemberTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Member?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove {removeMemberTarget?.name} from the club. They can request to join again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={async () => {
-                if (!removeMemberTarget) return;
-                const { error } = await supabase
-                  .from("user_roles")
-                  .delete()
-                  .eq("user_id", removeMemberTarget.userId)
-                  .eq("club_id", id!);
-                if (error) {
-                  toast({ title: "Failed to remove member", variant: "destructive" });
-                } else {
-                  await supabase.from("notifications").insert({
-                    user_id: removeMemberTarget.userId,
-                    type: "membership",
-                    message: `You have been removed from ${club?.name || "the club"}`,
-                    related_id: id,
-                  });
-                  queryClient.invalidateQueries({ queryKey: ["club-members-roles", id] });
-                  toast({ title: "Member removed" });
-                }
-                setRemoveMemberTarget(null);
-              }}
-              className="bg-destructive text-destructive-foreground"
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
     </div>
   );
