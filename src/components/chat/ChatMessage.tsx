@@ -510,13 +510,13 @@ export const ChatMessage = memo(function ChatMessage({
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="flex items-start gap-1">
-          {isOwn && (
-            <DropdownMenu>
+          {isOwn && showMenu && (
+            <DropdownMenu defaultOpen onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-8 w-8 min-h-[32px] min-w-[32px] transition-opacity ${showMenu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  className="h-8 w-8 min-h-[32px] min-w-[32px]"
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
@@ -576,13 +576,13 @@ export const ChatMessage = memo(function ChatMessage({
               isOwnMessage={isOwn}
             />
           </div>
-          {!isOwn && (
-            <DropdownMenu>
+          {!isOwn && showMenu && (
+            <DropdownMenu defaultOpen onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-8 w-8 min-h-[32px] min-w-[32px] transition-opacity ${showMenu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  className="h-8 w-8 min-h-[32px] min-w-[32px]"
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
