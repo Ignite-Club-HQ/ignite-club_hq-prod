@@ -232,7 +232,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       setDisplaySeconds(currentElapsed);
 
       try {
-        const pitchState = readPitchState(saved.teamId);
+        let pitchState = readPitchState(saved.teamId);
         if (!pitchState) {
           setHomeGoals(0); setAwayGoals(0); setAllSubs([]); setAllPlayers([]);
           return;
