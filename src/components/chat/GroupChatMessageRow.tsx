@@ -225,11 +225,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           )}
         </div>
 
-        {/* Actions dropdown - only on long press */}
+        {/* Three-dot button - visible after long press, opens dropdown on tap */}
         {showMenu && (
-          <DropdownMenu defaultOpen onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
+          <DropdownMenu onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => e.stopPropagation()}>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
