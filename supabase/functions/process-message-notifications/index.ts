@@ -78,7 +78,7 @@ function buildPushUrl(messageType: string, contextId: string | null, messageId: 
   switch (messageType) {
     case 'team': return contextId ? `/messages/${contextId}` : '/messages';
     case 'club': return contextId ? `/messages/club/${contextId}` : '/messages';
-    case 'group': return contextId ? `/messages/group/${contextId}` : '/messages';
+    case 'group': return contextId ? `/groups/${contextId}` : '/messages';
     case 'broadcast': return '/messages/broadcast';
     default: return '/messages';
   }
