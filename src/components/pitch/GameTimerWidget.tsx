@@ -232,7 +232,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       setDisplaySeconds(currentElapsed);
 
       try {
-        const pitchState = readPitchState(saved.teamId);
+        let pitchState = readPitchState(saved.teamId);
         if (!pitchState) {
           setHomeGoals(0); setAwayGoals(0); setAllSubs([]); setAllPlayers([]);
           return;
@@ -248,7 +248,27 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
         // Subs - don't show if game is finished
         const mph = saved.minutesPerHalf || 20;
-        const isGameFinished = saved.currentHalf === 2 && currentElapsed >= mph * 60;
+        const halfDur = mph * 60;
+        const isGameFinished = saved.currentHalf === 2 && currentElapsed >= halfDur;
+        const isHalftimeBreak = !saved.isRunning && saved.currentHalf === 2 && currentElapsed === 0;
+
+        // At halftime, auto-skip stale first-half subs that were never executed
+        if (isHalftimeBreak) {
+          const staleFirstHalfSubs = (pitchState.autoSubPlan || []).filter(
+            s => !s.executed && s.half === 1
+          );
+          if (staleFirstHalfSubs.length > 0) {
+            const updatedPlan = pitchState.autoSubPlan.map(s =>
+              !s.executed && s.half === 1
+                ? { ...s, executed: true, skipped: true }
+                : s
+            );
+            const updatedState = { ...pitchState, autoSubPlan: updatedPlan, lastUpdateTime: Date.now() };
+            writePitchState(updatedState);
+            pitchState = updatedState;
+          }
+        }
+
         const unexecuted = pitchState.autoSubPlan?.filter(s => !s.executed) || [];
         if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
@@ -258,11 +278,27 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             return a.time - b.time;
           });
           
+          // Find the first (earliest) due time slot
+          let firstDueTimeSlot: string | null = null;
           const subInfos: SubInfo[] = sorted.map(sub => {
             const subTotal = getTotalSeconds(sub.time, sub.half, mph);
             const isDue = subTotal <= currentTotal;
+            if (isDue && !firstDueTimeSlot) {
+              firstDueTimeSlot = `${sub.half}-${sub.time}`;
+            }
             return { sub, isDue, secondsUntil: Math.max(0, subTotal - currentTotal) };
           });
+
+          // Only mark the FIRST due time-slot batch as "due now";
+          // later overdue batches show as upcoming so they don't pile up
+          if (firstDueTimeSlot) {
+            for (const info of subInfos) {
+              if (info.isDue && `${info.sub.half}-${info.sub.time}` !== firstDueTimeSlot) {
+                info.isDue = false;
+                // secondsUntil stays 0 — they're next in line
+              }
+            }
+          }
           
           subInfos.sort((a, b) => {
             if (a.isDue && !b.isDue) return -1;
