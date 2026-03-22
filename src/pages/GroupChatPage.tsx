@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
+import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
