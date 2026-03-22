@@ -180,6 +180,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
   const [allSubs, setAllSubs] = useState<SubInfo[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [subsExpanded, setSubsExpanded] = useState(false);
+  const [gameFinished, setGameFinished] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedSubIndex, setSelectedSubIndex] = useState<number>(0);
   const [editedPlayerOutId, setEditedPlayerOutId] = useState<string | null>(null);
