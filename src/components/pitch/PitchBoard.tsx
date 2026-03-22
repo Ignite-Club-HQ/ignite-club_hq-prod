@@ -5426,7 +5426,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           open={statsOpen}
           onOpenChange={setStatsOpen}
           players={players}
-          elapsedGameTime={((gameTimerRef.current?.getCurrentHalf() || 1) === 2 ? (gameTimerRef.current?.getMinutesPerHalf() || 0) * 60 : 0) + (gameTimerRef.current?.getElapsedSeconds() || 0)}
+          elapsedGameTime={elapsedGameTime}
           goals={goals}
           teamName={teamName}
           opponentName={opponentName}
