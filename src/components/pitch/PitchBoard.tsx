@@ -188,6 +188,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }
   const savedState = savedStateRef.current;
   
+  // Pre-initialize time-tracking refs based on saved timer state.
+  // This prevents handleTimerUpdate from re-adding time that was already
+  // captured in savedState.players[].minutesPlayed (+ catchup).
+  // Without this, GameTimer initializes with elapsedSeconds=0, fires
+  // handleTimerUpdate(0), then restores to the full elapsed time, causing
+  // handleTimerUpdate to add a delta equal to the entire game duration — doubling minutes.
+  const lastTimeUpdateRef = useRef<{ seconds: number; half: 1 | 2 } | null>(null);
+  const hasInitializedTimeRef = useRef(false);
+  if (savedState && !hasInitializedTimeRef.current) {
+    const timerNow = loadTimerStateForMinutes(teamId);
+    if (timerNow) {
+      const halfElapsed = getCurrentGameSeconds(timerNow);
+      const currentHalf = (timerNow.currentHalf || 1) as 1 | 2;
+      lastTimeUpdateRef.current = { seconds: halfElapsed, half: currentHalf };
+      hasInitializedTimeRef.current = true;
+      console.log("[PitchState] Pre-initialized time ref:", { halfElapsed, currentHalf });
+    }
+  }
+  
   // Determine initial team size - prefer saved state, then DB value, then default
   const getInitialTeamSize = (): TeamSize => {
     if (savedState?.teamSize) return savedState.teamSize;
