@@ -155,11 +155,13 @@ export function AppLayout() {
     );
   }
 
-  // Preserve deep-link destination for post-auth return
+  // Preserve current destination for post-auth return (all protected routes, not just deep links)
   if (!user && !hasPendingOAuth && !hasOAuthTokensInUrl) {
-    if (isDeepLinkRoute && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       const redirectPath = `${location.pathname}${location.search}${location.hash}`;
-      sessionStorage.setItem("redirectAfterAuth", redirectPath);
+      if (redirectPath && redirectPath !== '/' && redirectPath !== '/auth') {
+        sessionStorage.setItem("redirectAfterAuth", redirectPath);
+      }
     }
     return <Navigate to="/auth" replace />;
   }
