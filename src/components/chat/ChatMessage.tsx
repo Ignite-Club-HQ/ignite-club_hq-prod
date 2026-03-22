@@ -577,7 +577,7 @@ export const ChatMessage = memo(function ChatMessage({
             />
           </div>
           {!isOwn && showMenu && (
-            <DropdownMenu defaultOpen onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
+            <DropdownMenu onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
