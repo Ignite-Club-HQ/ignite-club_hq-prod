@@ -262,7 +262,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
             setCurrentHalf(2);
             setElapsedSeconds(0);
             setIsRunning(false);
-            onHalfChange?.(2);
+            onHalfChangeRef.current?.(2);
           } else {
             setElapsedSeconds(halfDuration);
             setIsRunning(false);
