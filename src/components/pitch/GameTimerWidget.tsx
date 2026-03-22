@@ -205,7 +205,8 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     return !firstDueTimeKey && idx === 0;
   };
   
-  const isSelectedSubActionable = selectedSub ? isSubActionable(selectedSub, selectedSubIndex) : false;
+  const isSelectedSubActionable = selectedSub && !selectedSub.sub.skipped && !selectedSub.sub.executed && !gameFinished
+    ? isSubActionable(selectedSub, selectedSubIndex) : false;
 
   const actualPlayerOut = useMemo(() => {
     if (!selectedSub) return null;
