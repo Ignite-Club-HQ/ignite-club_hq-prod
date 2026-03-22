@@ -270,11 +270,18 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           }
         }
 
-        const unexecuted = pitchState.autoSubPlan?.filter(s => !s.executed) || [];
-        if (pitchState.autoSubActive && unexecuted.length > 0 && !isGameFinished) {
+        setGameFinished(isGameFinished);
+
+        const allPlanSubs = pitchState.autoSubPlan || [];
+        const unexecuted = allPlanSubs.filter(s => !s.executed);
+        
+        if (pitchState.autoSubActive && (unexecuted.length > 0 || isGameFinished)) {
           const currentTotal = getTotalSeconds(currentElapsed, saved.currentHalf, mph);
           
-          const sorted = [...unexecuted].sort((a, b) => {
+          // When game is finished, show all subs (executed, skipped, and unexecuted) for reference
+          const subsToShow = isGameFinished ? allPlanSubs : unexecuted;
+          
+          const sorted = [...subsToShow].sort((a, b) => {
             if (a.half !== b.half) return a.half - b.half;
             return a.time - b.time;
           });
@@ -282,6 +289,10 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
           // Find the first (earliest) due time slot
           let firstDueTimeSlot: string | null = null;
           const subInfos: SubInfo[] = sorted.map(sub => {
+            // Skipped/executed subs are never "due"
+            if (sub.executed || sub.skipped || isGameFinished) {
+              return { sub, isDue: false, secondsUntil: 0 };
+            }
             const subTotal = getTotalSeconds(sub.time, sub.half, mph);
             const isDue = subTotal <= currentTotal;
             if (isDue && !firstDueTimeSlot) {
@@ -296,7 +307,6 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             for (const info of subInfos) {
               if (info.isDue && `${info.sub.half}-${info.sub.time}` !== firstDueTimeSlot) {
                 info.isDue = false;
-                // secondsUntil stays 0 — they're next in line
               }
             }
           }
