@@ -90,6 +90,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const queryClient = useQueryClient();
@@ -384,6 +385,13 @@ export const ChatMessage = memo(function ChatMessage({
     setShowReactionPicker(true);
   }, []);
 
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    setIsDropdownOpen(open);
+    if (!open && !showReactionPicker) {
+      setShowMenu(false);
+    }
+  }, [showReactionPicker]);
+
   useEffect(() => {
     return () => {
       if (longPressTimer.current) {
@@ -413,7 +421,7 @@ export const ChatMessage = memo(function ChatMessage({
 
   // Close three-dot menu when tapping outside
   useEffect(() => {
-    if (!showMenu) return;
+    if (!showMenu || isDropdownOpen) return;
     
     const handleClickOutside = () => {
       setShowMenu(false);
@@ -429,7 +437,7 @@ export const ChatMessage = memo(function ChatMessage({
       document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [showMenu]);
+  }, [showMenu, isDropdownOpen]);
 
   // Get display name - never show placeholder text; hide name until profile loads
   const displayName = authorName || "";
@@ -511,17 +519,23 @@ export const ChatMessage = memo(function ChatMessage({
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="flex items-start gap-1">
           {isOwn && showMenu && (
-            <DropdownMenu onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
+            <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 min-h-[32px] min-w-[32px]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDropdownOpen(true);
+                  }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="top" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
+              <DropdownMenuContent align="end" side="top" collisionPadding={16} className="bg-popover border">
                 {canReply && (
                   <DropdownMenuItem onClick={handleReply}>
                     <Reply className="h-4 w-4 mr-2" /> Reply
@@ -577,17 +591,23 @@ export const ChatMessage = memo(function ChatMessage({
             />
           </div>
           {!isOwn && showMenu && (
-            <DropdownMenu onOpenChange={(open) => { if (!open) setShowMenu(false); }}>
+            <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 min-h-[32px] min-w-[32px]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDropdownOpen(true);
+                  }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
+              <DropdownMenuContent align="start" side="top" collisionPadding={16} className="bg-popover border">
                 {canReply && (
                   <DropdownMenuItem onClick={handleReply}>
                     <Reply className="h-4 w-4 mr-2" /> Reply
