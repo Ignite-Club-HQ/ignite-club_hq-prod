@@ -1613,7 +1613,6 @@ export default function EventDetailPage() {
   });
 
   // Resend event invites to members who haven't been notified yet
-  const [resendDialogOpen, setResendDialogOpen] = useState(false);
   const resendInvitesMutation = useMutation({
     mutationFn: async () => {
       if (!event || !id) throw new Error("No event");
