@@ -218,6 +218,7 @@ export default function EventDetailPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
+  const [resendDialogOpen, setResendDialogOpen] = useState(false);
   const [showPitchBoard, setShowPitchBoard] = useState(false);
   
   // Mini league player overrides for match generation
@@ -1611,6 +1612,107 @@ export default function EventDetailPage() {
     },
   });
 
+  // Resend event invites to members who haven't been notified yet
+  const resendInvitesMutation = useMutation({
+    mutationFn: async () => {
+      if (!event || !id) throw new Error("No event");
+
+      // Get all current team/club members
+      let allMemberIds: string[] = [];
+      if (event.mini_league_id) {
+        const { data: league } = await supabase
+          .from("mini_leagues")
+          .select("club_id")
+          .eq("id", event.mini_league_id)
+          .single();
+        if (league) {
+          const [playersRes, adminsRes] = await Promise.all([
+            supabase
+              .from("mini_league_players")
+              .select("parent_user_id")
+              .eq("mini_league_id", event.mini_league_id)
+              .not("parent_user_id", "is", null),
+            supabase
+              .from("user_roles")
+              .select("user_id")
+              .eq("club_id", league.club_id)
+              .in("role", ["club_admin", "league_admin", "coach"]),
+          ]);
+          const parentIds = (playersRes.data?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
+          const adminIds = adminsRes.data?.map(r => r.user_id) || [];
+          allMemberIds = [...new Set([...parentIds, ...adminIds])];
+        }
+      } else {
+        let memberQuery = supabase.from("user_roles").select("user_id");
+        if (event.team_id) {
+          memberQuery = memberQuery.eq("team_id", event.team_id);
+        } else if (event.club_id) {
+          memberQuery = memberQuery.eq("club_id", event.club_id);
+        }
+        const { data: members } = await memberQuery;
+        allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+      }
+
+      // Exclude the creator
+      allMemberIds = allMemberIds.filter(uid => uid !== event.created_by);
+
+      // Find members who already have a notification for this event
+      const { data: existingNotifications } = await supabase
+        .from("notifications")
+        .select("user_id")
+        .eq("type", "event_invite")
+        .eq("related_id", id)
+        .in("user_id", allMemberIds.length > 0 ? allMemberIds : ['no-match']);
+
+      const alreadyNotified = new Set(existingNotifications?.map(n => n.user_id) || []);
+      const newMembers = allMemberIds.filter(uid => !alreadyNotified.has(uid));
+
+      if (newMembers.length === 0) {
+        throw new Error("All members have already been notified about this event!");
+      }
+
+      // Insert notifications with skip_push
+      const notificationRows = newMembers.map(userId => ({
+        user_id: userId,
+        type: "event_invite",
+        message: `You've been invited to: ${event.title}`,
+        related_id: id,
+        skip_push: true,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("notifications")
+        .insert(notificationRows);
+      if (insertError) throw insertError;
+
+      // Send push notifications
+      for (const userId of newMembers) {
+        supabase.functions.invoke("send-push-notification", {
+          body: {
+            userId,
+            title: "Ignite Club HQ",
+            body: `You've been invited to: ${event.title}`,
+            url: `/events/${id}`,
+            tag: `event-invite-${id}`,
+            notificationType: "event_invite",
+          },
+        }).catch(console.error);
+      }
+
+      return newMembers.length;
+    },
+    onSuccess: (count) => {
+      setResendDialogOpen(false);
+      toast({
+        title: "Invites sent",
+        description: `${count} new member${count !== 1 ? 's' : ''} have been notified`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to resend invites", variant: "destructive" });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="py-6 space-y-4">
@@ -1711,21 +1813,33 @@ export default function EventDetailPage() {
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit {eventTypeLabel}
                   </DropdownMenuItem>
-                  {canSendReminders ? (
-                    <DropdownMenuItem onClick={() => {
-                      // Open reminder confirmation
-                      setReminderDialogOpen(true);
-                    }}>
-                      <Bell className="h-4 w-4 mr-2 text-primary" />
-                      Send Reminders
-                    </DropdownMenuItem>
-                  ) : !isLoadingHasTeamPro && (
-                    <DropdownMenuItem disabled>
-                      <Bell className="h-4 w-4 mr-2" />
-                      Send Reminders
-                      <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">Pro</Badge>
-                    </DropdownMenuItem>
-                  )}
+                  {(() => {
+                    const isUpcoming = new Date(event.event_date + 'T' + (event.end_time || event.start_time || '23:59')) >= new Date();
+                    return (
+                      <>
+                        {isUpcoming && (canSendReminders ? (
+                          <DropdownMenuItem onClick={() => {
+                            setReminderDialogOpen(true);
+                          }}>
+                            <Bell className="h-4 w-4 mr-2 text-primary" />
+                            Send Reminders
+                          </DropdownMenuItem>
+                        ) : !isLoadingHasTeamPro && (
+                          <DropdownMenuItem disabled>
+                            <Bell className="h-4 w-4 mr-2" />
+                            Send Reminders
+                            <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">Pro</Badge>
+                          </DropdownMenuItem>
+                        ))}
+                        {isUpcoming && (
+                          <DropdownMenuItem onClick={() => setResendDialogOpen(true)}>
+                            <UserPlus className="h-4 w-4 mr-2 text-primary" />
+                            Resend Invites
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    );
+                  })()}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => setCancelDialogOpen(true)}
@@ -1769,6 +1883,34 @@ export default function EventDetailPage() {
                   </>
                 ) : (
                   "Send Reminders"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Resend Invites Dialog */}
+        <AlertDialog open={resendDialogOpen} onOpenChange={setResendDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Resend Event Invites?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will send notifications to any new members who haven't been notified about this event yet.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => resendInvitesMutation.mutate()}
+                disabled={resendInvitesMutation.isPending}
+              >
+                {resendInvitesMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Invites"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
