@@ -10,7 +10,10 @@ workflows:
       node: 22
     scripts:
       - name: Install dependencies
-        script: npm install
+        script: |
+          npm install
+          npm install @capacitor/status-bar@8.0.1 --no-save
+          npm ls @capacitor/status-bar
       - name: Build web app
         script: npm run build
       - name: Add Android platform
@@ -202,7 +205,10 @@ workflows:
       node: 22
     scripts:
       - name: Install dependencies
-        script: npm install
+        script: |
+          npm install
+          npm install @capacitor/status-bar@8.0.1 --no-save
+          npm ls @capacitor/status-bar
       - name: Build web app
         script: npm run build
       - name: Add iOS platform
