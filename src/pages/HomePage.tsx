@@ -13,6 +13,7 @@ import { RecurringEventActionDialog } from "@/components/RecurringEventActionDia
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
+import { NativeAppDownloadBanner } from "@/components/NativeAppDownloadBanner";
 import { QuickRSVPDialog } from "@/components/QuickRSVPDialog";
 import {
   AlertDialog,
@@ -1556,6 +1557,9 @@ export default function HomePage() {
           onRecovered={() => queryClient.invalidateQueries()}
         />
       )}
+
+      {/* Native App Download Banner - for mobile browser users */}
+      <NativeAppDownloadBanner />
 
       {/* Points Card */}
       <Card className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} border-0`}>
