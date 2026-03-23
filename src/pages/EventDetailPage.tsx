@@ -2759,6 +2759,15 @@ export default function EventDetailPage() {
         </Suspense>,
         document.body
       )}
+      {/* Post-RSVP Notification Prompt */}
+      {user && event && (
+        <PostRsvpNotificationPrompt
+          open={showPostRsvpNudge}
+          onClose={() => setShowPostRsvpNudge(false)}
+          userId={user.id}
+          eventTitle={event.title}
+        />
+      )}
     </div>
   );
 }
