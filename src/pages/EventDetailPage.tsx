@@ -2759,8 +2759,8 @@ export default function EventDetailPage() {
         </Suspense>,
         document.body
       )}
-      {/* Post-RSVP Notification Prompt */}
-      {user && event && (
+      {/* Post-RSVP Notification Prompt - only show if push is NOT enabled */}
+      {user && event && notificationNudge.hasPushEnabled === false && (
         <PostRsvpNotificationPrompt
           open={showPostRsvpNudge}
           onClose={() => setShowPostRsvpNudge(false)}
