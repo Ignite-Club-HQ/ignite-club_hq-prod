@@ -8,7 +8,7 @@ import { Capacitor } from "@capacitor/core";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto } from "@/lib/nativePhotoPicker";
 import {
   emitIOSNavGuard as dispatchIOSNavGuard,
 } from "@/lib/iosLayoutStability";
@@ -147,12 +147,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           return;
         }
 
-        const errMsg = getReadableUploadError(pickerError);
-        console.warn("[ChatImageInput] Native Camera picker failed, falling back to file input:", errMsg, pickerError);
+        console.warn("[ChatImageInput] Native Camera picker failed:", getReadableUploadError(pickerError), pickerError);
         restoreNativeLayout();
-        setUploading(false);
-        fileInputRef.current?.click();
-        return;
+        throw pickerError;
       }
 
       // Stabilize BottomNav immediately once picker returns, before blob/compression work.

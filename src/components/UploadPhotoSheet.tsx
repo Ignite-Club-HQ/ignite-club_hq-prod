@@ -535,14 +535,26 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     // the state update triggers a re-render that breaks the iOS gesture chain.
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
 
-    const bodyWasFixed = typeof document !== "undefined" && document.body.style.position === "fixed";
-    const savedTop = typeof document !== "undefined" ? document.body.style.top : "";
+    const savedBodyStyles = typeof document !== "undefined"
+      ? {
+          position: document.body.style.position,
+          top: document.body.style.top,
+          left: document.body.style.left,
+          right: document.body.style.right,
+          overflow: document.body.style.overflow,
+          width: document.body.style.width,
+        }
+      : null;
+    const bodyWasFixed = savedBodyStyles?.position === "fixed";
 
     if (bodyWasFixed) {
       console.log("[UploadPhotoSheet] Releasing body scroll lock for native picker");
       document.body.style.position = "";
       document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
       document.body.style.overflow = "";
+      document.body.style.width = "";
     }
 
     try {
@@ -574,11 +586,14 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         console.log("[UploadPhotoSheet] user cancelled");
       }
     } finally {
-      if (bodyWasFixed) {
+      if (bodyWasFixed && savedBodyStyles) {
         console.log("[UploadPhotoSheet] Restoring body scroll lock after native picker");
-        document.body.style.position = "fixed";
-        document.body.style.top = savedTop;
-        document.body.style.overflow = "hidden";
+        document.body.style.position = savedBodyStyles.position;
+        document.body.style.top = savedBodyStyles.top;
+        document.body.style.left = savedBodyStyles.left;
+        document.body.style.right = savedBodyStyles.right;
+        document.body.style.overflow = savedBodyStyles.overflow;
+        document.body.style.width = savedBodyStyles.width;
       }
       restoreNativeLayout();
       setIsPickingNativePhoto(false);

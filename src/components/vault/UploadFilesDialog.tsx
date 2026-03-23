@@ -220,13 +220,23 @@ export function UploadFilesDialog({
     // CRITICAL FIX: The Dialog's useIOSScrollLock sets body to position:fixed,
     // which breaks the Capacitor Camera plugin's native picker on iOS.
     // Temporarily release the scroll lock before opening the picker.
-    const bodyWasFixed = document.body.style.position === "fixed";
-    const savedTop = document.body.style.top;
+    const savedBodyStyles = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      left: document.body.style.left,
+      right: document.body.style.right,
+      overflow: document.body.style.overflow,
+      width: document.body.style.width,
+    };
+    const bodyWasFixed = savedBodyStyles.position === "fixed";
     if (bodyWasFixed) {
       console.log("[UploadFilesDialog] Releasing body scroll lock for native picker");
       document.body.style.position = "";
       document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
       document.body.style.overflow = "";
+      document.body.style.width = "";
     }
 
     try {
@@ -258,9 +268,12 @@ export function UploadFilesDialog({
       // Restore the body scroll lock that the Dialog expects
       if (bodyWasFixed) {
         console.log("[UploadFilesDialog] Restoring body scroll lock after native picker");
-        document.body.style.position = "fixed";
-        document.body.style.top = savedTop;
-        document.body.style.overflow = "hidden";
+        document.body.style.position = savedBodyStyles.position;
+        document.body.style.top = savedBodyStyles.top;
+        document.body.style.left = savedBodyStyles.left;
+        document.body.style.right = savedBodyStyles.right;
+        document.body.style.overflow = savedBodyStyles.overflow;
+        document.body.style.width = savedBodyStyles.width;
       }
       queueNativeLayoutRecovery([0, 420, 1400, 2200]);
       nativePickerInFlightRef.current = false;

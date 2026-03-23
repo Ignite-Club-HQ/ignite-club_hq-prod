@@ -9,8 +9,8 @@
  *    and the plugin throws instead of waiting for the grant.
  *
  * STRATEGY:
- * - Pre-request permissions (warm-up) on app startup so the permission
- *   dialog never overlaps with photo selection.
+ * - Let Camera.getPhoto() own the real permission prompt so the native
+ *   iOS gesture chain stays intact.
  * - Use URI mode as PRIMARY (better iCloud support than Base64).
  * - Always pass a width constraint (forces iOS to deliver a locally-
  *   available rendition instead of the full-res iCloud original).
@@ -20,7 +20,6 @@ import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
-import { emitIOSNavGuard } from "@/lib/iosLayoutStability";
 
 export interface NativePhotoResult {
   blob: Blob;
@@ -43,10 +42,11 @@ let permissionsReady = false;
 let permissionsPromise: Promise<void> | null = null;
 
 /**
- * Ensures Camera/Photos permissions are granted.
- * Safe to call multiple times — only the first call does actual work.
- * Call this early (e.g. after login) so the permission dialog appears
- * before the user taps an upload button.
+ * Optional helper for flows that explicitly want to warm photo permissions.
+ *
+ * NOTE: pickNativePhoto intentionally does NOT call this automatically,
+ * because separating permission prompting from Camera.getPhoto() can break
+ * native iOS picker presentation in WebViews.
  */
 export async function ensureCameraPermissions(): Promise<void> {
   if (permissionsReady) return;
@@ -106,9 +106,6 @@ export async function pickNativePhoto(options?: {
   width?: number;
   height?: number;
 }): Promise<NativePhotoResult> {
-  // Ensure permissions are granted before opening the picker
-  await ensureCameraPermissions();
-
   const { quality = 80, width, height } = options ?? {};
 
   // Always constrain width to avoid full-res iCloud downloads
@@ -191,12 +188,6 @@ export async function pickNativePhoto(options?: {
     }
   }
 
-  // Stabilize BottomNav after picker closes
-  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
-  if (isNativeIOS) {
-    emitIOSNavGuard(900, { forceFloor: true });
-    setTimeout(() => emitIOSNavGuard(1500, { forceFloor: true }), 400);
-  }
 
   if (!hasCameraPhotoSource(photo)) {
     throw new Error("No photo selected (missing base64String/webPath/path)");
