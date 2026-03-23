@@ -50,6 +50,16 @@ export default function JoinTeamPage() {
   const [nameValidationError, setNameValidationError] = useState<string | null>(null);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const autoJoinAttempted = useRef(false);
+  const [showDownloadInterstitial, setShowDownloadInterstitial] = useState(() => {
+    // Show interstitial for mobile browser users who haven't dismissed it
+    try {
+      if ((window as any).Capacitor?.isNativePlatform?.()) return false;
+      if (window.matchMedia("(display-mode: standalone)").matches) return false;
+      const ua = navigator.userAgent;
+      const isMobile = /iPad|iPhone|iPod|Android/i.test(ua);
+      return isMobile;
+    } catch { return false; }
+  });
   
   // Check if we should auto-join (returning from auth after install flow)
   const shouldAutoJoin = sessionStorage.getItem("autoJoinAfterAuth") === "true";
