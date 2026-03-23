@@ -234,83 +234,83 @@ workflows:
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
           cat > "$DELEGATE" << 'SWIFT'
-          import UIKit
-          import Capacitor
-          import FirebaseCore
-          import FirebaseCrashlytics
-          import FirebaseMessaging
+import UIKit
+import Capacitor
+import FirebaseCore
+import FirebaseCrashlytics
+import FirebaseMessaging
 
-          @UIApplicationMain
-          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
+@UIApplicationMain
+class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
 
-              var window: UIWindow?
+    var window: UIWindow?
 
-              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  FirebaseApp.configure()
-                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
-                  Messaging.messaging().delegate = self
-                  UNUserNotificationCenter.current().delegate = self
-                  application.registerForRemoteNotifications()
-                  return true
-              }
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        FirebaseApp.configure()
+        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+        Messaging.messaging().delegate = self
+        UNUserNotificationCenter.current().delegate = self
+        application.registerForRemoteNotifications()
+        return true
+    }
 
-              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-                  Messaging.messaging().apnsToken = deviceToken
-                  ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
-              }
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Messaging.messaging().apnsToken = deviceToken
+        ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+    }
 
-              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
-                  ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
-              }
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+        ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+    }
 
-              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-                  ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
-              }
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+    }
 
-              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-                  if let token = fcmToken {
-                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
-                  }
-              }
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        if let token = fcmToken {
+            print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
+        }
+    }
 
-              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-                  completionHandler([.banner, .badge, .sound])
-              }
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .badge, .sound])
+    }
 
-              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-                  completionHandler()
-              }
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        completionHandler()
+    }
 
-              func applicationWillResignActive(_ application: UIApplication) {}
-              func applicationDidEnterBackground(_ application: UIApplication) {}
-              func applicationWillEnterForeground(_ application: UIApplication) {}
-              func applicationDidBecomeActive(_ application: UIApplication) {}
-              func applicationWillTerminate(_ application: UIApplication) {}
+    func applicationWillResignActive(_ application: UIApplication) {}
+    func applicationDidEnterBackground(_ application: UIApplication) {}
+    func applicationWillEnterForeground(_ application: UIApplication) {}
+    func applicationDidBecomeActive(_ application: UIApplication) {}
+    func applicationWillTerminate(_ application: UIApplication) {}
 
-              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
-              }
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+    }
 
-              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
-                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
-              }
-          }
-          SWIFT
+    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    }
+}
+SWIFT
       - name: Add Push Notifications entitlement
         script: |
           ENTITLEMENTS="ios/App/App/App.entitlements"
           if [ ! -f "$ENTITLEMENTS" ]; then
             cat > "$ENTITLEMENTS" << 'ENTXML'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>aps-environment</key>
-              <string>production</string>
-          </dict>
-          </plist>
-          ENTXML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>aps-environment</key>
+    <string>production</string>
+</dict>
+</plist>
+ENTXML
             echo "=== Created App.entitlements with push ==="
           else
             if ! grep -q "aps-environment" "$ENTITLEMENTS"; then
@@ -334,45 +334,45 @@ workflows:
       - name: Overwrite SPM Package.swift with Firebase dependencies
         script: |
           cat > "ios/App/CapApp-SPM/Package.swift" << 'SWIFTPKG'
-          // swift-tools-version: 5.9
-          import PackageDescription
+// swift-tools-version: 5.9
+import PackageDescription
 
-          let package = Package(
-              name: "CapApp-SPM",
-              platforms: [.iOS(.v15)],
-              products: [
-                  .library(
-                      name: "CapApp-SPM",
-                      targets: ["CapApp-SPM"])
-              ],
-              dependencies: [
-                  .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0"),
-                  .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.7.0"),
-                  .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
-                  .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
-                  .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
-                  .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
-                  .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
-              ],
-              targets: [
-                  .target(
-                      name: "CapApp-SPM",
-                      dependencies: [
-                          .product(name: "Capacitor", package: "capacitor-swift-pm"),
-                          .product(name: "Cordova", package: "capacitor-swift-pm"),
-                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
-                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
-                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
-                          .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
-                          .product(name: "CapacitorApp", package: "CapacitorApp"),
-                          .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
-                          .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
-                          .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
-                      ]
-                  )
-              ]
-          )
-          SWIFTPKG
+let package = Package(
+    name: "CapApp-SPM",
+    platforms: [.iOS(.v15)],
+    products: [
+        .library(
+            name: "CapApp-SPM",
+            targets: ["CapApp-SPM"])
+    ],
+    dependencies: [
+        .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0"),
+        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.7.0"),
+        .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
+        .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
+        .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
+        .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
+        .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
+    ],
+    targets: [
+        .target(
+            name: "CapApp-SPM",
+            dependencies: [
+                .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                .product(name: "Cordova", package: "capacitor-swift-pm"),
+                .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
+                .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
+                .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
+                .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
+                .product(name: "CapacitorApp", package: "CapacitorApp"),
+                .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
+                .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
+                .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
+            ]
+        )
+    ]
+)
+SWIFTPKG
           echo "=== Overwrote Package.swift with Firebase deps ==="
           cat "ios/App/CapApp-SPM/Package.swift"
       - name: Copy Firebase config and add to Xcode project
@@ -508,73 +508,74 @@ workflows:
           else
             echo "=== UIBackgroundModes already present ==="
           fi
+      - name: Patch AppDelegate.swift for Firebase + Push
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
           echo "=== Patching AppDelegate.swift for Firebase + Crashlytics + Push ==="
           cat > "$DELEGATE" << 'SWIFT'
-          import UIKit
-          import Capacitor
-          import FirebaseCore
-          import FirebaseCrashlytics
-          import FirebaseMessaging
+import UIKit
+import Capacitor
+import FirebaseCore
+import FirebaseCrashlytics
+import FirebaseMessaging
 
-          @UIApplicationMain
-          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
+@UIApplicationMain
+class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
 
-              var window: UIWindow?
+    var window: UIWindow?
 
-              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-                  FirebaseApp.configure()
-                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
-                  Messaging.messaging().delegate = self
-                  UNUserNotificationCenter.current().delegate = self
-                  application.registerForRemoteNotifications()
-                  return true
-              }
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        FirebaseApp.configure()
+        Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+        Messaging.messaging().delegate = self
+        UNUserNotificationCenter.current().delegate = self
+        application.registerForRemoteNotifications()
+        return true
+    }
 
-              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-                  Messaging.messaging().apnsToken = deviceToken
-                  ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
-              }
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Messaging.messaging().apnsToken = deviceToken
+        ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+    }
 
-              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
-                  ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
-              }
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+        ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+    }
 
-              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-                  ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
-              }
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+    }
 
-              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-                  if let token = fcmToken {
-                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
-                  }
-              }
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        if let token = fcmToken {
+            print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
+        }
+    }
 
-              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-                  completionHandler([.banner, .badge, .sound])
-              }
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .badge, .sound])
+    }
 
-              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-                  completionHandler()
-              }
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        completionHandler()
+    }
 
-              func applicationWillResignActive(_ application: UIApplication) {}
-              func applicationDidEnterBackground(_ application: UIApplication) {}
-              func applicationWillEnterForeground(_ application: UIApplication) {}
-              func applicationDidBecomeActive(_ application: UIApplication) {}
-              func applicationWillTerminate(_ application: UIApplication) {}
+    func applicationWillResignActive(_ application: UIApplication) {}
+    func applicationDidEnterBackground(_ application: UIApplication) {}
+    func applicationWillEnterForeground(_ application: UIApplication) {}
+    func applicationDidBecomeActive(_ application: UIApplication) {}
+    func applicationWillTerminate(_ application: UIApplication) {}
 
-              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
-              }
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+    }
 
-              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
-                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
-              }
-          }
-          SWIFT
+    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    }
+}
+SWIFT
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
       - name: Add Push Notifications entitlement
@@ -582,15 +583,15 @@ workflows:
           ENTITLEMENTS="ios/App/App/App.entitlements"
           if [ ! -f "$ENTITLEMENTS" ]; then
             cat > "$ENTITLEMENTS" << 'ENTXML'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>aps-environment</key>
-              <string>production</string>
-          </dict>
-          </plist>
-          ENTXML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>aps-environment</key>
+    <string>production</string>
+</dict>
+</plist>
+ENTXML
             echo "=== Created App.entitlements with push ==="
           else
             if ! grep -q "aps-environment" "$ENTITLEMENTS"; then
@@ -613,45 +614,45 @@ workflows:
       - name: Overwrite SPM Package.swift with Firebase dependencies
         script: |
           cat > "ios/App/CapApp-SPM/Package.swift" << 'SWIFTPKG'
-          // swift-tools-version: 5.9
-          import PackageDescription
+// swift-tools-version: 5.9
+import PackageDescription
 
-          let package = Package(
-              name: "CapApp-SPM",
-              platforms: [.iOS(.v15)],
-              products: [
-                  .library(
-                      name: "CapApp-SPM",
-                      targets: ["CapApp-SPM"])
-              ],
-              dependencies: [
-                  .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0"),
-                  .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.7.0"),
-                  .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
-                  .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
-                  .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
-                  .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
-                  .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
-              ],
-              targets: [
-                  .target(
-                      name: "CapApp-SPM",
-                      dependencies: [
-                          .product(name: "Capacitor", package: "capacitor-swift-pm"),
-                          .product(name: "Cordova", package: "capacitor-swift-pm"),
-                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
-                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
-                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
-                          .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
-                          .product(name: "CapacitorApp", package: "CapacitorApp"),
-                          .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
-                          .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
-                          .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
-                      ]
-                  )
-              ]
-          )
-          SWIFTPKG
+let package = Package(
+    name: "CapApp-SPM",
+    platforms: [.iOS(.v15)],
+    products: [
+        .library(
+            name: "CapApp-SPM",
+            targets: ["CapApp-SPM"])
+    ],
+    dependencies: [
+        .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0"),
+        .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.7.0"),
+        .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
+        .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
+        .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
+        .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
+        .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
+    ],
+    targets: [
+        .target(
+            name: "CapApp-SPM",
+            dependencies: [
+                .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                .product(name: "Cordova", package: "capacitor-swift-pm"),
+                .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
+                .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
+                .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
+                .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
+                .product(name: "CapacitorApp", package: "CapacitorApp"),
+                .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
+                .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
+                .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
+            ]
+        )
+    ]
+)
+SWIFTPKG
           echo "=== Overwrote Package.swift with Firebase deps ==="
           cat "ios/App/CapApp-SPM/Package.swift"
       - name: Copy app icons
