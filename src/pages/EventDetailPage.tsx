@@ -2109,6 +2109,14 @@ export default function EventDetailPage() {
         <p className="text-muted-foreground whitespace-pre-line">{event.description}</p>
       )}
 
+      {/* Notification Nudge for events */}
+      {notificationNudge.shouldShowNudge && !myRsvp && (
+        <NotificationNudgeBanner
+          message="Turn on notifications so you never miss match updates"
+          onDismiss={notificationNudge.dismiss}
+        />
+      )}
+
       {/* RSVP Section */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Your RSVP</h2>
