@@ -759,6 +759,37 @@ export default function JoinTeamPage() {
     joinMutation.mutate();
   };
 
+  // Show app download interstitial for mobile browser users
+  if (showDownloadInterstitial && !user) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <div className="flex-1 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="p-6 text-center space-y-6">
+              <div className="flex justify-center">
+                <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
+                  <Smartphone className="h-12 w-12 text-primary" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">Download the App First</h2>
+                <p className="text-muted-foreground">
+                  For the best experience, download Ignite Club HQ before accepting your invite. You'll get push notifications, team updates, and more.
+                </p>
+              </div>
+
+              <AppStoreDownloadGuide 
+                compact 
+                onContinueInBrowser={() => setShowDownloadInterstitial(false)} 
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading && !loadingTimeout) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
