@@ -309,7 +309,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+        accept="image/*"
         onChange={handleFileSelect}
         className="hidden"
         disabled={disabled || uploading}
