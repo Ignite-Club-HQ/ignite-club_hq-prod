@@ -97,6 +97,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     // triggers a re-render / breaks the gesture chain and iOS rejects the picker.
     console.log("[ChatImageInput] handleNativePhotoPick START");
     let stablePreviewUrl: string | null = null;
+    const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
 
     try {
       let result: Awaited<ReturnType<typeof pickNativePhoto>>;
