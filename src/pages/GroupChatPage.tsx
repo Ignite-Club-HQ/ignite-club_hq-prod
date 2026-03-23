@@ -1294,6 +1294,16 @@ export default function GroupChatPage() {
       </div>
 
 
+      {/* Notification Nudge */}
+      {notificationNudge.shouldShowNudge && (
+        <div className="px-4 pt-2 shrink-0">
+          <NotificationNudgeBanner
+            message="Enable notifications so you never miss group messages"
+            onDismiss={notificationNudge.dismiss}
+          />
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (

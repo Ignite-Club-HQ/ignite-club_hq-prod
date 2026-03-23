@@ -836,7 +836,16 @@ export default function DirectMessagePage() {
       </div>
 
 
-      
+
+      {/* Notification Nudge */}
+      {notificationNudge.shouldShowNudge && (
+        <div className="px-4 pt-2 shrink-0">
+          <NotificationNudgeBanner
+            message="Enable notifications so you never miss direct messages"
+            onDismiss={notificationNudge.dismiss}
+          />
+        </div>
+      )}
 
       {/* Messages area */}
       <div
