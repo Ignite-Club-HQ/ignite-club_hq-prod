@@ -1881,6 +1881,34 @@ export default function EventDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
 
+        {/* Resend Invites Dialog */}
+        <AlertDialog open={resendDialogOpen} onOpenChange={setResendDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Resend Event Invites?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will send notifications to any new members who haven't been notified about this event yet.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => resendInvitesMutation.mutate()}
+                disabled={resendInvitesMutation.isPending}
+              >
+                {resendInvitesMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Invites"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Cancel Dialog - handles both single and recurring */}
         {(event.is_recurring || event.parent_event_id) ? (
           <RecurringCancelEventDialog
