@@ -45,12 +45,12 @@ export function PostRsvpNotificationPrompt({
 
     const isNative = Capacitor.isNativePlatform();
     if (isNative) {
+      // Use initializeNativePush for the full flow:
+      // permission request → register → get FCM token → save to database
       try {
-        const { PushNotifications } = await import("@capacitor/push-notifications");
-        const result = await PushNotifications.requestPermissions();
-        if (result.receive === "granted") {
-          await PushNotifications.register();
-        }
+        const { initializeNativePush } = await import("@/lib/nativePush");
+        const result = await initializeNativePush(userId);
+        console.log("[PostRsvpNudge] initializeNativePush result:", result);
       } catch (err) {
         console.error("[PostRsvpNudge] Error:", err);
       }
