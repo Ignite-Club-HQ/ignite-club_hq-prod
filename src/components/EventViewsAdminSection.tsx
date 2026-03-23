@@ -149,6 +149,26 @@ export function EventViewsAdminSection({
     staleTime: 1000 * 60 * 2,
   });
 
+  // Fetch push reachability (has push_subscriptions or fcm_tokens)
+  const { data: pushReachable } = useQuery({
+    queryKey: ["event-members-push-reachable", eventId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {};
+      const { data, error } = await supabase
+        .rpc("get_members_push_reachable", { member_ids: memberIds });
+      
+      if (error) console.error("[EventViews] push reachable RPC error:", error);
+      
+      const map: Record<string, boolean> = {};
+      for (const row of data || []) {
+        map[row.user_id] = row.has_push;
+      }
+      return map;
+    },
+    enabled: isOpen && memberIds.length > 0,
+    staleTime: 1000 * 60 * 2,
+  });
+
   // Send reminder mutation
   const sendReminderMutation = useMutation({
     mutationFn: async ({ userIds, channels }: { userIds: string[]; channels: "push" | "email" | "both" }) => {
