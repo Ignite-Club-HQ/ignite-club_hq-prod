@@ -212,7 +212,7 @@ export default function EditProfilePage() {
                 <input
                   type="file"
                   id="avatar-upload"
-                  accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+                  accept="image/*"
                   onChange={handleAvatarUpload}
                   className="hidden"
                 />
