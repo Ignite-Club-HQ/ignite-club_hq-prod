@@ -862,6 +862,11 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
       toast({ title: "RSVP updated!" });
 
+      // Show post-RSVP notification nudge if user hasn't enabled push
+      if (notificationNudge.hasPushEnabled === false) {
+        setTimeout(() => setShowPostRsvpNudge(true), 800);
+      }
+
       // Auto-trigger payment for paid social events when RSVPing "going"
       if (
         status === "going" &&
