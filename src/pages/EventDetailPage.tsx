@@ -227,6 +227,8 @@ export default function EventDetailPage() {
   // Mini league player overrides for match generation
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
   const isSharingEventRef = useRef(false);
+  const [showPostRsvpNudge, setShowPostRsvpNudge] = useState(false);
+  const notificationNudge = useNotificationNudge(user?.id, "event");
 
   // Track when user views this event
   useEventViewTracking(id, user?.id);
