@@ -793,7 +793,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
                     )}
                     <input
                       type="file"
-                      accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+                      accept="image/*"
                       onChange={handleLogoUpload}
                       className="hidden"
                       disabled={uploading}
@@ -946,7 +946,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
                         )}
                         <input
                           type="file"
-                          accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+                          accept="image/*"
                           onChange={handleQrCodeUpload}
                           className="hidden"
                           disabled={uploadingQr}
