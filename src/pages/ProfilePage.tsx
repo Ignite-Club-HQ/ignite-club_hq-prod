@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import RewardRedemptionCard from "@/components/RewardRedemptionCard";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 
 import igniteIcon from "@/assets/ignite-icon.png";
 
