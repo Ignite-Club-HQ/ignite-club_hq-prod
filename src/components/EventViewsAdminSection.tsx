@@ -403,6 +403,32 @@ export function EventViewsAdminSection({
               )}
             </TooltipProvider>
 
+            {/* Nudge unreachable members */}
+            {unreachableMembers.length > 0 && (
+              <div className="pt-2 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <BellOff className="h-4 w-4" />
+                    <span>{unreachableMembers.length} member{unreachableMembers.length === 1 ? '' : 's'} can't receive push notifications</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSendNudge}
+                    disabled={isSendingNudge}
+                    className="gap-1.5"
+                  >
+                    {isSendingNudge ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <BellRing className="h-3.5 w-3.5" />
+                    )}
+                    Nudge
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {totalMembers === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
                 No members to track
