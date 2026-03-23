@@ -125,29 +125,40 @@ export const ChatMessage = memo(function ChatMessage({
     mutationFn: async ({ reactionType, existingReactionId }: { reactionType: string; existingReactionId?: string }) => {
       const messageIdField = getMessageIdField();
       
-      await supabase
+      // Query for existing reaction first (same pattern as GroupChatPage)
+      const { data: existingReaction, error: fetchError } = await supabase
         .from("message_reactions")
-        .delete()
+        .select("id, reaction_type")
         .eq(messageIdField, id)
-        .eq("user_id", currentUserId!);
+        .eq("user_id", currentUserId!)
+        .maybeSingle();
       
+      if (fetchError) throw fetchError;
+      
+      if (existingReaction) {
+        if (existingReaction.reaction_type === reactionType) {
+          // Same emoji — remove it
+          const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
+          if (error) throw error;
+          return;
+        } else {
+          // Different emoji — update in place
+          const { error } = await supabase
+            .from("message_reactions")
+            .update({ reaction_type: reactionType })
+            .eq("id", existingReaction.id);
+          if (error) throw error;
+          return;
+        }
+      }
+      
+      // No existing reaction — insert new
       const { error } = await supabase.from("message_reactions").insert({
         [messageIdField]: id,
         user_id: currentUserId!,
         reaction_type: reactionType,
       });
-      if (error) {
-        if (error.code === '23505') {
-          const { error: updateError } = await supabase
-            .from("message_reactions")
-            .update({ reaction_type: reactionType })
-            .eq(messageIdField, id)
-            .eq("user_id", currentUserId!);
-          if (updateError) throw updateError;
-        } else {
-          throw error;
-        }
-      }
+      if (error) throw error;
     },
     onMutate: async ({ reactionType }) => {
       await queryClient.cancelQueries({ queryKey });
