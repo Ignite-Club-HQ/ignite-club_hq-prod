@@ -215,11 +215,13 @@ export function BottomNav() {
   }, []);
 
   const nativeInsetFloor = `${nativeSafeInsetPx}px`;
-  const navBottomInset = shouldStabilizeIOSLayout
-    ? nativeInsetFloor
-    : isAndroidNative
-      ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
-      : "env(safe-area-inset-bottom, 0px)";
+  const navBottomInset = isNativeIOS
+    ? "env(safe-area-inset-bottom, 20px)"
+    : shouldStabilizeIOSLayout
+      ? nativeInsetFloor
+      : isAndroidNative
+        ? "max(env(safe-area-inset-bottom, 0px), 1rem)"
+        : "env(safe-area-inset-bottom, 0px)";
 
   useEffect(() => {
     if (typeof document === "undefined") return;
