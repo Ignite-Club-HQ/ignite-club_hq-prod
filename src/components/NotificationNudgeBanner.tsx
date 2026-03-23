@@ -46,11 +46,14 @@ export function NotificationNudgeBanner({
       } else {
         // Try web push permission
         if ("Notification" in window && Notification.permission === "default") {
-          const result = await Notification.requestPermission();
-          if (result === "granted") {
-            navigate("/settings");
-          }
+          await Notification.requestPermission();
+          // Permission granted or denied - just dismiss the banner
+          // The push subscription health hook will handle subscribing automatically
+        } else if ("Notification" in window && Notification.permission === "denied") {
+          // Permission was previously denied - direct to settings for instructions
+          navigate("/settings");
         } else {
+          // Permission already granted but no subscription - go to settings
           navigate("/settings");
         }
       }
