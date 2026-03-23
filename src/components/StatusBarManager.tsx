@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { App } from '@capacitor/app';
 import { applyStatusBar, refreshStatusBar } from '@/lib/statusBarControl';
+import { scheduleIOSNativeOverlayRecovery } from '@/lib/iosNativeOverlayRecovery';
 
 /**
  * Manages native status bar appearance on Capacitor apps.
@@ -11,23 +12,48 @@ import { applyStatusBar, refreshStatusBar } from '@/lib/statusBarControl';
  */
 export function StatusBarManager() {
   useEffect(() => {
+    const isNativePlatform = Capacitor.isNativePlatform();
+    const isNativeIOS = isNativePlatform && Capacitor.getPlatform() === 'ios';
+    let cancelIOSRecovery: (() => void) | null = null;
+
+    const queueIOSRecovery = () => {
+      if (!isNativeIOS || typeof document === 'undefined') return;
+      if (document.visibilityState === 'hidden') return;
+      cancelIOSRecovery?.();
+      cancelIOSRecovery = scheduleIOSNativeOverlayRecovery([0, 320, 1100, 1800]);
+    };
+
     // Initial apply (synchronous theme read inside statusBarControl)
     applyStatusBar();
 
     // iOS keyboard config
-    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
+    if (isNativeIOS) {
       Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
     }
 
     // Re-apply on app resume with a small delay to let WebView settle
     let appListener: { remove: () => void } | undefined;
-    if (Capacitor.isNativePlatform()) {
+    if (isNativePlatform) {
       App.addListener('appStateChange', ({ isActive }) => {
         if (isActive) {
-          // Delay 80ms – Android can reset status bar colors during resume
-          setTimeout(() => refreshStatusBar(), 80);
+          if (isNativeIOS) {
+            queueIOSRecovery();
+          } else {
+            // Delay 80ms – Android can reset status bar colors during resume
+            setTimeout(() => refreshStatusBar(), 80);
+          }
         }
       }).then(handle => { appListener = handle; });
+    }
+
+    const handleViewportResume = () => {
+      queueIOSRecovery();
+    };
+
+    if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
+      window.addEventListener('focus', handleViewportResume);
+      window.addEventListener('pageshow', handleViewportResume);
+      document.addEventListener('visibilitychange', handleViewportResume);
     }
 
     // Watch for theme changes via DOM class mutations
@@ -43,6 +69,12 @@ export function StatusBarManager() {
     return () => {
       observer.disconnect();
       appListener?.remove();
+      cancelIOSRecovery?.();
+      if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleViewportResume);
+        window.removeEventListener('pageshow', handleViewportResume);
+        document.removeEventListener('visibilitychange', handleViewportResume);
+      }
     };
   }, []);
 
