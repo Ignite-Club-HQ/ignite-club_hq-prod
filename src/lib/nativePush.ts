@@ -335,20 +335,40 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
     }
 
     // Get FCM token
+    // IMPORTANT: On iOS, PushNotifications.register() triggers an async APNs token
+    // request. Firebase needs the APNs token before it can generate an FCM token.
+    // We must wait/retry to allow time for the APNs token to arrive via the
+    // AppDelegate's didRegisterForRemoteNotificationsWithDeviceToken callback.
     let token: string | undefined;
-    try {
-      if (!FirebaseMessaging) {
-        return { success: false, error: 'Firebase not configured' };
+    if (!FirebaseMessaging) {
+      return { success: false, error: 'Firebase not configured' };
+    }
+
+    const platform = getPlatform();
+    const maxRetries = platform === 'ios' ? 10 : 1;
+    const retryDelayMs = 500;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const tokenResult = await FirebaseMessaging.getToken();
+        token = tokenResult.token;
+        if (token) {
+          console.log(`[NativePush] Got FCM token on attempt ${attempt}/${maxRetries}`);
+          break;
+        }
+      } catch (tokenErr: any) {
+        console.warn(`[NativePush] getToken attempt ${attempt}/${maxRetries} failed:`, tokenErr?.message || tokenErr);
       }
-      const tokenResult = await FirebaseMessaging.getToken();
-      token = tokenResult.token;
-    } catch (tokenErr) {
-      console.warn('[NativePush] Failed to get FCM token:', tokenErr);
-      return { success: false, error: 'FCM token retrieval failed' };
+
+      if (attempt < maxRetries) {
+        console.log(`[NativePush] Waiting ${retryDelayMs}ms for APNs token (iOS)...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+      }
     }
     
     if (!token) {
-      return { success: false, error: 'Failed to get FCM token' };
+      console.error('[NativePush] Failed to get FCM token after all retries');
+      return { success: false, error: 'Failed to get FCM token - APNs token may not have arrived' };
     }
 
     console.log('[NativePush] Got FCM token:', token.substring(0, 20) + '...');
