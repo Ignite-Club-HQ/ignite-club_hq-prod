@@ -48,6 +48,8 @@ import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessa
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
+import { useNotificationNudge } from "@/hooks/useNotificationNudge";
+import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 
 
 const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];

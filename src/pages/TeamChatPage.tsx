@@ -1007,6 +1007,16 @@ export default function TeamChatPage() {
       </div>
 
 
+      {/* Notification Nudge */}
+      {notificationNudge.shouldShowNudge && (
+        <div className="px-4 pt-2 shrink-0">
+          <NotificationNudgeBanner
+            message="Enable notifications so you never miss team messages"
+            onDismiss={notificationNudge.dismiss}
+          />
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
