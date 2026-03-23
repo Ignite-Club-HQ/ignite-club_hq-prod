@@ -340,28 +340,35 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
       }
     }
 
-    // Get FCM token using two strategies:
-    // 1. PRIMARY (iOS): Listen for the 'registration' event from PushNotifications plugin.
-    //    This fires when the native side has completed APNs + FCM token exchange.
-    //    More reliable than getToken() because it's event-driven, not polling.
-    // 2. FALLBACK: Use FirebaseMessaging.getToken() with retries.
-    //    Works well on Android where tokens are available immediately.
+    // Get FCM token
+    // IMPORTANT: On iOS, PushNotifications.register() triggers APNs registration.
+    // The 'registration' event returns the APNs device token, NOT the FCM token.
+    // We must use FirebaseMessaging.getToken() to get the actual FCM token.
+    // On Android, PushNotifications.register() returns the FCM token directly,
+    // but we use FirebaseMessaging.getToken() on both platforms for consistency.
     let token: string | undefined;
     const platform = getPlatform();
 
-    // Set up registration event listener BEFORE calling register()
-    // to avoid missing the event
-    const registrationPromise = new Promise<string | undefined>((resolve) => {
+    // Set up registration event listener to know when APNs registration completes (iOS)
+    // or to get the FCM token directly (Android)
+    const registrationComplete = new Promise<string | undefined>((resolve) => {
       const timeout = setTimeout(() => {
-        console.warn('[NativePush] Registration event timed out after 10s');
+        console.warn('[NativePush] Registration event timed out after 15s');
         resolve(undefined);
-      }, 10000);
+      }, 15000);
 
       PushNotifications.addListener('registration', (result: any) => {
         clearTimeout(timeout);
         const t = result?.value || result?.token;
-        console.log('[NativePush] Registration event received, token:', t ? t.substring(0, 20) + '...' : 'none');
-        resolve(t);
+        if (platform === 'ios') {
+          // On iOS this is the APNs token, NOT the FCM token - log but don't use it
+          console.log('[NativePush] iOS APNs registration complete (token received, will use FirebaseMessaging.getToken() for FCM token)');
+          resolve(undefined); // Signal registration is done, but don't return APNs token
+        } else {
+          // On Android, this IS the FCM token
+          console.log('[NativePush] Android registration event received FCM token:', t ? t.substring(0, 20) + '...' : 'none');
+          resolve(t);
+        }
       }).catch(() => {
         clearTimeout(timeout);
         resolve(undefined);
@@ -384,36 +391,48 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
       return { success: false, error: 'Push registration failed' };
     }
 
-    // Wait for the registration event (primary method)
-    token = await registrationPromise;
+    // Wait for native registration to complete
+    const registrationToken = await registrationComplete;
+    
+    if (platform === 'android' && registrationToken) {
+      // Android: registration event gave us the FCM token directly
+      token = registrationToken;
+    }
 
-    // Fallback: If registration event didn't provide a token, try FirebaseMessaging.getToken()
+    // iOS (always) and Android (fallback): Use FirebaseMessaging.getToken() for the FCM token
+    // On iOS, this is the ONLY way to get the FCM token after APNs registration
     if (!token && FirebaseMessaging) {
-      console.log('[NativePush] Registration event did not yield token, trying FirebaseMessaging.getToken()...');
-      const maxRetries = platform === 'ios' ? 6 : 2;
-      const retryDelayMs = 1000;
+      console.log(`[NativePush] Getting FCM token via FirebaseMessaging.getToken() (platform: ${platform})...`);
+      // iOS needs more retries because APNs→FCM token exchange is async
+      const maxRetries = platform === 'ios' ? 10 : 3;
+      const retryDelayMs = platform === 'ios' ? 1500 : 1000;
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const tokenResult = await FirebaseMessaging.getToken();
           token = tokenResult.token;
           if (token) {
-            console.log(`[NativePush] Got FCM token via getToken() on attempt ${attempt}/${maxRetries}`);
+            console.log(`[NativePush] Got FCM token via getToken() on attempt ${attempt}/${maxRetries}: ${token.substring(0, 20)}...`);
             break;
+          } else {
+            console.warn(`[NativePush] getToken() attempt ${attempt}/${maxRetries} returned empty token`);
           }
         } catch (tokenErr: any) {
-          console.warn(`[NativePush] getToken attempt ${attempt}/${maxRetries} failed:`, tokenErr?.message || tokenErr);
+          console.warn(`[NativePush] getToken() attempt ${attempt}/${maxRetries} failed:`, tokenErr?.message || tokenErr);
         }
 
         if (attempt < maxRetries) {
+          console.log(`[NativePush] Waiting ${retryDelayMs}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, retryDelayMs));
         }
       }
+    } else if (!token && !FirebaseMessaging) {
+      console.error('[NativePush] FirebaseMessaging not available - cannot get FCM token');
     }
     
     if (!token) {
-      console.error('[NativePush] Failed to get FCM token via both registration event and getToken()');
-      return { success: false, error: 'Failed to get FCM token - iOS APNs token may not have arrived' };
+      console.error('[NativePush] Failed to get FCM token via all methods');
+      return { success: false, error: `Failed to get FCM token on ${platform} - ${platform === 'ios' ? 'APNs-to-FCM exchange may have failed' : 'registration failed'}` };
     }
 
     console.log('[NativePush] Got FCM token:', token.substring(0, 20) + '...');
