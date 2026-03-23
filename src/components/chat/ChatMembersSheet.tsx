@@ -178,6 +178,26 @@ export function ChatMembersSheet({
     staleTime: 1000 * 60 * 2,
   });
 
+  // Fetch push reachability (has push_subscriptions or fcm_tokens)
+  const { data: pushReachable } = useQuery({
+    queryKey: ["chat-members-push-reachable", chatType, chatId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {};
+      const { data, error } = await supabase
+        .rpc("get_members_push_reachable", { member_ids: memberIds });
+      
+      if (error) console.error("[ChatMembers] push reachable RPC error:", error);
+      
+      const map: Record<string, boolean> = {};
+      for (const row of data || []) {
+        map[row.user_id] = row.has_push;
+      }
+      return map;
+    },
+    enabled: open && memberIds.length > 0,
+    staleTime: 1000 * 60 * 2,
+  });
+
   // Fetch chat mute preferences for this specific chat
   const { data: mutePrefs } = useQuery({
     queryKey: ["chat-members-mute-prefs", chatType, chatId, memberIds],
