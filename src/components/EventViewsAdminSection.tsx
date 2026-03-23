@@ -209,6 +209,12 @@ export function EventViewsAdminSection({
     }
   };
 
+  // Compute unreachable members (no push setup)
+  const unreachableMembers = useMemo(() => {
+    if (!pushReachable) return [];
+    return (members || []).filter(m => pushReachable[m.id] === false);
+  }, [members, pushReachable]);
+
   if (membersLoading) {
     return (
       <Card>
@@ -225,11 +231,6 @@ export function EventViewsAdminSection({
   const totalMembers = membersWithStatus.length;
   const viewedCount = viewedMembers.length;
   const notViewedCount = notViewedMembers.length;
-
-  // Compute unreachable members (no push setup)
-  const unreachableMembers = useMemo(() => {
-    if (!pushReachable) return [];
-    return (members || []).filter(m => pushReachable[m.id] === false);
   }, [members, pushReachable]);
 
   const handleSendNudge = async () => {
