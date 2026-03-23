@@ -773,7 +773,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                   <input
                     ref={primaryFileInputRef}
                     type="file"
-                    accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+                    accept="image/*"
                     multiple
                     className="hidden"
                     onChange={handleFileSelect}
