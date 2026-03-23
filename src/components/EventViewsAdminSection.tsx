@@ -227,6 +227,7 @@ export function EventViewsAdminSection({
 
   const renderMemberRow = (member: MemberWithViewStatus, variant: "viewed" | "not-viewed") => {
     const pushDisabled = notifPrefs && member.id in notifPrefs ? !notifPrefs[member.id] : false;
+    const noPushSetup = pushReachable ? (pushReachable[member.id] === false) : false;
 
     return (
       <div
