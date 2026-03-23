@@ -287,15 +287,55 @@ workflows:
               }
           }
           SWIFT
-      - name: Ensure FirebaseCrashlytics in SPM Package.swift
+      - name: Add Push Notifications entitlement
+        script: |
+          ENTITLEMENTS="ios/App/App/App.entitlements"
+          if [ ! -f "$ENTITLEMENTS" ]; then
+            cat > "$ENTITLEMENTS" << 'ENTXML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>aps-environment</key>
+              <string>production</string>
+          </dict>
+          </plist>
+          ENTXML
+            echo "=== Created App.entitlements with push ==="
+          else
+            if ! grep -q "aps-environment" "$ENTITLEMENTS"; then
+              /usr/libexec/PlistBuddy -c "Add :aps-environment string production" "$ENTITLEMENTS"
+              echo "=== Added aps-environment to existing entitlements ==="
+            else
+              echo "=== aps-environment already in entitlements ==="
+            fi
+          fi
+          # Ensure entitlements file is referenced in Xcode project
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('ios/App/App.xcodeproj')
+          target = project.targets.find { |t| t.name == 'App' }
+          target.build_configurations.each do |config|
+            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
+          end
+          project.save
+          puts "=== Set CODE_SIGN_ENTITLEMENTS in all build configs ==="
+          RUBY_SCRIPT
+      - name: Ensure Firebase dependencies in SPM Package.swift
         script: |
           PACKAGE="ios/App/CapApp-SPM/Package.swift"
-          if ! grep -q "FirebaseCrashlytics" "$PACKAGE"; then
-            if ! grep -q "firebase-ios-sdk" "$PACKAGE"; then
-              sed -i '' '/dependencies: \[/a\
-                  .package(url: "https:\/\/github.com\/firebase\/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
-              ' "$PACKAGE"
-            fi
+          if ! grep -q "firebase-ios-sdk" "$PACKAGE"; then
+            sed -i '' '/dependencies: \[/a\
+                .package(url: "https:\/\/github.com\/firebase\/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
+            ' "$PACKAGE"
+          fi
+          if ! grep -q "FirebaseMessaging" "$PACKAGE"; then
+            sed -i '' '/.product(name: "Capacitor"/a\
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),\
+                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),\
+                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
+            ' "$PACKAGE"
+          elif ! grep -q "FirebaseCrashlytics" "$PACKAGE"; then
             sed -i '' '/.product(name: "Capacitor"/a\
                           .product(name: "FirebaseCore", package: "firebase-ios-sdk"),\
                           .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
