@@ -198,7 +198,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      xcode: latest
+      xcode: 16.2
       node: 22
     scripts:
       - name: Install dependencies
@@ -257,16 +257,14 @@ workflows:
 
               func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
                   Messaging.messaging().apnsToken = deviceToken
-                  ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
               }
 
               func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
                   print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
-                  ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
               }
 
               func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-                  ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+                  completionHandler(.noData)
               }
 
               func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
@@ -380,7 +378,7 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.lovable.igniteteamhub
-      xcode: latest
+      xcode: 16.2
       node: 22
     scripts:
       - name: Install dependencies
@@ -481,16 +479,14 @@ workflows:
 
               func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
                   Messaging.messaging().apnsToken = deviceToken
-                  ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
               }
 
               func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
                   print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
-                  ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
               }
 
               func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-                  ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+                  completionHandler(.noData)
               }
 
               func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {

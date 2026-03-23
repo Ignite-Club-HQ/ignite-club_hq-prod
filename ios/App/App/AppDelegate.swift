@@ -34,21 +34,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUser
     // Forward the APNs token to Firebase so FCM can send notifications
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Messaging.messaging().apnsToken = deviceToken
-        // Also forward to Capacitor
-        ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
     }
     
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
-        ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
     }
     
     // MARK: - Background Notification Handling
     
-    // Handle silent/background push notifications
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-        // Forward to Capacitor
-        ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+        completionHandler(.noData)
     }
     
     // MARK: - Firebase MessagingDelegate
