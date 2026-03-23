@@ -1558,6 +1558,9 @@ export default function HomePage() {
         />
       )}
 
+      {/* Native App Download Banner - for mobile browser users */}
+      <NativeAppDownloadBanner />
+
       {/* Points Card */}
       <Card className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} border-0`}>
         <CardContent className="p-4">
