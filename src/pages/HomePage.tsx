@@ -13,6 +13,7 @@ import { RecurringEventActionDialog } from "@/components/RecurringEventActionDia
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { AccountRecoveryBanner } from "@/components/AccountRecoveryBanner";
+import { NativeAppDownloadBanner } from "@/components/NativeAppDownloadBanner";
 import { QuickRSVPDialog } from "@/components/QuickRSVPDialog";
 import {
   AlertDialog,
