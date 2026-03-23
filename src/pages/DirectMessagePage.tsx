@@ -67,6 +67,7 @@ export default function DirectMessagePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
+  const notificationNudge = useNotificationNudge(user?.id, "chat");
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);

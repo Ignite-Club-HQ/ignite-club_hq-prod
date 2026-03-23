@@ -49,6 +49,7 @@ interface Message {
 
 export default function BroadcastChatPage() {
   const { user, refreshUnreadCount } = useAuth();
+  const notificationNudge = useNotificationNudge(user?.id, "chat");
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();

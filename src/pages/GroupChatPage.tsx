@@ -96,6 +96,7 @@ export default function GroupChatPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile, refreshUnreadCount } = useAuth();
+  const notificationNudge = useNotificationNudge(user?.id, "chat");
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
