@@ -9,16 +9,17 @@ import { toast } from "sonner";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto } from "@/lib/nativePhotoPicker";
 import {
-  emitIOSLayoutReset as dispatchIOSLayoutReset,
-  emitIOSNavGuard as dispatchIOSNavGuard,
-} from "@/lib/iosLayoutStability";
-import {
   ResponsiveDialog,
   ResponsiveDialogContent,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
+import {
+  isIOSEnvironment,
+  scheduleIOSNativeOverlayRecovery,
+  temporarilyReleaseBodyScrollLock,
+} from "@/lib/iosNativeOverlayRecovery";
 
 interface UploadFilesDialogProps {
   open: boolean;
@@ -46,81 +47,24 @@ export function UploadFilesDialog({
 
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
-  const isIOSEnvironment =
-    isNativeIOS ||
-    (typeof navigator !== "undefined" &&
-      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)));
-  const shouldStabilizeIOSLayout = isIOSEnvironment;
+  const shouldStabilizeIOSLayout = isIOSEnvironment();
   const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
-  const navGuardRetryTimeoutRef = useRef<number | null>(null);
-  const layoutRecoveryTimeoutsRef = useRef<number[]>([]);
+  const recoveryCleanupRef = useRef<(() => void) | null>(null);
   const nativePickerInFlightRef = useRef(false);
   const wasOpenRef = useRef(open);
 
-  const emitIOSLayoutReset = useCallback(() => {
+  const queueNativeLayoutRecovery = useCallback((delaysMs: readonly number[] = [0, 320, 1100, 1800]) => {
     if (!shouldStabilizeIOSLayout) return;
-    dispatchIOSLayoutReset();
+    recoveryCleanupRef.current?.();
+    recoveryCleanupRef.current = scheduleIOSNativeOverlayRecovery(delaysMs);
   }, [shouldStabilizeIOSLayout]);
-
-  const emitIOSNavGuard = useCallback((durationMs = 900, options?: { forceFloor?: boolean }) => {
-    if (!shouldStabilizeIOSLayout) return;
-    dispatchIOSNavGuard(durationMs, options);
-  }, [shouldStabilizeIOSLayout]);
-
-  const clearNavGuardRetryTimeout = useCallback(() => {
-    if (typeof window === "undefined") return;
-    if (navGuardRetryTimeoutRef.current !== null) {
-      window.clearTimeout(navGuardRetryTimeoutRef.current);
-      navGuardRetryTimeoutRef.current = null;
-    }
-  }, []);
-
-  const clearLayoutRecoveryTimeouts = useCallback(() => {
-    if (typeof window === "undefined") return;
-    layoutRecoveryTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
-    layoutRecoveryTimeoutsRef.current = [];
-  }, []);
-
-  const restoreNativeLayout = useCallback(() => {
-    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
-
-    emitIOSLayoutReset();
-    emitIOSNavGuard(900, { forceFloor: true });
-    clearNavGuardRetryTimeout();
-
-    navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-      emitIOSNavGuard(1500, { forceFloor: true });
-
-      navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-        emitIOSNavGuard(1800, { forceFloor: true });
-        navGuardRetryTimeoutRef.current = null;
-      }, 1200);
-    }, 320);
-  }, [clearNavGuardRetryTimeout, emitIOSLayoutReset, emitIOSNavGuard, shouldStabilizeIOSLayout]);
-
-  const queueNativeLayoutRecovery = useCallback((delaysMs: readonly number[] = [0, 260, 1100]) => {
-    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
-
-    clearLayoutRecoveryTimeouts();
-    layoutRecoveryTimeoutsRef.current = delaysMs.map((delayMs) =>
-      window.setTimeout(() => {
-        if (delayMs === 0) {
-          requestAnimationFrame(() => restoreNativeLayout());
-          return;
-        }
-        restoreNativeLayout();
-      }, delayMs),
-    );
-  }, [clearLayoutRecoveryTimeouts, restoreNativeLayout, shouldStabilizeIOSLayout]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      clearNavGuardRetryTimeout();
-      clearLayoutRecoveryTimeouts();
+      recoveryCleanupRef.current?.();
     };
-  }, [clearLayoutRecoveryTimeouts, clearNavGuardRetryTimeout]);
+  }, []);
 
   const clearSelection = useCallback(() => {
     setSelectedFile(null);
@@ -216,18 +160,7 @@ export function UploadFilesDialog({
 
     nativePickerInFlightRef.current = true;
     console.log("[UploadFilesDialog] handleNativePhotoPick START");
-
-    // CRITICAL FIX: The Dialog's useIOSScrollLock sets body to position:fixed,
-    // which breaks the Capacitor Camera plugin's native picker on iOS.
-    // Temporarily release the scroll lock before opening the picker.
-    const bodyWasFixed = document.body.style.position === "fixed";
-    const savedTop = document.body.style.top;
-    if (bodyWasFixed) {
-      console.log("[UploadFilesDialog] Releasing body scroll lock for native picker");
-      document.body.style.position = "";
-      document.body.style.top = "";
-      document.body.style.overflow = "";
-    }
+    const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
 
     try {
       // Use shared native picker with resilient Base64 → URI fallback
@@ -255,13 +188,7 @@ export function UploadFilesDialog({
         console.log("[UploadFilesDialog] user cancelled");
       }
     } finally {
-      // Restore the body scroll lock that the Dialog expects
-      if (bodyWasFixed) {
-        console.log("[UploadFilesDialog] Restoring body scroll lock after native picker");
-        document.body.style.position = "fixed";
-        document.body.style.top = savedTop;
-        document.body.style.overflow = "hidden";
-      }
+      restoreBodyScrollLock();
       queueNativeLayoutRecovery([0, 420, 1400, 2200]);
       nativePickerInFlightRef.current = false;
       setIsPickingNativePhoto(false);

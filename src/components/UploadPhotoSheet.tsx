@@ -15,7 +15,11 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto } from "@/lib/nativePhotoPicker";
-import { emitIOSNavGuard as dispatchIOSNavGuard } from "@/lib/iosLayoutStability";
+import {
+  isIOSEnvironment,
+  scheduleIOSNativeOverlayRecovery,
+  temporarilyReleaseBodyScrollLock,
+} from "@/lib/iosNativeOverlayRecovery";
 
 interface UploadPhotoSheetProps {
   open: boolean;
@@ -66,45 +70,19 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPickingNativePhoto, setIsPickingNativePhoto] = useState(false);
-  const navGuardRetryTimeoutRef = useRef<number | null>(null);
+  const recoveryCleanupRef = useRef<(() => void) | null>(null);
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
-  const isIOSEnvironment =
-    isNativeIOS ||
-    (typeof navigator !== "undefined" &&
-      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)));
-  const shouldStabilizeIOSLayout = isIOSEnvironment;
+  const shouldStabilizeIOSLayout = isIOSEnvironment();
   const shouldUseNativePhotoPicker = isNativeIOS;
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
 
-  const emitIOSNavGuard = useCallback((durationMs = 900, options?: { forceFloor?: boolean }) => {
-    if (!shouldStabilizeIOSLayout) return;
-    dispatchIOSNavGuard(durationMs, options);
-  }, [shouldStabilizeIOSLayout]);
-
-  const clearNavGuardRetryTimeout = useCallback(() => {
-    if (typeof window === "undefined") return;
-    if (navGuardRetryTimeoutRef.current !== null) {
-      window.clearTimeout(navGuardRetryTimeoutRef.current);
-      navGuardRetryTimeoutRef.current = null;
-    }
-  }, []);
-
   const restoreNativeLayout = useCallback(() => {
-    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
-
-    // Guard nav interactions while iOS settles viewport after picker dismissal.
-    // First guard catches immediate close; second guard catches delayed first-run
-    // permission animation settling that can otherwise leave nav inset inflated.
-    emitIOSNavGuard(900, { forceFloor: true });
-    clearNavGuardRetryTimeout();
-    navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-      emitIOSNavGuard(1500, { forceFloor: true });
-      navGuardRetryTimeoutRef.current = null;
-    }, 320);
-  }, [clearNavGuardRetryTimeout, emitIOSNavGuard, shouldStabilizeIOSLayout]);
+    if (!shouldStabilizeIOSLayout) return;
+    recoveryCleanupRef.current?.();
+    recoveryCleanupRef.current = scheduleIOSNativeOverlayRecovery();
+  }, [shouldStabilizeIOSLayout]);
 
   // Get user roles
   const { data: userRoles } = useQuery({
@@ -378,9 +356,9 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
 
   useEffect(() => {
     return () => {
-      clearNavGuardRetryTimeout();
+      recoveryCleanupRef.current?.();
     };
-  }, [clearNavGuardRetryTimeout]);
+  }, []);
 
   const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string): Promise<string> => {
     const fileExt = file.name.split(".").pop();
@@ -534,16 +512,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     // CRITICAL: Do NOT set isPickingNativePhoto before pickNativePhoto —
     // the state update triggers a re-render that breaks the iOS gesture chain.
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
-
-    const bodyWasFixed = typeof document !== "undefined" && document.body.style.position === "fixed";
-    const savedTop = typeof document !== "undefined" ? document.body.style.top : "";
-
-    if (bodyWasFixed) {
-      console.log("[UploadPhotoSheet] Releasing body scroll lock for native picker");
-      document.body.style.position = "";
-      document.body.style.top = "";
-      document.body.style.overflow = "";
-    }
+    const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
 
     try {
       const result = await pickNativePhoto({ quality: 80 });
@@ -574,12 +543,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         console.log("[UploadPhotoSheet] user cancelled");
       }
     } finally {
-      if (bodyWasFixed) {
-        console.log("[UploadPhotoSheet] Restoring body scroll lock after native picker");
-        document.body.style.position = "fixed";
-        document.body.style.top = savedTop;
-        document.body.style.overflow = "hidden";
-      }
+      restoreBodyScrollLock();
       restoreNativeLayout();
       setIsPickingNativePhoto(false);
     }

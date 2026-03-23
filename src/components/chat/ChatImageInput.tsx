@@ -8,10 +8,8 @@ import { Capacitor } from "@capacitor/core";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
-import {
-  emitIOSNavGuard as dispatchIOSNavGuard,
-} from "@/lib/iosLayoutStability";
+import { pickNativePhoto } from "@/lib/nativePhotoPicker";
+import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery } from "@/lib/iosNativeOverlayRecovery";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -29,53 +27,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
-  const navGuardRetryTimeoutRef = useRef<number | null>(null);
+  const recoveryCleanupRef = useRef<(() => void) | null>(null);
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
-  const isIOSEnvironment =
-    isNativeIOS ||
-    (typeof navigator !== "undefined" &&
-      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)));
-  const shouldStabilizeIOSLayout = isIOSEnvironment;
+  const shouldStabilizeIOSLayout = isIOSEnvironment();
 
   const dismissIOSKeyboardAccessory = () => {
     if (!isNativeIOS) return;
     (document.activeElement as HTMLElement | null)?.blur();
   };
 
-  const emitIOSNavGuard = (durationMs = 900, options?: { forceFloor?: boolean }) => {
-    if (!shouldStabilizeIOSLayout) return;
-    dispatchIOSNavGuard(durationMs, options);
-  };
-
-  const clearNavGuardRetryTimeout = () => {
-    if (typeof window === "undefined") return;
-    if (navGuardRetryTimeoutRef.current !== null) {
-      window.clearTimeout(navGuardRetryTimeoutRef.current);
-      navGuardRetryTimeoutRef.current = null;
-    }
-  };
-
   const restoreNativeLayout = () => {
-    if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
-
-    // Guard nav interactions while iOS settles viewport after picker dismissal.
-    // Use forceFloor to immediately reset the inset — the permission prompt can
-    // leave safe-area inflated for up to ~3s on first-run flows.
-    emitIOSNavGuard(900, { forceFloor: true });
-    clearNavGuardRetryTimeout();
-
-    // Second guard at 320ms catches immediate permission-dismiss animation
-    navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-      emitIOSNavGuard(1500, { forceFloor: true });
-
-      // Third guard at ~1.5s catches the long tail of first-run permission flows
-      navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-        emitIOSNavGuard(1800, { forceFloor: true });
-        navGuardRetryTimeoutRef.current = null;
-      }, 1200);
-    }, 320);
+    if (!shouldStabilizeIOSLayout) return;
+    recoveryCleanupRef.current?.();
+    recoveryCleanupRef.current = scheduleIOSNativeOverlayRecovery();
   };
 
   const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
@@ -147,12 +112,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           return;
         }
 
-        const errMsg = getReadableUploadError(pickerError);
-        console.warn("[ChatImageInput] Native Camera picker failed, falling back to file input:", errMsg, pickerError);
+        console.warn("[ChatImageInput] Native Camera picker failed:", getReadableUploadError(pickerError), pickerError);
         restoreNativeLayout();
-        setUploading(false);
-        fileInputRef.current?.click();
-        return;
+        throw pickerError;
       }
 
       // Stabilize BottomNav immediately once picker returns, before blob/compression work.
@@ -294,10 +256,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   useEffect(() => {
     return () => {
-      if (typeof window !== "undefined" && navGuardRetryTimeoutRef.current !== null) {
-        window.clearTimeout(navGuardRetryTimeoutRef.current);
-        navGuardRetryTimeoutRef.current = null;
-      }
+      recoveryCleanupRef.current?.();
     };
   }, []);
 

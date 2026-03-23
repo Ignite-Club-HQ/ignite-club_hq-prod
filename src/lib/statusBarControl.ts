@@ -57,6 +57,7 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
   if (!force && lastApplied === theme) return;
 
   lastApplied = theme;
+  const platform = Capacitor.getPlatform();
 
   try {
     // Ensure status bar is visible first
@@ -64,18 +65,21 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
 
     if (theme === 'dark') {
       await StatusBar.setStyle({ style: Style.Dark });
-      if (Capacitor.getPlatform() === 'android') {
+      if (platform === 'android') {
         await StatusBar.setBackgroundColor({ color: '#0f1512' });
       }
     } else {
       await StatusBar.setStyle({ style: Style.Light });
-      if (Capacitor.getPlatform() === 'android') {
+      if (platform === 'android') {
         await StatusBar.setBackgroundColor({ color: '#f5f7f6' });
       }
     }
 
-    // Ensure WebView is NOT behind status bar so content doesn't overlap
-    await StatusBar.setOverlaysWebView({ overlay: false });
+    // Avoid re-toggling iOS WebView overlay state after native overlays like Camera,
+    // which can leave the viewport/safe-area in a broken state on Capacitor iOS.
+    if (platform === 'android') {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    }
   } catch (error) {
     console.warn('[StatusBar] Error configuring status bar:', error);
   }
