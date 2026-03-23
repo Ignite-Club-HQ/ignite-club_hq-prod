@@ -2096,7 +2096,7 @@ export default function EventDetailPage() {
       )}
 
       {event.description && (
-        <p className="text-muted-foreground">{event.description}</p>
+        <p className="text-muted-foreground whitespace-pre-line">{event.description}</p>
       )}
 
       {/* RSVP Section */}
