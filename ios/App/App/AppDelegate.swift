@@ -3,6 +3,7 @@ import Capacitor
 import FirebaseCore
 import FirebaseCrashlytics
 import FirebaseMessaging
+import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {

@@ -233,7 +233,71 @@ workflows:
       - name: Patch AppDelegate.swift for Firebase + Push
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          echo "aW1wb3J0IFVJS2l0CmltcG9ydCBDYXBhY2l0b3IKaW1wb3J0IEZpcmViYXNlQ29yZQppbXBvcnQgRmlyZWJhc2VDcmFzaGx5dGljcwppbXBvcnQgRmlyZWJhc2VNZXNzYWdpbmcKCkBVSUFwcGxpY2F0aW9uTWFpbgpjbGFzcyBBcHBEZWxlZ2F0ZTogVUlSZXNwb25kZXIsIFVJQXBwbGljYXRpb25EZWxlZ2F0ZSwgTWVzc2FnaW5nRGVsZWdhdGUsIFVOVXNlck5vdGlmaWNhdGlvbkNlbnRlckRlbGVnYXRlIHsKCiAgICB2YXIgd2luZG93OiBVSVdpbmRvdz8KCiAgICBmdW5jIGFwcGxpY2F0aW9uKF8gYXBwbGljYXRpb246IFVJQXBwbGljYXRpb24sIGRpZEZpbmlzaExhdW5jaGluZ1dpdGhPcHRpb25zIGxhdW5jaE9wdGlvbnM6IFtVSUFwcGxpY2F0aW9uLkxhdW5jaE9wdGlvbnNLZXk6IEFueV0/KSAtPiBCb29sIHsKICAgICAgICBGaXJlYmFzZUFwcC5jb25maWd1cmUoKQogICAgICAgIENyYXNobHl0aWNzLmNyYXNobHl0aWNzKCkuc2V0Q3Jhc2hseXRpY3NDb2xsZWN0aW9uRW5hYmxlZCh0cnVlKQogICAgICAgIE1lc3NhZ2luZy5tZXNzYWdpbmcoKS5kZWxlZ2F0ZSA9IHNlbGYKICAgICAgICBVTlVzZXJOb3RpZmljYXRpb25DZW50ZXIuY3VycmVudCgpLmRlbGVnYXRlID0gc2VsZgogICAgICAgIGFwcGxpY2F0aW9uLnJlZ2lzdGVyRm9yUmVtb3RlTm90aWZpY2F0aW9ucygpCiAgICAgICAgcmV0dXJuIHRydWUKICAgIH0KCiAgICBmdW5jIGFwcGxpY2F0aW9uKF8gYXBwbGljYXRpb246IFVJQXBwbGljYXRpb24sIGRpZFJlZ2lzdGVyRm9yUmVtb3RlTm90aWZpY2F0aW9uc1dpdGhEZXZpY2VUb2tlbiBkZXZpY2VUb2tlbjogRGF0YSkgewogICAgICAgIE1lc3NhZ2luZy5tZXNzYWdpbmcoKS5hcG5zVG9rZW4gPSBkZXZpY2VUb2tlbgogICAgICAgIEFwcGxpY2F0aW9uRGVsZWdhdGVQcm94eS5zaGFyZWQuYXBwbGljYXRpb24oYXBwbGljYXRpb24sIGRpZFJlZ2lzdGVyRm9yUmVtb3RlTm90aWZpY2F0aW9uc1dpdGhEZXZpY2VUb2tlbjogZGV2aWNlVG9rZW4pCiAgICB9CgogICAgZnVuYyBhcHBsaWNhdGlvbihfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uLCBkaWRGYWlsVG9SZWdpc3RlckZvclJlbW90ZU5vdGlmaWNhdGlvbnNXaXRoRXJyb3IgZXJyb3I6IEVycm9yKSB7CiAgICAgICAgcHJpbnQoIltBcHBEZWxlZ2F0ZV0gRmFpbGVkIHRvIHJlZ2lzdGVyIGZvciByZW1vdGUgbm90aWZpY2F0aW9uczogXChlcnJvci5sb2NhbGl6ZWREZXNjcmlwdGlvbikiKQogICAgICAgIEFwcGxpY2F0aW9uRGVsZWdhdGVQcm94eS5zaGFyZWQuYXBwbGljYXRpb24oYXBwbGljYXRpb24sIGRpZEZhaWxUb1JlZ2lzdGVyRm9yUmVtb3RlTm90aWZpY2F0aW9uc1dpdGhFcnJvcjogZXJyb3IpCiAgICB9CgogICAgZnVuYyBhcHBsaWNhdGlvbihfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uLCBkaWRSZWNlaXZlUmVtb3RlTm90aWZpY2F0aW9uIHVzZXJJbmZvOiBbQW55SGFzaGFibGU6IEFueV0sIGZldGNoQ29tcGxldGlvbkhhbmRsZXIgY29tcGxldGlvbkhhbmRsZXI6IEBlc2NhcGluZyAoVUlCYWNrZ3JvdW5kRmV0Y2hSZXN1bHQpIC0+IFZvaWQpIHsKICAgICAgICBBcHBsaWNhdGlvbkRlbGVnYXRlUHJveHkuc2hhcmVkLmFwcGxpY2F0aW9uKGFwcGxpY2F0aW9uLCBkaWRSZWNlaXZlUmVtb3RlTm90aWZpY2F0aW9uOiB1c2VySW5mbywgZmV0Y2hDb21wbGV0aW9uSGFuZGxlcjogY29tcGxldGlvbkhhbmRsZXIpCiAgICB9CgogICAgZnVuYyBtZXNzYWdpbmcoXyBtZXNzYWdpbmc6IE1lc3NhZ2luZywgZGlkUmVjZWl2ZVJlZ2lzdHJhdGlvblRva2VuIGZjbVRva2VuOiBTdHJpbmc/KSB7CiAgICAgICAgaWYgbGV0IHRva2VuID0gZmNtVG9rZW4gewogICAgICAgICAgICBwcmludCgiW0FwcERlbGVnYXRlXSBGQ00gdG9rZW4gcmVmcmVzaGVkOiBcKHRva2VuLnByZWZpeCgyMCkpLi4uIikKICAgICAgICB9CiAgICB9CgogICAgZnVuYyB1c2VyTm90aWZpY2F0aW9uQ2VudGVyKF8gY2VudGVyOiBVTlVzZXJOb3RpZmljYXRpb25DZW50ZXIsIHdpbGxQcmVzZW50IG5vdGlmaWNhdGlvbjogVU5Ob3RpZmljYXRpb24sIHdpdGhDb21wbGV0aW9uSGFuZGxlciBjb21wbGV0aW9uSGFuZGxlcjogQGVzY2FwaW5nIChVTk5vdGlmaWNhdGlvblByZXNlbnRhdGlvbk9wdGlvbnMpIC0+IFZvaWQpIHsKICAgICAgICBjb21wbGV0aW9uSGFuZGxlcihbLmJhbm5lciwgLmJhZGdlLCAuc291bmRdKQogICAgfQoKICAgIGZ1bmMgdXNlck5vdGlmaWNhdGlvbkNlbnRlcihfIGNlbnRlcjogVU5Vc2VyTm90aWZpY2F0aW9uQ2VudGVyLCBkaWRSZWNlaXZlIHJlc3BvbnNlOiBVTk5vdGlmaWNhdGlvblJlc3BvbnNlLCB3aXRoQ29tcGxldGlvbkhhbmRsZXIgY29tcGxldGlvbkhhbmRsZXI6IEBlc2NhcGluZyAoKSAtPiBWb2lkKSB7CiAgICAgICAgY29tcGxldGlvbkhhbmRsZXIoKQogICAgfQoKICAgIGZ1bmMgYXBwbGljYXRpb25XaWxsUmVzaWduQWN0aXZlKF8gYXBwbGljYXRpb246IFVJQXBwbGljYXRpb24pIHt9CiAgICBmdW5jIGFwcGxpY2F0aW9uRGlkRW50ZXJCYWNrZ3JvdW5kKF8gYXBwbGljYXRpb246IFVJQXBwbGljYXRpb24pIHt9CiAgICBmdW5jIGFwcGxpY2F0aW9uV2lsbEVudGVyRm9yZWdyb3VuZChfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uKSB7fQogICAgZnVuYyBhcHBsaWNhdGlvbkRpZEJlY29tZUFjdGl2ZShfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uKSB7fQogICAgZnVuYyBhcHBsaWNhdGlvbldpbGxUZXJtaW5hdGUoXyBhcHBsaWNhdGlvbjogVUlBcHBsaWNhdGlvbikge30KCiAgICBmdW5jIGFwcGxpY2F0aW9uKF8gYXBwOiBVSUFwcGxpY2F0aW9uLCBvcGVuIHVybDogVVJMLCBvcHRpb25zOiBbVUlBcHBsaWNhdGlvbi5PcGVuVVJMT3B0aW9uc0tleTogQW55XSA9IFs6XSkgLT4gQm9vbCB7CiAgICAgICAgcmV0dXJuIEFwcGxpY2F0aW9uRGVsZWdhdGVQcm94eS5zaGFyZWQuYXBwbGljYXRpb24oYXBwLCBvcGVuOiB1cmwsIG9wdGlvbnM6IG9wdGlvbnMpCiAgICB9CgogICAgZnVuYyBhcHBsaWNhdGlvbihfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uLCBjb250aW51ZSB1c2VyQWN0aXZpdHk6IE5TVXNlckFjdGl2aXR5LCByZXN0b3JhdGlvbkhhbmRsZXI6IEBlc2NhcGluZyAoW1VJVXNlckFjdGl2aXR5UmVzdG9yaW5nXT8pIC0+IFZvaWQpIC0+IEJvb2wgewogICAgICAgIHJldHVybiBBcHBsaWNhdGlvbkRlbGVnYXRlUHJveHkuc2hhcmVkLmFwcGxpY2F0aW9uKGFwcGxpY2F0aW9uLCBjb250aW51ZTogdXNlckFjdGl2aXR5LCByZXN0b3JhdGlvbkhhbmRsZXI6IHJlc3RvcmF0aW9uSGFuZGxlcikKICAgIH0KfQo=" | base64 --decode > "$DELEGATE"
+          cat <<'EOF' > "$DELEGATE"
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+          import FirebaseCrashlytics
+          import FirebaseMessaging
+          import UserNotifications
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
+
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  Messaging.messaging().delegate = self
+                  UNUserNotificationCenter.current().delegate = self
+                  application.registerForRemoteNotifications()
+                  return true
+              }
+
+              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  Messaging.messaging().apnsToken = deviceToken
+                  ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+              }
+
+              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+                  ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+              }
+
+              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+              }
+
+              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+                  if let token = fcmToken {
+                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
+                  }
+              }
+
+              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+                  completionHandler([.banner, .badge, .sound])
+              }
+
+              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+                  completionHandler()
+              }
+
+              func applicationWillResignActive(_ application: UIApplication) {}
+              func applicationDidEnterBackground(_ application: UIApplication) {}
+              func applicationWillEnterForeground(_ application: UIApplication) {}
+              func applicationDidBecomeActive(_ application: UIApplication) {}
+              func applicationWillTerminate(_ application: UIApplication) {}
+
+              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+              }
+          }
+          EOF
           echo "=== Wrote AppDelegate.swift ==="
       - name: Add Push Notifications entitlement
         script: |
@@ -392,7 +456,71 @@ workflows:
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
           echo "=== Patching AppDelegate.swift for Firebase + Crashlytics + Push ==="
-          echo "aW1wb3J0IFVJS2l0CmltcG9ydCBDYXBhY2l0b3IKaW1wb3J0IEZpcmViYXNlQ29yZQppbXBvcnQgRmlyZWJhc2VDcmFzaGx5dGljcwppbXBvcnQgRmlyZWJhc2VNZXNzYWdpbmcKCkBVSUFwcGxpY2F0aW9uTWFpbgpjbGFzcyBBcHBEZWxlZ2F0ZTogVUlSZXNwb25kZXIsIFVJQXBwbGljYXRpb25EZWxlZ2F0ZSwgTWVzc2FnaW5nRGVsZWdhdGUsIFVOVXNlck5vdGlmaWNhdGlvbkNlbnRlckRlbGVnYXRlIHsKCiAgICB2YXIgd2luZG93OiBVSVdpbmRvdz8KCiAgICBmdW5jIGFwcGxpY2F0aW9uKF8gYXBwbGljYXRpb246IFVJQXBwbGljYXRpb24sIGRpZEZpbmlzaExhdW5jaGluZ1dpdGhPcHRpb25zIGxhdW5jaE9wdGlvbnM6IFtVSUFwcGxpY2F0aW9uLkxhdW5jaE9wdGlvbnNLZXk6IEFueV0/KSAtPiBCb29sIHsKICAgICAgICBGaXJlYmFzZUFwcC5jb25maWd1cmUoKQogICAgICAgIENyYXNobHl0aWNzLmNyYXNobHl0aWNzKCkuc2V0Q3Jhc2hseXRpY3NDb2xsZWN0aW9uRW5hYmxlZCh0cnVlKQogICAgICAgIE1lc3NhZ2luZy5tZXNzYWdpbmcoKS5kZWxlZ2F0ZSA9IHNlbGYKICAgICAgICBVTlVzZXJOb3RpZmljYXRpb25DZW50ZXIuY3VycmVudCgpLmRlbGVnYXRlID0gc2VsZgogICAgICAgIGFwcGxpY2F0aW9uLnJlZ2lzdGVyRm9yUmVtb3RlTm90aWZpY2F0aW9ucygpCiAgICAgICAgcmV0dXJuIHRydWUKICAgIH0KCiAgICBmdW5jIGFwcGxpY2F0aW9uKF8gYXBwbGljYXRpb246IFVJQXBwbGljYXRpb24sIGRpZFJlZ2lzdGVyRm9yUmVtb3RlTm90aWZpY2F0aW9uc1dpdGhEZXZpY2VUb2tlbiBkZXZpY2VUb2tlbjogRGF0YSkgewogICAgICAgIE1lc3NhZ2luZy5tZXNzYWdpbmcoKS5hcG5zVG9rZW4gPSBkZXZpY2VUb2tlbgogICAgICAgIEFwcGxpY2F0aW9uRGVsZWdhdGVQcm94eS5zaGFyZWQuYXBwbGljYXRpb24oYXBwbGljYXRpb24sIGRpZFJlZ2lzdGVyRm9yUmVtb3RlTm90aWZpY2F0aW9uc1dpdGhEZXZpY2VUb2tlbjogZGV2aWNlVG9rZW4pCiAgICB9CgogICAgZnVuYyBhcHBsaWNhdGlvbihfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uLCBkaWRGYWlsVG9SZWdpc3RlckZvclJlbW90ZU5vdGlmaWNhdGlvbnNXaXRoRXJyb3IgZXJyb3I6IEVycm9yKSB7CiAgICAgICAgcHJpbnQoIltBcHBEZWxlZ2F0ZV0gRmFpbGVkIHRvIHJlZ2lzdGVyIGZvciByZW1vdGUgbm90aWZpY2F0aW9uczogXChlcnJvci5sb2NhbGl6ZWREZXNjcmlwdGlvbikiKQogICAgICAgIEFwcGxpY2F0aW9uRGVsZWdhdGVQcm94eS5zaGFyZWQuYXBwbGljYXRpb24oYXBwbGljYXRpb24sIGRpZEZhaWxUb1JlZ2lzdGVyRm9yUmVtb3RlTm90aWZpY2F0aW9uc1dpdGhFcnJvcjogZXJyb3IpCiAgICB9CgogICAgZnVuYyBhcHBsaWNhdGlvbihfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uLCBkaWRSZWNlaXZlUmVtb3RlTm90aWZpY2F0aW9uIHVzZXJJbmZvOiBbQW55SGFzaGFibGU6IEFueV0sIGZldGNoQ29tcGxldGlvbkhhbmRsZXIgY29tcGxldGlvbkhhbmRsZXI6IEBlc2NhcGluZyAoVUlCYWNrZ3JvdW5kRmV0Y2hSZXN1bHQpIC0+IFZvaWQpIHsKICAgICAgICBBcHBsaWNhdGlvbkRlbGVnYXRlUHJveHkuc2hhcmVkLmFwcGxpY2F0aW9uKGFwcGxpY2F0aW9uLCBkaWRSZWNlaXZlUmVtb3RlTm90aWZpY2F0aW9uOiB1c2VySW5mbywgZmV0Y2hDb21wbGV0aW9uSGFuZGxlcjogY29tcGxldGlvbkhhbmRsZXIpCiAgICB9CgogICAgZnVuYyBtZXNzYWdpbmcoXyBtZXNzYWdpbmc6IE1lc3NhZ2luZywgZGlkUmVjZWl2ZVJlZ2lzdHJhdGlvblRva2VuIGZjbVRva2VuOiBTdHJpbmc/KSB7CiAgICAgICAgaWYgbGV0IHRva2VuID0gZmNtVG9rZW4gewogICAgICAgICAgICBwcmludCgiW0FwcERlbGVnYXRlXSBGQ00gdG9rZW4gcmVmcmVzaGVkOiBcKHRva2VuLnByZWZpeCgyMCkpLi4uIikKICAgICAgICB9CiAgICB9CgogICAgZnVuYyB1c2VyTm90aWZpY2F0aW9uQ2VudGVyKF8gY2VudGVyOiBVTlVzZXJOb3RpZmljYXRpb25DZW50ZXIsIHdpbGxQcmVzZW50IG5vdGlmaWNhdGlvbjogVU5Ob3RpZmljYXRpb24sIHdpdGhDb21wbGV0aW9uSGFuZGxlciBjb21wbGV0aW9uSGFuZGxlcjogQGVzY2FwaW5nIChVTk5vdGlmaWNhdGlvblByZXNlbnRhdGlvbk9wdGlvbnMpIC0+IFZvaWQpIHsKICAgICAgICBjb21wbGV0aW9uSGFuZGxlcihbLmJhbm5lciwgLmJhZGdlLCAuc291bmRdKQogICAgfQoKICAgIGZ1bmMgdXNlck5vdGlmaWNhdGlvbkNlbnRlcihfIGNlbnRlcjogVU5Vc2VyTm90aWZpY2F0aW9uQ2VudGVyLCBkaWRSZWNlaXZlIHJlc3BvbnNlOiBVTk5vdGlmaWNhdGlvblJlc3BvbnNlLCB3aXRoQ29tcGxldGlvbkhhbmRsZXIgY29tcGxldGlvbkhhbmRsZXI6IEBlc2NhcGluZyAoKSAtPiBWb2lkKSB7CiAgICAgICAgY29tcGxldGlvbkhhbmRsZXIoKQogICAgfQoKICAgIGZ1bmMgYXBwbGljYXRpb25XaWxsUmVzaWduQWN0aXZlKF8gYXBwbGljYXRpb246IFVJQXBwbGljYXRpb24pIHt9CiAgICBmdW5jIGFwcGxpY2F0aW9uRGlkRW50ZXJCYWNrZ3JvdW5kKF8gYXBwbGljYXRpb246IFVJQXBwbGljYXRpb24pIHt9CiAgICBmdW5jIGFwcGxpY2F0aW9uV2lsbEVudGVyRm9yZWdyb3VuZChfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uKSB7fQogICAgZnVuYyBhcHBsaWNhdGlvbkRpZEJlY29tZUFjdGl2ZShfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uKSB7fQogICAgZnVuYyBhcHBsaWNhdGlvbldpbGxUZXJtaW5hdGUoXyBhcHBsaWNhdGlvbjogVUlBcHBsaWNhdGlvbikge30KCiAgICBmdW5jIGFwcGxpY2F0aW9uKF8gYXBwOiBVSUFwcGxpY2F0aW9uLCBvcGVuIHVybDogVVJMLCBvcHRpb25zOiBbVUlBcHBsaWNhdGlvbi5PcGVuVVJMT3B0aW9uc0tleTogQW55XSA9IFs6XSkgLT4gQm9vbCB7CiAgICAgICAgcmV0dXJuIEFwcGxpY2F0aW9uRGVsZWdhdGVQcm94eS5zaGFyZWQuYXBwbGljYXRpb24oYXBwLCBvcGVuOiB1cmwsIG9wdGlvbnM6IG9wdGlvbnMpCiAgICB9CgogICAgZnVuYyBhcHBsaWNhdGlvbihfIGFwcGxpY2F0aW9uOiBVSUFwcGxpY2F0aW9uLCBjb250aW51ZSB1c2VyQWN0aXZpdHk6IE5TVXNlckFjdGl2aXR5LCByZXN0b3JhdGlvbkhhbmRsZXI6IEBlc2NhcGluZyAoW1VJVXNlckFjdGl2aXR5UmVzdG9yaW5nXT8pIC0+IFZvaWQpIC0+IEJvb2wgewogICAgICAgIHJldHVybiBBcHBsaWNhdGlvbkRlbGVnYXRlUHJveHkuc2hhcmVkLmFwcGxpY2F0aW9uKGFwcGxpY2F0aW9uLCBjb250aW51ZTogdXNlckFjdGl2aXR5LCByZXN0b3JhdGlvbkhhbmRsZXI6IHJlc3RvcmF0aW9uSGFuZGxlcikKICAgIH0KfQo=" | base64 --decode > "$DELEGATE"
+          cat <<'EOF' > "$DELEGATE"
+          import UIKit
+          import Capacitor
+          import FirebaseCore
+          import FirebaseCrashlytics
+          import FirebaseMessaging
+          import UserNotifications
+
+          @UIApplicationMain
+          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
+
+              var window: UIWindow?
+
+              func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+                  FirebaseApp.configure()
+                  Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  Messaging.messaging().delegate = self
+                  UNUserNotificationCenter.current().delegate = self
+                  application.registerForRemoteNotifications()
+                  return true
+              }
+
+              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  Messaging.messaging().apnsToken = deviceToken
+                  ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+              }
+
+              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+                  ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+              }
+
+              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+              }
+
+              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+                  if let token = fcmToken {
+                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
+                  }
+              }
+
+              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+                  completionHandler([.banner, .badge, .sound])
+              }
+
+              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+                  completionHandler()
+              }
+
+              func applicationWillResignActive(_ application: UIApplication) {}
+              func applicationDidEnterBackground(_ application: UIApplication) {}
+              func applicationWillEnterForeground(_ application: UIApplication) {}
+              func applicationDidBecomeActive(_ application: UIApplication) {}
+              func applicationWillTerminate(_ application: UIApplication) {}
+
+              func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+              }
+
+              func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+                  return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+              }
+          }
+          EOF
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
       - name: Add Push Notifications entitlement
