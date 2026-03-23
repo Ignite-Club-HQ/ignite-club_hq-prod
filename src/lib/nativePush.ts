@@ -20,6 +20,7 @@ let PushNotifications: any = null;
 let FirebaseMessaging: any = null;
 let pluginsChecked = false;
 let pluginsAvailable = false;
+let firebaseLoadFailed = false;
 
 // Safely load Capacitor core
 async function loadCapacitor(): Promise<boolean> {
