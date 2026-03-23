@@ -415,6 +415,16 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
       console.error('[NativePush] Failed to get FCM token via both registration event and getToken()');
       return { success: false, error: 'Failed to get FCM token - iOS APNs token may not have arrived' };
     }
+
+    console.log('[NativePush] Got FCM token:', token.substring(0, 20) + '...');
+
+    // Save token to database
+    const saved = await saveFCMToken(userId, token);
+    if (!saved) {
+      return { success: false, error: 'Failed to save FCM token' };
+    }
+
+    return { success: true };
   } catch (err) {
     console.error('[NativePush] Unexpected error initializing:', err);
     return { success: false, error: String(err) };
