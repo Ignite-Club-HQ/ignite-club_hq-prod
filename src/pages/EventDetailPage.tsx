@@ -68,6 +68,9 @@ import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { EventViewsAdminSection } from "@/components/EventViewsAdminSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { useNotificationNudge } from "@/hooks/useNotificationNudge";
+import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 
 
 // Lazy load PitchBoard for game events
