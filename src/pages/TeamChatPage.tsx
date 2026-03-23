@@ -1014,6 +1014,7 @@ export default function TeamChatPage() {
           <NotificationNudgeBanner
             message="Enable notifications so you never miss team messages"
             onDismiss={notificationNudge.dismiss}
+            userId={user?.id}
           />
         </div>
       )}

@@ -1300,6 +1300,7 @@ export default function GroupChatPage() {
           <NotificationNudgeBanner
             message="Enable notifications so you never miss group messages"
             onDismiss={notificationNudge.dismiss}
+            userId={user?.id}
           />
         </div>
       )}

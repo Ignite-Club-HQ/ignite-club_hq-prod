@@ -843,6 +843,7 @@ export default function DirectMessagePage() {
           <NotificationNudgeBanner
             message="Enable notifications so you never miss direct messages"
             onDismiss={notificationNudge.dismiss}
+            userId={user?.id}
           />
         </div>
       )}

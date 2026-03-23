@@ -1049,6 +1049,7 @@ export default function ClubChatPage() {
           <NotificationNudgeBanner
             message="Enable notifications so you never miss club announcements"
             onDismiss={notificationNudge.dismiss}
+            userId={user?.id}
           />
         </div>
       )}
