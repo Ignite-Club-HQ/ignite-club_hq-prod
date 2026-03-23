@@ -257,14 +257,15 @@ export function AddressAutocomplete({
     }
 
     try {
+      const fullAddress = [currentAddress.address, currentAddress.suburb, currentAddress.state, currentAddress.postcode]
+        .filter(Boolean)
+        .join(", ");
       const { data, error } = await supabase
         .from('saved_locations')
         .insert({
           user_id: user.id,
-          address: currentAddress.address,
-          suburb: currentAddress.suburb || null,
-          state: currentAddress.state || null,
-          postcode: currentAddress.postcode || null,
+          address: fullAddress,
+          name: currentAddress.address,
         })
         .select()
         .single();
