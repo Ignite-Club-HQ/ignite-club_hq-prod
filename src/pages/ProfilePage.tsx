@@ -22,6 +22,7 @@ import igniteIcon from "@/assets/ignite-icon.png";
 
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
+  const notificationNudge = useNotificationNudge(user?.id, "settings");
   usePageTitle("Profile");
   const { toast } = useToast();
   const navigate = useNavigate();
