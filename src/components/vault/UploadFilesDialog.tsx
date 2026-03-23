@@ -411,9 +411,9 @@ export function UploadFilesDialog({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={
+                    accept={
                     uploadType === "photo"
-                      ? "image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif,image/svg+xml,image/bmp,image/tiff"
+                      ? "image/*"
                       : Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios"
                         ? "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip,application/x-rar-compressed,application/json,application/xml,text/xml,text/yaml,application/x-yaml,text/markdown"
                         : Capacitor.isNativePlatform()
