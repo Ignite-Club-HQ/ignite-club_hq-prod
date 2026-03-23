@@ -68,6 +68,7 @@ const formatMessageDate = (dateStr: string) => {
 export default function TeamChatPage() {
   const { teamId } = useParams<{ teamId: string }>();
   const { user, profile, refreshUnreadCount } = useAuth();
+  const notificationNudge = useNotificationNudge(user?.id, "chat");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
