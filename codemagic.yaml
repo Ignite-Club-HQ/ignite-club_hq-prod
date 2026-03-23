@@ -359,15 +359,16 @@ workflows:
       - name: Build iOS Debug
         script: |
           cd ios/App
-          xcodebuild -project App.xcodeproj \
+          xcodebuild clean build -project App.xcodeproj \
             -scheme App \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
             -derivedDataPath build \
+            -arch arm64 \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=YES \
-            EXCLUDED_ARCHS=x86_64 \
+            'EXCLUDED_ARCHS[sdk=iphonesimulator*]=x86_64' \
             CODE_SIGNING_ALLOWED=NO \
             build
     artifacts:
