@@ -257,11 +257,16 @@ export function BottomNav() {
   useEffect(() => {
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
-    const handleLayoutReset = () => lockNavInteractions(1200);
+    const handleLayoutReset = () => {
+      clearInsetSyncTimeouts();
+      lockNavInteractions(1200);
+      setNativeSafeInsetPx(nativeInsetFloorPx);
+    };
     const handleNavGuard = (event: Event) => {
       const ce = event as CustomEvent<{ durationMs?: number; forceFloor?: boolean }>;
       const duration = ce.detail?.durationMs ?? DEFAULT_NAV_GUARD_MS;
       const forceFloor = ce.detail?.forceFloor ?? false;
+      clearInsetSyncTimeouts();
       lockNavInteractions(duration);
 
       // If the caller knows the inset is inflated (e.g. post-permission-prompt),
@@ -304,8 +309,10 @@ export function BottomNav() {
     };
   }, [
     shouldStabilizeIOSLayout,
+    clearInsetSyncTimeouts,
     clearNavGuardSettleTimeout,
     lockNavInteractions,
+    nativeInsetFloorPx,
     scheduleInsetSync,
     settleInflatedInset,
   ]);
