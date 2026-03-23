@@ -169,6 +169,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (stablePreviewUrl) {
         URL.revokeObjectURL(stablePreviewUrl);
       }
+      restoreBodyScrollLock();
       restoreNativeLayout();
       setUploading(false);
       // Clear lingering focus/active state on the image button after picker closes
