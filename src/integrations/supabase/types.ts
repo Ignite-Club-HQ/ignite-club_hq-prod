@@ -5793,6 +5793,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_members_push_reachable: {
+        Args: { member_ids: string[] }
+        Returns: {
+          has_push: boolean
+          user_id: string
+        }[]
+      }
       get_or_create_dm_conversation: {
         Args: { other_user_id: string }
         Returns: string

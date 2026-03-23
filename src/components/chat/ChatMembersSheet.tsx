@@ -178,6 +178,26 @@ export function ChatMembersSheet({
     staleTime: 1000 * 60 * 2,
   });
 
+  // Fetch push reachability (has push_subscriptions or fcm_tokens)
+  const { data: pushReachable } = useQuery({
+    queryKey: ["chat-members-push-reachable", chatType, chatId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {};
+      const { data, error } = await supabase
+        .rpc("get_members_push_reachable", { member_ids: memberIds });
+      
+      if (error) console.error("[ChatMembers] push reachable RPC error:", error);
+      
+      const map: Record<string, boolean> = {};
+      for (const row of data || []) {
+        map[row.user_id] = row.has_push;
+      }
+      return map;
+    },
+    enabled: open && memberIds.length > 0,
+    staleTime: 1000 * 60 * 2,
+  });
+
   // Fetch chat mute preferences for this specific chat
   const { data: mutePrefs } = useQuery({
     queryKey: ["chat-members-mute-prefs", chatType, chatId, memberIds],
@@ -264,6 +284,7 @@ export function ChatMembersSheet({
                     {(() => { console.log('[ChatMembers] Rendering members:', uniqueMembers.length, 'notifPrefs:', JSON.stringify(notifPrefs), 'mutePrefs:', JSON.stringify(mutePrefs)); return null; })()}
                     {uniqueMembers.map((member) => {
                       const pushDisabled = notifPrefs ? (notifPrefs[member.id] === false) : false;
+                      const noPushSetup = pushReachable ? (pushReachable[member.id] === false) : false;
                       const chatMuted = mutePrefs?.[member.id] ?? false;
 
                       return (
@@ -287,8 +308,8 @@ export function ChatMembersSheet({
                               </p>
                             )}
                           </div>
-                          {pushDisabled && (
-                            <svg style={{ marginLeft: 4, flexShrink: 0 }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 1 .6 5"/><path d="M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+                          {(pushDisabled || noPushSetup) && (
+                            <svg style={{ marginLeft: 4, flexShrink: 0 }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label={noPushSetup ? "No push notifications set up (app not downloaded)" : "Push notifications disabled"}><path d="M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 1 .6 5"/><path d="M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
                           )}
                           {chatMuted && (
                             <svg style={{ marginLeft: 2, flexShrink: 0 }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A.7.7 0 0 1 5.9 7.8H4a1 1 0 0 0-1 1v6.4a1 1 0 0 0 1 1h1.9a.7.7 0 0 1 .513.213l3.384 3.383A.705.705 0 0 0 11 19.298z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
