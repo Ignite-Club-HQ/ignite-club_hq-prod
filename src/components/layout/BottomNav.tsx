@@ -19,7 +19,7 @@ const navItems = [
 ];
 
 const MIN_NATIVE_BOTTOM_INSET_PX = 20;
-const IOS_PHONE_BOTTOM_INSET_PX = 34;
+const IOS_NATIVE_BOTTOM_INSET_PX = 0;
 const IOS_WEB_BOTTOM_INSET_PX = 16;
 const DEFAULT_NAV_GUARD_MS = 900;
 
@@ -122,15 +122,8 @@ export function BottomNav() {
 
   const nativeInsetFloorPx = useMemo(() => {
     if (!shouldStabilizeIOSLayout) return MIN_NATIVE_BOTTOM_INSET_PX;
-    if (!isNativeIOS) return IOS_WEB_BOTTOM_INSET_PX;
-    if (typeof window === "undefined") return IOS_PHONE_BOTTOM_INSET_PX;
-
-    const shortestScreenEdgePx = Math.min(
-      window.screen?.width ?? window.innerWidth,
-      window.screen?.height ?? window.innerHeight,
-    );
-
-    return shortestScreenEdgePx <= 430 ? IOS_PHONE_BOTTOM_INSET_PX : MIN_NATIVE_BOTTOM_INSET_PX;
+    if (isNativeIOS) return IOS_NATIVE_BOTTOM_INSET_PX;
+    return IOS_WEB_BOTTOM_INSET_PX;
   }, [isNativeIOS, shouldStabilizeIOSLayout]);
 
   const [nativeSafeInsetPx, setNativeSafeInsetPx] = useState(nativeInsetFloorPx);
