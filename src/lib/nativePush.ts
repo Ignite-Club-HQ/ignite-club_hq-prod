@@ -50,7 +50,14 @@ function checkIsNative(): boolean {
 
 async function loadPlugins(): Promise<boolean> {
   // Only check once to avoid repeated failures
-  if (pluginsChecked) return pluginsAvailable;
+  if (pluginsChecked) {
+    // Even if plugins were checked, retry Firebase if it failed previously
+    // (timing issue on cold start can cause first check to fail)
+    if (pluginsAvailable && !FirebaseMessaging && !firebaseLoadFailed) {
+      await tryLoadFirebase();
+    }
+    return pluginsAvailable;
+  }
   pluginsChecked = true;
   
   // First ensure Capacitor is loaded
@@ -67,30 +74,38 @@ async function loadPlugins(): Promise<boolean> {
       PushNotifications = pushModule.PushNotifications;
     }
     
-    // Try loading Firebase - this WILL fail if google-services.json is missing
-    // The try/catch here helps, but the native side may still crash
-    if (!FirebaseMessaging) {
-      try {
-        const fcmModule = await import('@capacitor-firebase/messaging');
-        FirebaseMessaging = fcmModule.FirebaseMessaging;
-        
-        // Test if Firebase is actually usable by checking a simple method
-        // This can throw if Firebase isn't properly initialized on native side
-        await FirebaseMessaging.checkPermissions();
-        console.log('[NativePush] Firebase Messaging loaded and available');
-      } catch (fcmErr: any) {
-        // Firebase not configured - this is expected if google-services.json is missing
-        console.warn('[NativePush] Firebase Messaging not available:', fcmErr?.message || fcmErr);
-        FirebaseMessaging = null;
-        // Continue without Firebase - at least basic push might work
-      }
-    }
+    // Try loading Firebase
+    await tryLoadFirebase();
     
     pluginsAvailable = PushNotifications !== null;
     return pluginsAvailable;
   } catch (err) {
     console.warn('[NativePush] Failed to load plugins:', err);
     return false;
+  }
+}
+
+// Separate function so Firebase can be retried independently
+async function tryLoadFirebase(): Promise<void> {
+  if (FirebaseMessaging || firebaseLoadFailed) return;
+  
+  try {
+    const fcmModule = await import('@capacitor-firebase/messaging');
+    FirebaseMessaging = fcmModule.FirebaseMessaging;
+    
+    // Test if Firebase is actually usable
+    await FirebaseMessaging.checkPermissions();
+    console.log('[NativePush] Firebase Messaging loaded and available');
+  } catch (fcmErr: any) {
+    const msg = fcmErr?.message || String(fcmErr);
+    console.warn('[NativePush] Firebase Messaging not available:', msg);
+    
+    // Only permanently give up if it's a definitive failure (missing config)
+    // Transient failures (timing) should be retried
+    if (msg.includes('not implemented') || msg.includes('not installed')) {
+      firebaseLoadFailed = true;
+    }
+    FirebaseMessaging = null;
   }
 }
 
