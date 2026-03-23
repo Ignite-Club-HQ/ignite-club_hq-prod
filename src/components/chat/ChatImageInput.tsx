@@ -9,7 +9,7 @@ import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto } from "@/lib/nativePhotoPicker";
-import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery } from "@/lib/iosNativeOverlayRecovery";
+import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
