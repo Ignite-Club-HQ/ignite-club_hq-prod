@@ -9,7 +9,7 @@ import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto } from "@/lib/nativePhotoPicker";
-import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery } from "@/lib/iosNativeOverlayRecovery";
+import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -97,6 +97,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     // triggers a re-render / breaks the gesture chain and iOS rejects the picker.
     console.log("[ChatImageInput] handleNativePhotoPick START");
     let stablePreviewUrl: string | null = null;
+    const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
 
     try {
       let result: Awaited<ReturnType<typeof pickNativePhoto>>;
@@ -168,6 +169,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (stablePreviewUrl) {
         URL.revokeObjectURL(stablePreviewUrl);
       }
+      restoreBodyScrollLock();
       restoreNativeLayout();
       setUploading(false);
       // Clear lingering focus/active state on the image button after picker closes
