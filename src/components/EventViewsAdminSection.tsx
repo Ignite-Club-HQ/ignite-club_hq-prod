@@ -252,7 +252,7 @@ export function EventViewsAdminSection({
                 </div>
               </TooltipTrigger>
               <TooltipContent side="left">
-                <p>{noPushSetup ? "No push notifications set up (app not downloaded)" : "Event push notifications disabled"}</p>
+                <p>{noPushSetup ? "No push notifications set up" : "Event push notifications disabled"}</p>
               </TooltipContent>
             </Tooltip>
           )}
