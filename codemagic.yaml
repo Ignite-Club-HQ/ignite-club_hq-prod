@@ -724,6 +724,166 @@ workflows:
           echo "Ly8gc3dpZnQtdG9vbHMtdmVyc2lvbjogNS45CmltcG9ydCBQYWNrYWdlRGVzY3JpcHRpb24KCmxldCBwYWNrYWdlID0gUGFja2FnZSgKICAgIG5hbWU6ICJDYXBBcHAtU1BNIiwKICAgIHBsYXRmb3JtczogWy5pT1MoLnYxNSldLAogICAgcHJvZHVjdHM6IFsKICAgICAgICAubGlicmFyeSgKICAgICAgICAgICAgbmFtZTogIkNhcEFwcC1TUE0iLAogICAgICAgICAgICB0YXJnZXRzOiBbIkNhcEFwcC1TUE0iXSkKICAgIF0sCiAgICBkZXBlbmRlbmNpZXM6IFsKICAgICAgICAucGFja2FnZSh1cmw6ICJodHRwczovL2dpdGh1Yi5jb20vaW9uaWMtdGVhbS9jYXBhY2l0b3Itc3dpZnQtcG0uZ2l0IiwgZXhhY3Q6ICI4LjAuMCIpLAogICAgICAgIC5wYWNrYWdlKHVybDogImh0dHBzOi8vZ2l0aHViLmNvbS9maXJlYmFzZS9maXJlYmFzZS1pb3Mtc2RrLmdpdCIsIGZyb206ICIxMi43LjAiKSwKICAgICAgICAucGFja2FnZShuYW1lOiAiQ2FwYWNpdG9yRmlyZWJhc2VNZXNzYWdpbmciLCBwYXRoOiAiLi4vLi4vLi4vbm9kZV9tb2R1bGVzL0BjYXBhY2l0b3ItZmlyZWJhc2UvbWVzc2FnaW5nIiksCiAgICAgICAgLnBhY2thZ2UobmFtZTogIkNhcGFjaXRvckFwcCIsIHBhdGg6ICIuLi8uLi8uLi9ub2RlX21vZHVsZXMvQGNhcGFjaXRvci9hcHAiKSwKICAgICAgICAucGFja2FnZShuYW1lOiAiQ2FwYWNpdG9yUHVzaE5vdGlmaWNhdGlvbnMiLCBwYXRoOiAiLi4vLi4vLi4vbm9kZV9tb2R1bGVzL0BjYXBhY2l0b3IvcHVzaC1ub3RpZmljYXRpb25zIiksCiAgICAgICAgLnBhY2thZ2UobmFtZTogIkNhcGFjaXRvclN0YXR1c0JhciIsIHBhdGg6ICIuLi8uLi8uLi9ub2RlX21vZHVsZXMvQGNhcGFjaXRvci9zdGF0dXMtYmFyIiksCiAgICAgICAgLnBhY2thZ2UobmFtZTogIkNhcGdvQ2FwYWNpdG9yTmF0aXZlQmlvbWV0cmljIiwgcGF0aDogIi4uLy4uLy4uL25vZGVfbW9kdWxlcy9AY2FwZ28vY2FwYWNpdG9yLW5hdGl2ZS1iaW9tZXRyaWMiKQogICAgXSwKICAgIHRhcmdldHM6IFsKICAgICAgICAudGFyZ2V0KAogICAgICAgICAgICBuYW1lOiAiQ2FwQXBwLVNQTSIsCiAgICAgICAgICAgIGRlcGVuZGVuY2llczogWwogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGFjaXRvciIsIHBhY2thZ2U6ICJjYXBhY2l0b3Itc3dpZnQtcG0iKSwKICAgICAgICAgICAgICAgIC5wcm9kdWN0KG5hbWU6ICJDb3Jkb3ZhIiwgcGFja2FnZTogImNhcGFjaXRvci1zd2lmdC1wbSIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkZpcmViYXNlQ29yZSIsIHBhY2thZ2U6ICJmaXJlYmFzZS1pb3Mtc2RrIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiRmlyZWJhc2VDcmFzaGx5dGljcyIsIHBhY2thZ2U6ICJmaXJlYmFzZS1pb3Mtc2RrIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiRmlyZWJhc2VNZXNzYWdpbmciLCBwYWNrYWdlOiAiZmlyZWJhc2UtaW9zLXNkayIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGFjaXRvckZpcmViYXNlTWVzc2FnaW5nIiwgcGFja2FnZTogIkNhcGFjaXRvckZpcmViYXNlTWVzc2FnaW5nIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiQ2FwYWNpdG9yQXBwIiwgcGFja2FnZTogIkNhcGFjaXRvckFwcCIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGFjaXRvclB1c2hOb3RpZmljYXRpb25zIiwgcGFja2FnZTogIkNhcGFjaXRvclB1c2hOb3RpZmljYXRpb25zIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiQ2FwYWNpdG9yU3RhdHVzQmFyIiwgcGFja2FnZTogIkNhcGFjaXRvclN0YXR1c0JhciIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGdvQ2FwYWNpdG9yTmF0aXZlQmlvbWV0cmljIiwgcGFja2FnZTogIkNhcGdvQ2FwYWNpdG9yTmF0aXZlQmlvbWV0cmljIikKICAgICAgICAgICAgXQogICAgICAgICkKICAgIF0KKQo=" | base64 --decode > "ios/App/CapApp-SPM/Package.swift"
           echo "=== Overwrote Package.swift with Firebase deps ==="
           cat "ios/App/CapApp-SPM/Package.swift"
+      - name: Patch StatusBar plugin for Capacitor 8 SPM compatibility
+        script: |
+          STATUSBAR_DIR="node_modules/@capacitor/status-bar/ios/Sources/StatusBarPlugin"
+          echo "=== Patching StatusBarPlugin.swift for Cap 8 SPM API ==="
+          cat <<'EOF' > "$STATUSBAR_DIR/StatusBarPlugin.swift"
+          import Foundation
+          import Capacitor
+
+          @objc(StatusBarPlugin)
+          public class StatusBarPlugin: CAPPlugin, CAPBridgedPlugin {
+              public let identifier = "StatusBarPlugin"
+              public let jsName = "StatusBar"
+              public let pluginMethods: [CAPPluginMethod] = [
+                  CAPPluginMethod(name: "setStyle", returnType: CAPPluginReturnPromise),
+                  CAPPluginMethod(name: "setBackgroundColor", returnType: CAPPluginReturnPromise),
+                  CAPPluginMethod(name: "show", returnType: CAPPluginReturnPromise),
+                  CAPPluginMethod(name: "hide", returnType: CAPPluginReturnPromise),
+                  CAPPluginMethod(name: "getInfo", returnType: CAPPluginReturnPromise),
+                  CAPPluginMethod(name: "setOverlaysWebView", returnType: CAPPluginReturnPromise)
+              ]
+              private var statusBar: StatusBar?
+              private let statusBarVisibilityChanged = "statusBarVisibilityChanged"
+              private let statusBarOverlayChanged = "statusBarOverlayChanged"
+
+              override public func load() {
+                  guard let bridge = bridge else { return }
+                  statusBar = StatusBar(bridge: bridge, config: statusBarConfig())
+              }
+
+              private func statusBarConfig() -> StatusBarConfig {
+                  return StatusBarConfig()
+              }
+
+              private func style(fromString: String) -> UIStatusBarStyle {
+                  switch fromString.lowercased() {
+                  case "dark", "lightcontent":
+                      return .lightContent
+                  case "light", "darkcontent":
+                      return .darkContent
+                  case "default":
+                      return .default
+                  default:
+                      return .default
+                  }
+              }
+
+              private func colorFromHex(_ hex: String) -> UIColor? {
+                  var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+                  hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+                  var rgb: UInt64 = 0
+                  guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return nil }
+                  if hexSanitized.count == 6 {
+                      return UIColor(
+                          red: CGFloat((rgb & 0xFF0000) >> 16) / 255.0,
+                          green: CGFloat((rgb & 0x00FF00) >> 8) / 255.0,
+                          blue: CGFloat(rgb & 0x0000FF) / 255.0,
+                          alpha: 1.0
+                      )
+                  } else if hexSanitized.count == 8 {
+                      return UIColor(
+                          red: CGFloat((rgb & 0xFF000000) >> 24) / 255.0,
+                          green: CGFloat((rgb & 0x00FF0000) >> 16) / 255.0,
+                          blue: CGFloat((rgb & 0x0000FF00) >> 8) / 255.0,
+                          alpha: CGFloat(rgb & 0x000000FF) / 255.0
+                      )
+                  }
+                  return nil
+              }
+
+              @objc func setStyle(_ call: CAPPluginCall) {
+                  let options = call.options!
+                  if let styleString = options["style"] as? String {
+                      statusBar?.setStyle(style(fromString: styleString))
+                  }
+                  call.resolve([:])
+              }
+
+              @objc func setBackgroundColor(_ call: CAPPluginCall) {
+                  guard
+                      let hexString = call.options["color"] as? String,
+                      let color = colorFromHex(hexString)
+                  else { return }
+                  DispatchQueue.main.async { [weak self] in
+                      self?.statusBar?.setBackgroundColor(color)
+                  }
+                  call.resolve()
+              }
+
+              @objc func hide(_ call: CAPPluginCall) {
+                  let animation = call.getString("animation") ?? "FADE"
+                  DispatchQueue.main.async { [weak self] in
+                      self?.statusBar?.hide(animation: animation)
+                      guard
+                          let info = self?.statusBar?.getInfo(),
+                          let dict = self?.toDict(info),
+                          let event = self?.statusBarVisibilityChanged
+                      else { return }
+                      self?.notifyListeners(event, data: dict)
+                  }
+                  call.resolve()
+              }
+
+              @objc func show(_ call: CAPPluginCall) {
+                  let animation = call.getString("animation") ?? "FADE"
+                  DispatchQueue.main.async { [weak self] in
+                      self?.statusBar?.show(animation: animation)
+                      guard
+                          let info = self?.statusBar?.getInfo(),
+                          let dict = self?.toDict(info),
+                          let event = self?.statusBarVisibilityChanged
+                      else { return }
+                      self?.notifyListeners(event, data: dict)
+                  }
+                  call.resolve()
+              }
+
+              @objc func getInfo(_ call: CAPPluginCall) {
+                  DispatchQueue.main.async { [weak self] in
+                      guard
+                          let info = self?.statusBar?.getInfo(),
+                          let dict = self?.toDict(info)
+                      else { return }
+                      call.resolve(dict)
+                  }
+              }
+
+              @objc func setOverlaysWebView(_ call: CAPPluginCall) {
+                  guard let overlay = call.options["overlay"] as? Bool else { return }
+                  DispatchQueue.main.async { [weak self] in
+                      self?.statusBar?.setOverlaysWebView(overlay)
+                      guard
+                          let info = self?.statusBar?.getInfo(),
+                          let dict = self?.toDict(info),
+                          let event = self?.statusBarOverlayChanged
+                      else { return }
+                      self?.notifyListeners(event, data: dict)
+                  }
+                  call.resolve()
+              }
+
+              private func toDict(_ info: StatusBarInfo) -> [String: Any] {
+                  return [
+                      "visible": info.visible!,
+                      "style": info.style!,
+                      "color": info.color!,
+                      "overlays": info.overlays!,
+                      "height": info.height!
+                  ]
+              }
+          }
+          EOF
+          echo "=== Patching UIColor.swift ==="
+          cat <<'EOF' > "$STATUSBAR_DIR/UIColor.swift"
+          import UIKit
+
+          public extension UIColor {
+              // Minimal stub - not used by patched plugin but keeps the module compilable
+          }
+          EOF
+          echo "=== StatusBar plugin patched ==="
       - name: Copy app icons
         script: |
           # Copy Ignite icon to iOS app icon (use the highest resolution Android icon)
