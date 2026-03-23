@@ -240,7 +240,7 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
               <input
                 ref={logoInputRef}
                 type="file"
-                accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
+                accept="image/*"
                 className="hidden"
                 onChange={handleLogoUpload}
                 disabled={uploadingLogo}
