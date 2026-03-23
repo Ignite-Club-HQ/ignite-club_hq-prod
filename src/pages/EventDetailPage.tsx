@@ -68,6 +68,9 @@ import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { EventViewsAdminSection } from "@/components/EventViewsAdminSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { useNotificationNudge } from "@/hooks/useNotificationNudge";
+import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 
 
 // Lazy load PitchBoard for game events
@@ -224,6 +227,8 @@ export default function EventDetailPage() {
   // Mini league player overrides for match generation
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
   const isSharingEventRef = useRef(false);
+  const [showPostRsvpNudge, setShowPostRsvpNudge] = useState(false);
+  const notificationNudge = useNotificationNudge(user?.id, "event");
 
   // Track when user views this event
   useEventViewTracking(id, user?.id);
@@ -856,6 +861,11 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
       toast({ title: "RSVP updated!" });
+
+      // Show post-RSVP notification nudge if user hasn't enabled push
+      if (notificationNudge.hasPushEnabled === false) {
+        setTimeout(() => setShowPostRsvpNudge(true), 800);
+      }
 
       // Auto-trigger payment for paid social events when RSVPing "going"
       if (
@@ -2099,6 +2109,14 @@ export default function EventDetailPage() {
         <p className="text-muted-foreground whitespace-pre-line">{event.description}</p>
       )}
 
+      {/* Notification Nudge for events */}
+      {notificationNudge.shouldShowNudge && !myRsvp && (
+        <NotificationNudgeBanner
+          message="Turn on notifications so you never miss match updates"
+          onDismiss={notificationNudge.dismiss}
+        />
+      )}
+
       {/* RSVP Section */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Your RSVP</h2>
@@ -2740,6 +2758,15 @@ export default function EventDetailPage() {
           />
         </Suspense>,
         document.body
+      )}
+      {/* Post-RSVP Notification Prompt */}
+      {user && event && (
+        <PostRsvpNotificationPrompt
+          open={showPostRsvpNudge}
+          onClose={() => setShowPostRsvpNudge(false)}
+          userId={user.id}
+          eventTitle={event.title}
+        />
       )}
     </div>
   );

@@ -48,6 +48,8 @@ import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessa
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
+import { useNotificationNudge } from "@/hooks/useNotificationNudge";
+import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 
 
 const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];
@@ -94,6 +96,7 @@ export default function GroupChatPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile, refreshUnreadCount } = useAuth();
+  const notificationNudge = useNotificationNudge(user?.id, "chat");
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -1290,6 +1293,16 @@ export default function GroupChatPage() {
         </div>
       </div>
 
+
+      {/* Notification Nudge */}
+      {notificationNudge.shouldShowNudge && (
+        <div className="px-4 pt-2 shrink-0">
+          <NotificationNudgeBanner
+            message="Enable notifications so you never miss group messages"
+            onDismiss={notificationNudge.dismiss}
+          />
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">

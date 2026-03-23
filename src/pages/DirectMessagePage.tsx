@@ -25,6 +25,8 @@ import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
 import { Capacitor } from "@capacitor/core";
+import { useNotificationNudge } from "@/hooks/useNotificationNudge";
+import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -65,6 +67,7 @@ export default function DirectMessagePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
+  const notificationNudge = useNotificationNudge(user?.id, "chat");
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
@@ -833,7 +836,16 @@ export default function DirectMessagePage() {
       </div>
 
 
-      
+
+      {/* Notification Nudge */}
+      {notificationNudge.shouldShowNudge && (
+        <div className="px-4 pt-2 shrink-0">
+          <NotificationNudgeBanner
+            message="Enable notifications so you never miss direct messages"
+            onDismiss={notificationNudge.dismiss}
+          />
+        </div>
+      )}
 
       {/* Messages area */}
       <div
