@@ -149,6 +149,26 @@ export function EventViewsAdminSection({
     staleTime: 1000 * 60 * 2,
   });
 
+  // Fetch push reachability (has push_subscriptions or fcm_tokens)
+  const { data: pushReachable } = useQuery({
+    queryKey: ["event-members-push-reachable", eventId, memberIds],
+    queryFn: async () => {
+      if (memberIds.length === 0) return {};
+      const { data, error } = await supabase
+        .rpc("get_members_push_reachable", { member_ids: memberIds });
+      
+      if (error) console.error("[EventViews] push reachable RPC error:", error);
+      
+      const map: Record<string, boolean> = {};
+      for (const row of data || []) {
+        map[row.user_id] = row.has_push;
+      }
+      return map;
+    },
+    enabled: isOpen && memberIds.length > 0,
+    staleTime: 1000 * 60 * 2,
+  });
+
   // Send reminder mutation
   const sendReminderMutation = useMutation({
     mutationFn: async ({ userIds, channels }: { userIds: string[]; channels: "push" | "email" | "both" }) => {
@@ -207,6 +227,7 @@ export function EventViewsAdminSection({
 
   const renderMemberRow = (member: MemberWithViewStatus, variant: "viewed" | "not-viewed") => {
     const pushDisabled = notifPrefs && member.id in notifPrefs ? !notifPrefs[member.id] : false;
+    const noPushSetup = pushReachable ? (pushReachable[member.id] === false) : false;
 
     return (
       <div
@@ -223,7 +244,7 @@ export function EventViewsAdminSection({
         </Avatar>
         <span className="text-sm truncate flex-1">{member.display_name || "Unknown"}</span>
         <div className="flex items-center gap-1 shrink-0">
-          {pushDisabled && (
+          {(pushDisabled || noPushSetup) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="p-0.5 rounded text-destructive/70">
@@ -231,7 +252,7 @@ export function EventViewsAdminSection({
                 </div>
               </TooltipTrigger>
               <TooltipContent side="left">
-                <p>Event push notifications disabled</p>
+                <p>{noPushSetup ? "No push notifications set up (app not downloaded)" : "Event push notifications disabled"}</p>
               </TooltipContent>
             </Tooltip>
           )}
