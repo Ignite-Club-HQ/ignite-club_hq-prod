@@ -1828,6 +1828,10 @@ export default function EventDetailPage() {
                       <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">Pro</Badge>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={() => setResendDialogOpen(true)}>
+                    <UserPlus className="h-4 w-4 mr-2 text-primary" />
+                    Resend Invites
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => setCancelDialogOpen(true)}
