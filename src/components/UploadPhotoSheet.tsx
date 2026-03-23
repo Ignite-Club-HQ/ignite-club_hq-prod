@@ -79,9 +79,9 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
 
-  const emitIOSNavGuard = useCallback((durationMs = 900) => {
+  const emitIOSNavGuard = useCallback((durationMs = 900, options?: { forceFloor?: boolean }) => {
     if (!shouldStabilizeIOSLayout) return;
-    dispatchIOSNavGuard(durationMs);
+    dispatchIOSNavGuard(durationMs, options);
   }, [shouldStabilizeIOSLayout]);
 
   const clearNavGuardRetryTimeout = useCallback(() => {
@@ -98,10 +98,10 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     // Guard nav interactions while iOS settles viewport after picker dismissal.
     // First guard catches immediate close; second guard catches delayed first-run
     // permission animation settling that can otherwise leave nav inset inflated.
-    emitIOSNavGuard(900);
+    emitIOSNavGuard(900, { forceFloor: true });
     clearNavGuardRetryTimeout();
     navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-      emitIOSNavGuard(1200);
+      emitIOSNavGuard(1500, { forceFloor: true });
       navGuardRetryTimeoutRef.current = null;
     }, 320);
   }, [clearNavGuardRetryTimeout, emitIOSNavGuard, shouldStabilizeIOSLayout]);
@@ -534,6 +534,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     // CRITICAL: Do NOT set isPickingNativePhoto before pickNativePhoto —
     // the state update triggers a re-render that breaks the iOS gesture chain.
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
+
+    const bodyWasFixed = typeof document !== "undefined" && document.body.style.position === "fixed";
+    const savedTop = typeof document !== "undefined" ? document.body.style.top : "";
+
+    if (bodyWasFixed) {
+      console.log("[UploadPhotoSheet] Releasing body scroll lock for native picker");
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.overflow = "";
+    }
+
     try {
       const result = await pickNativePhoto({ quality: 80 });
       console.log("[UploadPhotoSheet] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
@@ -563,6 +574,12 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         console.log("[UploadPhotoSheet] user cancelled");
       }
     } finally {
+      if (bodyWasFixed) {
+        console.log("[UploadPhotoSheet] Restoring body scroll lock after native picker");
+        document.body.style.position = "fixed";
+        document.body.style.top = savedTop;
+        document.body.style.overflow = "hidden";
+      }
       restoreNativeLayout();
       setIsPickingNativePhoto(false);
     }
