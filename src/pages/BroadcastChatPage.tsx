@@ -27,6 +27,8 @@ import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Capacitor } from "@capacitor/core";
+import { useNotificationNudge } from "@/hooks/useNotificationNudge";
+import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -49,6 +51,7 @@ interface Message {
 
 export default function BroadcastChatPage() {
   const { user, refreshUnreadCount } = useAuth();
+  const notificationNudge = useNotificationNudge(user?.id, "chat");
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -796,6 +799,17 @@ export default function BroadcastChatPage() {
           />
         </div>
       </div>
+
+      {/* Notification Nudge */}
+      {notificationNudge.shouldShowNudge && (
+        <div className="px-4 pt-2 shrink-0">
+          <NotificationNudgeBanner
+            message="Enable notifications so you never miss broadcasts"
+            onDismiss={notificationNudge.dismiss}
+            userId={user?.id}
+          />
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">

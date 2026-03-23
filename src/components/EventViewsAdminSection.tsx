@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Bell, BellOff, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone } from "lucide-react";
+import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -42,6 +42,7 @@ export function EventViewsAdminSection({
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSendingNudge, setIsSendingNudge] = useState(false);
 
   // Fetch all event views for this event
   const { data: eventViews } = useQuery({
@@ -208,6 +209,12 @@ export function EventViewsAdminSection({
     }
   };
 
+  // Compute unreachable members (no push setup)
+  const unreachableMembers = useMemo(() => {
+    if (!pushReachable) return [];
+    return (members || []).filter(m => pushReachable[m.id] === false);
+  }, [members, pushReachable]);
+
   if (membersLoading) {
     return (
       <Card>
@@ -224,6 +231,36 @@ export function EventViewsAdminSection({
   const totalMembers = membersWithStatus.length;
   const viewedCount = viewedMembers.length;
   const notViewedCount = notViewedMembers.length;
+
+  const handleSendNudge = async () => {
+    if (unreachableMembers.length === 0) return;
+    setIsSendingNudge(true);
+    try {
+      // Send in-app notification to unreachable members
+      const notifications = unreachableMembers.map(m => ({
+        user_id: m.id,
+        type: "admin_nudge" as const,
+        message: "Your admin recommends enabling push notifications so you never miss important updates. Go to Settings to enable them.",
+        related_id: eventId,
+      }));
+      
+      const { error } = await supabase.from("notifications").insert(notifications);
+      if (error) throw error;
+
+      toast({
+        title: "Nudge sent!",
+        description: `Sent notification to ${unreachableMembers.length} member${unreachableMembers.length === 1 ? '' : 's'} encouraging them to enable notifications.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to send nudge",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingNudge(false);
+    }
+  };
 
   const renderMemberRow = (member: MemberWithViewStatus, variant: "viewed" | "not-viewed") => {
     const pushDisabled = notifPrefs && member.id in notifPrefs ? !notifPrefs[member.id] : false;
@@ -365,6 +402,32 @@ export function EventViewsAdminSection({
                 </div>
               )}
             </TooltipProvider>
+
+            {/* Nudge unreachable members */}
+            {unreachableMembers.length > 0 && (
+              <div className="pt-2 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <BellOff className="h-4 w-4" />
+                    <span>{unreachableMembers.length} member{unreachableMembers.length === 1 ? '' : 's'} can't receive push notifications</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSendNudge}
+                    disabled={isSendingNudge}
+                    className="gap-1.5"
+                  >
+                    {isSendingNudge ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <BellRing className="h-3.5 w-3.5" />
+                    )}
+                    Nudge
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {totalMembers === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">

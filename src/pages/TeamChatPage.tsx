@@ -30,6 +30,8 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
 import { Capacitor } from "@capacitor/core";
+import { useNotificationNudge } from "@/hooks/useNotificationNudge";
+import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -66,6 +68,7 @@ const formatMessageDate = (dateStr: string) => {
 export default function TeamChatPage() {
   const { teamId } = useParams<{ teamId: string }>();
   const { user, profile, refreshUnreadCount } = useAuth();
+  const notificationNudge = useNotificationNudge(user?.id, "chat");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -1004,6 +1007,17 @@ export default function TeamChatPage() {
         </div>
       </div>
 
+
+      {/* Notification Nudge */}
+      {notificationNudge.shouldShowNudge && (
+        <div className="px-4 pt-2 shrink-0">
+          <NotificationNudgeBanner
+            message="Enable notifications so you never miss team messages"
+            onDismiss={notificationNudge.dismiss}
+            userId={user?.id}
+          />
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
