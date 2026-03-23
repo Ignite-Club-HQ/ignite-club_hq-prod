@@ -220,24 +220,59 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Patch AppDelegate for Firebase & Crashlytics
+      - name: Patch AppDelegate for Firebase, Crashlytics & Push Notifications
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
+          echo "=== Patching AppDelegate.swift with push notification support ==="
           cat > "$DELEGATE" << 'SWIFT'
           import UIKit
           import Capacitor
           import FirebaseCore
           import FirebaseCrashlytics
+          import FirebaseMessaging
 
           @UIApplicationMain
-          class AppDelegate: UIResponder, UIApplicationDelegate {
+          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
 
               var window: UIWindow?
 
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
                   FirebaseApp.configure()
                   Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  Messaging.messaging().delegate = self
+                  UNUserNotificationCenter.current().delegate = self
+                  application.registerForRemoteNotifications()
                   return true
+              }
+
+              // MARK: - APNs Token Forwarding
+              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  Messaging.messaging().apnsToken = deviceToken
+              }
+
+              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+              }
+
+              // MARK: - Background Notification Handling
+              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  completionHandler(.newData)
+              }
+
+              // MARK: - Firebase MessagingDelegate
+              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+                  if let token = fcmToken {
+                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
+                  }
+              }
+
+              // MARK: - UNUserNotificationCenterDelegate
+              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+                  completionHandler([.banner, .badge, .sound])
+              }
+
+              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+                  completionHandler()
               }
 
               func applicationWillResignActive(_ application: UIApplication) {}
@@ -255,6 +290,7 @@ workflows:
               }
           }
           SWIFT
+          echo "=== Patched AppDelegate.swift with push support ==="
       - name: Ensure FirebaseCrashlytics in SPM Package.swift
         script: |
           PACKAGE="ios/App/CapApp-SPM/Package.swift"
