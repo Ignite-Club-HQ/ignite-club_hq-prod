@@ -2114,6 +2114,7 @@ export default function EventDetailPage() {
         <NotificationNudgeBanner
           message="Turn on notifications so you never miss match updates"
           onDismiss={notificationNudge.dismiss}
+          userId={user?.id}
         />
       )}
 

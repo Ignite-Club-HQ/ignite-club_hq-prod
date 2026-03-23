@@ -10,6 +10,7 @@ interface NotificationNudgeBannerProps {
   onDismiss: () => void;
   onEnable?: () => void;
   className?: string;
+  userId?: string;
 }
 
 export function NotificationNudgeBanner({
@@ -17,6 +18,7 @@ export function NotificationNudgeBanner({
   onDismiss,
   onEnable,
   className = "",
+  userId,
 }: NotificationNudgeBannerProps) {
   const navigate = useNavigate();
   const isNative = Capacitor.isNativePlatform();
@@ -28,12 +30,20 @@ export function NotificationNudgeBanner({
     }
 
     if (isNative) {
-      // On native, try to trigger system permission prompt
+      // On native, use initializeNativePush which handles the full flow:
+      // permission request → register → get FCM token → save to database
       try {
-        const { PushNotifications } = await import("@capacitor/push-notifications");
-        const result = await PushNotifications.requestPermissions();
-        if (result.receive === "granted") {
-          await PushNotifications.register();
+        const { initializeNativePush } = await import("@/lib/nativePush");
+        if (userId) {
+          const result = await initializeNativePush(userId);
+          console.log("[NotificationNudge] initializeNativePush result:", result);
+        } else {
+          // Fallback: just request permission (token won't be saved until next app resume)
+          const { PushNotifications } = await import("@capacitor/push-notifications");
+          const result = await PushNotifications.requestPermissions();
+          if (result.receive === "granted") {
+            await PushNotifications.register();
+          }
         }
       } catch (err) {
         console.error("[NotificationNudge] Error requesting permissions:", err);

@@ -806,6 +806,7 @@ export default function BroadcastChatPage() {
           <NotificationNudgeBanner
             message="Enable notifications so you never miss broadcasts"
             onDismiss={notificationNudge.dismiss}
+            userId={user?.id}
           />
         </div>
       )}
