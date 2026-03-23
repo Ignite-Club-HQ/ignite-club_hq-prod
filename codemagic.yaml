@@ -10,10 +10,7 @@ workflows:
       node: 22
     scripts:
       - name: Install dependencies
-        script: |
-          npm install
-          npm install @capacitor/core@8.0.1 @capacitor/ios@8.0.1 @capacitor/status-bar@8.0.1 --no-save
-          npm ls @capacitor/core @capacitor/ios @capacitor/status-bar
+        script: npm install
       - name: Build web app
         script: npm run build
       - name: Add Android platform
@@ -134,6 +131,7 @@ workflows:
       - name: Disable lint abort for release
         script: |
           cd android/app
+          # Append lintOptions to disable abort on error
           cat >> build.gradle << 'GRADLE'
 
           android {
@@ -201,13 +199,11 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      xcode: 26
+      xcode: latest
       node: 22
     scripts:
       - name: Install dependencies
-        script: |
-          npm install
-          npm ls @capacitor/core @capacitor/ios @capacitor/status-bar
+        script: npm install
       - name: Build web app
         script: npm run build
       - name: Add iOS platform
@@ -224,66 +220,24 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Add UIBackgroundModes for push notifications
-        script: |
-          PLIST="ios/App/App/Info.plist"
-          if ! /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null; then
-            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
-            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" "$PLIST"
-            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" "$PLIST"
-            echo "=== Added UIBackgroundModes ==="
-          else
-            echo "=== UIBackgroundModes already present ==="
-          fi
-      - name: Patch AppDelegate.swift for Firebase + Push
+      - name: Patch AppDelegate for Firebase & Crashlytics
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          cat <<'EOF' > "$DELEGATE"
+          cat > "$DELEGATE" << 'SWIFT'
           import UIKit
           import Capacitor
           import FirebaseCore
           import FirebaseCrashlytics
-          import FirebaseMessaging
-          import UserNotifications
 
           @UIApplicationMain
-          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
+          class AppDelegate: UIResponder, UIApplicationDelegate {
 
               var window: UIWindow?
 
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
                   FirebaseApp.configure()
                   Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
-                  Messaging.messaging().delegate = self
-                  UNUserNotificationCenter.current().delegate = self
-                  application.registerForRemoteNotifications()
                   return true
-              }
-
-              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-                  Messaging.messaging().apnsToken = deviceToken
-              }
-
-              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
-              }
-
-              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-                  completionHandler(.noData)
-              }
-
-              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-                  if let token = fcmToken {
-                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
-                  }
-              }
-
-              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-                  completionHandler([.banner, .badge, .sound])
-              }
-
-              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-                  completionHandler()
               }
 
               func applicationWillResignActive(_ application: UIApplication) {}
@@ -300,81 +254,27 @@ workflows:
                   return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
               }
           }
-          EOF
-          echo "=== Wrote AppDelegate.swift ==="
-      - name: Add Push Notifications entitlement
+          SWIFT
+      - name: Ensure FirebaseCrashlytics in SPM Package.swift
         script: |
-          ENTITLEMENTS="ios/App/App/App.entitlements"
-          if [ ! -f "$ENTITLEMENTS" ]; then
-            echo "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCFET0NUWVBFIHBsaXN0IFBVQkxJQyAiLS8vQXBwbGUvL0RURCBQTElTVCAxLjAvL0VOIiAiaHR0cDovL3d3dy5hcHBsZS5jb20vRFREcy9Qcm9wZXJ0eUxpc3QtMS4wLmR0ZCI+CjxwbGlzdCB2ZXJzaW9uPSIxLjAiPgo8ZGljdD4KICAgIDxrZXk+YXBzLWVudmlyb25tZW50PC9rZXk+CiAgICA8c3RyaW5nPnByb2R1Y3Rpb248L3N0cmluZz4KPC9kaWN0Pgo8L3BsaXN0Pgo=" | base64 --decode > "$ENTITLEMENTS"
-            echo "=== Created App.entitlements with push ==="
-          else
-            if ! grep -q "aps-environment" "$ENTITLEMENTS"; then
-              /usr/libexec/PlistBuddy -c "Add :aps-environment string production" "$ENTITLEMENTS"
-              echo "=== Added aps-environment to existing entitlements ==="
-            else
-              echo "=== aps-environment already in entitlements ==="
+          PACKAGE="ios/App/CapApp-SPM/Package.swift"
+          if ! grep -q "FirebaseCrashlytics" "$PACKAGE"; then
+            if ! grep -q "firebase-ios-sdk" "$PACKAGE"; then
+              sed -i '' '/dependencies: \[/a\
+                  .package(url: "https:\/\/github.com\/firebase\/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
+              ' "$PACKAGE"
             fi
-          fi
-          ruby << 'RUBY_SCRIPT'
-          require 'xcodeproj'
-          project = Xcodeproj::Project.open('ios/App/App.xcodeproj')
-          target = project.targets.find { |t| t.name == 'App' }
-          target.build_configurations.each do |config|
-            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
-          end
-          project.save
-          puts "=== Set CODE_SIGN_ENTITLEMENTS in all build configs ==="
-          RUBY_SCRIPT
-      - name: Overwrite SPM Package.swift with Firebase dependencies
-        script: |
-          cat <<'EOF' > "ios/App/CapApp-SPM/Package.swift"
-          // swift-tools-version: 5.9
-          import PackageDescription
-
-          let package = Package(
-              name: "CapApp-SPM",
-              platforms: [.iOS(.v15)],
-              products: [
-                  .library(
-                      name: "CapApp-SPM",
-                      targets: ["CapApp-SPM"])
-              ],
-              dependencies: [
-                  .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.1"),
-                  .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.7.0"),
-                  .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
-                  .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
-                  .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
-                  .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
-                  .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
-              ],
-              targets: [
-                  .target(
-                      name: "CapApp-SPM",
-                      dependencies: [
-                          .product(name: "Capacitor", package: "capacitor-swift-pm"),
-                          .product(name: "Cordova", package: "capacitor-swift-pm"),
-                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
+            sed -i '' '/.product(name: "Capacitor"/a\
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),\
                           .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
-                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
-                          .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
-                          .product(name: "CapacitorApp", package: "CapacitorApp"),
-                          .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
-                          .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
-                          .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
-                      ]
-                  )
-              ]
-          )
-          EOF
-          echo "=== Overwrote Package.swift with Firebase deps ==="
-          cat "ios/App/CapApp-SPM/Package.swift"
+            ' "$PACKAGE"
+          fi
       - name: Copy Firebase config and add to Xcode project
         script: |
           cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
           echo "=== Copied Firebase config to iOS ==="
           
+          # Add GoogleService-Info.plist to Xcode project so it's included in the bundle
           ruby << 'RUBY_SCRIPT'
           require 'xcodeproj'
           
@@ -401,30 +301,13 @@ workflows:
       - name: Build iOS Debug
         script: |
           cd ios/App
-          echo "=== AppDelegate.swift contents ==="
-          cat App/AppDelegate.swift
-          echo "=== End AppDelegate.swift ==="
-          xcodebuild clean build -project App.xcodeproj \
+          xcodebuild -project App.xcodeproj \
             -scheme App \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
-            ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO \
-            SWIFT_STRICT_CONCURRENCY=minimal \
-            build 2>&1 | tee /tmp/build.log
-          BUILD_EXIT=${PIPESTATUS[0]}
-          echo "=== SWIFT ERRORS ==="
-          grep -A3 'error:' /tmp/build.log || echo "No errors found"
-          echo "=== BUILD RESULT ==="
-          if [ $BUILD_EXIT -eq 0 ]; then
-            echo "BUILD SUCCEEDED"
-          else
-            echo "BUILD FAILED with exit code $BUILD_EXIT"
-            echo "=== Last 30 lines ==="
-            tail -30 /tmp/build.log
-            exit $BUILD_EXIT
-          fi
+            build
     artifacts:
       - ios/App/build/Build/Products/Debug-iphonesimulator/*.app
 
@@ -438,13 +321,11 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.lovable.igniteteamhub
-      xcode: 26
+      xcode: latest
       node: 22
     scripts:
       - name: Install dependencies
-        script: |
-          npm install
-          npm ls @capacitor/core @capacitor/ios @capacitor/status-bar
+        script: npm install
       - name: Build web app
         script: |
           npm run build
@@ -461,24 +342,32 @@ workflows:
           ls -la ios/App/ || echo "ERROR: ios/App folder not found!"
       - name: Copy Firebase config and add to Xcode project
         script: |
+          # Copy GoogleService-Info.plist to iOS app directory
           cp firebase/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
           echo "=== Copied Firebase config to iOS ==="
           
+          # Add GoogleService-Info.plist to Xcode project using Ruby script
+          # This is necessary because just copying the file doesn't add it to the bundle
           ruby << 'RUBY_SCRIPT'
           require 'xcodeproj'
           
           project_path = 'ios/App/App.xcodeproj'
           project = Xcodeproj::Project.open(project_path)
           
+          # Find the App target
           target = project.targets.find { |t| t.name == 'App' }
           
+          # Find the App group
           app_group = project.main_group.find_subpath('App', false)
           
+          # Check if GoogleService-Info.plist already exists in project
           existing_ref = app_group.files.find { |f| f.path == 'GoogleService-Info.plist' }
           
           if existing_ref.nil?
+            # Add file reference
             file_ref = app_group.new_file('GoogleService-Info.plist')
             
+            # Add to resources build phase
             target.resources_build_phase.add_file_reference(file_ref)
             
             project.save
@@ -502,67 +391,25 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Add UIBackgroundModes for push notifications
-        script: |
-          PLIST="ios/App/App/Info.plist"
-          if ! /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null; then
-            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
-            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" "$PLIST"
-            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" "$PLIST"
-            echo "=== Added UIBackgroundModes ==="
-          else
-            echo "=== UIBackgroundModes already present ==="
-          fi
-      - name: Patch AppDelegate.swift for Firebase + Push
+      - name: Patch AppDelegate for Firebase & Crashlytics
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          echo "=== Patching AppDelegate.swift for Firebase + Crashlytics + Push ==="
-          cat <<'EOF' > "$DELEGATE"
+          echo "=== Patching AppDelegate.swift for Firebase + Crashlytics ==="
+          cat > "$DELEGATE" << 'SWIFT'
           import UIKit
           import Capacitor
           import FirebaseCore
           import FirebaseCrashlytics
-          import FirebaseMessaging
-          import UserNotifications
 
           @UIApplicationMain
-          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
+          class AppDelegate: UIResponder, UIApplicationDelegate {
 
               var window: UIWindow?
 
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
                   FirebaseApp.configure()
                   Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
-                  Messaging.messaging().delegate = self
-                  UNUserNotificationCenter.current().delegate = self
-                  application.registerForRemoteNotifications()
                   return true
-              }
-
-              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-                  Messaging.messaging().apnsToken = deviceToken
-              }
-
-              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
-              }
-
-              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-                  completionHandler(.noData)
-              }
-
-              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-                  if let token = fcmToken {
-                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
-                  }
-              }
-
-              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-                  completionHandler([.banner, .badge, .sound])
-              }
-
-              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-                  completionHandler()
               }
 
               func applicationWillResignActive(_ application: UIApplication) {}
@@ -579,77 +426,30 @@ workflows:
                   return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
               }
           }
-          EOF
+          SWIFT
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
-      - name: Add Push Notifications entitlement
+      - name: Ensure FirebaseCrashlytics in SPM Package.swift
         script: |
-          ENTITLEMENTS="ios/App/App/App.entitlements"
-          if [ ! -f "$ENTITLEMENTS" ]; then
-            echo "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCFET0NUWVBFIHBsaXN0IFBVQkxJQyAiLS8vQXBwbGUvL0RURCBQTElTVCAxLjAvL0VOIiAiaHR0cDovL3d3dy5hcHBsZS5jb20vRFREcy9Qcm9wZXJ0eUxpc3QtMS4wLmR0ZCI+CjxwbGlzdCB2ZXJzaW9uPSIxLjAiPgo8ZGljdD4KICAgIDxrZXk+YXBzLWVudmlyb25tZW50PC9rZXk+CiAgICA8c3RyaW5nPnByb2R1Y3Rpb248L3N0cmluZz4KPC9kaWN0Pgo8L3BsaXN0Pgo=" | base64 --decode > "$ENTITLEMENTS"
-            echo "=== Created App.entitlements with push ==="
-          else
-            if ! grep -q "aps-environment" "$ENTITLEMENTS"; then
-              /usr/libexec/PlistBuddy -c "Add :aps-environment string production" "$ENTITLEMENTS"
-              echo "=== Added aps-environment to existing entitlements ==="
-            else
-              echo "=== aps-environment already in entitlements ==="
+          PACKAGE="ios/App/CapApp-SPM/Package.swift"
+          if ! grep -q "FirebaseCrashlytics" "$PACKAGE"; then
+            echo "=== Adding FirebaseCrashlytics to Package.swift ==="
+            # Add firebase-ios-sdk dependency if missing
+            if ! grep -q "firebase-ios-sdk" "$PACKAGE"; then
+              sed -i '' '/dependencies: \[/a\
+                  .package(url: "https:\/\/github.com\/firebase\/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
+              ' "$PACKAGE"
             fi
-          fi
-          ruby << 'RUBY_SCRIPT'
-          require 'xcodeproj'
-          project = Xcodeproj::Project.open('ios/App/App.xcodeproj')
-          target = project.targets.find { |t| t.name == 'App' }
-          target.build_configurations.each do |config|
-            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
-          end
-          project.save
-          puts "=== Set CODE_SIGN_ENTITLEMENTS in all build configs ==="
-          RUBY_SCRIPT
-      - name: Overwrite SPM Package.swift with Firebase dependencies
-        script: |
-          cat <<'EOF' > "ios/App/CapApp-SPM/Package.swift"
-          // swift-tools-version: 5.9
-          import PackageDescription
-
-          let package = Package(
-              name: "CapApp-SPM",
-              platforms: [.iOS(.v15)],
-              products: [
-                  .library(
-                      name: "CapApp-SPM",
-                      targets: ["CapApp-SPM"])
-              ],
-              dependencies: [
-                  .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.1"),
-                  .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.7.0"),
-                  .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
-                  .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
-                  .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
-                  .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
-                  .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
-              ],
-              targets: [
-                  .target(
-                      name: "CapApp-SPM",
-                      dependencies: [
-                          .product(name: "Capacitor", package: "capacitor-swift-pm"),
-                          .product(name: "Cordova", package: "capacitor-swift-pm"),
-                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
+            # Add FirebaseCrashlytics product to target dependencies
+            sed -i '' '/.product(name: "Capacitor"/a\
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),\
                           .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
-                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
-                          .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
-                          .product(name: "CapacitorApp", package: "CapacitorApp"),
-                          .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
-                          .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
-                          .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
-                      ]
-                  )
-              ]
-          )
-          EOF
-          echo "=== Overwrote Package.swift with Firebase deps ==="
-          cat "ios/App/CapApp-SPM/Package.swift"
+            ' "$PACKAGE"
+            echo "=== Updated Package.swift ==="
+          else
+            echo "=== FirebaseCrashlytics already in Package.swift ==="
+          fi
+          cat "$PACKAGE"
       - name: Copy app icons
         script: |
           # Copy Ignite icon to iOS app icon (use the highest resolution Android icon)
@@ -714,17 +514,21 @@ workflows:
           project = Xcodeproj::Project.open(project_path)
           target = project.targets.find { |t| t.name == 'App' }
           
+          # Check if we already added it
           existing = target.shell_script_build_phases.find { |p| p.name == 'Firebase Crashlytics' }
           if existing.nil?
             phase = target.new_shell_script_build_phase('Firebase Crashlytics')
+            # Use the official Crashlytics/run script from SPM checkouts
             phase.shell_script = <<~SCRIPT
               if [ "${DWARF_DSYM_FOLDER_PATH}" ]; then
+                # Official Firebase Crashlytics run script for SPM
                 SCRIPT_PATH="${BUILD_DIR%Build/*}SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run"
                 if [ -f "$SCRIPT_PATH" ]; then
                   echo "Running Firebase Crashlytics script at: $SCRIPT_PATH"
                   "$SCRIPT_PATH"
                 else
                   echo "warning: Firebase Crashlytics run script not found at $SCRIPT_PATH"
+                  # Fallback: search for upload-symbols
                   UPLOAD_SYMBOLS=$(find "${BUILD_DIR%Build/*}SourcePackages" -name "upload-symbols" -type f 2>/dev/null | head -1)
                   if [ -n "$UPLOAD_SYMBOLS" ]; then
                     echo "Found upload-symbols at: $UPLOAD_SYMBOLS"
