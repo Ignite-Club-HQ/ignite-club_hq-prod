@@ -201,14 +201,13 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      xcode: 16.2
+      xcode: 26
       node: 22
     scripts:
       - name: Install dependencies
         script: |
           npm install
-          npm install @capacitor/status-bar@8.0.1 --no-save
-          npm ls @capacitor/status-bar
+          npm ls @capacitor/core @capacitor/ios @capacitor/status-bar
       - name: Build web app
         script: npm run build
       - name: Add iOS platform
