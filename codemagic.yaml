@@ -583,15 +583,15 @@ SWIFT
           ENTITLEMENTS="ios/App/App/App.entitlements"
           if [ ! -f "$ENTITLEMENTS" ]; then
             cat > "$ENTITLEMENTS" << 'ENTXML'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>aps-environment</key>
-              <string>production</string>
-          </dict>
-          </plist>
-          ENTXML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>aps-environment</key>
+    <string>production</string>
+</dict>
+</plist>
+ENTXML
             echo "=== Created App.entitlements with push ==="
           else
             if ! grep -q "aps-environment" "$ENTITLEMENTS"; then
