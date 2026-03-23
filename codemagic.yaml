@@ -463,25 +463,57 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Patch AppDelegate for Firebase & Crashlytics
+      - name: Patch AppDelegate for Firebase, Crashlytics & Push
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
-          echo "=== Patching AppDelegate.swift for Firebase + Crashlytics ==="
+          echo "=== Patching AppDelegate.swift for Firebase + Crashlytics + Push ==="
           cat > "$DELEGATE" << 'SWIFT'
           import UIKit
           import Capacitor
           import FirebaseCore
           import FirebaseCrashlytics
+          import FirebaseMessaging
 
           @UIApplicationMain
-          class AppDelegate: UIResponder, UIApplicationDelegate {
+          class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
 
               var window: UIWindow?
 
               func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
                   FirebaseApp.configure()
                   Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+                  Messaging.messaging().delegate = self
+                  UNUserNotificationCenter.current().delegate = self
+                  application.registerForRemoteNotifications()
                   return true
+              }
+
+              func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+                  Messaging.messaging().apnsToken = deviceToken
+                  ApplicationDelegateProxy.shared.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+              }
+
+              func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+                  print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+                  ApplicationDelegateProxy.shared.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+              }
+
+              func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+                  ApplicationDelegateProxy.shared.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+              }
+
+              func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+                  if let token = fcmToken {
+                      print("[AppDelegate] FCM token refreshed: \(token.prefix(20))...")
+                  }
+              }
+
+              func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+                  completionHandler([.banner, .badge, .sound])
+              }
+
+              func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+                  completionHandler()
               }
 
               func applicationWillResignActive(_ application: UIApplication) {}
@@ -501,25 +533,58 @@ workflows:
           SWIFT
           echo "=== Patched AppDelegate.swift ==="
           cat "$DELEGATE"
-      - name: Ensure FirebaseCrashlytics in SPM Package.swift
+      - name: Add Push Notifications entitlement
+        script: |
+          ENTITLEMENTS="ios/App/App/App.entitlements"
+          if [ ! -f "$ENTITLEMENTS" ]; then
+            cat > "$ENTITLEMENTS" << 'ENTXML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>aps-environment</key>
+              <string>production</string>
+          </dict>
+          </plist>
+          ENTXML
+            echo "=== Created App.entitlements with push ==="
+          else
+            if ! grep -q "aps-environment" "$ENTITLEMENTS"; then
+              /usr/libexec/PlistBuddy -c "Add :aps-environment string production" "$ENTITLEMENTS"
+              echo "=== Added aps-environment to existing entitlements ==="
+            else
+              echo "=== aps-environment already in entitlements ==="
+            fi
+          fi
+          ruby << 'RUBY_SCRIPT'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('ios/App/App.xcodeproj')
+          target = project.targets.find { |t| t.name == 'App' }
+          target.build_configurations.each do |config|
+            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements'
+          end
+          project.save
+          puts "=== Set CODE_SIGN_ENTITLEMENTS in all build configs ==="
+          RUBY_SCRIPT
+      - name: Ensure Firebase dependencies in SPM Package.swift
         script: |
           PACKAGE="ios/App/CapApp-SPM/Package.swift"
-          if ! grep -q "FirebaseCrashlytics" "$PACKAGE"; then
-            echo "=== Adding FirebaseCrashlytics to Package.swift ==="
-            # Add firebase-ios-sdk dependency if missing
-            if ! grep -q "firebase-ios-sdk" "$PACKAGE"; then
-              sed -i '' '/dependencies: \[/a\
-                  .package(url: "https:\/\/github.com\/firebase\/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
-              ' "$PACKAGE"
-            fi
-            # Add FirebaseCrashlytics product to target dependencies
+          if ! grep -q "firebase-ios-sdk" "$PACKAGE"; then
+            sed -i '' '/dependencies: \[/a\
+                .package(url: "https:\/\/github.com\/firebase\/firebase-ios-sdk.git", .upToNextMajor(from: "12.7.0")),
+            ' "$PACKAGE"
+          fi
+          if ! grep -q "FirebaseMessaging" "$PACKAGE"; then
+            sed -i '' '/.product(name: "Capacitor"/a\
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),\
+                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),\
+                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
+            ' "$PACKAGE"
+          elif ! grep -q "FirebaseCrashlytics" "$PACKAGE"; then
             sed -i '' '/.product(name: "Capacitor"/a\
                           .product(name: "FirebaseCore", package: "firebase-ios-sdk"),\
                           .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
             ' "$PACKAGE"
-            echo "=== Updated Package.swift ==="
-          else
-            echo "=== FirebaseCrashlytics already in Package.swift ==="
           fi
           cat "$PACKAGE"
       - name: Copy app icons
