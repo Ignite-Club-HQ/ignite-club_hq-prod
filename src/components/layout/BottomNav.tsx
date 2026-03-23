@@ -164,6 +164,26 @@ export function BottomNav() {
   }, [lockNavInteractions, nativeInsetFloorPx, shouldStabilizeIOSLayout]);
 
   useEffect(() => {
+    if (!shouldStabilizeIOSLayout || typeof window === "undefined" || typeof document === "undefined") return;
+
+    const handleViewportResume = () => {
+      if (document.visibilityState === "hidden") return;
+      setNativeSafeInsetPx(nativeInsetFloorPx);
+      lockNavInteractions(1200);
+    };
+
+    window.addEventListener("focus", handleViewportResume);
+    window.addEventListener("pageshow", handleViewportResume);
+    document.addEventListener("visibilitychange", handleViewportResume);
+
+    return () => {
+      window.removeEventListener("focus", handleViewportResume);
+      window.removeEventListener("pageshow", handleViewportResume);
+      document.removeEventListener("visibilitychange", handleViewportResume);
+    };
+  }, [lockNavInteractions, nativeInsetFloorPx, shouldStabilizeIOSLayout]);
+
+  useEffect(() => {
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     const resetToFloor = (durationMs = DEFAULT_NAV_GUARD_MS) => {
