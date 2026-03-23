@@ -12,8 +12,8 @@ workflows:
       - name: Install dependencies
         script: |
           npm install
-          npm install @capacitor/status-bar@8.0.1 --no-save
-          npm ls @capacitor/status-bar
+          npm install @capacitor/core@8.0.1 @capacitor/ios@8.0.1 @capacitor/status-bar@8.0.1 --no-save
+          npm ls @capacitor/core @capacitor/ios @capacitor/status-bar
       - name: Build web app
         script: npm run build
       - name: Add Android platform
@@ -329,7 +329,46 @@ workflows:
           RUBY_SCRIPT
       - name: Overwrite SPM Package.swift with Firebase dependencies
         script: |
-          echo "Ly8gc3dpZnQtdG9vbHMtdmVyc2lvbjogNS45CmltcG9ydCBQYWNrYWdlRGVzY3JpcHRpb24KCmxldCBwYWNrYWdlID0gUGFja2FnZSgKICAgIG5hbWU6ICJDYXBBcHAtU1BNIiwKICAgIHBsYXRmb3JtczogWy5pT1MoLnYxNSldLAogICAgcHJvZHVjdHM6IFsKICAgICAgICAubGlicmFyeSgKICAgICAgICAgICAgbmFtZTogIkNhcEFwcC1TUE0iLAogICAgICAgICAgICB0YXJnZXRzOiBbIkNhcEFwcC1TUE0iXSkKICAgIF0sCiAgICBkZXBlbmRlbmNpZXM6IFsKICAgICAgICAucGFja2FnZSh1cmw6ICJodHRwczovL2dpdGh1Yi5jb20vaW9uaWMtdGVhbS9jYXBhY2l0b3Itc3dpZnQtcG0uZ2l0IiwgZXhhY3Q6ICI4LjAuMCIpLAogICAgICAgIC5wYWNrYWdlKHVybDogImh0dHBzOi8vZ2l0aHViLmNvbS9maXJlYmFzZS9maXJlYmFzZS1pb3Mtc2RrLmdpdCIsIGZyb206ICIxMi43LjAiKSwKICAgICAgICAucGFja2FnZShuYW1lOiAiQ2FwYWNpdG9yRmlyZWJhc2VNZXNzYWdpbmciLCBwYXRoOiAiLi4vLi4vLi4vbm9kZV9tb2R1bGVzL0BjYXBhY2l0b3ItZmlyZWJhc2UvbWVzc2FnaW5nIiksCiAgICAgICAgLnBhY2thZ2UobmFtZTogIkNhcGFjaXRvckFwcCIsIHBhdGg6ICIuLi8uLi8uLi9ub2RlX21vZHVsZXMvQGNhcGFjaXRvci9hcHAiKSwKICAgICAgICAucGFja2FnZShuYW1lOiAiQ2FwYWNpdG9yUHVzaE5vdGlmaWNhdGlvbnMiLCBwYXRoOiAiLi4vLi4vLi4vbm9kZV9tb2R1bGVzL0BjYXBhY2l0b3IvcHVzaC1ub3RpZmljYXRpb25zIiksCiAgICAgICAgLnBhY2thZ2UobmFtZTogIkNhcGFjaXRvclN0YXR1c0JhciIsIHBhdGg6ICIuLi8uLi8uLi9ub2RlX21vZHVsZXMvQGNhcGFjaXRvci9zdGF0dXMtYmFyIiksCiAgICAgICAgLnBhY2thZ2UobmFtZTogIkNhcGdvQ2FwYWNpdG9yTmF0aXZlQmlvbWV0cmljIiwgcGF0aDogIi4uLy4uLy4uL25vZGVfbW9kdWxlcy9AY2FwZ28vY2FwYWNpdG9yLW5hdGl2ZS1iaW9tZXRyaWMiKQogICAgXSwKICAgIHRhcmdldHM6IFsKICAgICAgICAudGFyZ2V0KAogICAgICAgICAgICBuYW1lOiAiQ2FwQXBwLVNQTSIsCiAgICAgICAgICAgIGRlcGVuZGVuY2llczogWwogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGFjaXRvciIsIHBhY2thZ2U6ICJjYXBhY2l0b3Itc3dpZnQtcG0iKSwKICAgICAgICAgICAgICAgIC5wcm9kdWN0KG5hbWU6ICJDb3Jkb3ZhIiwgcGFja2FnZTogImNhcGFjaXRvci1zd2lmdC1wbSIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkZpcmViYXNlQ29yZSIsIHBhY2thZ2U6ICJmaXJlYmFzZS1pb3Mtc2RrIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiRmlyZWJhc2VDcmFzaGx5dGljcyIsIHBhY2thZ2U6ICJmaXJlYmFzZS1pb3Mtc2RrIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiRmlyZWJhc2VNZXNzYWdpbmciLCBwYWNrYWdlOiAiZmlyZWJhc2UtaW9zLXNkayIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGFjaXRvckZpcmViYXNlTWVzc2FnaW5nIiwgcGFja2FnZTogIkNhcGFjaXRvckZpcmViYXNlTWVzc2FnaW5nIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiQ2FwYWNpdG9yQXBwIiwgcGFja2FnZTogIkNhcGFjaXRvckFwcCIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGFjaXRvclB1c2hOb3RpZmljYXRpb25zIiwgcGFja2FnZTogIkNhcGFjaXRvclB1c2hOb3RpZmljYXRpb25zIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiQ2FwYWNpdG9yU3RhdHVzQmFyIiwgcGFja2FnZTogIkNhcGFjaXRvclN0YXR1c0JhciIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGdvQ2FwYWNpdG9yTmF0aXZlQmlvbWV0cmljIiwgcGFja2FnZTogIkNhcGdvQ2FwYWNpdG9yTmF0aXZlQmlvbWV0cmljIikKICAgICAgICAgICAgXQogICAgICAgICkKICAgIF0KKQo=" | base64 --decode > "ios/App/CapApp-SPM/Package.swift"
+          cat <<'EOF' > "ios/App/CapApp-SPM/Package.swift"
+          // swift-tools-version: 5.9
+          import PackageDescription
+
+          let package = Package(
+              name: "CapApp-SPM",
+              platforms: [.iOS(.v15)],
+              products: [
+                  .library(
+                      name: "CapApp-SPM",
+                      targets: ["CapApp-SPM"])
+              ],
+              dependencies: [
+                  .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.1"),
+                  .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.7.0"),
+                  .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
+                  .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
+                  .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
+                  .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
+                  .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
+              ],
+              targets: [
+                  .target(
+                      name: "CapApp-SPM",
+                      dependencies: [
+                          .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                          .product(name: "Cordova", package: "capacitor-swift-pm"),
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
+                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
+                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
+                          .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
+                          .product(name: "CapacitorApp", package: "CapacitorApp"),
+                          .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
+                          .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
+                          .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
+                      ]
+                  )
+              ]
+          )
+          EOF
           echo "=== Overwrote Package.swift with Firebase deps ==="
           cat "ios/App/CapApp-SPM/Package.swift"
       - name: Copy Firebase config and add to Xcode project
@@ -403,7 +442,10 @@ workflows:
       node: 22
     scripts:
       - name: Install dependencies
-        script: npm install
+        script: |
+          npm install
+          npm install @capacitor/core@8.0.1 @capacitor/ios@8.0.1 @capacitor/status-bar@8.0.1 --no-save
+          npm ls @capacitor/core @capacitor/ios @capacitor/status-bar
       - name: Build web app
         script: |
           npm run build
@@ -567,7 +609,46 @@ workflows:
           RUBY_SCRIPT
       - name: Overwrite SPM Package.swift with Firebase dependencies
         script: |
-          echo "Ly8gc3dpZnQtdG9vbHMtdmVyc2lvbjogNS45CmltcG9ydCBQYWNrYWdlRGVzY3JpcHRpb24KCmxldCBwYWNrYWdlID0gUGFja2FnZSgKICAgIG5hbWU6ICJDYXBBcHAtU1BNIiwKICAgIHBsYXRmb3JtczogWy5pT1MoLnYxNSldLAogICAgcHJvZHVjdHM6IFsKICAgICAgICAubGlicmFyeSgKICAgICAgICAgICAgbmFtZTogIkNhcEFwcC1TUE0iLAogICAgICAgICAgICB0YXJnZXRzOiBbIkNhcEFwcC1TUE0iXSkKICAgIF0sCiAgICBkZXBlbmRlbmNpZXM6IFsKICAgICAgICAucGFja2FnZSh1cmw6ICJodHRwczovL2dpdGh1Yi5jb20vaW9uaWMtdGVhbS9jYXBhY2l0b3Itc3dpZnQtcG0uZ2l0IiwgZXhhY3Q6ICI4LjAuMCIpLAogICAgICAgIC5wYWNrYWdlKHVybDogImh0dHBzOi8vZ2l0aHViLmNvbS9maXJlYmFzZS9maXJlYmFzZS1pb3Mtc2RrLmdpdCIsIGZyb206ICIxMi43LjAiKSwKICAgICAgICAucGFja2FnZShuYW1lOiAiQ2FwYWNpdG9yRmlyZWJhc2VNZXNzYWdpbmciLCBwYXRoOiAiLi4vLi4vLi4vbm9kZV9tb2R1bGVzL0BjYXBhY2l0b3ItZmlyZWJhc2UvbWVzc2FnaW5nIiksCiAgICAgICAgLnBhY2thZ2UobmFtZTogIkNhcGFjaXRvckFwcCIsIHBhdGg6ICIuLi8uLi8uLi9ub2RlX21vZHVsZXMvQGNhcGFjaXRvci9hcHAiKSwKICAgICAgICAucGFja2FnZShuYW1lOiAiQ2FwYWNpdG9yUHVzaE5vdGlmaWNhdGlvbnMiLCBwYXRoOiAiLi4vLi4vLi4vbm9kZV9tb2R1bGVzL0BjYXBhY2l0b3IvcHVzaC1ub3RpZmljYXRpb25zIiksCiAgICAgICAgLnBhY2thZ2UobmFtZTogIkNhcGFjaXRvclN0YXR1c0JhciIsIHBhdGg6ICIuLi8uLi8uLi9ub2RlX21vZHVsZXMvQGNhcGFjaXRvci9zdGF0dXMtYmFyIiksCiAgICAgICAgLnBhY2thZ2UobmFtZTogIkNhcGdvQ2FwYWNpdG9yTmF0aXZlQmlvbWV0cmljIiwgcGF0aDogIi4uLy4uLy4uL25vZGVfbW9kdWxlcy9AY2FwZ28vY2FwYWNpdG9yLW5hdGl2ZS1iaW9tZXRyaWMiKQogICAgXSwKICAgIHRhcmdldHM6IFsKICAgICAgICAudGFyZ2V0KAogICAgICAgICAgICBuYW1lOiAiQ2FwQXBwLVNQTSIsCiAgICAgICAgICAgIGRlcGVuZGVuY2llczogWwogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGFjaXRvciIsIHBhY2thZ2U6ICJjYXBhY2l0b3Itc3dpZnQtcG0iKSwKICAgICAgICAgICAgICAgIC5wcm9kdWN0KG5hbWU6ICJDb3Jkb3ZhIiwgcGFja2FnZTogImNhcGFjaXRvci1zd2lmdC1wbSIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkZpcmViYXNlQ29yZSIsIHBhY2thZ2U6ICJmaXJlYmFzZS1pb3Mtc2RrIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiRmlyZWJhc2VDcmFzaGx5dGljcyIsIHBhY2thZ2U6ICJmaXJlYmFzZS1pb3Mtc2RrIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiRmlyZWJhc2VNZXNzYWdpbmciLCBwYWNrYWdlOiAiZmlyZWJhc2UtaW9zLXNkayIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGFjaXRvckZpcmViYXNlTWVzc2FnaW5nIiwgcGFja2FnZTogIkNhcGFjaXRvckZpcmViYXNlTWVzc2FnaW5nIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiQ2FwYWNpdG9yQXBwIiwgcGFja2FnZTogIkNhcGFjaXRvckFwcCIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGFjaXRvclB1c2hOb3RpZmljYXRpb25zIiwgcGFja2FnZTogIkNhcGFjaXRvclB1c2hOb3RpZmljYXRpb25zIiksCiAgICAgICAgICAgICAgICAucHJvZHVjdChuYW1lOiAiQ2FwYWNpdG9yU3RhdHVzQmFyIiwgcGFja2FnZTogIkNhcGFjaXRvclN0YXR1c0JhciIpLAogICAgICAgICAgICAgICAgLnByb2R1Y3QobmFtZTogIkNhcGdvQ2FwYWNpdG9yTmF0aXZlQmlvbWV0cmljIiwgcGFja2FnZTogIkNhcGdvQ2FwYWNpdG9yTmF0aXZlQmlvbWV0cmljIikKICAgICAgICAgICAgXQogICAgICAgICkKICAgIF0KKQo=" | base64 --decode > "ios/App/CapApp-SPM/Package.swift"
+          cat <<'EOF' > "ios/App/CapApp-SPM/Package.swift"
+          // swift-tools-version: 5.9
+          import PackageDescription
+
+          let package = Package(
+              name: "CapApp-SPM",
+              platforms: [.iOS(.v15)],
+              products: [
+                  .library(
+                      name: "CapApp-SPM",
+                      targets: ["CapApp-SPM"])
+              ],
+              dependencies: [
+                  .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.1"),
+                  .package(url: "https://github.com/firebase/firebase-ios-sdk.git", from: "12.7.0"),
+                  .package(name: "CapacitorFirebaseMessaging", path: "../../../node_modules/@capacitor-firebase/messaging"),
+                  .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
+                  .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
+                  .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
+                  .package(name: "CapgoCapacitorNativeBiometric", path: "../../../node_modules/@capgo/capacitor-native-biometric")
+              ],
+              targets: [
+                  .target(
+                      name: "CapApp-SPM",
+                      dependencies: [
+                          .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                          .product(name: "Cordova", package: "capacitor-swift-pm"),
+                          .product(name: "FirebaseCore", package: "firebase-ios-sdk"),
+                          .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
+                          .product(name: "FirebaseMessaging", package: "firebase-ios-sdk"),
+                          .product(name: "CapacitorFirebaseMessaging", package: "CapacitorFirebaseMessaging"),
+                          .product(name: "CapacitorApp", package: "CapacitorApp"),
+                          .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
+                          .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
+                          .product(name: "CapgoCapacitorNativeBiometric", package: "CapgoCapacitorNativeBiometric")
+                      ]
+                  )
+              ]
+          )
+          EOF
           echo "=== Overwrote Package.swift with Firebase deps ==="
           cat "ios/App/CapApp-SPM/Package.swift"
       - name: Copy app icons
