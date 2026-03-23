@@ -351,14 +351,23 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
 
     // Set up registration event listener to know when APNs registration completes (iOS)
     // or to get the FCM token directly (Android)
+    let regHandle: any = null;
+    let errHandle: any = null;
     const registrationComplete = new Promise<string | undefined>((resolve) => {
       const timeout = setTimeout(() => {
         console.warn('[NativePush] Registration event timed out after 15s');
         resolve(undefined);
       }, 15000);
 
-      PushNotifications.addListener('registration', (result: any) => {
+      const cleanup = () => {
         clearTimeout(timeout);
+        // Remove listeners to prevent accumulation on repeated calls (e.g. app resume)
+        regHandle?.then?.((h: any) => h.remove()).catch(() => {});
+        errHandle?.then?.((h: any) => h.remove()).catch(() => {});
+      };
+
+      regHandle = PushNotifications.addListener('registration', (result: any) => {
+        cleanup();
         const t = result?.value || result?.token;
         if (platform === 'ios') {
           // On iOS this is the APNs token, NOT the FCM token - log but don't use it
@@ -369,16 +378,15 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
           console.log('[NativePush] Android registration event received FCM token:', t ? t.substring(0, 20) + '...' : 'none');
           resolve(t);
         }
-      }).catch(() => {
-        clearTimeout(timeout);
-        resolve(undefined);
       });
+      regHandle?.catch?.(() => { cleanup(); resolve(undefined); });
 
-      PushNotifications.addListener('registrationError', (err: any) => {
-        clearTimeout(timeout);
+      errHandle = PushNotifications.addListener('registrationError', (err: any) => {
+        cleanup();
         console.error('[NativePush] Registration error event:', JSON.stringify(err));
         resolve(undefined);
-      }).catch(() => {});
+      });
+      errHandle?.catch?.(() => {});
     });
 
     // Register with push service (triggers APNs on iOS, FCM on Android)
