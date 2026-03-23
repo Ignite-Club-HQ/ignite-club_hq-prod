@@ -131,10 +131,29 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     // CRITICAL: Do NOT set state or blur before pickNativePhoto — doing so
     // triggers a re-render / breaks the gesture chain and iOS rejects the picker.
     console.log("[ChatImageInput] handleNativePhotoPick START");
+    let stablePreviewUrl: string | null = null;
+
     try {
-      // Use shared native picker with resilient Base64 → URI fallback
-      const result = await pickNativePhoto({ quality: 80 });
-      console.log("[ChatImageInput] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
+      let result: Awaited<ReturnType<typeof pickNativePhoto>>;
+
+      try {
+        // Use shared native picker with resilient Base64 → URI fallback
+        result = await pickNativePhoto({ quality: 80 });
+        console.log("[ChatImageInput] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
+      } catch (pickerError: unknown) {
+        if (isCancelledSelectionError(pickerError)) {
+          console.log("[ChatImageInput] user cancelled");
+          setLocalPreview(null);
+          return;
+        }
+
+        const errMsg = getReadableUploadError(pickerError);
+        console.warn("[ChatImageInput] Native Camera picker failed, falling back to file input:", errMsg, pickerError);
+        restoreNativeLayout();
+        setUploading(false);
+        fileInputRef.current?.click();
+        return;
+      }
 
       // Stabilize BottomNav immediately once picker returns, before blob/compression work.
       requestAnimationFrame(() => {
@@ -152,7 +171,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       // Use a stable blob URL for preview instead of the capacitor temp path
       // which can become invalid on iOS shortly after the picker closes
-      const stablePreviewUrl = URL.createObjectURL(blob);
+      stablePreviewUrl = URL.createObjectURL(blob);
 
       // Blur again after picker closes — iOS may re-activate keyboard/accessory bar
       dismissIOSKeyboardAccessory();
@@ -179,21 +198,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       setLocalPreview(null);
       onImageUploaded(storageUrl);
     } catch (error: unknown) {
-      if (isCancelledSelectionError(error)) {
-        console.log("[ChatImageInput] user cancelled");
-      } else {
-        const errMsg = getReadableUploadError(error);
-        console.warn("[ChatImageInput] Native Camera picker failed, falling back to file input:", errMsg, error);
-        // Fall back to the standard HTML file input — this uses the iOS system
-        // file picker which works reliably even when Camera plugin fails on
-        // fresh installs (before the OS has "warmed up" photo library access).
-        restoreNativeLayout();
-        setUploading(false);
-        fileInputRef.current?.click();
-        return;
-      }
+      const errMsg = getReadableUploadError(error);
+      console.error("[ChatImageInput] Image upload failed:", errMsg, error);
+      toast.error(errMsg || "Failed to upload image");
       setLocalPreview(null);
     } finally {
+      if (stablePreviewUrl) {
+        URL.revokeObjectURL(stablePreviewUrl);
+      }
       restoreNativeLayout();
       setUploading(false);
       // Clear lingering focus/active state on the image button after picker closes

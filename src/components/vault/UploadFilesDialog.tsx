@@ -63,9 +63,9 @@ export function UploadFilesDialog({
     dispatchIOSLayoutReset();
   }, [shouldStabilizeIOSLayout]);
 
-  const emitIOSNavGuard = useCallback((durationMs = 900) => {
+  const emitIOSNavGuard = useCallback((durationMs = 900, options?: { forceFloor?: boolean }) => {
     if (!shouldStabilizeIOSLayout) return;
-    dispatchIOSNavGuard(durationMs);
+    dispatchIOSNavGuard(durationMs, options);
   }, [shouldStabilizeIOSLayout]);
 
   const clearNavGuardRetryTimeout = useCallback(() => {
@@ -86,14 +86,14 @@ export function UploadFilesDialog({
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     emitIOSLayoutReset();
-    emitIOSNavGuard(900);
+    emitIOSNavGuard(900, { forceFloor: true });
     clearNavGuardRetryTimeout();
 
     navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-      emitIOSNavGuard(1500);
+      emitIOSNavGuard(1500, { forceFloor: true });
 
       navGuardRetryTimeoutRef.current = window.setTimeout(() => {
-        emitIOSNavGuard(1800);
+        emitIOSNavGuard(1800, { forceFloor: true });
         navGuardRetryTimeoutRef.current = null;
       }, 1200);
     }, 320);
