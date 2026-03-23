@@ -218,6 +218,7 @@ export default function EventDetailPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
+  const [resendDialogOpen, setResendDialogOpen] = useState(false);
   const [showPitchBoard, setShowPitchBoard] = useState(false);
   
   // Mini league player overrides for match generation
