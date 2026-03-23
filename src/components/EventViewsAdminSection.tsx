@@ -231,7 +231,6 @@ export function EventViewsAdminSection({
   const totalMembers = membersWithStatus.length;
   const viewedCount = viewedMembers.length;
   const notViewedCount = notViewedMembers.length;
-  }, [members, pushReachable]);
 
   const handleSendNudge = async () => {
     if (unreachableMembers.length === 0) return;
