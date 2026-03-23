@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import igniteIcon from "@/assets/ignite-icon.png";
 
 // Placeholder URLs - replace with actual store URLs once published
-export const APP_STORE_URL = "#"; // e.g. "https://apps.apple.com/app/ignite-club-hq/id..."
+export const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
 
 interface AppStoreDownloadGuideProps {
