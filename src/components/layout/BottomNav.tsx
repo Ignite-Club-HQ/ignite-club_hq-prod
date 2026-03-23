@@ -354,7 +354,7 @@ export function BottomNav() {
         <div
           className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
           style={{
-            height: `calc(4rem + ${navBottomInset} + 1rem)`,
+            height: `calc(4rem + ${navBottomInset})`,
             ...gpuLayerStyle,
           }}
         />
