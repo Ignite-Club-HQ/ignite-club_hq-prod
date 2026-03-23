@@ -92,6 +92,14 @@ export async function awardEarlyRsvpPoints({
       description: `Early RSVP bonus (${daysUntilEvent} days before event)`,
     });
 
+    // Get club's custom points name
+    const { data: clubData } = await supabase
+      .from("clubs")
+      .select("points_display_name")
+      .eq("id", clubId)
+      .single();
+    const pointsName = (clubData as any)?.points_display_name || 'reward points';
+
     // Mark RSVP as having awarded points
     await supabase
       .from("rsvps")
@@ -102,7 +110,7 @@ export async function awardEarlyRsvpPoints({
     await supabase.from("notifications").insert({
       user_id: userId,
       type: "early_rsvp_points",
-      message: `🎯 Early bird bonus! You earned +${EARLY_RSVP_POINTS} Ignite point for RSVPing ${daysUntilEvent} days before the event. Keep it up!`,
+      message: `🎯 Early bird bonus! You earned +${EARLY_RSVP_POINTS} ${pointsName} for RSVPing ${daysUntilEvent} days before the event. Keep it up!`,
       related_id: clubId,
     });
 

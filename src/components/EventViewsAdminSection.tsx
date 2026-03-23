@@ -284,7 +284,7 @@ export function EventViewsAdminSection({
               {/* Not Viewed Section */}
               {notViewedMembers.length > 0 && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <h4 className="text-sm font-medium flex items-center gap-2 text-warning">
                       <EyeOff className="h-4 w-4" />
                       Haven't Viewed ({notViewedCount})

@@ -284,7 +284,6 @@ export default function HomePage() {
       if (teamIds.length === 0 && clubIds.length === 0 && miniLeagueIds.length === 0) return [];
       
       const now = new Date();
-      const fourteenDaysFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
       
       const { data, error } = await supabase
         .from("events")
@@ -307,7 +306,6 @@ export default function HomePage() {
           clubs (name, sport)
         `)
         .gte("event_date", now.toISOString())
-        .lte("event_date", fourteenDaysFromNow.toISOString())
         .order("event_date", { ascending: true })
         .limit(50);
 
