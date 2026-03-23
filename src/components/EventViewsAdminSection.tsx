@@ -226,6 +226,42 @@ export function EventViewsAdminSection({
   const viewedCount = viewedMembers.length;
   const notViewedCount = notViewedMembers.length;
 
+  // Compute unreachable members (no push setup)
+  const unreachableMembers = useMemo(() => {
+    if (!pushReachable) return [];
+    return (members || []).filter(m => pushReachable[m.id] === false);
+  }, [members, pushReachable]);
+
+  const handleSendNudge = async () => {
+    if (unreachableMembers.length === 0) return;
+    setIsSendingNudge(true);
+    try {
+      // Send in-app notification to unreachable members
+      const notifications = unreachableMembers.map(m => ({
+        user_id: m.id,
+        type: "admin_nudge" as const,
+        message: "Your admin recommends enabling push notifications so you never miss important updates. Go to Settings to enable them.",
+        related_id: eventId,
+      }));
+      
+      const { error } = await supabase.from("notifications").insert(notifications);
+      if (error) throw error;
+
+      toast({
+        title: "Nudge sent!",
+        description: `Sent notification to ${unreachableMembers.length} member${unreachableMembers.length === 1 ? '' : 's'} encouraging them to enable notifications.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to send nudge",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingNudge(false);
+    }
+  };
+
   const renderMemberRow = (member: MemberWithViewStatus, variant: "viewed" | "not-viewed") => {
     const pushDisabled = notifPrefs && member.id in notifPrefs ? !notifPrefs[member.id] : false;
     const noPushSetup = pushReachable ? (pushReachable[member.id] === false) : false;
