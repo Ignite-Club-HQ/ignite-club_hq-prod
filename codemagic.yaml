@@ -220,7 +220,17 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Patch AppDelegate for Firebase, Crashlytics & Push
+      - name: Add UIBackgroundModes for push notifications
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          if ! /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" "$PLIST"
+            echo "=== Added UIBackgroundModes ==="
+          else
+            echo "=== UIBackgroundModes already present ==="
+          fi
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
           cat > "$DELEGATE" << 'SWIFT'
@@ -487,7 +497,17 @@ workflows:
             echo "=== GADApplicationIdentifier already present ==="
           fi
           /usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" "$PLIST"
-      - name: Patch AppDelegate for Firebase, Crashlytics & Push
+      - name: Add UIBackgroundModes for push notifications
+        script: |
+          PLIST="ios/App/App/Info.plist"
+          if ! /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST" 2>/dev/null; then
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" "$PLIST"
+            /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string fetch" "$PLIST"
+            echo "=== Added UIBackgroundModes ==="
+          else
+            echo "=== UIBackgroundModes already present ==="
+          fi
         script: |
           DELEGATE="ios/App/App/AppDelegate.swift"
           echo "=== Patching AppDelegate.swift for Firebase + Crashlytics + Push ==="
