@@ -20,6 +20,7 @@ let PushNotifications: any = null;
 let FirebaseMessaging: any = null;
 let pluginsChecked = false;
 let pluginsAvailable = false;
+let firebaseLoadFailed = false;
 
 // Safely load Capacitor core
 async function loadCapacitor(): Promise<boolean> {
@@ -49,7 +50,14 @@ function checkIsNative(): boolean {
 
 async function loadPlugins(): Promise<boolean> {
   // Only check once to avoid repeated failures
-  if (pluginsChecked) return pluginsAvailable;
+  if (pluginsChecked) {
+    // Even if plugins were checked, retry Firebase if it failed previously
+    // (timing issue on cold start can cause first check to fail)
+    if (pluginsAvailable && !FirebaseMessaging && !firebaseLoadFailed) {
+      await tryLoadFirebase();
+    }
+    return pluginsAvailable;
+  }
   pluginsChecked = true;
   
   // First ensure Capacitor is loaded
@@ -66,30 +74,38 @@ async function loadPlugins(): Promise<boolean> {
       PushNotifications = pushModule.PushNotifications;
     }
     
-    // Try loading Firebase - this WILL fail if google-services.json is missing
-    // The try/catch here helps, but the native side may still crash
-    if (!FirebaseMessaging) {
-      try {
-        const fcmModule = await import('@capacitor-firebase/messaging');
-        FirebaseMessaging = fcmModule.FirebaseMessaging;
-        
-        // Test if Firebase is actually usable by checking a simple method
-        // This can throw if Firebase isn't properly initialized on native side
-        await FirebaseMessaging.checkPermissions();
-        console.log('[NativePush] Firebase Messaging loaded and available');
-      } catch (fcmErr: any) {
-        // Firebase not configured - this is expected if google-services.json is missing
-        console.warn('[NativePush] Firebase Messaging not available:', fcmErr?.message || fcmErr);
-        FirebaseMessaging = null;
-        // Continue without Firebase - at least basic push might work
-      }
-    }
+    // Try loading Firebase
+    await tryLoadFirebase();
     
     pluginsAvailable = PushNotifications !== null;
     return pluginsAvailable;
   } catch (err) {
     console.warn('[NativePush] Failed to load plugins:', err);
     return false;
+  }
+}
+
+// Separate function so Firebase can be retried independently
+async function tryLoadFirebase(): Promise<void> {
+  if (FirebaseMessaging || firebaseLoadFailed) return;
+  
+  try {
+    const fcmModule = await import('@capacitor-firebase/messaging');
+    FirebaseMessaging = fcmModule.FirebaseMessaging;
+    
+    // Test if Firebase is actually usable
+    await FirebaseMessaging.checkPermissions();
+    console.log('[NativePush] Firebase Messaging loaded and available');
+  } catch (fcmErr: any) {
+    const msg = fcmErr?.message || String(fcmErr);
+    console.warn('[NativePush] Firebase Messaging not available:', msg);
+    
+    // Only permanently give up if it's a definitive failure (missing config)
+    // Transient failures (timing) should be retried
+    if (msg.includes('not implemented') || msg.includes('not installed')) {
+      firebaseLoadFailed = true;
+    }
+    FirebaseMessaging = null;
   }
 }
 
@@ -324,51 +340,80 @@ export async function initializeNativePush(userId: string): Promise<{ success: b
       }
     }
 
-    // Register with FCM
+    // Get FCM token using two strategies:
+    // 1. PRIMARY (iOS): Listen for the 'registration' event from PushNotifications plugin.
+    //    This fires when the native side has completed APNs + FCM token exchange.
+    //    More reliable than getToken() because it's event-driven, not polling.
+    // 2. FALLBACK: Use FirebaseMessaging.getToken() with retries.
+    //    Works well on Android where tokens are available immediately.
+    let token: string | undefined;
+    const platform = getPlatform();
+
+    // Set up registration event listener BEFORE calling register()
+    // to avoid missing the event
+    const registrationPromise = new Promise<string | undefined>((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn('[NativePush] Registration event timed out after 10s');
+        resolve(undefined);
+      }, 10000);
+
+      PushNotifications.addListener('registration', (result: any) => {
+        clearTimeout(timeout);
+        const t = result?.value || result?.token;
+        console.log('[NativePush] Registration event received, token:', t ? t.substring(0, 20) + '...' : 'none');
+        resolve(t);
+      }).catch(() => {
+        clearTimeout(timeout);
+        resolve(undefined);
+      });
+
+      PushNotifications.addListener('registrationError', (err: any) => {
+        clearTimeout(timeout);
+        console.error('[NativePush] Registration error event:', JSON.stringify(err));
+        resolve(undefined);
+      }).catch(() => {});
+    });
+
+    // Register with push service (triggers APNs on iOS, FCM on Android)
     console.log('[NativePush] Registering with push service...');
     try {
       await PushNotifications.register();
-      console.log('[NativePush] Registered with push service');
+      console.log('[NativePush] Register call completed');
     } catch (regErr) {
       console.warn('[NativePush] Registration failed:', regErr);
       return { success: false, error: 'Push registration failed' };
     }
 
-    // Get FCM token
-    // IMPORTANT: On iOS, PushNotifications.register() triggers an async APNs token
-    // request. Firebase needs the APNs token before it can generate an FCM token.
-    // We must wait/retry to allow time for the APNs token to arrive via the
-    // AppDelegate's didRegisterForRemoteNotificationsWithDeviceToken callback.
-    let token: string | undefined;
-    if (!FirebaseMessaging) {
-      return { success: false, error: 'Firebase not configured' };
-    }
+    // Wait for the registration event (primary method)
+    token = await registrationPromise;
 
-    const platform = getPlatform();
-    const maxRetries = platform === 'ios' ? 10 : 1;
-    const retryDelayMs = 500;
+    // Fallback: If registration event didn't provide a token, try FirebaseMessaging.getToken()
+    if (!token && FirebaseMessaging) {
+      console.log('[NativePush] Registration event did not yield token, trying FirebaseMessaging.getToken()...');
+      const maxRetries = platform === 'ios' ? 6 : 2;
+      const retryDelayMs = 1000;
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const tokenResult = await FirebaseMessaging.getToken();
-        token = tokenResult.token;
-        if (token) {
-          console.log(`[NativePush] Got FCM token on attempt ${attempt}/${maxRetries}`);
-          break;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const tokenResult = await FirebaseMessaging.getToken();
+          token = tokenResult.token;
+          if (token) {
+            console.log(`[NativePush] Got FCM token via getToken() on attempt ${attempt}/${maxRetries}`);
+            break;
+          }
+        } catch (tokenErr: any) {
+          console.warn(`[NativePush] getToken attempt ${attempt}/${maxRetries} failed:`, tokenErr?.message || tokenErr);
         }
-      } catch (tokenErr: any) {
-        console.warn(`[NativePush] getToken attempt ${attempt}/${maxRetries} failed:`, tokenErr?.message || tokenErr);
-      }
 
-      if (attempt < maxRetries) {
-        console.log(`[NativePush] Waiting ${retryDelayMs}ms for APNs token (iOS)...`);
-        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+        }
       }
     }
     
     if (!token) {
-      console.error('[NativePush] Failed to get FCM token after all retries');
-      return { success: false, error: 'Failed to get FCM token - APNs token may not have arrived' };
+      console.error('[NativePush] Failed to get FCM token via both registration event and getToken()');
+      return { success: false, error: 'Failed to get FCM token - iOS APNs token may not have arrived' };
     }
 
     console.log('[NativePush] Got FCM token:', token.substring(0, 20) + '...');
