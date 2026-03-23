@@ -437,13 +437,12 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.lovable.igniteteamhub
-      xcode: 16.2
+      xcode: 26
       node: 22
     scripts:
       - name: Install dependencies
         script: |
           npm install
-          npm install @capacitor/core@8.0.1 @capacitor/ios@8.0.1 @capacitor/status-bar@8.0.1 --no-save
           npm ls @capacitor/core @capacitor/ios @capacitor/status-bar
       - name: Build web app
         script: |
