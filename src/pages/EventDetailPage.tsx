@@ -1814,7 +1814,8 @@ export default function EventDetailPage() {
                     Edit {eventTypeLabel}
                   </DropdownMenuItem>
                   {(() => {
-                    const isUpcoming = new Date(event.event_date + 'T' + (event.end_time || event.start_time || '23:59')) >= new Date();
+                     const eventDateStr = event.event_date?.split('T')[0] || event.event_date;
+                     const isUpcoming = new Date(eventDateStr + 'T' + (event.end_time || event.start_time || '23:59')) >= new Date();
                     return (
                       <>
                         {isUpcoming && (canSendReminders ? (
