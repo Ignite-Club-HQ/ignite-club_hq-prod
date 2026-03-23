@@ -1813,25 +1813,33 @@ export default function EventDetailPage() {
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit {eventTypeLabel}
                   </DropdownMenuItem>
-                  {canSendReminders ? (
-                    <DropdownMenuItem onClick={() => {
-                      // Open reminder confirmation
-                      setReminderDialogOpen(true);
-                    }}>
-                      <Bell className="h-4 w-4 mr-2 text-primary" />
-                      Send Reminders
-                    </DropdownMenuItem>
-                  ) : !isLoadingHasTeamPro && (
-                    <DropdownMenuItem disabled>
-                      <Bell className="h-4 w-4 mr-2" />
-                      Send Reminders
-                      <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">Pro</Badge>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => setResendDialogOpen(true)}>
-                    <UserPlus className="h-4 w-4 mr-2 text-primary" />
-                    Resend Invites
-                  </DropdownMenuItem>
+                  {(() => {
+                    const isUpcoming = new Date(event.event_date + 'T' + (event.end_time || event.start_time || '23:59')) >= new Date();
+                    return (
+                      <>
+                        {isUpcoming && (canSendReminders ? (
+                          <DropdownMenuItem onClick={() => {
+                            setReminderDialogOpen(true);
+                          }}>
+                            <Bell className="h-4 w-4 mr-2 text-primary" />
+                            Send Reminders
+                          </DropdownMenuItem>
+                        ) : !isLoadingHasTeamPro && (
+                          <DropdownMenuItem disabled>
+                            <Bell className="h-4 w-4 mr-2" />
+                            Send Reminders
+                            <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">Pro</Badge>
+                          </DropdownMenuItem>
+                        ))}
+                        {isUpcoming && (
+                          <DropdownMenuItem onClick={() => setResendDialogOpen(true)}>
+                            <UserPlus className="h-4 w-4 mr-2 text-primary" />
+                            Resend Invites
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    );
+                  })()}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => setCancelDialogOpen(true)}
