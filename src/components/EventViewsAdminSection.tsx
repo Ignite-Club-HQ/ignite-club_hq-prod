@@ -244,7 +244,7 @@ export function EventViewsAdminSection({
         </Avatar>
         <span className="text-sm truncate flex-1">{member.display_name || "Unknown"}</span>
         <div className="flex items-center gap-1 shrink-0">
-          {pushDisabled && (
+          {(pushDisabled || noPushSetup) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="p-0.5 rounded text-destructive/70">
@@ -252,7 +252,7 @@ export function EventViewsAdminSection({
                 </div>
               </TooltipTrigger>
               <TooltipContent side="left">
-                <p>Event push notifications disabled</p>
+                <p>{noPushSetup ? "No push notifications set up (app not downloaded)" : "Event push notifications disabled"}</p>
               </TooltipContent>
             </Tooltip>
           )}
