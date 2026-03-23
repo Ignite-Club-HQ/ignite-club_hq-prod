@@ -357,6 +357,9 @@ workflows:
       - name: Build iOS Debug
         script: |
           cd ios/App
+          echo "=== AppDelegate.swift contents ==="
+          cat App/AppDelegate.swift
+          echo "=== End AppDelegate.swift ==="
           xcodebuild clean build -project App.xcodeproj \
             -scheme App \
             -configuration Debug \
@@ -364,7 +367,19 @@ workflows:
             -derivedDataPath build \
             ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO \
-            build
+            build 2>&1 | tee /tmp/build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          echo "=== SWIFT ERRORS ==="
+          grep -A3 'error:' /tmp/build.log || echo "No errors found"
+          echo "=== BUILD RESULT ==="
+          if [ $BUILD_EXIT -eq 0 ]; then
+            echo "BUILD SUCCEEDED"
+          else
+            echo "BUILD FAILED with exit code $BUILD_EXIT"
+            echo "=== Last 30 lines ==="
+            tail -30 /tmp/build.log
+            exit $BUILD_EXIT
+          fi
     artifacts:
       - ios/App/build/Build/Products/Debug-iphonesimulator/*.app
 
