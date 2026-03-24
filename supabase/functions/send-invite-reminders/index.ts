@@ -145,7 +145,7 @@ serve(async (req) => {
               invitedEmail: invite.invited_email,
               teamName,
               clubName,
-              roleName: roleName.charAt(0).toUpperCase() + roleName.slice(1).replace("_", " "),
+              roleName: formattedRoleName,
               inviteLink,
               clubLogoUrl,
               childrenNames,
