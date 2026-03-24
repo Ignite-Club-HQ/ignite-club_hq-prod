@@ -211,11 +211,13 @@ export const TeamInviteEmail = ({
                   {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
                 </Text>
 
-                <Text style={sectionLabel}>👀 Once you join, you'll be able to see:</Text>
+                <Text style={sectionLabel}>👀 Once you join, you'll be able to:</Text>
 
-                <Text style={bulletItem}>• Team details and members</Text>
-                <Text style={bulletItem}>• Upcoming events and fixtures</Text>
-                <Text style={bulletItem}>• Club updates and announcements</Text>
+                <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                <Text style={bulletItem}>• Get notified about games, training and other events</Text>
+                <Text style={bulletItem}>• Message coaches and other parents in team chat</Text>
+                <Text style={bulletItem}>• View photos from games and club events</Text>
+                <Text style={bulletItem}>• Stay up to date with club news and announcements</Text>
 
               </>
             )}
