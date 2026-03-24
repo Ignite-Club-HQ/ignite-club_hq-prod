@@ -189,6 +189,14 @@ export const TeamInviteEmail = ({
                 <Text style={bodyText}>
                   It's our club-branded app, where you'll find team details, updates and other important club information all in one place.
                 </Text>
+
+                <Text style={sectionLabel}>👀 Here's what you can do:</Text>
+
+                <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                <Text style={bulletItem}>• Get notified about games, training and other events</Text>
+                <Text style={bulletItem}>• Message coaches and other parents in team chat</Text>
+                <Text style={bulletItem}>• View photos from games and club events</Text>
+                <Text style={bulletItem}>• Stay up to date with club news and announcements</Text>
               </>
             ) : (
               /* Generic default copy for all other clubs */
