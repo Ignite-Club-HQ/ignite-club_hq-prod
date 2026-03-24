@@ -105,7 +105,7 @@ serve(async (req) => {
         
         const recipientName = invite.invited_label || invite.invited_email?.split("@")[0] || "Member";
         const roleName = invite.role || "Member";
-        const formattedRoleName = roleName.charAt(0).toUpperCase() + roleName.slice(1).replace("_", " ");
+        const formattedRoleName = roleName.split("_").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
         const reminderNumber = (invite.reminder_count || 0) + 1;
         const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(roleName);
 
