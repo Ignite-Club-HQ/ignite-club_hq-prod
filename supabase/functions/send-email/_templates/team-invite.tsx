@@ -177,25 +177,26 @@ export const TeamInviteEmail = ({
               <>
                 <Text style={headingText}>
                   {hasChildren
-                    ? `${childLabel} has been added to a team for this season ⚽`
-                    : `Your child has been added to a team for this season ⚽`}
+                    ? `${childLabel}'s team for the season is now confirmed ⚽`
+                    : `Your child's team for the season is now confirmed ⚽`}
                 </Text>
 
                 <Text style={bodyText}>
-                  To see which team they're in and all the details, we're using a new app called <strong>Ignite</strong>. It's branded for our club, so everything feels familiar and easy to follow.
+                  {hasChildren
+                    ? `You can now view ${childLabel}'s team in Ignite Club HQ.`
+                    : `You can now view your child's team in Ignite Club HQ.`}
                 </Text>
                 <Text style={bodyText}>
-                  Ignite is our club app for team info, schedules, updates and messages — all in one place.
-                </Text>
-                <Text style={bodyText}>
-                  It's completely ad-free, built by a club member, and designed to make the season simpler for families and players.
+                  It's our club app — built by a Bridgewater parent — where you'll find team details, updates and other important club information all in one place.
                 </Text>
 
-                <Text style={sectionLabel}>👀 Jump in to see:</Text>
+                <Text style={sectionLabel}>👀 Here's what you can do:</Text>
 
-                <Text style={bulletItem}>• Which team they're in</Text>
-                <Text style={bulletItem}>• Who their teammates are</Text>
-                <Text style={bulletItem}>• Club updates and messages as the season gets underway</Text>
+                <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                <Text style={bulletItem}>• Get notified about games, training and other events</Text>
+                <Text style={bulletItem}>• Message coaches and other parents in team chat</Text>
+                <Text style={bulletItem}>• View photos from games and club events</Text>
+                <Text style={bulletItem}>• Stay up to date with club news and announcements</Text>
               </>
             ) : (
               /* Generic default copy for all other clubs */
@@ -210,11 +211,13 @@ export const TeamInviteEmail = ({
                   {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
                 </Text>
 
-                <Text style={sectionLabel}>👀 Once you join, you'll be able to see:</Text>
+                <Text style={sectionLabel}>👀 Once you join, you'll be able to:</Text>
 
-                <Text style={bulletItem}>• Team details and members</Text>
-                <Text style={bulletItem}>• Upcoming events and fixtures</Text>
-                <Text style={bulletItem}>• Club updates and announcements</Text>
+                <Text style={bulletItem}>• See which team they're in and who their teammates are</Text>
+                <Text style={bulletItem}>• Get notified about games, training and other events</Text>
+                <Text style={bulletItem}>• Message coaches and other parents in team chat</Text>
+                <Text style={bulletItem}>• View photos from games and club events</Text>
+                <Text style={bulletItem}>• Stay up to date with club news and announcements</Text>
 
               </>
             )}
