@@ -187,7 +187,7 @@ export const TeamInviteEmail = ({
                     : `You can now view your child's team in Ignite Club HQ.`}
                 </Text>
                 <Text style={bodyText}>
-                  It's our club-branded app, where you'll find team details, updates and other important club information all in one place.
+                  It's our club app — built by a Bridgewater parent — where you'll find team details, updates and other important club information all in one place.
                 </Text>
 
                 <Text style={sectionLabel}>👀 Here's what you can do:</Text>
