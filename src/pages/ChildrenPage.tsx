@@ -593,6 +593,20 @@ export default function ChildrenPage() {
           teamIds={getChildAssignments(selectedChild.id).map(a => a.team_id)}
         />
       )}
+
+      {/* Invite Other Parent Sheet */}
+      {selectedChild && (
+        <InviteOtherParentSheet
+          open={inviteParentOpen}
+          onOpenChange={(open) => {
+            setInviteParentOpen(open);
+            if (!open) setSelectedChild(null);
+          }}
+          childId={selectedChild.id}
+          childName={selectedChild.name}
+          teamIds={getChildAssignments(selectedChild.id).map(a => a.team_id)}
+        />
+      )}
     </div>
   );
 }
