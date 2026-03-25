@@ -340,7 +340,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         ? singleChildren.filter(c => c.name.trim())
         : [];
       const childrenMetadata = validChildren.length > 0 ? JSON.stringify(
-        validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
+        validChildren.map(c => ({ 
+          name: c.name.trim(), 
+          yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+          existingChildId: c.existingChildId || null,
+        }))
       ) : null;
 
       // Generate both tokens upfront so we can cross-link
