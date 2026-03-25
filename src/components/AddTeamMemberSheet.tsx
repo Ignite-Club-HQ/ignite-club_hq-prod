@@ -1069,6 +1069,39 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     )}
                   </div>
                 )}
+
+                {/* Second parent/guardian fields */}
+                {customName.trim() && customEmail.trim() && selectedRole === "parent" && singleChildren.length > 0 && (
+                  <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-blue-600" />
+                      <Label className="text-blue-600 font-medium">Second Parent / Guardian (Optional)</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Add a second parent or guardian who will also receive an invite for the same child(ren).
+                    </p>
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Second parent's name"
+                        value={secondParentName}
+                        onChange={(e) => setSecondParentName(e.target.value)}
+                        className="h-9"
+                      />
+                      {secondParentName.trim() && (
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            type="email"
+                            placeholder="Second parent's email"
+                            value={secondParentEmail}
+                            onChange={(e) => setSecondParentEmail(e.target.value)}
+                            className="h-9 pl-10"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
