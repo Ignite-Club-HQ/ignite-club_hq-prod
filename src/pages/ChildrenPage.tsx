@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, UserPlus, Loader2, Check, CheckSquare, Square, Users } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, UserPlus, Loader2, Check, CheckSquare, Square, Users, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import ManageGuardiansDialog from "@/components/ManageGuardiansDialog";
+import InviteOtherParentSheet from "@/components/InviteOtherParentSheet";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -67,6 +68,7 @@ export default function ChildrenPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [guardiansDialogOpen, setGuardiansDialogOpen] = useState(false);
+  const [inviteParentOpen, setInviteParentOpen] = useState(false);
   const [deleteChildId, setDeleteChildId] = useState<string | null>(null);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [newChildName, setNewChildName] = useState("");
@@ -352,6 +354,20 @@ export default function ChildrenPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Invite Other Parent - only for primary parents */}
+                      {!child.isGuardianOnly && childAssignments.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedChild(child);
+                            setInviteParentOpen(true);
+                          }}
+                          title="Invite Other Parent"
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      )}
                       {/* Manage Guardians Button - only for primary parents */}
                       {!child.isGuardianOnly && (
                         <Button
@@ -570,6 +586,20 @@ export default function ChildrenPage() {
           open={guardiansDialogOpen}
           onOpenChange={(open) => {
             setGuardiansDialogOpen(open);
+            if (!open) setSelectedChild(null);
+          }}
+          childId={selectedChild.id}
+          childName={selectedChild.name}
+          teamIds={getChildAssignments(selectedChild.id).map(a => a.team_id)}
+        />
+      )}
+
+      {/* Invite Other Parent Sheet */}
+      {selectedChild && (
+        <InviteOtherParentSheet
+          open={inviteParentOpen}
+          onOpenChange={(open) => {
+            setInviteParentOpen(open);
             if (!open) setSelectedChild(null);
           }}
           childId={selectedChild.id}

@@ -149,14 +149,31 @@ export function PendingInviteWelcomeDialog() {
 
           console.log("[InviteAutoAccept] Auto-accepted invite for:", entityName, "role:", invite.role);
 
-          // Handle children from invite metadata (if parent role with children)
-          if (
-            invite.metadata &&
-            invite.role === "parent"
-          ) {
+          // Handle guardian invite (parent-to-parent flow)
+          if (invite.metadata && invite.role === "parent") {
             const meta = invite.metadata as any;
-            const linkedToken = meta?.linked_invite_token;
-            const childrenData = meta?.children || [];
+
+            // Parent-to-parent invite: link as guardian to existing child
+            if (meta.guardian_child_id) {
+              const childId = meta.guardian_child_id;
+              // Insert as guardian (non-primary)
+              const { error: guardErr } = await supabase.from("child_guardians").insert({
+                child_id: childId,
+                guardian_id: user.id,
+                relationship_type: "parent",
+                is_primary: false,
+              });
+              if (guardErr && !guardErr.message?.includes("duplicate")) {
+                console.error("[InviteAutoAccept] Failed to link guardian:", guardErr.message);
+              } else {
+                console.log("[InviteAutoAccept] Linked as guardian to child:", childId);
+              }
+              continue; // Skip the standard children creation flow
+            }
+
+            // Standard dual-parent invite flow with children metadata
+            const linkedToken = meta.linked_invite_token;
+            const childrenData = meta.children || [];
 
             if (linkedToken && invite.team_id && childrenData.length > 0) {
               // Check if the other parent's invite was already accepted
