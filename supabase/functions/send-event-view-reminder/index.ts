@@ -253,8 +253,8 @@ serve(async (req) => {
             await supabase.functions.invoke("send-push-notification", {
               body: {
                 userId,
-                title: "📅 Event Reminder",
-                body: `You haven't RSVP'd to "${event.title}" - tap to respond`,
+                title: pushTitle,
+                body: pushBody,
                 url: `/events/${event.id}`,
                 tag: `event-view-${event.id}`,
               },
