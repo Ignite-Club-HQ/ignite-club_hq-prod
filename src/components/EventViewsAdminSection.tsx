@@ -331,7 +331,7 @@ export function EventViewsAdminSection({
             </span>
           )}
           {variant === "not-viewed" && (
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
@@ -346,7 +346,7 @@ export function EventViewsAdminSection({
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" modal={false}>
+              <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => handleSendReminders("push", [member.id])}>
                   <Smartphone className="h-4 w-4 mr-2" />
                   Send Push
@@ -417,7 +417,7 @@ export function EventViewsAdminSection({
                       <EyeOff className="h-4 w-4" />
                       Haven't Viewed ({notViewedCount})
                     </h4>
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <Button
                           size="sm"
@@ -433,7 +433,7 @@ export function EventViewsAdminSection({
                           <ChevronDown className="h-3 w-3 ml-0.5" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" modal={false}>
+                      <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleSendReminders("push")}>
                           <Smartphone className="h-4 w-4 mr-2" />
                           Push Notification
