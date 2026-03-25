@@ -330,6 +330,44 @@ export function EventViewsAdminSection({
               {new Date(member.viewedAt).toLocaleDateString()}
             </span>
           )}
+          {variant === "not-viewed" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={sendingForUser === member.id || nudgingUser === member.id}
+                >
+                  {(sendingForUser === member.id || nudgingUser === member.id) ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleSendReminders("push", [member.id])}>
+                  <Smartphone className="h-4 w-4 mr-2" />
+                  Send Push
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSendReminders("email", [member.id])}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send Email
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSendReminders("both", [member.id])}>
+                  <Bell className="h-4 w-4 mr-2" />
+                  Send Both
+                </DropdownMenuItem>
+                {noPushSetup && (
+                  <DropdownMenuItem onClick={() => handleSendNudgeToUser(member.id, member.display_name || "Member")}>
+                    <BellRing className="h-4 w-4 mr-2" />
+                    Nudge to Enable Push
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
     );
