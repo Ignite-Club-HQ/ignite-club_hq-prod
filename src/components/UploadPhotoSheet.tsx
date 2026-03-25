@@ -1026,27 +1026,29 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
               {/* Mini-League Selection */}
               {selectedClubId && userMiniLeagues && userMiniLeagues.length > 0 && !selectedTeamId && (
                 <div className="space-y-3">
-                  <Label className="text-sm font-medium">Mini League (optional)</Label>
+                  <Label className="text-sm font-medium">Mini League {canPostClubWide ? "(optional)" : ""}</Label>
                   <div className="grid gap-2">
-                    <button
-                      type="button"
-                      disabled={uploading}
-                      onClick={() => setSelectedMiniLeagueId("")}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left w-full",
-                        selectedMiniLeagueId === ""
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-card hover:border-muted-foreground/50",
-                        uploading && "opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      <span className="text-muted-foreground">No specific league</span>
-                      {selectedMiniLeagueId === "" && (
-                        <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="h-3 w-3 text-primary-foreground" />
-                        </div>
-                      )}
-                    </button>
+                    {canPostClubWide && (
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => setSelectedMiniLeagueId("")}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left w-full",
+                          selectedMiniLeagueId === ""
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-card hover:border-muted-foreground/50",
+                          uploading && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <span className="text-muted-foreground">All of club</span>
+                        {selectedMiniLeagueId === "" && (
+                          <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    )}
                     {userMiniLeagues.map((league) => (
                       <button
                         key={league.id}
