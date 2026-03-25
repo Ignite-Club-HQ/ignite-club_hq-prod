@@ -259,7 +259,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
       // Use the pending invite token for name-restricted link
       const link = `${window.location.origin}/join/p/${inviteToken}`;
-      return { link, email: customEmail.trim(), childrenCount: validChildren.length, childrenNames: validChildren.map(c => c.name.trim()) };
+      // Create second parent invite if provided
+      let secondParentLink: string | null = null;
+      if (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") {
+        const secondToken = crypto.randomUUID();
+        const { error: secondError } = await supabase.from("pending_invites").insert({
+          team_id: teamId,
+          club_id: clubId,
+          role: "parent" as any,
+          invited_user_id: null,
+          invited_by_user_id: user!.id,
+          invited_label: secondParentName.trim(),
+          invited_email: secondParentEmail.trim().toLowerCase(),
+          invite_token: secondToken,
+          metadata: childrenMetadata ? { children: JSON.parse(childrenMetadata) } : null,
+        } as any);
+        if (!secondError) {
+          secondParentLink = `${window.location.origin}/join/p/${secondToken}`;
+        }
+      }
+
+      return { 
+        link, 
+        email: customEmail.trim(), 
+        childrenCount: validChildren.length, 
+        childrenNames: validChildren.map(c => c.name.trim()),
+        secondParentLink,
+        secondParentEmail: secondParentEmail.trim(),
+        secondParentName: secondParentName.trim(),
+      };
     },
     onSuccess: async ({ link, email, childrenCount, childrenNames }) => {
       setInviteLink(link);
