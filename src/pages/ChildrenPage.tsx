@@ -354,6 +354,20 @@ export default function ChildrenPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Invite Other Parent - only for primary parents */}
+                      {!child.isGuardianOnly && childAssignments.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedChild(child);
+                            setInviteParentOpen(true);
+                          }}
+                          title="Invite Other Parent"
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      )}
                       {/* Manage Guardians Button - only for primary parents */}
                       {!child.isGuardianOnly && (
                         <Button
