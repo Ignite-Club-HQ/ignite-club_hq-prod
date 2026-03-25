@@ -1265,43 +1265,66 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {singleChildren.map((child, idx) => (
-                          <div key={child.id} className="flex gap-2 items-start">
-                            <div className="flex-1 space-y-1">
-                              <Input
-                                placeholder="Child's name"
-                                value={child.name}
-                                onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                  c.id === child.id ? { ...c, name: e.target.value } : c
-                                ))}
-                                className="h-9"
-                              />
+                        {singleChildren.map((child, idx) => {
+                          const match = !child.existingChildId ? findMatchingChild(child.name) : null;
+                          return (
+                            <div key={child.id} className="space-y-1">
+                              <div className="flex gap-2 items-start">
+                                <div className="flex-1 space-y-1">
+                                  <Input
+                                    placeholder="Child's name"
+                                    value={child.name}
+                                    onChange={(e) => setSingleChildren(singleChildren.map(c => 
+                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined } : c
+                                    ))}
+                                    className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                  />
+                                </div>
+                                <div className="w-24">
+                                  <Input
+                                    placeholder="Year"
+                                    value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                                      setSingleChildren(singleChildren.map(c => 
+                                        c.id === child.id ? { ...c, yearOfBirth: val } : c
+                                      ));
+                                    }}
+                                    className="h-9"
+                                    maxLength={4}
+                                    disabled={!!child.existingChildId}
+                                  />
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9 text-destructive hover:text-destructive"
+                                  onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              {child.existingChildId && (
+                                <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Linked to existing child ({child.existingChildParentName || 'existing parent'})
+                                </p>
+                              )}
+                              {match && !child.existingChildId && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSingleChildren(singleChildren.map(c => 
+                                    c.id === child.id ? { ...c, existingChildId: match.id, existingChildParentName: match.parent_name, yearOfBirth: match.year_of_birth?.toString() || '' } : c
+                                  ))}
+                                  className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1 hover:bg-amber-500/20 transition-colors ml-1"
+                                >
+                                  ⚠️ "{match.name}" already exists (parent: {match.parent_name}) — tap to link
+                                </button>
+                              )}
                             </div>
-                            <div className="w-24">
-                              <Input
-                                placeholder="Year"
-                                value={child.yearOfBirth}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                                  setSingleChildren(singleChildren.map(c => 
-                                    c.id === child.id ? { ...c, yearOfBirth: val } : c
-                                  ));
-                                }}
-                                className="h-9"
-                                maxLength={4}
-                              />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9 text-destructive hover:text-destructive"
-                              onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
