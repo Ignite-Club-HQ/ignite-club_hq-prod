@@ -1136,7 +1136,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 ) : (
                   <Send className="h-5 w-5 mr-2" />
                 )}
-                {customName.trim() && customEmail.trim() ? `Send Invite to ${customName}` : "Enter name and email to continue"}
+                {customName.trim() && customEmail.trim() 
+                  ? (secondParentName.trim() && secondParentEmail.trim() 
+                    ? `Send Invites to ${customName} & ${secondParentName}` 
+                    : `Send Invite to ${customName}`) 
+                  : "Enter name and email to continue"}
               </Button>
             )}
           </TabsContent>
