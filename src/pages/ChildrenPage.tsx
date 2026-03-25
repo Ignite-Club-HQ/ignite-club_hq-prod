@@ -273,6 +273,10 @@ export default function ChildrenPage() {
     return assignments?.filter(a => a.child_id === childId) || [];
   };
 
+  const getGuardianInvitesForChild = (childId: string) => {
+    return pendingGuardianInvites?.filter(inv => (inv.metadata as any)?.guardian_child_id === childId) || [];
+  };
+
   const getUnassignedTeams = (childId: string) => {
     const assigned = getChildAssignments(childId).map(a => a.team_id);
     let teams = availableTeams?.filter(t => !assigned.includes(t.id)) || [];
