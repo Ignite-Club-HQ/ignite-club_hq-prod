@@ -45,6 +45,7 @@ export function EventViewMemberRow({
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
     const touch = e.touches[0];
     touchStart.current = { x: touch.clientX, y: touch.clientY };
     longPressTimer.current = setTimeout(() => {
@@ -54,6 +55,7 @@ export function EventViewMemberRow({
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!touchStart.current || !longPressTimer.current) return;
+    e.stopPropagation();
     const touch = e.touches[0];
     const dx = Math.abs(touch.clientX - touchStart.current.x);
     const dy = Math.abs(touch.clientY - touchStart.current.y);
@@ -63,7 +65,8 @@ export function EventViewMemberRow({
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.stopPropagation();
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;

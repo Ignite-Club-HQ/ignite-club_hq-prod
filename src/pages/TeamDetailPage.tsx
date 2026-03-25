@@ -95,7 +95,8 @@ export default function TeamDetailPage() {
   const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [memberRoleFilter, setMemberRoleFilter] = useState<string>("child");
+  const [memberRoleFilter, setMemberRoleFilter] = useState<string>("all");
+  const [hasSetInitialFilter, setHasSetInitialFilter] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
   const [showPitchBoard, setShowPitchBoard] = useState(false);
@@ -128,6 +129,17 @@ export default function TeamDetailPage() {
   );
 
   const isClassMode = !!team?.clubs?.class_mode_enabled;
+
+  // Default to "child" filter for junior teams
+  useEffect(() => {
+    if (team && !hasSetInitialFilter) {
+      const tType = (team as any).team_type || "mixed";
+      if (tType === "junior") {
+        setMemberRoleFilter("child");
+      }
+      setHasSetInitialFilter(true);
+    }
+  }, [team, hasSetInitialFilter]);
 
   // Check if user (or their children) is already enrolled in this class
   const { data: isEnrolledInClass } = useQuery({

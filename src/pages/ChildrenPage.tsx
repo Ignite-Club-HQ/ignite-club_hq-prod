@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, UserPlus, Loader2, Check, CheckSquare, Square, Users } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, UserPlus, Loader2, Check, CheckSquare, Square, Users, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import ManageGuardiansDialog from "@/components/ManageGuardiansDialog";
+import InviteOtherParentSheet from "@/components/InviteOtherParentSheet";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -67,6 +68,7 @@ export default function ChildrenPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [guardiansDialogOpen, setGuardiansDialogOpen] = useState(false);
+  const [inviteParentOpen, setInviteParentOpen] = useState(false);
   const [deleteChildId, setDeleteChildId] = useState<string | null>(null);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [newChildName, setNewChildName] = useState("");
@@ -128,6 +130,27 @@ export default function ChildrenPage() {
       return data as (ChildAssignment & { child_id: string })[];
     },
     enabled: !!children?.length,
+  });
+
+  // Fetch pending guardian invites for own children
+  const { data: pendingGuardianInvites } = useQuery({
+    queryKey: ["pending-guardian-invites", user?.id],
+    queryFn: async () => {
+      if (!ownChildren?.length) return [];
+      const { data, error } = await supabase
+        .from("pending_invites")
+        .select("id, invited_label, status, metadata, club_id, team_id")
+        .eq("invited_by_user_id", user!.id)
+        .eq("role", "parent" as any)
+        .in("status", ["pending", "accepted"]);
+      if (error) {
+        console.error("[ChildrenPage] Failed to fetch guardian invites:", error);
+        return [];
+      }
+      // Filter to only guardian invites (those with guardian_child_id in metadata)
+      return (data || []).filter(inv => (inv.metadata as any)?.guardian_child_id);
+    },
+    enabled: !!ownChildren?.length,
   });
 
   // Fetch available teams (teams user is a member of)
@@ -250,6 +273,10 @@ export default function ChildrenPage() {
     return assignments?.filter(a => a.child_id === childId) || [];
   };
 
+  const getGuardianInvitesForChild = (childId: string) => {
+    return pendingGuardianInvites?.filter(inv => (inv.metadata as any)?.guardian_child_id === childId) || [];
+  };
+
   const getUnassignedTeams = (childId: string) => {
     const assigned = getChildAssignments(childId).map(a => a.team_id);
     let teams = availableTeams?.filter(t => !assigned.includes(t.id)) || [];
@@ -336,6 +363,7 @@ export default function ChildrenPage() {
         <div className="space-y-4">
           {children.map((child) => {
             const childAssignments = getChildAssignments(child.id);
+            const guardianInvites = getGuardianInvitesForChild(child.id);
             const unassignedTeams = availableTeams?.filter(t => !childAssignments.some(a => a.team_id === t.id)) || [];
 
             return (
@@ -352,6 +380,20 @@ export default function ChildrenPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Invite Other Parent - only for primary parents */}
+                      {!child.isGuardianOnly && childAssignments.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedChild(child);
+                            setInviteParentOpen(true);
+                          }}
+                          title="Invite Other Parent"
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      )}
                       {/* Manage Guardians Button - only for primary parents */}
                       {!child.isGuardianOnly && (
                         <Button
@@ -426,6 +468,26 @@ export default function ChildrenPage() {
                     <p className="text-sm text-muted-foreground">
                       Not assigned to any teams
                     </p>
+                  )}
+                  {/* Guardian invite status */}
+                  {!child.isGuardianOnly && guardianInvites.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-xs font-medium text-muted-foreground">Guardian Invites:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {guardianInvites.map((inv) => (
+                          <Badge
+                            key={inv.id}
+                            variant="outline"
+                            className={inv.status === "accepted" 
+                              ? "text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                              : "text-xs bg-amber-500/10 text-amber-600 border-amber-500/30"
+                            }
+                          >
+                            {inv.invited_label} — {inv.status === "accepted" ? "Linked" : "Pending"}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -570,6 +632,20 @@ export default function ChildrenPage() {
           open={guardiansDialogOpen}
           onOpenChange={(open) => {
             setGuardiansDialogOpen(open);
+            if (!open) setSelectedChild(null);
+          }}
+          childId={selectedChild.id}
+          childName={selectedChild.name}
+          teamIds={getChildAssignments(selectedChild.id).map(a => a.team_id)}
+        />
+      )}
+
+      {/* Invite Other Parent Sheet */}
+      {selectedChild && (
+        <InviteOtherParentSheet
+          open={inviteParentOpen}
+          onOpenChange={(open) => {
+            setInviteParentOpen(open);
             if (!open) setSelectedChild(null);
           }}
           childId={selectedChild.id}
