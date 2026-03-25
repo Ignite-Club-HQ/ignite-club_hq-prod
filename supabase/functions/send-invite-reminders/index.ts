@@ -105,11 +105,13 @@ serve(async (req) => {
         
         const recipientName = invite.invited_label || invite.invited_email?.split("@")[0] || "Member";
         const roleName = invite.role || "Member";
+        const formattedRoleName = roleName.split("_").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
         const reminderNumber = (invite.reminder_count || 0) + 1;
+        const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(roleName);
 
         // Extract children names from metadata for parent invites
         const metadata = invite.metadata as { children?: { name: string }[]; customMessage?: string } | null;
-        const childrenNames = invite.role === "parent" && metadata?.children
+        const childrenNames = !isAdminRole && invite.role === "parent" && metadata?.children
           ? metadata.children.map((c: { name: string }) => c.name)
           : undefined;
 
@@ -120,16 +122,21 @@ serve(async (req) => {
 
         console.log(`Sending reminder #${reminderNumber} to ${invite.invited_email} for ${teamName}`);
 
+        // Build subject line based on role type
+        const subject = isAdminRole
+          ? `Reminder: You've been invited to join ${clubName} as ${formattedRoleName}`
+          : childrenNames && childrenNames.length === 1
+            ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
+            : childrenNames && childrenNames.length > 1
+              ? `Reminder: ${clubName} — see which team your kids are in ⚽`
+              : `Reminder: ${clubName} — you've been added to the team ⚽`;
+
         // Route through the send-email function for correct template selection
         // (new user → team-invite template, existing parent → child-added template)
         const { error: emailError } = await supabase.functions.invoke("send-email", {
           body: {
             to: invite.invited_email,
-             subject: childrenNames && childrenNames.length === 1
-               ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
-               : childrenNames && childrenNames.length > 1
-                 ? `Reminder: ${clubName} — see which team your kids are in ⚽`
-                 : `Reminder: ${clubName} — you've been added to the team ⚽`,
+            subject,
             template: "team-invite",
             senderName: clubName !== "Your Club" ? clubName : undefined,
             replyTo: clubContactEmail,
@@ -138,7 +145,7 @@ serve(async (req) => {
               invitedEmail: invite.invited_email,
               teamName,
               clubName,
-              roleName: roleName.charAt(0).toUpperCase() + roleName.slice(1).replace("_", " "),
+              roleName: formattedRoleName,
               inviteLink,
               clubLogoUrl,
               childrenNames,
