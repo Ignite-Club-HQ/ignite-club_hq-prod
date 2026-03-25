@@ -121,34 +121,59 @@ export function PendingInviteWelcomeDialog() {
 
           console.log("[InviteAutoAccept] Auto-accepted invite for:", entityName, "role:", invite.role);
 
-          // Create children from invite metadata (if parent role with children)
+          // Handle children from invite metadata (if parent role with children)
           if (
             invite.metadata &&
-            (invite.metadata as any)?.children?.length > 0 &&
             invite.role === "parent"
           ) {
-            for (const childData of (invite.metadata as any).children) {
-              const { data: newChild, error: childError } = await supabase
-                .from("children")
-                .insert({
-                  parent_id: user.id,
-                  name: childData.name,
-                  year_of_birth: childData.yearOfBirth,
-                })
-                .select("id")
+            const meta = invite.metadata as any;
+            const linkedInviteId = meta?.linked_invite_id;
+            const childrenData = meta?.children || [];
+
+            if (linkedInviteId && invite.team_id) {
+              // This is a second parent invite — link to children created by primary parent
+              // Find children already created from the primary invite's parent
+              const { data: primaryInvite } = await supabase
+                .from("pending_invites")
+                .select("invited_user_id")
+                .eq("id", linkedInviteId)
                 .single();
 
-              if (childError) {
-                console.error("[InviteAutoAccept] Failed to create child:", childError.message);
-                continue;
-              }
+              if (primaryInvite?.invited_user_id) {
+                // Find children belonging to the primary parent that are assigned to this team
+                const { data: existingChildren } = await supabase
+                  .from("children")
+                  .select("id, name, child_team_assignments!inner(team_id)")
+                  .eq("parent_id", primaryInvite.invited_user_id)
+                  .eq("child_team_assignments.team_id", invite.team_id);
 
-              if (newChild?.id && invite.team_id) {
-                await supabase.from("child_team_assignments").insert({
-                  child_id: newChild.id,
-                  team_id: invite.team_id,
-                });
+                if (existingChildren && existingChildren.length > 0) {
+                  for (const child of existingChildren) {
+                    // Create guardian link for the second parent
+                    await supabase.from("child_guardians").insert({
+                      child_id: child.id,
+                      guardian_id: user.id,
+                      relationship_type: "parent",
+                      is_primary: false,
+                    }).then(({ error }) => {
+                      if (error && !error.message?.includes("duplicate")) {
+                        console.error("[InviteAutoAccept] Failed to link guardian:", error.message);
+                      }
+                    });
+                  }
+                  console.log("[InviteAutoAccept] Linked second parent to", existingChildren.length, "existing children");
+                } else {
+                  console.log("[InviteAutoAccept] No existing children found from primary invite, creating new ones");
+                  // Fallback: create children if primary parent hasn't accepted yet
+                  await createChildrenFromMetadata(childrenData, user.id, invite.team_id);
+                }
+              } else {
+                // Primary parent hasn't accepted yet — create children for this parent
+                await createChildrenFromMetadata(childrenData, user.id, invite.team_id);
               }
+            } else if (childrenData.length > 0) {
+              // Standard single parent flow — create children
+              await createChildrenFromMetadata(childrenData, user.id, invite.team_id);
             }
           }
         } catch (err) {
