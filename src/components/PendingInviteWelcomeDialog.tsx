@@ -212,6 +212,47 @@ export function PendingInviteWelcomeDialog() {
                 }
               }
 
+              // Send child-added email to the new guardian
+              try {
+                const childName = meta.guardian_child_name || "your child";
+                // Get team and club info for the email
+                const firstTeamId = resolvedTeamIds[0];
+                if (firstTeamId) {
+                  const { data: teamInfo } = await supabase
+                    .from("teams")
+                    .select("name, club_id, clubs:club_id(name, logo_url, contact_email)")
+                    .eq("id", firstTeamId)
+                    .single();
+
+                  if (teamInfo) {
+                    const club = teamInfo.clubs as any;
+                    const inviteLink = `${window.location.origin}/team/${firstTeamId}`;
+
+                    await supabase.functions.invoke("send-email", {
+                      body: {
+                        to: null, // Will use the user's auth email
+                        toUserId: user.id,
+                        subject: `${club?.name || 'Your club'}: You've been linked to ${childName}'s team ⚽`,
+                        template: "child-added",
+                        senderName: club?.name || undefined,
+                        replyTo: club?.contact_email || undefined,
+                        templateData: {
+                          recipientName: user.user_metadata?.display_name || "there",
+                          teamName: teamInfo.name,
+                          clubName: club?.name || "The Club",
+                          inviteLink,
+                          clubLogoUrl: club?.logo_url || undefined,
+                          childrenNames: [childName],
+                        },
+                      },
+                    });
+                    console.log("[InviteAutoAccept] Sent child-added email for guardian link");
+                  }
+                }
+              } catch (emailErr) {
+                console.error("[InviteAutoAccept] Failed to send child-added email:", emailErr);
+              }
+
               continue; // Skip the standard children creation flow
             }
 
