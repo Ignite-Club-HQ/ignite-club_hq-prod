@@ -168,6 +168,50 @@ export function PendingInviteWelcomeDialog() {
               } else {
                 console.log("[InviteAutoAccept] Linked as guardian to child:", childId);
               }
+
+              // Assign parent role for ALL teams the child is in (not just the invite's team)
+              const allTeamIds: string[] = meta.guardian_all_team_ids || (invite.team_id ? [invite.team_id] : []);
+              
+              // If no team IDs in metadata, look up child's current team assignments
+              let resolvedTeamIds = allTeamIds;
+              if (resolvedTeamIds.length === 0) {
+                const { data: assignments } = await supabase
+                  .from("child_team_assignments")
+                  .select("team_id")
+                  .eq("child_id", childId);
+                resolvedTeamIds = assignments?.map(a => a.team_id) || [];
+              }
+
+              for (const tid of resolvedTeamIds) {
+                // Get club_id for the team
+                const { data: teamData } = await supabase
+                  .from("teams")
+                  .select("club_id")
+                  .eq("id", tid)
+                  .single();
+
+                const teamClubId = teamData?.club_id || clubId;
+
+                // Check if role already exists for this team
+                const { data: existingTeamRole } = await supabase
+                  .from("user_roles")
+                  .select("id")
+                  .eq("user_id", user.id)
+                  .eq("role", "parent" as any)
+                  .eq("team_id", tid)
+                  .maybeSingle();
+
+                if (!existingTeamRole) {
+                  await supabase.from("user_roles").insert({
+                    user_id: user.id,
+                    role: "parent" as any,
+                    team_id: tid,
+                    club_id: teamClubId,
+                  });
+                  console.log("[InviteAutoAccept] Assigned parent role for team:", tid);
+                }
+              }
+
               continue; // Skip the standard children creation flow
             }
 

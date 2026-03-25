@@ -57,7 +57,7 @@ export default function InviteOtherParentSheet({
         clubId = team?.club_id || null;
       }
 
-      // Create pending invite with guardian metadata
+      // Create pending invite with guardian metadata (include all team IDs)
       const { error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: teamId,
         club_id: clubId,
@@ -70,6 +70,7 @@ export default function InviteOtherParentSheet({
         metadata: {
           guardian_child_id: childId,
           guardian_child_name: childName,
+          guardian_all_team_ids: teamIds,
           invited_by_parent: true,
         },
       } as any);
