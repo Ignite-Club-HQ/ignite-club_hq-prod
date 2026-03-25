@@ -155,52 +155,51 @@ export function PendingInviteWelcomeDialog() {
             invite.role === "parent"
           ) {
             const meta = invite.metadata as any;
-            const linkedInviteId = meta?.linked_invite_id;
+            const linkedToken = meta?.linked_invite_token;
             const childrenData = meta?.children || [];
 
-            if (linkedInviteId && invite.team_id) {
-              // This is a second parent invite — link to children created by primary parent
-              // Find children already created from the primary invite's parent
-              const { data: primaryInvite } = await supabase
+            if (linkedToken && invite.team_id && childrenData.length > 0) {
+              // Check if the other parent's invite was already accepted
+              const { data: otherInvite } = await supabase
                 .from("pending_invites")
-                .select("invited_user_id")
-                .eq("id", linkedInviteId)
+                .select("invited_user_id, status")
+                .eq("invite_token", linkedToken)
                 .single();
 
-              if (primaryInvite?.invited_user_id) {
-                // Find children belonging to the primary parent that are assigned to this team
+              const otherAccepted = otherInvite?.status === "accepted" && otherInvite?.invited_user_id;
+
+              if (otherAccepted) {
+                // Other parent accepted first — find their children in this team and link as guardian
                 const { data: existingChildren } = await supabase
                   .from("children")
                   .select("id, name, child_team_assignments!inner(team_id)")
-                  .eq("parent_id", primaryInvite.invited_user_id)
+                  .eq("parent_id", otherInvite.invited_user_id)
                   .eq("child_team_assignments.team_id", invite.team_id);
 
                 if (existingChildren && existingChildren.length > 0) {
                   for (const child of existingChildren) {
-                    // Create guardian link for the second parent
                     await supabase.from("child_guardians").insert({
                       child_id: child.id,
                       guardian_id: user.id,
                       relationship_type: "parent",
                       is_primary: false,
-                    }).then(({ error }) => {
-                      if (error && !error.message?.includes("duplicate")) {
-                        console.error("[InviteAutoAccept] Failed to link guardian:", error.message);
+                    }).then(({ error: guardErr }) => {
+                      if (guardErr && !guardErr.message?.includes("duplicate")) {
+                        console.error("[InviteAutoAccept] Failed to link guardian:", guardErr.message);
                       }
                     });
                   }
-                  console.log("[InviteAutoAccept] Linked second parent to", existingChildren.length, "existing children");
+                  console.log("[InviteAutoAccept] Linked as guardian to", existingChildren.length, "existing children");
                 } else {
-                  console.log("[InviteAutoAccept] No existing children found from primary invite, creating new ones");
-                  // Fallback: create children if primary parent hasn't accepted yet
+                  // Edge case: other parent accepted but children not found — create them
                   await createChildrenFromMetadata(childrenData, user.id, invite.team_id);
                 }
               } else {
-                // Primary parent hasn't accepted yet — create children for this parent
+                // This parent is first to accept — create children normally
                 await createChildrenFromMetadata(childrenData, user.id, invite.team_id);
               }
             } else if (childrenData.length > 0) {
-              // Standard single parent flow — create children
+              // No linked invite — standard single parent flow
               await createChildrenFromMetadata(childrenData, user.id, invite.team_id);
             }
           }
