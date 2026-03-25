@@ -31,6 +31,19 @@ export function StatusBarManager() {
       Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
     }
 
+    // Scroll focused input into view when keyboard appears (Android + iOS)
+    let keyboardShowListener: { remove: () => void } | undefined;
+    if (isNativePlatform) {
+      Keyboard.addListener('keyboardDidShow', () => {
+        setTimeout(() => {
+          const el = document.activeElement;
+          if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
+            (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      }).then(handle => { keyboardShowListener = handle; });
+    }
+
     // Re-apply on app resume with a small delay to let WebView settle
     let appListener: { remove: () => void } | undefined;
     if (isNativePlatform) {
@@ -70,6 +83,7 @@ export function StatusBarManager() {
     return () => {
       observer.disconnect();
       appListener?.remove();
+      keyboardShowListener?.remove();
       cancelIOSRecovery?.();
       if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
         window.removeEventListener('focus', handleViewportResume);
