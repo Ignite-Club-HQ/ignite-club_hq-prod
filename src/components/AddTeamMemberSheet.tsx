@@ -27,6 +27,8 @@ interface BulkChild {
   id: string;
   name: string;
   yearOfBirth: string;
+  existingChildId?: string; // If set, links to an existing child record instead of creating new
+  existingChildParentName?: string; // Display context for existing child
 }
 
 interface BulkMember {
@@ -134,8 +136,47 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
     enabled: !!clubId,
   });
+  // Fetch existing children in the club for matching
+  const { data: clubChildren = [] } = useQuery({
+    queryKey: ["club-children", clubId],
+    queryFn: async () => {
+      // Get all children linked to this club via team assignments
+      const { data: teamIds } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", clubId);
+      if (!teamIds?.length) return [];
+      
+      const { data: assignments } = await supabase
+        .from("child_team_assignments")
+        .select("child_id")
+        .in("team_id", teamIds.map(t => t.id));
+      if (!assignments?.length) return [];
+      
+      const childIds = [...new Set(assignments.map(a => a.child_id))];
+      const { data: children } = await supabase
+        .from("children")
+        .select("id, name, year_of_birth, parent_id")
+        .in("id", childIds);
+      
+      // Get parent names for context
+      if (!children?.length) return [];
+      const parentIds = [...new Set(children.map(c => c.parent_id))];
+      const { data: parents } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", parentIds);
+      const parentMap = new Map(parents?.map(p => [p.id, p.display_name]) || []);
+      
+      return children.map(c => ({
+        ...c,
+        parent_name: parentMap.get(c.parent_id) || "Unknown",
+      }));
+    },
+    enabled: open && !!clubId && selectedRole === "parent",
+  });
 
-  // Search for existing users
+
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["user-search-team-member", debouncedSearch],
     queryFn: async () => {
@@ -154,6 +195,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const filteredResults = searchResults.filter(
     user => !existingMembers?.includes(user.id)
   );
+
+  // Find matching existing children by exact name (case-insensitive)
+  const findMatchingChild = (name: string) => {
+    if (!name.trim()) return null;
+    return clubChildren.find(c => c.name.toLowerCase() === name.trim().toLowerCase()) || null;
+  };
 
   // Create a unique invite token for a pending invite (name-restricted)
   const createPendingInviteToken = (): string => {
@@ -202,30 +249,55 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       });
       if (error) throw error;
 
-      // If parent role, create children and assign to team
+      // If parent role, create or link children and assign to team
       if (selectedRole === "parent") {
         const validChildren = singleChildren.filter(c => c.name.trim());
         for (const child of validChildren) {
-          const { data: newChild, error: childError } = await supabase
-            .from("children")
-            .insert({
-              parent_id: selectedUser.id,
-              name: child.name.trim(),
-              year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
-            })
-            .select("id")
-            .single();
+          let childId = child.existingChildId;
+          
+          if (childId) {
+            // Existing child — just add guardian link if not already the parent
+            const existingChild = clubChildren.find(c => c.id === childId);
+            if (existingChild && existingChild.parent_id !== selectedUser.id) {
+              await supabase.from("child_guardians").insert({
+                child_id: childId,
+                guardian_id: selectedUser.id,
+              }).select().maybeSingle(); // ignore duplicate errors
+            }
+          } else {
+            // Create new child
+            const { data: newChild, error: childError } = await supabase
+              .from("children")
+              .insert({
+                parent_id: selectedUser.id,
+                name: child.name.trim(),
+                year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
+              })
+              .select("id")
+              .single();
 
-          if (childError) {
-            console.error("Failed to create child:", childError.message);
-            continue;
+            if (childError) {
+              console.error("Failed to create child:", childError.message);
+              continue;
+            }
+            childId = newChild?.id;
           }
 
-          if (newChild?.id) {
-            await supabase.from("child_team_assignments").insert({
-              child_id: newChild.id,
-              team_id: teamId,
-            });
+          if (childId) {
+            // Check if already assigned to this team
+            const { data: existing } = await supabase
+              .from("child_team_assignments")
+              .select("id")
+              .eq("child_id", childId)
+              .eq("team_id", teamId)
+              .maybeSingle();
+            
+            if (!existing) {
+              await supabase.from("child_team_assignments").insert({
+                child_id: childId,
+                team_id: teamId,
+              });
+            }
           }
         }
       }
@@ -268,7 +340,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         ? singleChildren.filter(c => c.name.trim())
         : [];
       const childrenMetadata = validChildren.length > 0 ? JSON.stringify(
-        validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
+        validChildren.map(c => ({ 
+          name: c.name.trim(), 
+          yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+          existingChildId: c.existingChildId || null,
+        }))
       ) : null;
 
       // Generate both tokens upfront so we can cross-link
@@ -964,43 +1040,66 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {singleChildren.map((child, idx) => (
-                          <div key={child.id} className="flex gap-2 items-start">
-                            <div className="flex-1 space-y-1">
-                              <Input
-                                placeholder="Child's name"
-                                value={child.name}
-                                onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                  c.id === child.id ? { ...c, name: e.target.value } : c
-                                ))}
-                                className="h-9"
-                              />
+                        {singleChildren.map((child, idx) => {
+                          const match = !child.existingChildId ? findMatchingChild(child.name) : null;
+                          return (
+                            <div key={child.id} className="space-y-1">
+                              <div className="flex gap-2 items-start">
+                                <div className="flex-1 space-y-1">
+                                  <Input
+                                    placeholder="Child's name"
+                                    value={child.name}
+                                    onChange={(e) => setSingleChildren(singleChildren.map(c => 
+                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined } : c
+                                    ))}
+                                    className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                  />
+                                </div>
+                                <div className="w-24">
+                                  <Input
+                                    placeholder="Year"
+                                    value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                                      setSingleChildren(singleChildren.map(c => 
+                                        c.id === child.id ? { ...c, yearOfBirth: val } : c
+                                      ));
+                                    }}
+                                    className="h-9"
+                                    maxLength={4}
+                                    disabled={!!child.existingChildId}
+                                  />
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9 text-destructive hover:text-destructive"
+                                  onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              {child.existingChildId && (
+                                <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Linked to existing child ({child.existingChildParentName || 'existing parent'})
+                                </p>
+                              )}
+                              {match && !child.existingChildId && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSingleChildren(singleChildren.map(c => 
+                                    c.id === child.id ? { ...c, existingChildId: match.id, existingChildParentName: match.parent_name, yearOfBirth: match.year_of_birth?.toString() || '' } : c
+                                  ))}
+                                  className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1 hover:bg-amber-500/20 transition-colors ml-1"
+                                >
+                                  ⚠️ "{match.name}" already exists (parent: {match.parent_name}) — tap to link
+                                </button>
+                              )}
                             </div>
-                            <div className="w-24">
-                              <Input
-                                placeholder="Year"
-                                value={child.yearOfBirth}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                                  setSingleChildren(singleChildren.map(c => 
-                                    c.id === child.id ? { ...c, yearOfBirth: val } : c
-                                  ));
-                                }}
-                                className="h-9"
-                                maxLength={4}
-                              />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9 text-destructive hover:text-destructive"
-                              onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1170,43 +1269,66 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {singleChildren.map((child, idx) => (
-                          <div key={child.id} className="flex gap-2 items-start">
-                            <div className="flex-1 space-y-1">
-                              <Input
-                                placeholder="Child's name"
-                                value={child.name}
-                                onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                  c.id === child.id ? { ...c, name: e.target.value } : c
-                                ))}
-                                className="h-9"
-                              />
+                        {singleChildren.map((child, idx) => {
+                          const match = !child.existingChildId ? findMatchingChild(child.name) : null;
+                          return (
+                            <div key={child.id} className="space-y-1">
+                              <div className="flex gap-2 items-start">
+                                <div className="flex-1 space-y-1">
+                                  <Input
+                                    placeholder="Child's name"
+                                    value={child.name}
+                                    onChange={(e) => setSingleChildren(singleChildren.map(c => 
+                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined } : c
+                                    ))}
+                                    className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                  />
+                                </div>
+                                <div className="w-24">
+                                  <Input
+                                    placeholder="Year"
+                                    value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                                      setSingleChildren(singleChildren.map(c => 
+                                        c.id === child.id ? { ...c, yearOfBirth: val } : c
+                                      ));
+                                    }}
+                                    className="h-9"
+                                    maxLength={4}
+                                    disabled={!!child.existingChildId}
+                                  />
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9 text-destructive hover:text-destructive"
+                                  onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              {child.existingChildId && (
+                                <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Linked to existing child ({child.existingChildParentName || 'existing parent'})
+                                </p>
+                              )}
+                              {match && !child.existingChildId && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSingleChildren(singleChildren.map(c => 
+                                    c.id === child.id ? { ...c, existingChildId: match.id, existingChildParentName: match.parent_name, yearOfBirth: match.year_of_birth?.toString() || '' } : c
+                                  ))}
+                                  className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1 hover:bg-amber-500/20 transition-colors ml-1"
+                                >
+                                  ⚠️ "{match.name}" already exists (parent: {match.parent_name}) — tap to link
+                                </button>
+                              )}
                             </div>
-                            <div className="w-24">
-                              <Input
-                                placeholder="Year"
-                                value={child.yearOfBirth}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                                  setSingleChildren(singleChildren.map(c => 
-                                    c.id === child.id ? { ...c, yearOfBirth: val } : c
-                                  ));
-                                }}
-                                className="h-9"
-                                maxLength={4}
-                              />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9 text-destructive hover:text-destructive"
-                              onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
