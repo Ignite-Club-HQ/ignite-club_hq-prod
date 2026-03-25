@@ -469,6 +469,26 @@ export default function ChildrenPage() {
                       Not assigned to any teams
                     </p>
                   )}
+                  {/* Guardian invite status */}
+                  {!child.isGuardianOnly && guardianInvites.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-xs font-medium text-muted-foreground">Guardian Invites:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {guardianInvites.map((inv) => (
+                          <Badge
+                            key={inv.id}
+                            variant="outline"
+                            className={inv.status === "accepted" 
+                              ? "text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                              : "text-xs bg-amber-500/10 text-amber-600 border-amber-500/30"
+                            }
+                          >
+                            {inv.invited_label} — {inv.status === "accepted" ? "Linked" : "Pending"}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
