@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone, MoreVertical } from "lucide-react";
+import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,6 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { EventViewMemberRow } from "@/components/EventViewMemberRow";
 
 interface EventViewsAdminSectionProps {
   eventId: string;
@@ -299,77 +300,16 @@ export function EventViewsAdminSection({
     const noPushSetup = pushReachable ? (pushReachable[member.id] === false) : false;
 
     return (
-      <div
+      <EventViewMemberRow
         key={member.id}
-        className={`flex items-center gap-2 p-2 rounded-lg ${
-          variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
-        }`}
-      >
-        <Avatar className="h-7 w-7">
-          <AvatarImage src={member.avatar_url || undefined} />
-          <AvatarFallback className="text-xs">
-            {member.display_name?.charAt(0)?.toUpperCase() || "?"}
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-sm truncate flex-1">{member.display_name || "Unknown"}</span>
-        <div className="flex items-center gap-1 shrink-0">
-          {(pushDisabled || noPushSetup) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="p-0.5 rounded text-destructive/70">
-                  <BellOff className="h-3.5 w-3.5" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                <p>{noPushSetup ? "No push notifications set up" : "Event push notifications disabled"}</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          {variant === "viewed" && member.viewedAt && (
-            <span className="text-xs text-muted-foreground">
-              {new Date(member.viewedAt).toLocaleDateString()}
-            </span>
-          )}
-          {variant === "not-viewed" && (
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 touch-none"
-                  disabled={sendingForUser === member.id || nudgingUser === member.id}
-                >
-                  {(sendingForUser === member.id || nudgingUser === member.id) ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <MoreVertical className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleSendReminders("push", [member.id])}>
-                  <Smartphone className="h-4 w-4 mr-2" />
-                  Send Push
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSendReminders("email", [member.id])}>
-                  <Mail className="h-4 w-4 mr-2" />
-                  Send Email
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSendReminders("both", [member.id])}>
-                  <Bell className="h-4 w-4 mr-2" />
-                  Send Both
-                </DropdownMenuItem>
-                {noPushSetup && (
-                  <DropdownMenuItem onClick={() => handleSendNudgeToUser(member.id, member.display_name || "Member")}>
-                    <BellRing className="h-4 w-4 mr-2" />
-                    Nudge to Enable Push
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      </div>
+        member={member}
+        variant={variant}
+        pushDisabled={pushDisabled}
+        noPushSetup={noPushSetup}
+        isBusy={sendingForUser === member.id || nudgingUser === member.id}
+        onSendReminder={handleSendReminders}
+        onNudge={handleSendNudgeToUser}
+      />
     );
   };
 
