@@ -239,7 +239,7 @@ serve(async (req) => {
             supabase.from("notifications").insert({
               user_id: userId,
               type: "event_view_reminder",
-              message: `Reminder: Please RSVP to "${event.title}" - ${eventDate}`,
+              message: notifMessage,
               related_id: event.id,
             }),
             supabase
