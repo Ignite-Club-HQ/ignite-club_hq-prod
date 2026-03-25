@@ -51,6 +51,34 @@ export function PendingInviteWelcomeDialog() {
     staleTime: 30_000,
   });
 
+  const createChildrenFromMetadata = async (
+    childrenData: any[], parentId: string, teamId: string | null
+  ) => {
+    for (const childData of childrenData) {
+      const { data: newChild, error: childError } = await supabase
+        .from("children")
+        .insert({
+          parent_id: parentId,
+          name: childData.name,
+          year_of_birth: childData.yearOfBirth,
+        })
+        .select("id")
+        .single();
+
+      if (childError) {
+        console.error("[InviteAutoAccept] Failed to create child:", childError.message);
+        continue;
+      }
+
+      if (newChild?.id && teamId) {
+        await supabase.from("child_team_assignments").insert({
+          child_id: newChild.id,
+          team_id: teamId,
+        });
+      }
+    }
+  };
+
   useEffect(() => {
     if (!user || pendingInvites.length === 0) return;
 
