@@ -27,6 +27,8 @@ interface BulkChild {
   id: string;
   name: string;
   yearOfBirth: string;
+  existingChildId?: string; // If set, links to an existing child record instead of creating new
+  existingChildParentName?: string; // Display context for existing child
 }
 
 interface BulkMember {
