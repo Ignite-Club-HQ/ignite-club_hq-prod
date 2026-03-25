@@ -43,6 +43,8 @@ export function EventViewsAdminSection({
   const [isOpen, setIsOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSendingNudge, setIsSendingNudge] = useState(false);
+  const [sendingForUser, setSendingForUser] = useState<string | null>(null);
+  const [nudgingUser, setNudgingUser] = useState<string | null>(null);
 
   // Fetch all event views for this event
   const { data: eventViews } = useQuery({
