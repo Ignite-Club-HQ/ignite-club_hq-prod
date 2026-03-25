@@ -84,7 +84,7 @@ export const EventViewReminderEmail = ({
   // Smart copy based on event type
   const bannerText = rsvpStyle ? "📋 RSVP Needed!" : "🎉 Don't Miss This!";
   const bannerColor = rsvpStyle ? '#f59e0b' : '#6366f1';
-  const headingText = rsvpStyle ? "📅 Event Reminder" : `📅 Upcoming ${eventType}`;
+  const headingText = "📅 Event Reminder";
   const previewText = rsvpStyle
     ? `RSVP needed: ${eventTitle} - ${eventDate} at ${eventTime}`
     : `Don't miss: ${eventTitle} - ${eventDate} at ${eventTime}`;
