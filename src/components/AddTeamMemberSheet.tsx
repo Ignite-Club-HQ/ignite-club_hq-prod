@@ -447,8 +447,39 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
       const results: { name: string; email: string; link: string; sent: boolean; role: string; childrenCount: number }[] = [];
 
-      for (const member of validMembers) {
-        const inviteToken = crypto.randomUUID();
+      // Pre-generate tokens for all members so we can cross-link parent pairs
+      const memberTokens = validMembers.map(() => crypto.randomUUID());
+
+      // Detect parent pairs sharing the same children (by matching children names)
+      // Build a map: children fingerprint -> list of member indices
+      const childFingerprints = new Map<string, number[]>();
+      validMembers.forEach((member, idx) => {
+        if (member.role === "parent" && member.children.some(c => c.name.trim())) {
+          const fingerprint = member.children
+            .filter(c => c.name.trim())
+            .map(c => c.name.trim().toLowerCase())
+            .sort()
+            .join("|");
+          if (fingerprint) {
+            const existing = childFingerprints.get(fingerprint) || [];
+            existing.push(idx);
+            childFingerprints.set(fingerprint, existing);
+          }
+        }
+      });
+
+      // Build cross-link map: memberIndex -> linkedMemberToken
+      const crossLinks = new Map<number, string>();
+      for (const indices of childFingerprints.values()) {
+        if (indices.length === 2) {
+          crossLinks.set(indices[0], memberTokens[indices[1]]);
+          crossLinks.set(indices[1], memberTokens[indices[0]]);
+        }
+      }
+
+      for (let i = 0; i < validMembers.length; i++) {
+        const member = validMembers[i];
+        const inviteToken = memberTokens[i];
         const memberRole = member.role;
 
         // Build metadata for children (for parent role)
@@ -456,6 +487,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         const childrenMetadata = validChildren.length > 0 ? JSON.stringify(
           validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
         ) : null;
+
+        // Add linked_invite_token if this parent is paired with another
+        const linkedToken = crossLinks.get(i);
+        const metadata = childrenMetadata 
+          ? { children: JSON.parse(childrenMetadata), ...(linkedToken ? { linked_invite_token: linkedToken } : {}) }
+          : null;
 
         // Create pending invite record with children metadata
         const { error: inviteError } = await supabase.from("pending_invites").insert({
@@ -467,7 +504,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           invited_label: member.name.trim(),
           invited_email: member.email.trim().toLowerCase() || null,
           invite_token: inviteToken,
-          metadata: childrenMetadata ? { children: JSON.parse(childrenMetadata) } : null,
+          metadata,
         } as any);
 
         if (inviteError) {
