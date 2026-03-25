@@ -336,7 +336,7 @@ export function EventViewsAdminSection({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-7 w-7 touch-none"
                   disabled={sendingForUser === member.id || nudgingUser === member.id}
                 >
                   {(sendingForUser === member.id || nudgingUser === member.id) ? (
@@ -346,7 +346,7 @@ export function EventViewsAdminSection({
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" modal={false}>
                 <DropdownMenuItem onClick={() => handleSendReminders("push", [member.id])}>
                   <Smartphone className="h-4 w-4 mr-2" />
                   Send Push
@@ -422,7 +422,7 @@ export function EventViewsAdminSection({
                         <Button
                           size="sm"
                           disabled={isSending}
-                          className="gap-1.5"
+                          className="gap-1.5 touch-none"
                         >
                           {isSending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -433,7 +433,7 @@ export function EventViewsAdminSection({
                           <ChevronDown className="h-3 w-3 ml-0.5" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" modal={false}>
                         <DropdownMenuItem onClick={() => handleSendReminders("push")}>
                           <Smartphone className="h-4 w-4 mr-2" />
                           Push Notification
