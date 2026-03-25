@@ -216,7 +216,7 @@ serve(async (req) => {
           await resend.emails.send({
             from: "Ignite Club HQ <support@igniteclubhq.app>",
             to: [email],
-            subject: `📅 Reminder: Please RSVP to "${event.title}"`,
+            subject: emailSubject,
             html,
           });
           return true;
