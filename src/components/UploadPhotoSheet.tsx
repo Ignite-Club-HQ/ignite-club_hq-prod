@@ -102,16 +102,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
 
   const isAppAdmin = userRoles?.some(r => r.role === "app_admin") ?? false;
 
-  // Only admins, coaches, and committee members can post club-wide (no team/league selected)
-  const canPostClubWide = useMemo(() => {
-    if (isAppAdmin) return true;
-    if (!selectedClubId || !userRoles) return false;
-    return userRoles.some(r =>
-      (r.club_id === selectedClubId || (r.team_id && userTeams?.some(t => t.id === r.team_id))) &&
-      ['club_admin', 'coach', 'committee_member'].includes(r.role)
-    );
-  }, [isAppAdmin, selectedClubId, userRoles, userTeams]);
-
   // Fetch clubs
   const { data: userClubs, isLoading: isLoadingClubs } = useQuery({
     queryKey: ["user-clubs-upload-sheet", user?.id, isAppAdmin, JSON.stringify(userRoles), activeClubFilter ?? ""],
