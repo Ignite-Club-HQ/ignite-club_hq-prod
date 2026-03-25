@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Upload, X, Check, Loader2, Camera, Crown, ImagePlus, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -331,7 +331,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     enabled: !!user && !!selectedClubId && userRoles !== undefined,
   });
 
-  // Filter to show only clubs with Pro access (unless app admin)
+  // Only admins, coaches, and committee members can post club-wide (no team/league selected)
+  const canPostClubWide = useMemo(() => {
+    if (isAppAdmin) return true;
+    if (!selectedClubId || !userRoles) return false;
+    return userRoles.some(r => {
+      const inClub = r.club_id === selectedClubId || 
+        (r.team_id && userTeams?.some(t => t.id === r.team_id));
+      return inClub && ['club_admin', 'coach', 'committee_member'].includes(r.role);
+    });
+  }, [isAppAdmin, selectedClubId, userRoles, userTeams]);
+
   // Also filter by activeClubFilter when in filtered mode
   const availableClubs = (() => {
     let clubs = isAppAdmin ? userClubs : userClubs?.filter(club => club.has_pro_access);
@@ -347,6 +357,13 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       setSelectedClubId(activeClubFilter);
     }
   }, [activeClubFilter, availableClubs, selectedClubId]);
+
+  // Auto-select first team for non-privileged users who can't post club-wide
+  useEffect(() => {
+    if (!canPostClubWide && selectedClubId && userTeams && userTeams.length > 0 && !selectedTeamId) {
+      setSelectedTeamId(userTeams[0].id);
+    }
+  }, [canPostClubWide, selectedClubId, userTeams, selectedTeamId]);
 
   useEffect(() => {
     if (!open) {
@@ -964,27 +981,29 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
               {/* Team Selection */}
               {selectedClubId && userTeams && userTeams.length > 0 && !selectedMiniLeagueId && (
                 <div className="space-y-3">
-                  <Label className="text-sm font-medium">Team (optional)</Label>
+                  <Label className="text-sm font-medium">Team {canPostClubWide ? "(optional)" : ""}</Label>
                   <div className="grid gap-2">
-                    <button
-                      type="button"
-                      disabled={uploading}
-                      onClick={() => setSelectedTeamId("")}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left w-full",
-                        selectedTeamId === ""
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-card hover:border-muted-foreground/50",
-                        uploading && "opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      <span className="text-muted-foreground">No specific team</span>
-                      {selectedTeamId === "" && (
-                        <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="h-3 w-3 text-primary-foreground" />
-                        </div>
-                      )}
-                    </button>
+                    {canPostClubWide && (
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => setSelectedTeamId("")}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left w-full",
+                          selectedTeamId === ""
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-card hover:border-muted-foreground/50",
+                          uploading && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <span className="text-muted-foreground">All of club</span>
+                        {selectedTeamId === "" && (
+                          <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    )}
                     {userTeams.map((team) => (
                       <button
                         key={team.id}
@@ -1014,27 +1033,29 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
               {/* Mini-League Selection */}
               {selectedClubId && userMiniLeagues && userMiniLeagues.length > 0 && !selectedTeamId && (
                 <div className="space-y-3">
-                  <Label className="text-sm font-medium">Mini League (optional)</Label>
+                  <Label className="text-sm font-medium">Mini League {canPostClubWide ? "(optional)" : ""}</Label>
                   <div className="grid gap-2">
-                    <button
-                      type="button"
-                      disabled={uploading}
-                      onClick={() => setSelectedMiniLeagueId("")}
-                      className={cn(
-                        "flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left w-full",
-                        selectedMiniLeagueId === ""
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-card hover:border-muted-foreground/50",
-                        uploading && "opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      <span className="text-muted-foreground">No specific league</span>
-                      {selectedMiniLeagueId === "" && (
-                        <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="h-3 w-3 text-primary-foreground" />
-                        </div>
-                      )}
-                    </button>
+                    {canPostClubWide && (
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => setSelectedMiniLeagueId("")}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left w-full",
+                          selectedMiniLeagueId === ""
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-card hover:border-muted-foreground/50",
+                          uploading && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <span className="text-muted-foreground">All of club</span>
+                        {selectedMiniLeagueId === "" && (
+                          <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    )}
                     {userMiniLeagues.map((league) => (
                       <button
                         key={league.id}
