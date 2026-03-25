@@ -1050,7 +1050,7 @@ export default function TeamDetailPage() {
               <div className="space-y-4 pt-2">
                 <div className="flex flex-wrap gap-2 justify-between items-center">
                   <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
-                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                    <SelectTrigger className="w-[160px] h-8 text-xs">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent>

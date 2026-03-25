@@ -39,8 +39,9 @@ export function StatusBarManager() {
           if (isNativeIOS) {
             queueIOSRecovery();
           } else {
-            // Delay 80ms – Android can reset status bar colors during resume
+            // Android can reset status bar colors during resume – apply twice
             setTimeout(() => refreshStatusBar(), 80);
+            setTimeout(() => refreshStatusBar(), 500);
           }
         }
       }).then(handle => { appListener = handle; });
