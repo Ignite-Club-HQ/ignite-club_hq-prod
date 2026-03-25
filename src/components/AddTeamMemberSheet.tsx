@@ -196,6 +196,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     user => !existingMembers?.includes(user.id)
   );
 
+  // Find matching existing children by exact name (case-insensitive)
+  const findMatchingChild = (name: string) => {
+    if (!name.trim()) return null;
+    return clubChildren.find(c => c.name.toLowerCase() === name.trim().toLowerCase()) || null;
+  };
+
   // Create a unique invite token for a pending invite (name-restricted)
   const createPendingInviteToken = (): string => {
     return crypto.randomUUID();
