@@ -68,6 +68,7 @@ export default function ChildrenPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [guardiansDialogOpen, setGuardiansDialogOpen] = useState(false);
+  const [inviteParentOpen, setInviteParentOpen] = useState(false);
   const [deleteChildId, setDeleteChildId] = useState<string | null>(null);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [newChildName, setNewChildName] = useState("");
