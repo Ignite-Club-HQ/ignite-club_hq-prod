@@ -586,6 +586,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setBulkResults([]);
     setCustomMessage("");
     setShowMessageEditor(false);
+    setSecondParentName("");
+    setSecondParentEmail("");
   };
 
   const handleDone = () => {
