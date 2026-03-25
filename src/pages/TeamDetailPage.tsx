@@ -76,17 +76,6 @@ import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
 import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
 
-  // Default to "child" filter for junior teams
-  useEffect(() => {
-    if (team && !hasSetInitialFilter) {
-      const tType = (team as any).team_type || "mixed";
-      if (tType === "junior") {
-        setMemberRoleFilter("child");
-      }
-      setHasSetInitialFilter(true);
-    }
-  }, [team, hasSetInitialFilter]);
-
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 
