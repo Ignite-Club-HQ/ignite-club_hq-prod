@@ -95,8 +95,7 @@ export default function TeamDetailPage() {
   const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const teamType = (team as any)?.team_type || "mixed";
-  const [memberRoleFilter, setMemberRoleFilter] = useState<string>(teamType === "junior" ? "child" : "all");
+  const [memberRoleFilter, setMemberRoleFilter] = useState<string>("all");
   const [hasSetInitialFilter, setHasSetInitialFilter] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
