@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -294,16 +294,52 @@ export function EventViewsAdminSection({
     }
   };
 
-  const renderMemberRow = (member: MemberWithViewStatus, variant: "viewed" | "not-viewed") => {
+  const MemberRow = useCallback(({ member, variant }: { member: MemberWithViewStatus; variant: "viewed" | "not-viewed" }) => {
     const pushDisabled = notifPrefs && member.id in notifPrefs ? !notifPrefs[member.id] : false;
     const noPushSetup = pushReachable ? (pushReachable[member.id] === false) : false;
+    const [showMenu, setShowMenu] = useState(false);
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+    const LONG_PRESS_MS = 600;
+    const MOVE_THRESHOLD = 10;
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+      const touch = e.touches[0];
+      touchStart.current = { x: touch.clientX, y: touch.clientY };
+      longPressTimer.current = setTimeout(() => {
+        setShowMenu(true);
+      }, LONG_PRESS_MS);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+      if (!touchStart.current || !longPressTimer.current) return;
+      const touch = e.touches[0];
+      const dx = Math.abs(touch.clientX - touchStart.current.x);
+      const dy = Math.abs(touch.clientY - touchStart.current.y);
+      if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    };
 
     return (
       <div
         key={member.id}
-        className={`flex items-center gap-2 p-2 rounded-lg ${
+        className={`flex items-center gap-2 p-2 rounded-lg select-none ${
           variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
         }`}
+        onTouchStart={variant === "not-viewed" ? handleTouchStart : undefined}
+        onTouchMove={variant === "not-viewed" ? handleTouchMove : undefined}
+        onTouchEnd={variant === "not-viewed" ? handleTouchEnd : undefined}
+        onContextMenu={(e) => { if (variant === "not-viewed") e.preventDefault(); }}
       >
         <Avatar className="h-7 w-7">
           <AvatarImage src={member.avatar_url || undefined} />
@@ -330,8 +366,8 @@ export function EventViewsAdminSection({
               {new Date(member.viewedAt).toLocaleDateString()}
             </span>
           )}
-          {variant === "not-viewed" && (
-            <DropdownMenu modal={false}>
+          {variant === "not-viewed" && showMenu && (
+            <DropdownMenu modal={false} open={showMenu} onOpenChange={setShowMenu}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
@@ -371,7 +407,7 @@ export function EventViewsAdminSection({
         </div>
       </div>
     );
-  };
+  }, [notifPrefs, pushReachable, sendingForUser, nudgingUser, handleSendReminders, handleSendNudgeToUser]);
 
   return (
     <Card>
@@ -450,7 +486,7 @@ export function EventViewsAdminSection({
                     </DropdownMenu>
                   </div>
                   <div className="grid gap-2">
-                    {notViewedMembers.map((member) => renderMemberRow(member, "not-viewed"))}
+                    {notViewedMembers.map((member) => <MemberRow key={member.id} member={member} variant="not-viewed" />)}
                   </div>
                 </div>
               )}
@@ -467,7 +503,7 @@ export function EventViewsAdminSection({
                     Viewed ({viewedCount})
                   </h4>
                   <div className="grid gap-2">
-                    {viewedMembers.map((member) => renderMemberRow(member, "viewed"))}
+                    {viewedMembers.map((member) => <MemberRow key={member.id} member={member} variant="viewed" />)}
                   </div>
                 </div>
               )}
