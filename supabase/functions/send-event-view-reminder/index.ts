@@ -168,6 +168,19 @@ serve(async (req) => {
     const clubLogoUrl = (event.clubs as any)?.logo_url || undefined;
     const eventLink = `https://igniteclubhq.app/events/${event.id}`;
 
+    // Smart copy based on event type
+    const isRsvpEvent = ["game", "training", "match"].includes(event.type?.toLowerCase());
+    const emailSubject = isRsvpEvent
+      ? `📅 Reminder: Please RSVP to "${event.title}"`
+      : `🎉 Don't miss: "${event.title}" - ${eventDate}`;
+    const pushTitle = isRsvpEvent ? "📅 Event Reminder" : `🎉 ${event.title}`;
+    const pushBody = isRsvpEvent
+      ? `You haven't RSVP'd to "${event.title}" - tap to respond`
+      : `Don't miss "${event.title}" on ${eventDate} - tap for details`;
+    const notifMessage = isRsvpEvent
+      ? `Reminder: Please RSVP to "${event.title}" - ${eventDate}`
+      : `Don't miss: "${event.title}" - ${eventDate}`;
+
     let emailsSent = 0;
     let pushSent = 0;
 
@@ -203,7 +216,7 @@ serve(async (req) => {
           await resend.emails.send({
             from: "Ignite Club HQ <support@igniteclubhq.app>",
             to: [email],
-            subject: `📅 Reminder: Please RSVP to "${event.title}"`,
+            subject: emailSubject,
             html,
           });
           return true;
@@ -226,7 +239,7 @@ serve(async (req) => {
             supabase.from("notifications").insert({
               user_id: userId,
               type: "event_view_reminder",
-              message: `Reminder: Please RSVP to "${event.title}" - ${eventDate}`,
+              message: notifMessage,
               related_id: event.id,
             }),
             supabase
@@ -240,8 +253,8 @@ serve(async (req) => {
             await supabase.functions.invoke("send-push-notification", {
               body: {
                 userId,
-                title: "📅 Event Reminder",
-                body: `You haven't RSVP'd to "${event.title}" - tap to respond`,
+                title: pushTitle,
+                body: pushBody,
                 url: `/events/${event.id}`,
                 tag: `event-view-${event.id}`,
               },
