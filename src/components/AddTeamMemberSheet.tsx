@@ -272,7 +272,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           invited_label: secondParentName.trim(),
           invited_email: secondParentEmail.trim().toLowerCase(),
           invite_token: secondToken,
-          metadata: childrenMetadata ? { children: JSON.parse(childrenMetadata) } : null,
+          metadata: childrenMetadata 
+            ? { children: JSON.parse(childrenMetadata), linked_invite_id: primaryInvite?.id } 
+            : null,
         } as any);
         if (!secondError) {
           secondParentLink = `${window.location.origin}/join/p/${secondToken}`;
