@@ -200,14 +200,44 @@ export function EventViewsAdminSection({
     },
   });
 
-  const handleSendReminders = async (channels: "push" | "email" | "both") => {
-    if (notViewedMembers.length === 0) return;
+  const handleSendReminders = async (channels: "push" | "email" | "both", targetUserIds?: string[]) => {
+    const ids = targetUserIds || notViewedMembers.map(m => m.id);
+    if (ids.length === 0) return;
     
-    setIsSending(true);
+    const isSingle = targetUserIds && targetUserIds.length === 1;
+    if (isSingle) setSendingForUser(targetUserIds[0]);
+    else setIsSending(true);
+    
     try {
-      await sendReminderMutation.mutateAsync({ userIds: notViewedMembers.map(m => m.id), channels });
+      await sendReminderMutation.mutateAsync({ userIds: ids, channels });
     } finally {
-      setIsSending(false);
+      if (isSingle) setSendingForUser(null);
+      else setIsSending(false);
+    }
+  };
+
+  const handleSendNudgeToUser = async (userId: string, displayName: string) => {
+    setNudgingUser(userId);
+    try {
+      const { error } = await supabase.from("notifications").insert({
+        user_id: userId,
+        type: "admin_nudge" as const,
+        message: "Your admin recommends enabling push notifications so you never miss important updates. Go to Settings to enable them.",
+        related_id: eventId,
+      });
+      if (error) throw error;
+      toast({
+        title: "Nudge sent!",
+        description: `Sent notification nudge to ${displayName}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to send nudge",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setNudgingUser(null);
     }
   };
 
