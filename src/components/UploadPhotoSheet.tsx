@@ -358,6 +358,13 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     }
   }, [activeClubFilter, availableClubs, selectedClubId]);
 
+  // Auto-select first team for non-privileged users who can't post club-wide
+  useEffect(() => {
+    if (!canPostClubWide && selectedClubId && userTeams && userTeams.length > 0 && !selectedTeamId) {
+      setSelectedTeamId(userTeams[0].id);
+    }
+  }, [canPostClubWide, selectedClubId, userTeams, selectedTeamId]);
+
   useEffect(() => {
     if (!open) {
       restoreNativeLayout();
