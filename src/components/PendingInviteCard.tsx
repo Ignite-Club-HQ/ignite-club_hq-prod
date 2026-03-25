@@ -452,8 +452,8 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             </div>
           </div>
 
-          {/* Quick action buttons - only for admins */}
-          {isAdmin && (
+          {/* Quick action buttons - only for admins, revealed by long-press */}
+          {isAdmin && showActions && (
             <div className="flex items-center gap-1">
               {/* Show Resend Email button when email failed or not sent */}
               {invite.invited_email && (!invite.email_sent_at || invite.email_error) && (
