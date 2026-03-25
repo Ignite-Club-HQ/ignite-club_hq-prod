@@ -136,8 +136,47 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
     enabled: !!clubId,
   });
+  // Fetch existing children in the club for matching
+  const { data: clubChildren = [] } = useQuery({
+    queryKey: ["club-children", clubId],
+    queryFn: async () => {
+      // Get all children linked to this club via team assignments
+      const { data: teamIds } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", clubId);
+      if (!teamIds?.length) return [];
+      
+      const { data: assignments } = await supabase
+        .from("child_team_assignments")
+        .select("child_id")
+        .in("team_id", teamIds.map(t => t.id));
+      if (!assignments?.length) return [];
+      
+      const childIds = [...new Set(assignments.map(a => a.child_id))];
+      const { data: children } = await supabase
+        .from("children")
+        .select("id, name, year_of_birth, parent_id")
+        .in("id", childIds);
+      
+      // Get parent names for context
+      if (!children?.length) return [];
+      const parentIds = [...new Set(children.map(c => c.parent_id))];
+      const { data: parents } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", parentIds);
+      const parentMap = new Map(parents?.map(p => [p.id, p.display_name]) || []);
+      
+      return children.map(c => ({
+        ...c,
+        parent_name: parentMap.get(c.parent_id) || "Unknown",
+      }));
+    },
+    enabled: open && !!clubId && selectedRole === "parent",
+  });
 
-  // Search for existing users
+
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["user-search-team-member", debouncedSearch],
     queryFn: async () => {
