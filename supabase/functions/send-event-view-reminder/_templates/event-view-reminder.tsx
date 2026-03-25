@@ -90,9 +90,11 @@ export const EventViewReminderEmail = ({
     : `Don't miss: ${eventTitle} - ${eventDate} at ${eventTime}`;
   const bodyText = rsvpStyle
     ? `Your team admin has noticed you haven't RSVP'd to <strong>"${eventTitle}"</strong> for <strong style="color: ${primaryColor}">${teamName}</strong>. Please take a moment to view the details and let them know if you can make it.`
-    : `You haven't checked out <strong>"${eventTitle}"</strong> for <strong style="color: ${primaryColor}">${teamName}</strong> yet! Take a look at the details below and let us know if you can make it.`;
+    : `You haven't checked out <strong>"${eventTitle}"</strong> for <strong style="color: ${primaryColor}">${clubName}</strong> yet! Take a look at the details below and let us know if you can make it.`;
   const ctaText = "View Event & RSVP Now";
-  const promptText = "<strong>Your response is needed!</strong> Tap the button above to view all the details and let your team know if you can make it.";
+  const promptText = rsvpStyle
+    ? "<strong>Your response is needed!</strong> Tap the button above to view all the details and let your team know if you can make it."
+    : "<strong>Your response is needed!</strong> Tap the button above to view all the details and let us know if you can make it.";
 
   return (
     <Html>
