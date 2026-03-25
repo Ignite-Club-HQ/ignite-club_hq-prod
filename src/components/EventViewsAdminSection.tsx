@@ -390,7 +390,7 @@ export function EventViewsAdminSection({
                     </DropdownMenu>
                   </div>
                   <div className="grid gap-2">
-                    {notViewedMembers.map((member) => <MemberRow key={member.id} member={member} variant="not-viewed" />)}
+                    {notViewedMembers.map((member) => renderMemberRow(member, "not-viewed"))}
                   </div>
                 </div>
               )}
@@ -407,7 +407,7 @@ export function EventViewsAdminSection({
                     Viewed ({viewedCount})
                   </h4>
                   <div className="grid gap-2">
-                    {viewedMembers.map((member) => <MemberRow key={member.id} member={member} variant="viewed" />)}
+                    {viewedMembers.map((member) => renderMemberRow(member, "viewed"))}
                   </div>
                 </div>
               )}
