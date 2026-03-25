@@ -479,7 +479,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
               )}
               
               
-              <DropdownMenu modal={false}>
+              <DropdownMenu modal={false} onOpenChange={(open) => { if (!open) setShowActions(false); }}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 touch-none">
                     <MoreHorizontal className="h-4 w-4" />
