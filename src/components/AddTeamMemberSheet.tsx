@@ -893,21 +893,91 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <TabsContent value="single" className="space-y-5 mt-0">
             {/* Selected User Preview */}
             {selectedUser && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={selectedUser.avatar_url || undefined} />
-                  <AvatarFallback className="bg-primary/20 text-primary">
-                    {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <p className="font-medium">{selectedUser.display_name || "Unknown"}</p>
-                  <p className="text-sm text-muted-foreground">Existing app user • Will be added directly</p>
+              <>
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={selectedUser.avatar_url || undefined} />
+                    <AvatarFallback className="bg-primary/20 text-primary">
+                      {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="font-medium">{selectedUser.display_name || "Unknown"}</p>
+                    <p className="text-sm text-muted-foreground">Existing app user • Will be added directly</p>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+
+                {/* Child fields for existing user with parent role */}
+                {selectedRole === "parent" && (
+                  <div className="space-y-3 p-4 rounded-xl bg-pink-500/5 border border-pink-500/20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Baby className="h-4 w-4 text-pink-600" />
+                        <Label className="text-pink-600 font-medium">Child Player(s)</Label>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "" }])}
+                        className="h-7 text-xs border-pink-500/30 text-pink-600 hover:bg-pink-500/10"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Child
+                      </Button>
+                    </div>
+                    
+                    {singleChildren.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Add the child player(s) who will be registered to this team.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {singleChildren.map((child, idx) => (
+                          <div key={child.id} className="flex gap-2 items-start">
+                            <div className="flex-1 space-y-1">
+                              <Input
+                                placeholder="Child's name"
+                                value={child.name}
+                                onChange={(e) => setSingleChildren(singleChildren.map(c => 
+                                  c.id === child.id ? { ...c, name: e.target.value } : c
+                                ))}
+                                className="h-9"
+                              />
+                            </div>
+                            <div className="w-24">
+                              <Input
+                                placeholder="Year"
+                                value={child.yearOfBirth}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                                  setSingleChildren(singleChildren.map(c => 
+                                    c.id === child.id ? { ...c, yearOfBirth: val } : c
+                                  ));
+                                }}
+                                className="h-9"
+                                maxLength={4}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 text-destructive hover:text-destructive"
+                              onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             {!selectedUser && (
