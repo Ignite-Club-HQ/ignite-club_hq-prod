@@ -58,6 +58,12 @@ const normalizeLink = (link: string): string => {
   }
 };
 
+// Determine if this event type needs RSVP-style language
+const isRsvpEvent = (eventType: string): boolean => {
+  const lower = eventType.toLowerCase();
+  return lower === 'game' || lower === 'training' || lower === 'match';
+};
+
 export const EventViewReminderEmail = ({
   recipientName = "Member",
   eventTitle = "Team Event",
@@ -71,9 +77,24 @@ export const EventViewReminderEmail = ({
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
 }: EventViewReminderEmailProps) => {
-  const previewText = `RSVP needed: ${eventTitle} - ${eventDate} at ${eventTime}`;
   const normalizedEventLink = normalizeLink(eventLink);
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
+  const rsvpStyle = isRsvpEvent(eventType);
+
+  // Smart copy based on event type
+  const bannerText = rsvpStyle ? "📋 RSVP Needed!" : "🎉 Don't Miss This!";
+  const bannerColor = rsvpStyle ? '#f59e0b' : '#6366f1';
+  const headingText = rsvpStyle ? "📅 Event Reminder" : `📅 Upcoming ${eventType}`;
+  const previewText = rsvpStyle
+    ? `RSVP needed: ${eventTitle} - ${eventDate} at ${eventTime}`
+    : `Don't miss: ${eventTitle} - ${eventDate} at ${eventTime}`;
+  const bodyText = rsvpStyle
+    ? `Your team admin has noticed you haven't RSVP'd to an upcoming <strong>${eventType.toLowerCase()}</strong> for <strong style="color: ${primaryColor}">${teamName}</strong>. Please take a moment to view the details and let them know if you can make it.`
+    : `You're invited to an upcoming <strong>${eventType.toLowerCase()}</strong> with <strong style="color: ${primaryColor}">${teamName}</strong>! Check out the details below — we'd love to see you there.`;
+  const ctaText = rsvpStyle ? "View Event & RSVP Now" : "View Event Details";
+  const promptText = rsvpStyle
+    ? "<strong>Your response is needed!</strong> Tap the button above to view all the details and let your team know if you can make it."
+    : "<strong>We hope to see you there!</strong> Tap the button above to check out all the details.";
 
   return (
     <Html>
@@ -104,21 +125,19 @@ export const EventViewReminderEmail = ({
           <Hr style={divider} />
 
           {/* Attention Banner */}
-          <Section style={{ ...attentionBanner, backgroundColor: '#f59e0b' }}>
-            <Text style={attentionBannerText}>📋 RSVP Needed!</Text>
+          <Section style={{ ...attentionBanner, backgroundColor: bannerColor }}>
+            <Text style={attentionBannerText}>{bannerText}</Text>
           </Section>
 
           {/* Main Content */}
           <Section style={contentSection}>
-            <Heading style={heading}>📅 Event Reminder</Heading>
+            <Heading style={heading}>{headingText}</Heading>
             
             <Text style={paragraph}>
               Dear {recipientName},
             </Text>
             
-            <Text style={paragraph}>
-              Your team admin has noticed you haven't RSVP'd to an upcoming <strong>{eventType.toLowerCase()}</strong> for <strong style={{ color: primaryColor }}>{teamName}</strong>. Please take a moment to view the details and let them know if you can make it.
-            </Text>
+            <Text style={paragraph} dangerouslySetInnerHTML={{ __html: bodyText }} />
 
             {/* Event Details Card */}
             <Section style={eventCard}>
@@ -148,13 +167,11 @@ export const EventViewReminderEmail = ({
 
             <Section style={buttonSection}>
               <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedEventLink}>
-                View Event & RSVP Now
+                {ctaText}
               </Button>
             </Section>
 
-            <Text style={rsvpPrompt}>
-              <strong>Your response is needed!</strong> Tap the button above to view all the details and let your team know if you can make it.
-            </Text>
+            <Text style={rsvpPrompt} dangerouslySetInnerHTML={{ __html: promptText }} />
             
             <Text style={linkFallback}>
               Or copy this link: <Link href={normalizedEventLink} style={{ color: primaryColor }}>{normalizedEventLink}</Link>
