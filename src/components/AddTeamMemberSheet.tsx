@@ -249,30 +249,55 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       });
       if (error) throw error;
 
-      // If parent role, create children and assign to team
+      // If parent role, create or link children and assign to team
       if (selectedRole === "parent") {
         const validChildren = singleChildren.filter(c => c.name.trim());
         for (const child of validChildren) {
-          const { data: newChild, error: childError } = await supabase
-            .from("children")
-            .insert({
-              parent_id: selectedUser.id,
-              name: child.name.trim(),
-              year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
-            })
-            .select("id")
-            .single();
+          let childId = child.existingChildId;
+          
+          if (childId) {
+            // Existing child — just add guardian link if not already the parent
+            const existingChild = clubChildren.find(c => c.id === childId);
+            if (existingChild && existingChild.parent_id !== selectedUser.id) {
+              await supabase.from("child_guardians").insert({
+                child_id: childId,
+                guardian_id: selectedUser.id,
+              }).select().maybeSingle(); // ignore duplicate errors
+            }
+          } else {
+            // Create new child
+            const { data: newChild, error: childError } = await supabase
+              .from("children")
+              .insert({
+                parent_id: selectedUser.id,
+                name: child.name.trim(),
+                year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
+              })
+              .select("id")
+              .single();
 
-          if (childError) {
-            console.error("Failed to create child:", childError.message);
-            continue;
+            if (childError) {
+              console.error("Failed to create child:", childError.message);
+              continue;
+            }
+            childId = newChild?.id;
           }
 
-          if (newChild?.id) {
-            await supabase.from("child_team_assignments").insert({
-              child_id: newChild.id,
-              team_id: teamId,
-            });
+          if (childId) {
+            // Check if already assigned to this team
+            const { data: existing } = await supabase
+              .from("child_team_assignments")
+              .select("id")
+              .eq("child_id", childId)
+              .eq("team_id", teamId)
+              .maybeSingle();
+            
+            if (!existing) {
+              await supabase.from("child_team_assignments").insert({
+                child_id: childId,
+                team_id: teamId,
+              });
+            }
           }
         }
       }
