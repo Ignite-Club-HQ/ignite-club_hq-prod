@@ -289,7 +289,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentName: secondParentName.trim(),
       };
     },
-    onSuccess: async ({ link, email, childrenCount, childrenNames }) => {
+    onSuccess: async ({ link, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName }) => {
       setInviteLink(link);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
 
@@ -370,13 +370,57 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           description: `${customName} has been added. Share the invite link with them.`,
         });
       }
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Failed to add member",
-        description: error.message,
-        variant: "destructive",
-      });
+
+      // Send email to second parent if provided
+      if (secondEmail && secondParentLink) {
+        try {
+          const secondToken = secondParentLink.split("/join/p/")[1];
+          const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
+            body: {
+              to: secondEmail,
+              subject: childrenNames.length === 1
+                ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                : childrenNames.length > 1
+                  ? `${clubBranding?.name || 'Your club'}: See which team your kids are in ⚽`
+                  : `${clubBranding?.name || 'Your club'}: You've been added to the team ⚽`,
+              template: "team-invite",
+              senderName: clubBranding?.name || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
+              templateData: {
+                recipientName: secondName,
+                invitedEmail: secondEmail,
+                teamName,
+                clubName: clubBranding?.name || "The Club",
+                roleName: "Parent",
+                inviteLink: secondParentLink,
+                clubLogoUrl: clubBranding?.logo_url || undefined,
+                childrenNames: childrenNames.length > 0 ? childrenNames : undefined,
+                customMessage: customMessage.trim() || undefined,
+              },
+            },
+          });
+
+          const emailSent = !funcError && emailResult?.verified && emailResult?.success;
+          await supabase
+            .from("pending_invites")
+            .update({
+              email_sent_at: emailSent ? new Date().toISOString() : null,
+              email_id: emailResult?.emailId || null,
+              email_error: !emailSent ? (emailResult?.error || "Email not verified") : null,
+            } as any)
+            .eq("invite_token", secondToken);
+
+          if (emailSent) {
+            toast({
+              title: "Second parent invited!",
+              description: `Email also sent to ${secondEmail}`,
+            });
+          }
+        } catch (error) {
+          console.error("Failed to send second parent email:", error);
+        }
+        queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
+      }
     },
   });
 
