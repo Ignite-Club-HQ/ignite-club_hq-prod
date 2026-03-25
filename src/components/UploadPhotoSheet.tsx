@@ -331,7 +331,17 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     enabled: !!user && !!selectedClubId && userRoles !== undefined,
   });
 
-  // Filter to show only clubs with Pro access (unless app admin)
+  // Only admins, coaches, and committee members can post club-wide (no team/league selected)
+  const canPostClubWide = useMemo(() => {
+    if (isAppAdmin) return true;
+    if (!selectedClubId || !userRoles) return false;
+    return userRoles.some(r => {
+      const inClub = r.club_id === selectedClubId || 
+        (r.team_id && userTeams?.some(t => t.id === r.team_id));
+      return inClub && ['club_admin', 'coach', 'committee_member'].includes(r.role);
+    });
+  }, [isAppAdmin, selectedClubId, userRoles, userTeams]);
+
   // Also filter by activeClubFilter when in filtered mode
   const availableClubs = (() => {
     let clubs = isAppAdmin ? userClubs : userClubs?.filter(club => club.has_pro_access);
