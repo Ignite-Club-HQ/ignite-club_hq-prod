@@ -202,6 +202,34 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       });
       if (error) throw error;
 
+      // If parent role, create children and assign to team
+      if (selectedRole === "parent") {
+        const validChildren = singleChildren.filter(c => c.name.trim());
+        for (const child of validChildren) {
+          const { data: newChild, error: childError } = await supabase
+            .from("children")
+            .insert({
+              parent_id: selectedUser.id,
+              name: child.name.trim(),
+              year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
+            })
+            .select("id")
+            .single();
+
+          if (childError) {
+            console.error("Failed to create child:", childError.message);
+            continue;
+          }
+
+          if (newChild?.id) {
+            await supabase.from("child_team_assignments").insert({
+              child_id: newChild.id,
+              team_id: teamId,
+            });
+          }
+        }
+      }
+
       // Send notification
       await supabase.from("notifications").insert({
         user_id: selectedUser.id,
