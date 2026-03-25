@@ -243,17 +243,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
       ) : null;
 
-      // Create pending invite record with the unique token and children metadata
+      // Generate both tokens upfront so we can cross-link
+      const secondToken = (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") 
+        ? crypto.randomUUID() : null;
+
+      // Create primary invite
       const { data: primaryInvite, error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: teamId,
         club_id: clubId,
         role: selectedRole as any,
-        invited_user_id: null, // Will be set when user accepts invite
+        invited_user_id: null,
         invited_by_user_id: user!.id,
         invited_label: customName.trim(),
         invited_email: customEmail.trim().toLowerCase() || null,
         invite_token: inviteToken,
-        metadata: childrenMetadata ? { children: JSON.parse(childrenMetadata) } : null,
+        metadata: childrenMetadata 
+          ? { children: JSON.parse(childrenMetadata), ...(secondToken ? { linked_invite_token: secondToken } : {}) } 
+          : null,
       } as any).select("id").single();
       if (inviteError) throw inviteError;
 
@@ -261,8 +267,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       const link = `${window.location.origin}/join/p/${inviteToken}`;
       // Create second parent invite if provided
       let secondParentLink: string | null = null;
-      if (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") {
-        const secondToken = crypto.randomUUID();
+      if (secondToken) {
         const { error: secondError } = await supabase.from("pending_invites").insert({
           team_id: teamId,
           club_id: clubId,
@@ -273,7 +278,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           invited_email: secondParentEmail.trim().toLowerCase(),
           invite_token: secondToken,
           metadata: childrenMetadata 
-            ? { children: JSON.parse(childrenMetadata), linked_invite_id: primaryInvite?.id } 
+            ? { children: JSON.parse(childrenMetadata), linked_invite_token: inviteToken } 
             : null,
         } as any);
         if (!secondError) {
