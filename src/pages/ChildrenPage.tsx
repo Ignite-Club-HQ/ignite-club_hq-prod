@@ -141,10 +141,10 @@ export default function ChildrenPage() {
         .from("pending_invites")
         .select("id, invited_label, status, metadata, club_id, team_id")
         .eq("invited_by_user_id", user!.id)
-        .eq("role", "parent" as any (name, clubs(name))")
+        .eq("role", "parent" as any)
         .in("status", ["pending", "accepted"]);
       if (error) {
-        console.error("[ XChildrenPage] Failed to fetch guardian invites:", error);
+        console.error("[ChildrenPage] Failed to fetch guardian invites:", error);
         return [];
       }
       // Filter to only guardian invites (those with guardian_child_id in metadata)
