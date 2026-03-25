@@ -422,6 +422,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
       }
     },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to add member",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   // Bulk add pending members with invites
