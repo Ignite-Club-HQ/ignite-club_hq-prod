@@ -132,6 +132,27 @@ export default function ChildrenPage() {
     enabled: !!children?.length,
   });
 
+  // Fetch pending guardian invites for own children
+  const { data: pendingGuardianInvites } = useQuery({
+    queryKey: ["pending-guardian-invites", user?.id],
+    queryFn: async () => {
+      if (!ownChildren?.length) return [];
+      const { data, error } = await supabase
+        .from("pending_invites")
+        .select("id, invited_label, status, metadata, club_id, team_id")
+        .eq("invited_by_user_id", user!.id)
+        .eq("role", "parent" as any (name, clubs(name))")
+        .in("status", ["pending", "accepted"]);
+      if (error) {
+        console.error("[ XChildrenPage] Failed to fetch guardian invites:", error);
+        return [];
+      }
+      // Filter to only guardian invites (those with guardian_child_id in metadata)
+      return (data || []).filter(inv => (inv.metadata as any)?.guardian_child_id);
+    },
+    enabled: !!ownChildren?.length,
+  });
+
   // Fetch available teams (teams user is a member of)
   const { data: availableTeams } = useQuery({
     queryKey: ["user_teams_for_children", user?.id],
