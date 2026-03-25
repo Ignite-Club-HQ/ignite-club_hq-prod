@@ -363,6 +363,7 @@ export default function ChildrenPage() {
         <div className="space-y-4">
           {children.map((child) => {
             const childAssignments = getChildAssignments(child.id);
+            const guardianInvites = getGuardianInvitesForChild(child.id);
             const unassignedTeams = availableTeams?.filter(t => !childAssignments.some(a => a.team_id === t.id)) || [];
 
             return (
