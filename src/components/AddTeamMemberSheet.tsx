@@ -102,6 +102,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [customMessage, setCustomMessage] = useState("");
   const [showMessageEditor, setShowMessageEditor] = useState(false);
+  // Second parent fields (for parent role)
+  const [secondParentName, setSecondParentName] = useState("");
+  const [secondParentEmail, setSecondParentEmail] = useState("");
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
