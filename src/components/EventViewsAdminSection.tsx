@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone } from "lucide-react";
+import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -43,6 +43,8 @@ export function EventViewsAdminSection({
   const [isOpen, setIsOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSendingNudge, setIsSendingNudge] = useState(false);
+  const [sendingForUser, setSendingForUser] = useState<string | null>(null);
+  const [nudgingUser, setNudgingUser] = useState<string | null>(null);
 
   // Fetch all event views for this event
   const { data: eventViews } = useQuery({
@@ -198,14 +200,44 @@ export function EventViewsAdminSection({
     },
   });
 
-  const handleSendReminders = async (channels: "push" | "email" | "both") => {
-    if (notViewedMembers.length === 0) return;
+  const handleSendReminders = async (channels: "push" | "email" | "both", targetUserIds?: string[]) => {
+    const ids = targetUserIds || notViewedMembers.map(m => m.id);
+    if (ids.length === 0) return;
     
-    setIsSending(true);
+    const isSingle = targetUserIds && targetUserIds.length === 1;
+    if (isSingle) setSendingForUser(targetUserIds[0]);
+    else setIsSending(true);
+    
     try {
-      await sendReminderMutation.mutateAsync({ userIds: notViewedMembers.map(m => m.id), channels });
+      await sendReminderMutation.mutateAsync({ userIds: ids, channels });
     } finally {
-      setIsSending(false);
+      if (isSingle) setSendingForUser(null);
+      else setIsSending(false);
+    }
+  };
+
+  const handleSendNudgeToUser = async (userId: string, displayName: string) => {
+    setNudgingUser(userId);
+    try {
+      const { error } = await supabase.from("notifications").insert({
+        user_id: userId,
+        type: "admin_nudge" as const,
+        message: "Your admin recommends enabling push notifications so you never miss important updates. Go to Settings to enable them.",
+        related_id: eventId,
+      });
+      if (error) throw error;
+      toast({
+        title: "Nudge sent!",
+        description: `Sent notification nudge to ${displayName}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to send nudge",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setNudgingUser(null);
     }
   };
 
@@ -297,6 +329,44 @@ export function EventViewsAdminSection({
             <span className="text-xs text-muted-foreground">
               {new Date(member.viewedAt).toLocaleDateString()}
             </span>
+          )}
+          {variant === "not-viewed" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={sendingForUser === member.id || nudgingUser === member.id}
+                >
+                  {(sendingForUser === member.id || nudgingUser === member.id) ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleSendReminders("push", [member.id])}>
+                  <Smartphone className="h-4 w-4 mr-2" />
+                  Send Push
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSendReminders("email", [member.id])}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send Email
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSendReminders("both", [member.id])}>
+                  <Bell className="h-4 w-4 mr-2" />
+                  Send Both
+                </DropdownMenuItem>
+                {noPushSetup && (
+                  <DropdownMenuItem onClick={() => handleSendNudgeToUser(member.id, member.display_name || "Member")}>
+                    <BellRing className="h-4 w-4 mr-2" />
+                    Nudge to Enable Push
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
