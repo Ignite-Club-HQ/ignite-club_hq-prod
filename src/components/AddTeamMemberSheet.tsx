@@ -244,7 +244,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       ) : null;
 
       // Create pending invite record with the unique token and children metadata
-      const { error: inviteError } = await supabase.from("pending_invites").insert({
+      const { data: primaryInvite, error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: teamId,
         club_id: clubId,
         role: selectedRole as any,
@@ -254,7 +254,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         invited_email: customEmail.trim().toLowerCase() || null,
         invite_token: inviteToken,
         metadata: childrenMetadata ? { children: JSON.parse(childrenMetadata) } : null,
-      } as any);
+      } as any).select("id").single();
       if (inviteError) throw inviteError;
 
       // Use the pending invite token for name-restricted link
@@ -272,7 +272,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           invited_label: secondParentName.trim(),
           invited_email: secondParentEmail.trim().toLowerCase(),
           invite_token: secondToken,
-          metadata: childrenMetadata ? { children: JSON.parse(childrenMetadata) } : null,
+          metadata: childrenMetadata 
+            ? { children: JSON.parse(childrenMetadata), linked_invite_id: primaryInvite?.id } 
+            : null,
         } as any);
         if (!secondError) {
           secondParentLink = `${window.location.origin}/join/p/${secondToken}`;
