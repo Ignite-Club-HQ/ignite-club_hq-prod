@@ -16,6 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { EventViewMemberRow } from "@/components/EventViewMemberRow";
 
 interface EventViewsAdminSectionProps {
   eventId: string;
@@ -43,6 +44,8 @@ export function EventViewsAdminSection({
   const [isOpen, setIsOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSendingNudge, setIsSendingNudge] = useState(false);
+  const [sendingForUser, setSendingForUser] = useState<string | null>(null);
+  const [nudgingUser, setNudgingUser] = useState<string | null>(null);
 
   // Fetch all event views for this event
   const { data: eventViews } = useQuery({
@@ -198,14 +201,44 @@ export function EventViewsAdminSection({
     },
   });
 
-  const handleSendReminders = async (channels: "push" | "email" | "both") => {
-    if (notViewedMembers.length === 0) return;
+  const handleSendReminders = async (channels: "push" | "email" | "both", targetUserIds?: string[]) => {
+    const ids = targetUserIds || notViewedMembers.map(m => m.id);
+    if (ids.length === 0) return;
     
-    setIsSending(true);
+    const isSingle = targetUserIds && targetUserIds.length === 1;
+    if (isSingle) setSendingForUser(targetUserIds[0]);
+    else setIsSending(true);
+    
     try {
-      await sendReminderMutation.mutateAsync({ userIds: notViewedMembers.map(m => m.id), channels });
+      await sendReminderMutation.mutateAsync({ userIds: ids, channels });
     } finally {
-      setIsSending(false);
+      if (isSingle) setSendingForUser(null);
+      else setIsSending(false);
+    }
+  };
+
+  const handleSendNudgeToUser = async (userId: string, displayName: string) => {
+    setNudgingUser(userId);
+    try {
+      const { error } = await supabase.from("notifications").insert({
+        user_id: userId,
+        type: "admin_nudge" as const,
+        message: "Your admin recommends enabling push notifications so you never miss important updates. Go to Settings to enable them.",
+        related_id: eventId,
+      });
+      if (error) throw error;
+      toast({
+        title: "Nudge sent!",
+        description: `Sent notification nudge to ${displayName}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to send nudge",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setNudgingUser(null);
     }
   };
 
@@ -267,39 +300,16 @@ export function EventViewsAdminSection({
     const noPushSetup = pushReachable ? (pushReachable[member.id] === false) : false;
 
     return (
-      <div
+      <EventViewMemberRow
         key={member.id}
-        className={`flex items-center gap-2 p-2 rounded-lg ${
-          variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
-        }`}
-      >
-        <Avatar className="h-7 w-7">
-          <AvatarImage src={member.avatar_url || undefined} />
-          <AvatarFallback className="text-xs">
-            {member.display_name?.charAt(0)?.toUpperCase() || "?"}
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-sm truncate flex-1">{member.display_name || "Unknown"}</span>
-        <div className="flex items-center gap-1 shrink-0">
-          {(pushDisabled || noPushSetup) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="p-0.5 rounded text-destructive/70">
-                  <BellOff className="h-3.5 w-3.5" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                <p>{noPushSetup ? "No push notifications set up" : "Event push notifications disabled"}</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          {variant === "viewed" && member.viewedAt && (
-            <span className="text-xs text-muted-foreground">
-              {new Date(member.viewedAt).toLocaleDateString()}
-            </span>
-          )}
-        </div>
-      </div>
+        member={member}
+        variant={variant}
+        pushDisabled={pushDisabled}
+        noPushSetup={noPushSetup}
+        isBusy={sendingForUser === member.id || nudgingUser === member.id}
+        onSendReminder={handleSendReminders}
+        onNudge={handleSendNudgeToUser}
+      />
     );
   };
 
@@ -347,12 +357,12 @@ export function EventViewsAdminSection({
                       <EyeOff className="h-4 w-4" />
                       Haven't Viewed ({notViewedCount})
                     </h4>
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <Button
                           size="sm"
                           disabled={isSending}
-                          className="gap-1.5"
+                          className="gap-1.5 touch-none"
                         >
                           {isSending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
