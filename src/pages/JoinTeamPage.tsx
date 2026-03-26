@@ -347,39 +347,55 @@ export default function JoinTeamPage() {
           .select("id, name, year_of_birth")
           .eq("parent_id", user.id);
         
+        const createdChildIds: string[] = [];
         for (const childData of metadata.children) {
           const childNameLower = childData.name.toLowerCase().trim();
           
-          // Check if a child with the same name already exists for this parent
-          const existingChild = existingChildren?.find(
-            c => c.name.toLowerCase().trim() === childNameLower
-          );
-          
           let childId: string | null = null;
           
-          if (existingChild) {
-            // Child already exists, use existing ID
-            childId = existingChild.id;
-            console.log("[JoinTeam] Child already exists:", childData.name, "ID:", childId);
-          } else {
-            // Create the child record
-            const { data: newChild, error: childError } = await supabase
-              .from("children")
-              .insert({
-                parent_id: user.id,
-                name: childData.name,
-                year_of_birth: childData.yearOfBirth,
-              })
-              .select("id")
-              .single();
-            
-            if (childError) {
-              console.error("[JoinTeam] Failed to create child:", childError.message);
-              continue;
+          if (childData.existingChildId) {
+            // Admin linked to an existing club child — add as guardian
+            childId = childData.existingChildId;
+            console.log("[JoinTeam] Linking to existing club child:", childData.name, "ID:", childId);
+            const { error: guardErr } = await supabase.from("child_guardians").insert({
+              child_id: childId,
+              guardian_id: user.id,
+              relationship_type: "parent",
+              is_primary: false,
+            });
+            if (guardErr && !guardErr.message?.includes("duplicate")) {
+              console.error("[JoinTeam] Failed to link guardian:", guardErr.message);
             }
-            childId = newChild?.id || null;
-            console.log("[JoinTeam] Created new child:", childData.name, "ID:", childId);
+          } else {
+            // Check if a child with the same name already exists for this parent
+            const existingChild = existingChildren?.find(
+              c => c.name.toLowerCase().trim() === childNameLower
+            );
+            
+            if (existingChild) {
+              childId = existingChild.id;
+              console.log("[JoinTeam] Child already exists:", childData.name, "ID:", childId);
+            } else {
+              // Create the child record
+              const { data: newChild, error: childError } = await supabase
+                .from("children")
+                .insert({
+                  parent_id: user.id,
+                  name: childData.name,
+                  year_of_birth: childData.yearOfBirth,
+                })
+                .select("id")
+                .single();
+              
+              if (childError) {
+                console.error("[JoinTeam] Failed to create child:", childError.message);
+                continue;
+              }
+              childId = newChild?.id || null;
+              console.log("[JoinTeam] Created new child:", childData.name, "ID:", childId);
+            }
           }
+          if (childId) createdChildIds.push(childId);
           
           // Assign child to the team (with duplicate check)
           if (childId && pendingInviteData.team_id) {
