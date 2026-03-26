@@ -107,6 +107,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Second parent fields (for parent role)
   const [secondParentName, setSecondParentName] = useState("");
   const [secondParentEmail, setSecondParentEmail] = useState("");
+  const [secondParentSearch, setSecondParentSearch] = useState("");
+  const [selectedSecondParent, setSelectedSecondParent] = useState<{ id: string; display_name: string | null; avatar_url: string | null } | null>(null);
+  const debouncedSecondParentSearch = useDebounce(secondParentSearch, 300);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
