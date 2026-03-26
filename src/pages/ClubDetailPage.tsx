@@ -985,6 +985,7 @@ export default function ClubDetailPage() {
           </AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4 pt-2">
+              {isAdmin && <PendingTeamRequests clubId={id!} />}
               {isAdmin && (
                 <div className="flex items-center gap-2 justify-end">
                   <Button variant="outline" size="sm" onClick={() => setCreateFolderDialogOpen(true)}>
