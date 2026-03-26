@@ -353,6 +353,44 @@ export function PendingInviteWelcomeDialog() {
                   });
                 }
                 console.log("[InviteAutoAccept] Linked second parent", meta.second_parent_user_id, "to", createdIds.length, "children");
+
+                // Send child-added email to the second parent
+                try {
+                  const childNames = childrenData.map((c: any) => c.name);
+                  const firstTeamId = invite.team_id;
+                  if (firstTeamId && childNames.length > 0) {
+                    const { data: teamInfo } = await supabase
+                      .from("teams")
+                      .select("name, club_id, clubs:club_id(name, logo_url, contact_email)")
+                      .eq("id", firstTeamId)
+                      .single();
+
+                    if (teamInfo) {
+                      const club = teamInfo.clubs as any;
+                      await supabase.functions.invoke("send-email", {
+                        body: {
+                          toUserId: meta.second_parent_user_id,
+                          subject: childNames.length === 1
+                            ? `${club?.name || 'Your club'}: See which team ${childNames[0]} is in ⚽`
+                            : `${club?.name || 'Your club'}: Your children have been added to ${teamInfo.name} ⚽`,
+                          template: "child-added",
+                          senderName: club?.name || undefined,
+                          replyTo: club?.contact_email || undefined,
+                          templateData: {
+                            recipientName: "Parent",
+                            childrenNames: childNames,
+                            teamName: teamInfo.name,
+                            clubName: club?.name || "The Club",
+                            clubLogoUrl: club?.logo_url || undefined,
+                          },
+                        },
+                      });
+                      console.log("[InviteAutoAccept] Sent child-added email to second parent:", meta.second_parent_user_id);
+                    }
+                  }
+                } catch (emailErr) {
+                  console.error("[InviteAutoAccept] Failed to send child-added email to second parent:", emailErr);
+                }
               }
             }
           }
