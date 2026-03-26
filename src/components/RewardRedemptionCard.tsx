@@ -342,7 +342,7 @@ export default function RewardRedemptionCard() {
             recipientUserId: user!.id,
             rewardName: reward.name,
             pointsSpent: reward.points_required,
-            remainingPoints,
+            remainingPoints: Math.max(0, pointsSource.points - reward.points_required),
             clubName: club?.name || 'Your Club',
             rewardDescription: reward.description,
             sponsorName,
