@@ -113,18 +113,6 @@ Deno.serve(async (req) => {
 
       if (existingBonus) continue;
 
-      // Get current points
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('ignite_points')
-        .eq('id', userId)
-        .single();
-
-      if (!profile) continue;
-
-      const currentPoints = profile.ignite_points || 0;
-      const newPoints = currentPoints + totalBonus;
-
       // Pick the first club_id for the bonus record
       const clubId = [...activity.clubIds][0];
 
@@ -140,16 +128,18 @@ Deno.serve(async (req) => {
 
       if (!hasPro || clubSub?.disable_points_system) continue;
 
-      // Award points
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ ignite_points: newPoints })
-        .eq('id', userId);
+      // Atomic points increment
+      const { data: newPointsResult, error: rpcError } = await supabase.rpc('increment_ignite_points', {
+        _user_id: userId,
+        _amount: totalBonus,
+      });
 
-      if (updateError) {
-        console.error(`Failed to award weekly bonus to ${userId}:`, updateError);
+      if (rpcError) {
+        console.error(`Failed to award weekly bonus to ${userId}:`, rpcError);
         continue;
       }
+
+      const newPoints = newPointsResult || 0;
 
       // Record cooldown to prevent double-awarding
       await supabase.from('points_cooldowns').insert({
