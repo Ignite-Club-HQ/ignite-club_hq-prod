@@ -214,9 +214,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     enabled: debouncedSecondParentSearch.length >= 2 && !selectedSecondParent,
   });
 
-  // Filter second parent results: exclude primary user and existing members
+  // Filter second parent results: exclude primary user but allow existing members (they may need parent role added)
   const filteredSecondParentResults = secondParentSearchResults.filter(
-    user => user.id !== selectedUser?.id && !existingMembers?.includes(user.id)
+    u => u.id !== selectedUser?.id
   );
 
   // Find matching existing children by exact name (case-insensitive)
