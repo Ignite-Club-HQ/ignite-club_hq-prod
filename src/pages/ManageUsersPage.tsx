@@ -766,7 +766,7 @@ export default function ManageUsersPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Users</span>
@@ -774,6 +774,10 @@ export default function ManageUsersPage() {
           <TabsTrigger value="admins" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Admins</span>
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Analytics</span>
           </TabsTrigger>
           <TabsTrigger value="audit" className="flex items-center gap-2">
             <History className="h-4 w-4" />
