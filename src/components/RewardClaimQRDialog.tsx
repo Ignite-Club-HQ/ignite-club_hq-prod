@@ -74,17 +74,15 @@ export function RewardClaimQRDialog({
 
       toast({
         title: "Reward Claimed!",
-        description: pointsToDeduct > 0 
-          ? `${pointsToDeduct} points deducted for reward redemption.`
-          : "Reward marked as claimed.",
+        description: "Reward marked as claimed.",
       });
 
       setConfirming(false);
       onOpenChange(false);
     } catch (error: any) {
-      console.error("Error resetting points:", error);
+      console.error("Error claiming reward:", error);
       toast({
-        title: "Failed to reset points",
+        title: "Failed to claim reward",
         description: error.message || "Please try again",
         variant: "destructive",
       });
