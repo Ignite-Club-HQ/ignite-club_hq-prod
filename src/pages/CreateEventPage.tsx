@@ -475,59 +475,49 @@ export default function CreateEventPage() {
     const eventMinute = parsedDateTime.getMinutes();
     const normalizedAddress = address.trim().toLowerCase();
 
-    // Query events for the same club on the same date
+    // Query all events for the same club on the same date (includes recurring child events)
     const { data: existingEvents } = await supabase
       .from("events")
-      .select("id, title, event_date, address, team_id, teams(name), parent_event_id, is_recurring, recurrence_end_date")
+      .select("id, title, event_date, address, team_id, teams(name)")
       .eq("club_id", clubId)
       .eq("is_cancelled", false)
       .gte("event_date", `${eventDateStr}T00:00:00`)
       .lte("event_date", `${eventDateStr}T23:59:59`);
 
-    if (!existingEvents || existingEvents.length === 0) {
-      // Also check for recurring events that might fall on this date
-      const dayOfWeek = parsedDateTime.getDay();
-      const { data: recurringParents } = await supabase
-        .from("events")
-        .select("id, title, event_date, address, team_id, teams(name), recurrence_end_date")
-        .eq("club_id", clubId)
-        .eq("is_recurring", true)
-        .eq("is_cancelled", false)
-        .not("address", "is", null)
-        .lte("event_date", parsedDateTime.toISOString())
-        .or(`recurrence_end_date.gte.${eventDateStr},recurrence_end_date.is.null`);
-
-      if (!recurringParents || recurringParents.length === 0) return false;
-
-      const conflicts = recurringParents.filter(evt => {
-        if (!evt.address || evt.address.trim().toLowerCase() !== normalizedAddress) return false;
-        const evtDate = new Date(evt.event_date);
-        if (evtDate.getHours() !== eventHour || evtDate.getMinutes() !== eventMinute) return false;
-        // Check if the recurring pattern would include our date (weekly assumed)
-        const evtDay = evtDate.getDay();
-        return evtDay === dayOfWeek;
-      });
-
-      if (conflicts.length > 0) {
-        setConflictingEvents(conflicts.map(e => ({
-          title: e.title,
-          team_name: (e.teams as any)?.name,
-          start_time: new Date(e.event_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        })));
-        return true;
-      }
-      return false;
-    }
-
-    // Check direct date matches
-    const conflicts = existingEvents.filter(evt => {
+    // Check direct date matches (covers both standalone and recurring child events)
+    const conflicts = (existingEvents || []).filter(evt => {
       if (!evt.address || evt.address.trim().toLowerCase() !== normalizedAddress) return false;
       const evtDate = new Date(evt.event_date);
       return evtDate.getHours() === eventHour && evtDate.getMinutes() === eventMinute;
     });
 
-    if (conflicts.length > 0) {
-      setConflictingEvents(conflicts.map(e => ({
+    // Also check recurring parent events whose children might not yet exist on this date
+    // (e.g. if the new event date is beyond existing generated children)
+    const { data: recurringParents } = await supabase
+      .from("events")
+      .select("id, title, event_date, address, team_id, teams(name), recurrence_end_date")
+      .eq("club_id", clubId)
+      .eq("is_recurring", true)
+      .eq("is_cancelled", false)
+      .not("address", "is", null)
+      .lte("event_date", parsedDateTime.toISOString())
+      .or(`recurrence_end_date.gte.${eventDateStr},recurrence_end_date.is.null`);
+
+    const existingConflictIds = new Set(conflicts.map(c => c.id));
+
+    const recurringConflicts = (recurringParents || []).filter(evt => {
+      if (existingConflictIds.has(evt.id)) return false; // Already counted
+      if (!evt.address || evt.address.trim().toLowerCase() !== normalizedAddress) return false;
+      const evtDate = new Date(evt.event_date);
+      if (evtDate.getHours() !== eventHour || evtDate.getMinutes() !== eventMinute) return false;
+      // Check day-of-week match (covers weekly/biweekly patterns)
+      return evtDate.getDay() === parsedDateTime.getDay();
+    });
+
+    const allConflicts = [...conflicts, ...recurringConflicts];
+
+    if (allConflicts.length > 0) {
+      setConflictingEvents(allConflicts.map(e => ({
         title: e.title,
         team_name: (e.teams as any)?.name,
         start_time: new Date(e.event_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
