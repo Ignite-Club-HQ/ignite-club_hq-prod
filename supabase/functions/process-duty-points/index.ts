@@ -74,31 +74,35 @@ Deno.serve(async (req) => {
       const event = duty.events as any;
       const club = event?.clubs;
       
-      // Check if club is Pro (required for points)
-      // Also check team subscription for Pro Football
-      let canAwardPoints = club?.is_pro === true;
+      // Check if club/team has Pro subscription (required for points)
+      let canAwardPoints = false;
       
-      if (!canAwardPoints && event?.team_id) {
-        const { data: teamSub } = await supabase
-          .from('team_subscriptions')
-          .select('is_pro, is_pro_football')
-          .eq('team_id', event.team_id)
-          .maybeSingle();
-        
-        canAwardPoints = teamSub?.is_pro === true || teamSub?.is_pro_football === true;
-      }
-
-      // Check if club has disabled the points system
-      if (canAwardPoints && club?.id) {
+      // Check club subscription first
+      if (club?.id) {
         const { data: clubSub } = await supabase
           .from('club_subscriptions')
-          .select('disable_points_system')
+          .select('is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, disable_points_system')
           .eq('club_id', club.id)
           .maybeSingle();
         
-        if (clubSub?.disable_points_system) {
+        canAwardPoints = !!(clubSub?.is_pro || clubSub?.is_pro_football || 
+                           clubSub?.admin_pro_override || clubSub?.admin_pro_football_override);
+        
+        if (canAwardPoints && clubSub?.disable_points_system) {
           canAwardPoints = false;
         }
+      }
+      
+      // If club doesn't have Pro, check team subscription
+      if (!canAwardPoints && event?.team_id) {
+        const { data: teamSub } = await supabase
+          .from('team_subscriptions')
+          .select('is_pro, is_pro_football, admin_pro_override, admin_pro_football_override')
+          .eq('team_id', event.team_id)
+          .maybeSingle();
+        
+        canAwardPoints = !!(teamSub?.is_pro || teamSub?.is_pro_football || 
+                           teamSub?.admin_pro_override || teamSub?.admin_pro_football_override);
       }
 
       if (!canAwardPoints) {

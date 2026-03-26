@@ -190,11 +190,11 @@ export default function UpgradeProPage() {
   });
 
   // Team has pro access via team subscription OR club subscription
-  const hasClubProAccess = clubSubscription?.is_pro && (!clubSubscription.expires_at || !isPast(parseISO(clubSubscription.expires_at)));
-  const hasClubProFootballAccess = clubSubscription?.is_pro_football && (!clubSubscription.expires_at || !isPast(parseISO(clubSubscription.expires_at)));
+  const hasClubProAccess = (clubSubscription?.is_pro || clubSubscription?.admin_pro_override) && (!clubSubscription?.expires_at || !isPast(parseISO(clubSubscription.expires_at)));
+  const hasClubProFootballAccess = (clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override) && (!clubSubscription?.expires_at || !isPast(parseISO(clubSubscription.expires_at)));
   
-  const isProActive = subscription?.is_pro || team?.clubs?.is_pro || hasClubProAccess;
-  const isProFootballActive = subscription?.is_pro_football || hasClubProFootballAccess;
+  const isProActive = subscription?.is_pro || subscription?.admin_pro_override || team?.clubs?.is_pro || hasClubProAccess;
+  const isProFootballActive = subscription?.is_pro_football || subscription?.admin_pro_football_override || hasClubProFootballAccess;
   const showFootballOption = isSoccerClub(team?.clubs?.sport);
   const expiresAt = subscription?.expires_at ? parseISO(subscription.expires_at) : null;
   const isExpired = expiresAt ? isPast(expiresAt) : false;
