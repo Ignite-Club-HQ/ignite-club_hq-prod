@@ -26,6 +26,10 @@ import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 
+// Preload Ignite icon so it's instantly available when switching from club theme
+const preloadedIgniteIcon = new Image();
+preloadedIgniteIcon.src = igniteIcon;
+
 // Helper to pick the best color from palette based on background contrast
 function getBestContrastColor(
   primary: { h: number; s: number; l: number } | null | undefined,
