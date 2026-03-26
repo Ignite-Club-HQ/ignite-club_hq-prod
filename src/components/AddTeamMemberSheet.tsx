@@ -302,6 +302,31 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
+      // Create second parent invite if provided
+      let secondParentInviteLink: string | null = null;
+      if (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") {
+        const validChildren = singleChildren.filter(c => c.name.trim());
+        const childrenNames = validChildren.map(c => c.name.trim());
+        const secondToken = crypto.randomUUID();
+        const childrenMetadata = validChildren.length > 0 
+          ? validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
+          : null;
+
+        await supabase.from("pending_invites").insert({
+          team_id: teamId,
+          club_id: clubId,
+          role: "parent" as any,
+          invited_user_id: null,
+          invited_by_user_id: user!.id,
+          invited_label: secondParentName.trim(),
+          invited_email: secondParentEmail.trim().toLowerCase(),
+          invite_token: secondToken,
+          metadata: childrenMetadata ? { children: childrenMetadata } : null,
+        } as any);
+
+        secondParentInviteLink = `${window.location.origin}/join/p/${secondToken}`;
+      }
+
       // Send notification
       await supabase.from("notifications").insert({
         user_id: selectedUser.id,
@@ -309,13 +334,66 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === selectedRole)?.label}`,
         related_id: teamId,
       });
+
+      return { secondParentInviteLink };
     },
-    onSuccess: () => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
       toast({
         title: "Member added",
         description: `${selectedUser?.display_name} has been added to the team`,
       });
+
+      // Send second parent email if applicable
+      if (result?.secondParentInviteLink && secondParentEmail.trim()) {
+        try {
+          const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
+          const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
+            body: {
+              to: secondParentEmail.trim().toLowerCase(),
+              subject: childrenNames.length === 1
+                ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                : `${clubBranding?.name || 'Your club'}: You've been added to the team ⚽`,
+              template: "team-invite",
+              senderName: clubBranding?.name || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
+              templateData: {
+                recipientName: secondParentName.trim(),
+                invitedEmail: secondParentEmail.trim().toLowerCase(),
+                teamName,
+                clubName: clubBranding?.name || "The Club",
+                roleName: "Parent",
+                inviteLink: result.secondParentInviteLink,
+                clubLogoUrl: clubBranding?.logo_url || undefined,
+                childrenNames: childrenNames.length > 0 ? childrenNames : undefined,
+                customMessage: customMessage.trim() || undefined,
+              },
+            },
+          });
+
+          const emailSent = !funcError && emailResult?.verified && emailResult?.success;
+          const secondToken = result.secondParentInviteLink.split("/join/p/")[1];
+          await supabase
+            .from("pending_invites")
+            .update({
+              email_sent_at: emailSent ? new Date().toISOString() : null,
+              email_id: emailResult?.emailId || null,
+              email_error: !emailSent ? (emailResult?.error || "Email not verified") : null,
+            } as any)
+            .eq("invite_token", secondToken);
+
+          if (emailSent) {
+            toast({
+              title: "Second parent invited!",
+              description: `Email sent to ${secondParentEmail.trim()}`,
+            });
+          }
+        } catch (error) {
+          console.error("Failed to send second parent email:", error);
+        }
+        queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
+      }
+
       handleClose();
     },
     onError: (error: Error) => {
@@ -1102,6 +1180,39 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         })}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Second parent/guardian for existing user */}
+                {selectedRole === "parent" && singleChildren.length > 0 && (
+                  <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-blue-600" />
+                      <Label className="text-blue-600 font-medium">Second Parent / Guardian (Optional)</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Add a second parent or guardian who will also receive an invite for the same child(ren).
+                    </p>
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Second parent's name"
+                        value={secondParentName}
+                        onChange={(e) => setSecondParentName(e.target.value)}
+                        className="h-9"
+                      />
+                      {secondParentName.trim() && (
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            type="email"
+                            placeholder="Second parent's email"
+                            value={secondParentEmail}
+                            onChange={(e) => setSecondParentEmail(e.target.value)}
+                            className="h-9 pl-10"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </>
