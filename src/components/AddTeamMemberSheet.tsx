@@ -176,7 +176,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         parent_name: parentMap.get(c.parent_id) || "Unknown",
       }));
     },
-    enabled: open && !!clubId && selectedRole === "parent",
+    enabled: open && !!clubId && (selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")),
   });
 
 
