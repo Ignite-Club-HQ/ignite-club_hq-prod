@@ -158,7 +158,7 @@ export function MyTeamsScroll() {
               if (item.type === "team") {
                 navigate(`/teams/${item.id}`);
               } else {
-                navigate(`/leagues/${item.id}`);
+                navigate(`/mini-leagues/${item.id}`);
               }
             }}
             className="shrink-0 w-[120px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97]"
