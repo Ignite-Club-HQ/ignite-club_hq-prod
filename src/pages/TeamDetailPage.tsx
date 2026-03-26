@@ -1073,7 +1073,10 @@ export default function TeamDetailPage() {
                 <Badge variant="secondary" className="ml-2">
                   {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
                     ? "..."
-                    : Object.keys(members).length + teamChildren.length}
+                    : Object.keys(members).length + teamChildren.length + pendingInvites.reduce((count, inv) => {
+                        const meta = inv.metadata as { children?: { name: string }[] } | null;
+                        return count + (meta?.children?.length || 0);
+                      }, 0)}
                 </Badge>
                 <Button
                   variant="ghost"
