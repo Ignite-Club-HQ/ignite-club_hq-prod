@@ -332,10 +332,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               .maybeSingle();
             
             if (!existing) {
-              await supabase.from("child_team_assignments").insert({
+              const { error: assignError } = await supabase.from("child_team_assignments").insert({
                 child_id: childId,
                 team_id: teamId,
               });
+              if (assignError) {
+                console.error("Failed to assign child to team:", assignError.message);
+              }
             }
           }
         }
