@@ -1486,7 +1486,7 @@ export default function HomePage() {
   // This prevents the "double flash" issue on login where the page loads, then shows loading, then loads again
 
   return (
-    <div className="py-6 space-y-6">
+    <div className="py-6 space-y-5">
       {/* Welcome Section */}
       <section className="space-y-1">
         <h1 className="text-2xl font-bold">
