@@ -6,7 +6,7 @@ import { checkRewardThreshold } from "@/lib/rewardThresholdCheck";
  * Engagement Points System
  * 
  * Awards points for active app usage with daily cooldowns:
- * - Chat message (team/club/group): 1 pt per unique chat per day, max 3/day
+ * - Chat message (team/club/group): 1 pt per unique chat per day, max 2/day
  * - Photo upload: 2 pts per upload, max 4 pts/day (2 uploads)
  * - Photo comment: 1 pt per unique photo per day, max 3/day
  */
@@ -15,7 +15,7 @@ type EngagementAction = 'chat_message' | 'photo_upload' | 'photo_comment';
 
 const ACTION_CONFIG: Record<EngagementAction, { points: number; dailyCap: number }> = {
   chat_message: { points: 1, dailyCap: 2 },
-  photo_upload: { points: 2, dailyCap: 4 },   // 4 pts = 2 uploads max
+  photo_upload: { points: 2, dailyCap: 4 },
   photo_comment: { points: 1, dailyCap: 3 },
 };
 
@@ -41,7 +41,7 @@ interface AwardEngagementPointsParams {
 }
 
 /**
- * Awards engagement points with daily cooldown checks.
+ * Awards engagement points with atomic cooldown checks and point increments.
  * Fire-and-forget — call without awaiting in non-critical paths.
  */
 export async function awardEngagementPoints({
@@ -69,75 +69,41 @@ export async function awardEngagementPoints({
       return false;
     }
 
-    // Check cooldown: has this user already been awarded for this action+scope today?
-    // Using rpc or raw query since points_cooldowns isn't in generated types yet
-    const { data: existingCooldown } = await (supabase as any)
-      .from("points_cooldowns")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("action_type", action)
-      .eq("scope_id", scopeId)
-      .eq("awarded_date", today)
-      .maybeSingle();
+    // Atomic cooldown check + insert via DB function
+    const { data: cooldownOk, error: cooldownError } = await supabase.rpc('try_insert_points_cooldown', {
+      _user_id: userId,
+      _action_type: action,
+      _scope_id: scopeId,
+      _awarded_date: today,
+      _points_awarded: config.points,
+      _club_id: clubId,
+      _daily_cap: config.dailyCap,
+    });
 
-    if (existingCooldown) {
-      return false; // Already awarded for this scope today
+    if (cooldownError || !cooldownOk) {
+      return false; // Already awarded or daily cap reached
     }
 
-    // Check daily cap: total points awarded for this action type today
-    const { data: todayEntries } = await (supabase as any)
-      .from("points_cooldowns")
-      .select("points_awarded")
-      .eq("user_id", userId)
-      .eq("action_type", action)
-      .eq("awarded_date", today);
-
-    const totalTodayPoints = (todayEntries || []).reduce(
-      (sum: number, e: { points_awarded: number }) => sum + (e.points_awarded || 0),
-      0
-    );
-
-    if (totalTodayPoints >= config.dailyCap) {
-      return false; // Daily cap reached
-    }
-
-    // Get current points
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("ignite_points")
-      .eq("id", userId)
-      .single();
-
-    const currentPoints = profile?.ignite_points || 0;
-    const newPoints = currentPoints + config.points;
-
-    // Award points
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ ignite_points: newPoints })
-      .eq("id", userId);
+    // Atomic points increment
+    const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
+      _user_id: userId,
+      _amount: config.points,
+    });
 
     if (updateError) {
       console.error("Failed to award engagement points:", updateError);
       return false;
     }
 
-    // Record cooldown
-    await (supabase as any).from("points_cooldowns").insert({
-      user_id: userId,
-      action_type: action,
-      scope_id: scopeId,
-      awarded_date: today,
-      points_awarded: config.points,
-      club_id: clubId,
-    });
+    const balanceAfter = newPoints || 0;
+    const previousPoints = balanceAfter - config.points;
 
     // Record in points history
     await recordPointsHistory({
       userId,
       clubId,
       amount: config.points,
-      balanceAfter: newPoints,
+      balanceAfter,
       sourceType: SOURCE_TYPE_MAP[action],
       sourceId: sourceId || scopeId,
       description: DESCRIPTION_MAP[action],
@@ -147,8 +113,8 @@ export async function awardEngagementPoints({
     checkRewardThreshold({
       userId,
       clubId,
-      previousPoints: currentPoints,
-      newPoints,
+      previousPoints,
+      newPoints: balanceAfter,
     }).catch(() => {});
 
     return true;

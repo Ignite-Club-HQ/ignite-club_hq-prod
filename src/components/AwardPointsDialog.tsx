@@ -61,21 +61,22 @@ export default function AwardPointsDialog({
   const awardMutation = useMutation({
     mutationFn: async () => {
       const previousPoints = currentPoints;
-      const newPoints = Math.max(0, previousPoints + points);
       
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ ignite_points: newPoints })
-        .eq("id", memberId);
+      // Atomic points increment via DB function
+      const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
+        _user_id: memberId,
+        _amount: points,
+      });
 
       if (updateError) throw updateError;
+      const balanceAfter = newPoints || Math.max(0, previousPoints + points);
 
       // Record in points history
       await recordPointsHistory({
         userId: memberId,
         clubId,
         amount: points,
-        balanceAfter: newPoints,
+        balanceAfter,
         sourceType: 'admin_award',
         description: reason || (points > 0 ? 'Points awarded by admin' : 'Points adjustment by admin'),
         createdBy: user?.id,
@@ -89,7 +90,7 @@ export default function AwardPointsDialog({
           userId: memberId,
           clubId,
           previousPoints,
-          newPoints,
+          newPoints: balanceAfter,
         });
       }
 
@@ -119,7 +120,7 @@ export default function AwardPointsDialog({
             recipientUserId: memberId,
             pointsAwarded: points,
             reason: reason || (points > 0 ? 'Points awarded by admin' : 'Points adjustment'),
-            totalPoints: newPoints,
+            totalPoints: balanceAfter,
             clubName,
             clubLogoUrl,
             rewardUnlocked: !!rewardName,

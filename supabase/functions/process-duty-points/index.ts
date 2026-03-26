@@ -74,31 +74,35 @@ Deno.serve(async (req) => {
       const event = duty.events as any;
       const club = event?.clubs;
       
-      // Check if club is Pro (required for points)
-      // Also check team subscription for Pro Football
-      let canAwardPoints = club?.is_pro === true;
+      // Check if club/team has Pro subscription (required for points)
+      let canAwardPoints = false;
       
-      if (!canAwardPoints && event?.team_id) {
-        const { data: teamSub } = await supabase
-          .from('team_subscriptions')
-          .select('is_pro, is_pro_football')
-          .eq('team_id', event.team_id)
-          .maybeSingle();
-        
-        canAwardPoints = teamSub?.is_pro === true || teamSub?.is_pro_football === true;
-      }
-
-      // Check if club has disabled the points system
-      if (canAwardPoints && club?.id) {
+      // Check club subscription first
+      if (club?.id) {
         const { data: clubSub } = await supabase
           .from('club_subscriptions')
-          .select('disable_points_system')
+          .select('is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, disable_points_system')
           .eq('club_id', club.id)
           .maybeSingle();
         
-        if (clubSub?.disable_points_system) {
+        canAwardPoints = !!(clubSub?.is_pro || clubSub?.is_pro_football || 
+                           clubSub?.admin_pro_override || clubSub?.admin_pro_football_override);
+        
+        if (canAwardPoints && clubSub?.disable_points_system) {
           canAwardPoints = false;
         }
+      }
+      
+      // If club doesn't have Pro, check team subscription
+      if (!canAwardPoints && event?.team_id) {
+        const { data: teamSub } = await supabase
+          .from('team_subscriptions')
+          .select('is_pro, is_pro_football, admin_pro_override, admin_pro_football_override')
+          .eq('team_id', event.team_id)
+          .maybeSingle();
+        
+        canAwardPoints = !!(teamSub?.is_pro || teamSub?.is_pro_football || 
+                           teamSub?.admin_pro_override || teamSub?.admin_pro_football_override);
       }
 
       if (!canAwardPoints) {
@@ -112,20 +116,19 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Get current profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('ignite_points')
-        .eq('id', duty.assigned_to)
-        .single();
+      // Atomic points increment
+      const { data: newPointsResult, error: rpcError } = await supabase.rpc('increment_ignite_points', {
+        _user_id: duty.assigned_to,
+        _amount: 10,
+      });
 
-      if (!profile) {
-        console.log(`Duty ${duty.id}: User ${duty.assigned_to} not found, skipping`);
+      if (rpcError) {
+        console.log(`Duty ${duty.id}: Failed to increment points for ${duty.assigned_to}: ${rpcError.message}`);
         continue;
       }
 
-      const newPoints = (profile.ignite_points || 0) + 10;
-      const updateData: any = { ignite_points: newPoints };
+      const newPoints = newPointsResult || 0;
+      const previousPoints = newPoints - 10;
       let rewardUnlocked = false;
       let rewardName: string | undefined;
 
@@ -141,8 +144,7 @@ Deno.serve(async (req) => {
 
       if (availableRewards && availableRewards.length > 0) {
         const reward = availableRewards[0];
-        // Only notify if they just crossed this threshold (old points were below)
-        if ((profile.ignite_points || 0) < reward.points_required) {
+        if (previousPoints < reward.points_required) {
           rewardUnlocked = true;
           rewardName = reward.name;
 
@@ -154,12 +156,6 @@ Deno.serve(async (req) => {
           console.log(`User ${duty.assigned_to}: Reward "${reward.name}" unlocked!`);
         }
       }
-
-      // Update profile with new points
-      await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', duty.assigned_to);
 
       // Record in points history
       await supabase.from('points_history').insert({
@@ -308,23 +304,20 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Award points
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('ignite_points')
-        .eq('id', rsvp.user_id)
-        .single();
+      // Atomic points increment
+      const { data: newPtsResult, error: attRpcError } = await supabase.rpc('increment_ignite_points', {
+        _user_id: rsvp.user_id,
+        _amount: attendancePts,
+      });
 
-      if (!profile) {
+      if (attRpcError) {
         await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
         attendanceProcessed++;
         continue;
       }
 
-      const previousPts = profile.ignite_points || 0;
-      const newPts = previousPts + attendancePts;
-
-      await supabase.from('profiles').update({ ignite_points: newPts }).eq('id', rsvp.user_id);
+      const newPts = newPtsResult || 0;
+      const previousPts = newPts - attendancePts;
 
       await supabase.from('points_history').insert({
         user_id: rsvp.user_id,

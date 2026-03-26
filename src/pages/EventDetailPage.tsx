@@ -386,21 +386,21 @@ export default function EventDetailPage() {
       // Check team-level Pro Football
       const { data: teamSub } = await supabase
         .from("team_subscriptions")
-        .select("is_pro_football")
+        .select("is_pro_football, admin_pro_football_override")
         .eq("team_id", event.team_id)
         .maybeSingle();
       
-      if (teamSub?.is_pro_football) return true;
+      if (teamSub?.is_pro_football || teamSub?.admin_pro_football_override) return true;
       
       // Check club-level Pro Football
       if (event?.club_id) {
         const { data: clubSub } = await supabase
           .from("club_subscriptions")
-          .select("is_pro_football")
+          .select("is_pro_football, admin_pro_football_override")
           .eq("club_id", event.club_id)
           .maybeSingle();
         
-        if (clubSub?.is_pro_football) return true;
+        if (clubSub?.is_pro_football || clubSub?.admin_pro_football_override) return true;
       }
       
       return false;
@@ -441,8 +441,8 @@ export default function EventDetailPage() {
     enabled: !!event?.team_id || !!event?.club_id,
   });
 
-  // Pro feature check: duty points only for Pro clubs or app_admin
-  const canAwardDutyPoints = isAppAdmin || event?.clubs?.is_pro;
+  // Pro feature check: duty points only for Pro clubs/teams or app_admin
+  const canAwardDutyPoints = isAppAdmin || hasTeamPro === true;
   
   // Pro feature check for RSVP reminders - check team OR club subscription
   const canSendReminders = !isLoadingHasTeamPro && hasTeamPro === true;

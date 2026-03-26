@@ -663,20 +663,20 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
       if (event.team_id) {
         const { data: teamSub } = await supabase
           .from("team_subscriptions")
-          .select("is_pro, is_pro_football")
+          .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
           .eq("team_id", event.team_id)
           .maybeSingle();
-        if (teamSub?.is_pro === true || teamSub?.is_pro_football === true) {
+        if (teamSub?.is_pro || teamSub?.is_pro_football || teamSub?.admin_pro_override || teamSub?.admin_pro_football_override) {
           return true;
         }
       }
       // Check club subscription
       const { data: clubSub } = await supabase
         .from("club_subscriptions")
-        .select("is_pro, is_pro_football")
+        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
         .eq("club_id", event.club_id)
         .maybeSingle();
-      return clubSub?.is_pro === true || clubSub?.is_pro_football === true;
+      return clubSub?.is_pro || clubSub?.is_pro_football || clubSub?.admin_pro_override || clubSub?.admin_pro_football_override;
     },
   });
 

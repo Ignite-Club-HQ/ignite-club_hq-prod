@@ -51,15 +51,8 @@ export function RewardClaimQRDialog({
   const handleMarkAsClaimed = async () => {
     setResetting(true);
     try {
-      // Reset user's points to 0
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          ignite_points: 0,
-        })
-        .eq("id", userId);
-
-      if (profileError) throw profileError;
+      // Points were already deducted during redemption (in RewardRedemptionCard).
+      // This handler only marks the redemption as fulfilled.
 
       // Mark redemption as fulfilled
       if (redemptionId) {
@@ -81,15 +74,15 @@ export function RewardClaimQRDialog({
 
       toast({
         title: "Reward Claimed!",
-        description: "Points have been reset to 0.",
+        description: "Reward marked as claimed.",
       });
 
       setConfirming(false);
       onOpenChange(false);
     } catch (error: any) {
-      console.error("Error resetting points:", error);
+      console.error("Error claiming reward:", error);
       toast({
-        title: "Failed to reset points",
+        title: "Failed to claim reward",
         description: error.message || "Please try again",
         variant: "destructive",
       });
@@ -152,7 +145,7 @@ export function RewardClaimQRDialog({
               onClick={() => setConfirming(true)}
             >
               <CheckCircle className="h-4 w-4 mr-2" />
-              Mark as Claimed (Reset Points)
+              Mark as Claimed
             </Button>
             <Button
               variant="outline"
@@ -171,7 +164,7 @@ export function RewardClaimQRDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Reward Claimed</AlertDialogTitle>
             <AlertDialogDescription>
-              This will reset your points to 0 and mark the reward as claimed.
+              This will deduct the reward cost from your points and mark the reward as claimed.
               <br /><br />
               <strong>Only press this after receiving your reward!</strong>
             </AlertDialogDescription>
@@ -185,7 +178,7 @@ export function RewardClaimQRDialog({
               {resetting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                "Confirm & Reset Points"
+                "Confirm & Claim Reward"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

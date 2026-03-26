@@ -66,14 +66,15 @@ Deno.serve(async (req) => {
 
     const { data: teamSub } = await supabase
       .from('team_subscriptions')
-      .select('is_pro_football')
+      .select('is_pro_football, admin_pro_football_override')
       .eq('team_id', teamId)
       .maybeSingle();
 
     const hasProFootball = 
       clubSub?.is_pro_football === true || 
       clubSub?.admin_pro_football_override === true ||
-      teamSub?.is_pro_football === true;
+      teamSub?.is_pro_football === true ||
+      teamSub?.admin_pro_football_override === true;
 
     if (!hasProFootball) {
       console.log('[GAME-STATS-EMAIL] Team does not have Pro Football subscription, skipping');

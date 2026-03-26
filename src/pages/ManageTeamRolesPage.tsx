@@ -126,11 +126,20 @@ export default function ManageTeamRolesPage() {
 
   const resetPointsMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
+      // Get current points first to know how much to deduct
+      const { data: profile } = await supabase
         .from("profiles")
-        .update({ ignite_points: 0 })
-        .eq("id", userId);
-      if (error) throw error;
+        .select("ignite_points")
+        .eq("id", userId)
+        .single();
+      const currentPoints = profile?.ignite_points || 0;
+      if (currentPoints > 0) {
+        const { error } = await supabase.rpc('increment_ignite_points', {
+          _user_id: userId,
+          _amount: -currentPoints,
+        });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
