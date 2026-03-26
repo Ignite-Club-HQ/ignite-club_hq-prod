@@ -21,6 +21,7 @@ const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized } = useAuth();
   useAdMobInit();
+  useActivityTracking();
   const { isThemeReady } = useClubTheme();
   const location = useLocation();
   const [retrying, setRetrying] = useState(false);
