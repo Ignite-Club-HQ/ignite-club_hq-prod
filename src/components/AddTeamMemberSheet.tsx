@@ -194,9 +194,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     enabled: debouncedSearch.length >= 2,
   });
 
-  // Filter out existing members
+  // Filter out existing members — but allow the current user (admin adding themselves as parent)
   const filteredResults = searchResults.filter(
-    user => !existingMembers?.includes(user.id)
+    u => u.id === user?.id || !existingMembers?.includes(u.id)
   );
 
   // Search for second parent (existing users)
@@ -214,9 +214,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     enabled: debouncedSecondParentSearch.length >= 2 && !selectedSecondParent,
   });
 
-  // Filter second parent results: exclude primary user and existing members
+  // Filter second parent results: exclude primary user but allow existing members (they may need parent role added)
   const filteredSecondParentResults = secondParentSearchResults.filter(
-    user => user.id !== selectedUser?.id && !existingMembers?.includes(user.id)
+    u => u.id !== selectedUser?.id
   );
 
   // Find matching existing children by exact name (case-insensitive)
@@ -298,22 +298,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               }).select().maybeSingle(); // ignore duplicate errors
             }
           } else {
-            // Create new child
-            const { data: newChild, error: childError } = await supabase
-              .from("children")
-              .insert({
-                parent_id: selectedUser.id,
-                name: child.name.trim(),
-                year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
-              })
-              .select("id")
-              .single();
+            // Create new child via secure RPC so admins can add children for existing parents
+            const { data: newChildId, error: childError } = await supabase.rpc(
+              "create_child_for_parent_on_team",
+              {
+                p_parent_user_id: selectedUser.id,
+                p_team_id: teamId,
+                p_name: child.name.trim(),
+                p_year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
+              }
+            );
 
             if (childError) {
-              console.error("Failed to create child:", childError.message);
-              continue;
+              console.error("Failed to create child:", childError.message, childError.code, childError.details, childError.hint, JSON.stringify(childError));
+              throw new Error(`We couldn't save ${child.name.trim()}. ${childError.message}`);
             }
-            childId = newChild?.id;
+            childId = newChildId;
           }
 
           if (childId) {
@@ -339,6 +339,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               });
               if (assignError) {
                 console.error("Failed to assign child to team:", assignError.message);
+                throw new Error(`We saved ${child.name.trim()}, but couldn't add them to ${teamName}. Please try again.`);
               }
             }
           }
@@ -435,6 +436,64 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           title: "Second parent added",
           description: `${selectedSecondParent.display_name} has also been added as Parent`,
         });
+      }
+
+      // Send child-added email to primary parent (existing user)
+      if (selectedRole === "parent" && selectedUser) {
+        const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
+        if (childrenNames.length > 0) {
+          try {
+            await supabase.functions.invoke("send-email", {
+              body: {
+                toUserId: selectedUser.id,
+                subject: childrenNames.length === 1
+                  ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                  : `${clubBranding?.name || 'Your club'}: Your children have been added to ${teamName} ⚽`,
+                template: "child-added",
+                senderName: clubBranding?.name || undefined,
+                replyTo: (clubBranding as any)?.contact_email || undefined,
+                templateData: {
+                  recipientName: selectedUser.display_name || "Parent",
+                  childrenNames,
+                  teamName,
+                  clubName: clubBranding?.name || "The Club",
+                  clubLogoUrl: clubBranding?.logo_url || undefined,
+                },
+              },
+            });
+          } catch (err) {
+            console.error("[AddMember] Failed to send child-added email to primary parent:", err);
+          }
+        }
+      }
+
+      // Send child-added email to second parent (existing user added directly)
+      if (result?.secondParentAddedDirectly && selectedSecondParent) {
+        const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
+        if (childrenNames.length > 0) {
+          try {
+            await supabase.functions.invoke("send-email", {
+              body: {
+                toUserId: selectedSecondParent.id,
+                subject: childrenNames.length === 1
+                  ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                  : `${clubBranding?.name || 'Your club'}: Your children have been added to ${teamName} ⚽`,
+                template: "child-added",
+                senderName: clubBranding?.name || undefined,
+                replyTo: (clubBranding as any)?.contact_email || undefined,
+                templateData: {
+                  recipientName: selectedSecondParent.display_name || "Parent",
+                  childrenNames,
+                  teamName,
+                  clubName: clubBranding?.name || "The Club",
+                  clubLogoUrl: clubBranding?.logo_url || undefined,
+                },
+              },
+            });
+          } catch (err) {
+            console.error("[AddMember] Failed to send child-added email to second parent:", err);
+          }
+        }
       }
 
       // Send second parent email if applicable

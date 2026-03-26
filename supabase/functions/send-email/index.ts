@@ -47,6 +47,7 @@ const MAX_REQUEST_SIZE = 102400; // 100KB max for email content
 type TemplateType = 
   | "team-invite" 
   | "invite-reminder" 
+  | "child-added"
   | "event-reminder" 
   | "membership-confirmation" 
   | "magic-link"
@@ -636,6 +637,20 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         })
       );
     
+    case "child-added":
+      return await renderAsync(
+        React.createElement(ChildAddedEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          inviteLink: data.inviteLink || `https://igniteclubhq.app`,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          childrenNames: data.childrenNames || (data.childName ? [data.childName] : []),
+          customMessage: data.customMessage,
+        })
+      );
+    
     default:
       throw new Error(`Unknown template: ${template}`);
   }
@@ -697,7 +712,31 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { to, subject, html, from, replyTo, senderName, template, templateData }: EmailRequest = await req.json();
+    const body = await req.json();
+    let { to, subject, html, from, replyTo, senderName, template, templateData } = body as EmailRequest & { toUserId?: string };
+    const toUserId = body.toUserId as string | undefined;
+
+    // If toUserId is provided instead of "to", look up the user's email
+    if (!to && toUserId) {
+      try {
+        const { data: { user: targetUser }, error: userErr } = await adminClient.auth.admin.getUserById(toUserId);
+        if (userErr || !targetUser?.email) {
+          console.error("[send-email] Could not resolve toUserId to email:", userErr?.message);
+          return new Response(
+            JSON.stringify({ error: "Could not resolve user email" }),
+            { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+        to = targetUser.email;
+        console.log(`[send-email] Resolved toUserId ${toUserId} to email`);
+      } catch (e) {
+        console.error("[send-email] Error resolving toUserId:", e);
+        return new Response(
+          JSON.stringify({ error: "Could not resolve user email" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
 
     // Validate required fields
     if (!to || !subject) {

@@ -284,8 +284,18 @@ export default function TeamDetailPage() {
         .in("id", childIds);
       if (childError) throw childError;
       
-      // Fetch parent profiles
-      const parentIds = [...new Set((childrenData || []).map(c => c.parent_id).filter(Boolean))];
+      // Fetch guardians from child_guardians table
+      const { data: guardianLinks } = await supabase
+        .from("child_guardians")
+        .select("child_id, guardian_id")
+        .in("child_id", childIds);
+      
+      // Collect all parent/guardian IDs
+      const parentIds = [...new Set([
+        ...(childrenData || []).map(c => c.parent_id).filter(Boolean),
+        ...(guardianLinks || []).map(g => g.guardian_id).filter(Boolean),
+      ])];
+      
       let parentProfiles: Record<string, { id: string; display_name: string | null }> = {};
       if (parentIds.length > 0) {
         const { data: profiles } = await supabase
@@ -298,16 +308,37 @@ export default function TeamDetailPage() {
         }, {} as Record<string, { id: string; display_name: string | null }>);
       }
       
+      // Build guardian map per child
+      const guardiansByChild: Record<string, string[]> = {};
+      for (const link of (guardianLinks || [])) {
+        if (!guardiansByChild[link.child_id]) guardiansByChild[link.child_id] = [];
+        guardiansByChild[link.child_id].push(link.guardian_id);
+      }
+      
       // Combine the data
       return assignments.map(assignment => {
         const child = (childrenData || []).find(c => c.id === assignment.child_id);
+        if (!child) return { id: assignment.id, child_id: assignment.child_id, children: null };
+        
+        // Build list of all parent names (primary + guardians)
+        const allParentNames: string[] = [];
+        if (child.parent_id && parentProfiles[child.parent_id]?.display_name) {
+          allParentNames.push(parentProfiles[child.parent_id].display_name!);
+        }
+        for (const gId of (guardiansByChild[child.id] || [])) {
+          if (gId !== child.parent_id && parentProfiles[gId]?.display_name) {
+            allParentNames.push(parentProfiles[gId].display_name!);
+          }
+        }
+        
         return {
           id: assignment.id,
           child_id: assignment.child_id,
-          children: child ? {
+          children: {
             ...child,
             profiles: child.parent_id ? parentProfiles[child.parent_id] : null,
-          } : null,
+            allParentNames,
+          },
         };
       }).filter(a => a.children !== null);
     },
@@ -1262,8 +1293,10 @@ export default function TeamDetailPage() {
                                   </Avatar>
                                   <div className="flex-1">
                                     <p className="font-medium text-sm">{child.name}</p>
-                                    {parent?.display_name && (
-                                      <p className="text-xs text-muted-foreground">Parent: {parent.display_name}</p>
+                                    {child.allParentNames && child.allParentNames.length > 0 && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {child.allParentNames.length === 1 ? "Parent" : "Parents"}: {child.allParentNames.join(" & ")}
+                                      </p>
                                     )}
                                   </div>
                                   <Badge variant="outline" className="text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30">
