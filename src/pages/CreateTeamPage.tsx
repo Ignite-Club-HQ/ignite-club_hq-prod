@@ -70,13 +70,24 @@ export default function CreateTeamPage() {
   const { data: isClubAdmin, isLoading: isCheckingAdmin } = useQuery({
     queryKey: ["is-club-admin", clubId, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      // Check for app_admin role
+      const { data: appAdminRole } = await supabase
         .from("user_roles")
-        .select("id, role")
+        .select("id")
         .eq("user_id", user!.id)
-        .in("role", ["club_admin", "app_admin"]);
-      if (!data) return false;
-      return data.some(r => r.role === 'app_admin' || (r as any).club_id === clubId);
+        .eq("role", "app_admin")
+        .maybeSingle();
+      if (appAdminRole) return true;
+      
+      // Check for club_admin role for this club
+      const { data: clubAdminRole } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("club_id", clubId!)
+        .eq("role", "club_admin")
+        .maybeSingle();
+      return !!clubAdminRole;
     },
     enabled: !!clubId && !!user,
   });
