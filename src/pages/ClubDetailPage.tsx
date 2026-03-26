@@ -76,6 +76,7 @@ import { SponsorsManager } from "@/components/SponsorsManager";
 import ClubRewardsManager from "@/components/ClubRewardsManager";
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { ClubTeamSponsorAllocator } from "@/components/ClubTeamSponsorAllocator";
+import { PendingTeamRequests } from "@/components/PendingTeamRequests";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3 } from "lucide-react";
