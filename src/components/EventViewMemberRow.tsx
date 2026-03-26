@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Bell, BellOff, BellRing, Loader2, Mail, Smartphone, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,9 +28,6 @@ interface EventViewMemberRowProps {
   onNudge: (userId: string, displayName: string) => void;
 }
 
-const LONG_PRESS_MS = 600;
-const MOVE_THRESHOLD = 10;
-
 export function EventViewMemberRow({
   member,
   variant,
@@ -47,10 +44,6 @@ export function EventViewMemberRow({
       className={`flex items-center gap-2 p-2 rounded-lg select-none ${
         variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
       }`}
-      onTouchStart={variant === "not-viewed" ? handleTouchStart : undefined}
-      onTouchMove={variant === "not-viewed" ? handleTouchMove : undefined}
-      onTouchEnd={variant === "not-viewed" ? handleTouchEnd : undefined}
-      onContextMenu={(e) => { if (variant === "not-viewed") e.preventDefault(); }}
     >
       <Avatar className="h-7 w-7">
         <AvatarImage src={member.avatar_url || undefined} />
@@ -77,13 +70,13 @@ export function EventViewMemberRow({
             {new Date(member.viewedAt).toLocaleDateString()}
           </span>
         )}
-        {variant === "not-viewed" && showMenu && (
-          <DropdownMenu modal={false} open={showMenu} onOpenChange={setShowMenu}>
+        {variant === "not-viewed" && (
+          <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 touch-none"
+                className="h-7 w-7"
                 disabled={isBusy}
               >
                 {isBusy ? (
