@@ -441,8 +441,8 @@ export default function EventDetailPage() {
     enabled: !!event?.team_id || !!event?.club_id,
   });
 
-  // Pro feature check: duty points only for Pro clubs or app_admin
-  const canAwardDutyPoints = isAppAdmin || event?.clubs?.is_pro;
+  // Pro feature check: duty points only for Pro clubs/teams or app_admin
+  const canAwardDutyPoints = isAppAdmin || hasTeamPro === true;
   
   // Pro feature check for RSVP reminders - check team OR club subscription
   const canSendReminders = !isLoadingHasTeamPro && hasTeamPro === true;
