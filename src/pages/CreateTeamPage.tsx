@@ -676,8 +676,8 @@ export default function CreateTeamPage() {
             )}
           </div>
 
-          {/* Assign Team Admin Section */}
-          {clubId && (
+          {/* Assign Team Admin Section - only for club admins */}
+          {clubId && isClubAdmin && (
             <AssignTeamAdminSection
               clubId={clubId}
               teamName={name || `this ${entityLabelLower(club)}`}
@@ -685,18 +685,33 @@ export default function CreateTeamPage() {
             />
           )}
 
-          {/* Info Card - only show if not assigning someone else */}
+          {/* Info Card */}
           {!adminAssignment && (
-            <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
+            <div className={`rounded-xl p-4 border ${isClubAdmin ? 'bg-primary/5 border-primary/10' : 'bg-amber-500/5 border-amber-500/20'}`}>
               <div className="flex gap-3">
                 <div className="shrink-0 mt-0.5">
-                  <Sparkles className="h-5 w-5 text-primary" />
+                  {isClubAdmin ? (
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  ) : (
+                    <Clock className="h-5 w-5 text-amber-500" />
+                  )}
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">You'll be the {entityLabelLower(club)} admin</p>
-                  <p className="text-xs text-muted-foreground">
-                    As the creator, you'll have full control to manage members, events, and {entityLabelLower(club)} settings.
-                  </p>
+                  {isClubAdmin ? (
+                    <>
+                      <p className="text-sm font-medium text-foreground">You'll be the {entityLabelLower(club)} admin</p>
+                      <p className="text-xs text-muted-foreground">
+                        As the creator, you'll have full control to manage members, events, and {entityLabelLower(club)} settings.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-foreground">Requires club admin approval</p>
+                      <p className="text-xs text-muted-foreground">
+                        Your {entityLabelLower(club)} request will be sent to the club admin for review. Once approved, the {entityLabelLower(club)} will be created and you'll be assigned as its admin.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
