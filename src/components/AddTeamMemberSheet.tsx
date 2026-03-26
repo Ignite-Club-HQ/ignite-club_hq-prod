@@ -1997,7 +1997,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 <Send className="h-5 w-5 mr-2" />
               )}
               {validBulkCount > 0 
-                ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""} & Send Invites`
+                ? (() => {
+                    const emailCount = bulkMembers.filter(m => m.name.trim() && m.email.trim()).length;
+                    return emailCount > 0
+                      ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""} & Send ${emailCount} Invite${emailCount > 1 ? "s" : ""}`
+                      : `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""}`;
+                  })()
                 : "Enter names to continue"}
             </Button>
           </TabsContent>
