@@ -166,16 +166,6 @@ export function PendingInviteWelcomeDialog() {
             continue;
           }
 
-          // Mark invite as accepted
-          await supabase
-            .from("pending_invites")
-            .update({
-              status: "accepted",
-              accepted_at: new Date().toISOString(),
-              invited_user_id: user.id,
-            })
-            .eq("id", invite.id);
-
           const entityName =
             (invite.teams as any)?.name ||
             (invite.teams as any)?.clubs?.name ||
@@ -288,6 +278,15 @@ export function PendingInviteWelcomeDialog() {
                 console.error("[InviteAutoAccept] Failed to send child-added email:", emailErr);
               }
 
+              await supabase
+                .from("pending_invites")
+                .update({
+                  status: "accepted",
+                  accepted_at: new Date().toISOString(),
+                  invited_user_id: user.id,
+                })
+                .eq("id", invite.id);
+
               continue; // Skip the standard children creation flow
             }
 
@@ -357,6 +356,15 @@ export function PendingInviteWelcomeDialog() {
               }
             }
           }
+
+          await supabase
+            .from("pending_invites")
+            .update({
+              status: "accepted",
+              accepted_at: new Date().toISOString(),
+              invited_user_id: user.id,
+            })
+            .eq("id", invite.id);
         } catch (err) {
           console.error("[InviteAutoAccept] Unexpected error for invite:", invite.id, err);
         }

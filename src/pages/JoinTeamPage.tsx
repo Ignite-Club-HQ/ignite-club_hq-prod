@@ -318,16 +318,6 @@ export default function JoinTeamPage() {
         throw new Error("This invite has already been used");
       }
 
-      // Mark the pending invite as accepted
-      await supabase
-        .from("pending_invites")
-        .update({ 
-          status: "accepted", 
-          accepted_at: new Date().toISOString(),
-          invited_user_id: user.id
-        })
-        .eq("id", pendingInviteData.id);
-
       // Create children from invite metadata (if parent role with children)
       const metadata = pendingInviteData.metadata as { 
         children?: { name: string; yearOfBirth: number | null; existingChildId?: string | null }[];
@@ -566,6 +556,17 @@ export default function JoinTeamPage() {
           throw new Error(`Failed to add ${role} role: ${roleError.message}`);
         }
       }
+    }
+
+    if (isPendingInvite && pendingInviteData?.id) {
+      await supabase
+        .from("pending_invites")
+        .update({ 
+          status: "accepted", 
+          accepted_at: new Date().toISOString(),
+          invited_user_id: user.id
+        })
+        .eq("id", pendingInviteData.id);
     }
 
     // Send notification to the new member
