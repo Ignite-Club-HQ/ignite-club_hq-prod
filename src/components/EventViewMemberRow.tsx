@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Bell, BellOff, BellRing, Loader2, Mail, Smartphone, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,12 +38,43 @@ export function EventViewMemberRow({
   onNudge,
 }: EventViewMemberRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showDots, setShowDots] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchMoved = useRef(false);
+
+  const clearTimer = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handleTouchStart = useCallback(() => {
+    if (variant !== "not-viewed") return;
+    touchMoved.current = false;
+    longPressTimer.current = setTimeout(() => {
+      setShowDots(true);
+    }, 600);
+  }, [variant]);
+
+  const handleTouchMove = useCallback(() => {
+    touchMoved.current = true;
+    clearTimer();
+  }, [clearTimer]);
+
+  const handleTouchEnd = useCallback(() => {
+    clearTimer();
+  }, [clearTimer]);
 
   return (
     <div
       className={`flex items-center gap-2 p-2 rounded-lg select-none ${
         variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
       }`}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onContextMenu={(e) => { if (variant === "not-viewed") e.preventDefault(); }}
     >
       <Avatar className="h-7 w-7">
         <AvatarImage src={member.avatar_url || undefined} />
@@ -70,14 +101,18 @@ export function EventViewMemberRow({
             {new Date(member.viewedAt).toLocaleDateString()}
           </span>
         )}
-        {variant === "not-viewed" && (
-          <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
+        {variant === "not-viewed" && showDots && (
+          <DropdownMenu modal={false} open={menuOpen} onOpenChange={(open) => {
+            setMenuOpen(open);
+            if (!open) setShowDots(false);
+          }}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 touch-none animate-in fade-in duration-150"
                 disabled={isBusy}
+                onClick={(e) => e.stopPropagation()}
               >
                 {isBusy ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
