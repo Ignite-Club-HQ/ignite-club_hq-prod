@@ -688,6 +688,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(firstTheme)));
       setCachedThemeData(firstTheme);
       applyThemeCSS(firstTheme, isDarkMode);
+      if (firstTheme.logoUrl) { const img = new Image(); img.src = firstTheme.logoUrl; }
       
       // Also save to database for cross-device sync
       supabase
