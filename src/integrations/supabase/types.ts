@@ -5802,6 +5802,15 @@ export type Database = {
         Returns: undefined
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      create_child_for_parent_on_team: {
+        Args: {
+          p_name: string
+          p_parent_user_id: string
+          p_team_id: string
+          p_year_of_birth?: number
+        }
+        Returns: string
+      }
       decrypt_sensitive_data: {
         Args: { encrypted_data: string }
         Returns: string
