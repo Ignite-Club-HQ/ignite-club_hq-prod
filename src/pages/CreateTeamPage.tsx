@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck, Crown, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck, Crown, ShieldAlert, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -193,6 +193,66 @@ export default function CreateTeamPage() {
         description: `A ${entityLabelLower(club)} called "${name.trim()}" already exists in this club. Please choose a different name.`,
         variant: "destructive",
       });
+      return;
+    }
+
+    // Non-admin flow: submit as a team creation request
+    if (!isClubAdmin) {
+      // Upload logo first if provided
+      let logoUrl: string | null = null;
+      if (logoFile) {
+        try {
+          const fileExt = logoFile.name.split('.').pop();
+          const fileName = `team-requests/${user!.id}/${Date.now()}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage
+            .from('club-logos')
+            .upload(fileName, logoFile, { upsert: true });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage
+              .from('club-logos')
+              .getPublicUrl(fileName);
+            logoUrl = urlData.publicUrl;
+          }
+        } catch (error) {
+          console.error('Logo upload error:', error);
+        }
+      }
+
+      const { error: requestError } = await supabase
+        .from("team_creation_requests")
+        .insert({
+          club_id: clubId!,
+          requested_by: user!.id,
+          name: name.trim(),
+          level_age: levelAge.trim() || null,
+          description: description.trim() || null,
+          logo_url: logoUrl,
+          team_type: teamType,
+          folder_id: folderId || null,
+          ...(club?.class_mode_enabled ? {
+            class_day: classDay || null,
+            class_time: classTime || null,
+            class_duration_minutes: classDuration,
+            class_capacity: classCapacity,
+          } : {}),
+        } as any);
+
+      setSaving(false);
+
+      if (requestError) {
+        toast({
+          title: "Error",
+          description: `Failed to submit ${entityLabelLower(club)} request. Please try again.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Request Submitted!",
+        description: `Your request to create "${name.trim()}" has been sent to the club admin for approval.`,
+      });
+      navigate(-1);
       return;
     }
 
