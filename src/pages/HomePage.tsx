@@ -1882,6 +1882,54 @@ export default function HomePage() {
         );
       })()}
 
+      {/* Pitch Boards - below Quick Actions */}
+      {displayedTeams.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Pitch Boards</h2>
+            {sortedTeams.length > 2 && (
+              <button 
+                onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
+                className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                aria-expanded={pitchBoardsExpanded}
+              >
+                {pitchBoardsExpanded ? "Show less" : "View all"}
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {displayedTeams.map((team) => (
+              <Card 
+                key={team.id}
+                className="hover:border-primary/50 transition-colors cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open pitch board for ${team.name}${team.readOnly ? ' (view only)' : ''}`}
+                onClick={() => openPitchBoard(team.id, team.name, team.readOnly)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openPitchBoard(team.id, team.name, team.readOnly);
+                  }
+                }}
+              >
+                <CardContent className="p-4 flex flex-col items-center gap-2 relative">
+                  {team.readOnly && (
+                    <Badge variant="secondary" className="absolute top-1 right-1 text-xs px-1 py-0">
+                      View
+                    </Badge>
+                  )}
+                  <LayoutGrid className="h-6 w-6 text-foreground" aria-hidden="true" />
+                  <span className="text-sm font-medium text-center w-full" title={team.name}>
+                    <span className="block truncate">{team.name}</span>
+                  </span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Join Team/Club Dialogs */}
       <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
         <ResponsiveDialogContent>
@@ -2047,125 +2095,81 @@ export default function HomePage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
-      {/* Points & Rewards */}
-      <Card className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} border-0`}>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-1.5">
-                {(userClubs[0] as any)?.points_icon_url && (
-                  <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-5 w-5 rounded object-cover" />
-                )}
-                <p className="text-primary-foreground/80 text-sm font-medium">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</p>
-                {showProBadge && (
-                  <Badge variant="outline" className="text-xs bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground py-0 h-5">
-                    <Lock className="h-3 w-3 mr-1" />
-                    Pro
-                  </Badge>
+      {/* Points & Rewards - Compact Banner */}
+      <section className="space-y-1">
+        <Card className="border bg-card">
+          <CardContent className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-lg bg-primary/15">
+                  <Flame className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium text-muted-foreground">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</span>
+                    {showProBadge && (
+                      <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
+                        <Lock className="h-2.5 w-2.5 mr-0.5" />
+                        Pro
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-bold">{profile?.ignite_points || 0}</span>
+                    {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
+                      <span className="text-xs text-muted-foreground">
+                        · {minRewardThreshold - (profile?.ignite_points || 0)} to next reward
+                      </span>
+                    )}
+                    {minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
+                      <span className="text-xs text-primary font-medium">
+                        · Rewards available!
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {latestPendingRedemption ? (
+                  <Button
+                    size="sm"
+                    className="bg-amber-500 hover:bg-amber-600 text-white gap-1 h-8 text-xs"
+                    onClick={() => setClaimDialogOpen(true)}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Claim
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1 h-8 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={handleBrowseRewards}
+                  >
+                    <Gift className="h-3.5 w-3.5" />
+                    Browse
+                  </Button>
                 )}
               </div>
-              <p className="text-3xl font-bold text-primary-foreground">
-                {profile?.ignite_points || 0}
-              </p>
             </div>
-            <div className="flex items-center gap-2">
-              {latestPendingRedemption ? (
-                <Button
-                  size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5"
-                  onClick={() => setClaimDialogOpen(true)}
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Mark as Claimed
-                </Button>
-              ) : minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="gap-1.5"
-                  onClick={handleBrowseRewards}
-                >
-                  <Gift className="h-4 w-4" />
-                  View Rewards
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          {!latestPendingRedemption && minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-            <div className="flex items-center justify-between mt-2">
-              <p className="text-primary-foreground/70 text-sm">
-                💡 {minRewardThreshold - (profile?.ignite_points || 0)} more points to unlock rewards!
-              </p>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 h-7 px-2"
-                onClick={handleBrowseRewards}
-              >
-                <Gift className="h-3.5 w-3.5 mr-1" />
-                Browse
-              </Button>
-            </div>
-          )}
-          {latestPendingRedemption && (
-            <p className="text-primary-foreground/80 text-sm mt-2">
-              🎁 You have a reward ready to claim: {latestPendingRedemption.club_rewards?.name}
-            </p>
-          )}
-          {!latestPendingRedemption && minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
-            <p className="text-primary-foreground/80 text-sm mt-2">
-              🎁 You have rewards available! Tap to browse and redeem.
-            </p>
-          )}
-          {!latestPendingRedemption && minRewardThreshold === null && (
-            <p className="text-primary-foreground/60 text-sm mt-2">
-              ✨ Earn points through club activities — rewards coming soon!
-            </p>
-          )}
-          {/* How to earn points hints - collapsible */}
-          <Collapsible
-            open={earnPointsOpen}
-            onOpenChange={(open) => {
-              setEarnPointsOpen(open);
-              if (!open) {
-                localStorage.setItem('earnPointsHintsSeen', 'true');
-              }
-            }}
-          >
-            <div className="mt-3 pt-3 border-t border-primary-foreground/15">
-              <CollapsibleTrigger className="flex items-center justify-between w-full active:scale-[0.99] transition-transform">
-                <p className="text-primary-foreground/60 text-xs font-medium uppercase tracking-wide">Earn points by</p>
-                <ChevronDown className={`h-3.5 w-3.5 text-primary-foreground/50 transition-transform duration-200 ${earnPointsOpen ? 'rotate-180' : ''}`} />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-1.5">
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    💬 Chat activity
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    📸 Uploading photos
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    🤝 Volunteering
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    🎯 Early RSVPs
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    💬 Photo comments
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    📋 Attending events
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    🔥 Weekly streaks
-                  </span>
+            {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
+              <div className="mt-2">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div 
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${Math.min(100, ((profile?.ignite_points || 0) / minRewardThreshold) * 100)}%` }}
+                  />
                 </div>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
-        </CardContent>
-      </Card>
+              </div>
+            )}
+            {latestPendingRedemption && (
+              <p className="text-xs text-muted-foreground mt-1.5">
+                🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Reward Claim QR Dialog */}
       {latestPendingRedemption && user && (
