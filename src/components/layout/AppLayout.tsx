@@ -12,6 +12,7 @@ import { SkipToContent } from "@/components/SkipToContent";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { PendingInviteWelcomeDialog } from "@/components/PendingInviteWelcomeDialog";
 import { useAdMobInit } from "@/hooks/useAdMob";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
 
