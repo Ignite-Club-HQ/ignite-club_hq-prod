@@ -1535,28 +1535,84 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       <Label className="text-blue-600 font-medium">Second Parent / Guardian (Optional)</Label>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Add a second parent or guardian who will also receive an invite for the same child(ren).
+                      Search for an existing user or enter details for a new invite.
                     </p>
-                    <div className="space-y-2">
-                      <Input
-                        placeholder="Second parent's name"
-                        value={secondParentName}
-                        onChange={(e) => setSecondParentName(e.target.value)}
-                        className="h-9"
-                      />
-                      {secondParentName.trim() && (
+
+                    {selectedSecondParent ? (
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={selectedSecondParent.avatar_url || undefined} />
+                          <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                            {selectedSecondParent.display_name?.[0]?.toUpperCase() || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{selectedSecondParent.display_name}</p>
+                          <p className="text-xs text-muted-foreground">Existing user • Will be added directly</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                          setSelectedSecondParent(null);
+                          setSecondParentSearch("");
+                        }}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
                         <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
-                            type="email"
-                            placeholder="Second parent's email"
-                            value={secondParentEmail}
-                            onChange={(e) => setSecondParentEmail(e.target.value)}
+                            placeholder="Search existing user or type new name..."
+                            value={secondParentSearch || secondParentName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSecondParentSearch(val);
+                              setSecondParentName(val);
+                            }}
                             className="h-9 pl-10"
                           />
                         </div>
-                      )}
-                    </div>
+
+                        {filteredSecondParentResults.length > 0 && secondParentSearch.length >= 2 && (
+                          <div className="border rounded-lg overflow-hidden divide-y">
+                            {filteredSecondParentResults.map((user) => (
+                              <button
+                                key={user.id}
+                                type="button"
+                                className="w-full flex items-center gap-3 p-2.5 hover:bg-accent/50 transition-colors text-left"
+                                onClick={() => {
+                                  setSelectedSecondParent(user);
+                                  setSecondParentName(user.display_name || "");
+                                  setSecondParentSearch("");
+                                  setSecondParentEmail("");
+                                }}
+                              >
+                                <Avatar className="h-7 w-7">
+                                  <AvatarImage src={user.avatar_url || undefined} />
+                                  <AvatarFallback className="bg-muted text-xs">
+                                    {user.display_name?.[0]?.toUpperCase() || "?"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm">{user.display_name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {secondParentName.trim() && !selectedSecondParent && (
+                          <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              type="email"
+                              placeholder="Second parent's email (for invite)"
+                              value={secondParentEmail}
+                              onChange={(e) => setSecondParentEmail(e.target.value)}
+                              className="h-9 pl-10"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
