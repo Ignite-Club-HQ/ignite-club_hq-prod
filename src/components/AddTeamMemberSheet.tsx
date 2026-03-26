@@ -501,7 +501,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         invited_email: customEmail.trim().toLowerCase() || null,
         invite_token: inviteToken,
         metadata: childrenMetadata 
-          ? { children: JSON.parse(childrenMetadata), ...(secondToken ? { linked_invite_token: secondToken } : {}) } 
+          ? { 
+              children: JSON.parse(childrenMetadata), 
+              ...(secondToken ? { linked_invite_token: secondToken } : {}),
+              ...(selectedSecondParent ? { second_parent_user_id: selectedSecondParent.id } : {}),
+            } 
           : null,
       } as any).select("id").single();
       if (inviteError) throw inviteError;
@@ -1729,9 +1733,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   <Send className="h-5 w-5 mr-2" />
                 )}
                 {customName.trim() && customEmail.trim() 
-                  ? (secondParentName.trim() && secondParentEmail.trim() 
-                    ? `Send Invites to ${customName} & ${secondParentName}` 
-                    : `Send Invite to ${customName}`) 
+                  ? (selectedSecondParent
+                    ? `Send Invite & Add ${selectedSecondParent.display_name}`
+                    : secondParentName.trim() && secondParentEmail.trim() 
+                      ? `Send Invites to ${customName} & ${secondParentName}` 
+                      : `Send Invite to ${customName}`) 
                   : "Enter name and email to continue"}
               </Button>
             )}
@@ -1740,11 +1746,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <TabsContent value="bulk" className="space-y-4 mt-0">
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Add multiple members at once. Email addresses are required to send invites.
+                Add multiple members at once. Email addresses are optional — members without emails will get a shareable link.
               </p>
               
               {/* Parent role preview hint for bulk tab */}
-              {selectedRole === "parent" && (
+              {(selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")) && (
                 <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20">
                   <div className="flex items-start gap-2">
                     <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
