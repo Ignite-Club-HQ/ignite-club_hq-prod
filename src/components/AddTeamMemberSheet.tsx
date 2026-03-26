@@ -491,8 +491,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }))
       ) : null;
 
-      // Generate both tokens upfront so we can cross-link
-      const secondToken = (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") 
+      // Generate second parent token only if NOT selecting an existing user
+      const secondToken = (!selectedSecondParent && secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") 
         ? crypto.randomUUID() : null;
 
       // Create primary invite
@@ -511,11 +511,30 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       } as any).select("id").single();
       if (inviteError) throw inviteError;
 
-      // Use the pending invite token for name-restricted link
       const link = `${window.location.origin}/join/p/${inviteToken}`;
-      // Create second parent invite if provided
+      
+      // Handle second parent
       let secondParentLink: string | null = null;
-      if (secondToken) {
+      let secondParentAddedDirectly = false;
+
+      if (selectedSecondParent && selectedRole === "parent") {
+        // Add existing user directly as second parent
+        await supabase.from("user_roles").insert({
+          user_id: selectedSecondParent.id,
+          team_id: teamId,
+          club_id: clubId,
+          role: "parent",
+        });
+
+        await supabase.from("notifications").insert({
+          user_id: selectedSecondParent.id,
+          type: "membership",
+          message: `You have been added to ${teamName} as Parent`,
+          related_id: teamId,
+        });
+
+        secondParentAddedDirectly = true;
+      } else if (secondToken) {
         const { error: secondError } = await supabase.from("pending_invites").insert({
           team_id: teamId,
           club_id: clubId,
@@ -542,6 +561,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentLink,
         secondParentEmail: secondParentEmail.trim(),
         secondParentName: secondParentName.trim(),
+        secondParentAddedDirectly,
       };
     },
     onSuccess: async ({ link, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName }) => {
