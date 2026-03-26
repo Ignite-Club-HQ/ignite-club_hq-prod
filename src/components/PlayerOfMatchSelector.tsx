@@ -141,28 +141,23 @@ export default function PlayerOfMatchSelector({
       // Only award points if there's a reward configured
       if (pointsToAward > 0) {
         if (userId) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("ignite_points")
-            .eq("id", userId)
-            .single();
-
-          const previousPoints = profile?.ignite_points || 0;
-          const newPoints = previousPoints + pointsToAward;
-
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update({ ignite_points: newPoints })
-            .eq("id", userId);
+          // Atomic points increment
+          const { data: newBalance, error: updateError } = await supabase.rpc('increment_ignite_points', {
+            _user_id: userId,
+            _amount: pointsToAward,
+          });
 
           if (updateError) throw updateError;
+
+          const balanceAfter = newBalance || 0;
+          const previousPoints = balanceAfter - pointsToAward;
 
           // Record in points history
           await recordPointsHistory({
             userId,
             clubId,
             amount: pointsToAward,
-            balanceAfter: newPoints,
+            balanceAfter,
             sourceType: 'player_of_match',
             sourceId: eventId,
             description: 'Player of the Match award',
@@ -175,7 +170,7 @@ export default function PlayerOfMatchSelector({
             userId,
             clubId,
             previousPoints,
-            newPoints,
+            newPoints: balanceAfter,
           });
 
           // Send notification with points
@@ -188,28 +183,30 @@ export default function PlayerOfMatchSelector({
             related_id: eventId,
           });
         } else if (childId) {
+          // Atomic child points increment
+          const { data: childNewBalance, error: childUpdateError } = await supabase.rpc('increment_child_ignite_points', {
+            _child_id: childId,
+            _amount: pointsToAward,
+          });
+
+          if (childUpdateError) throw childUpdateError;
+
+          const childBalanceAfter = childNewBalance || 0;
+          const previousChildPoints = childBalanceAfter - pointsToAward;
+
+          // Get child info for notification
           const { data: child } = await supabase
             .from("children")
-            .select("ignite_points, parent_id, name")
+            .select("parent_id, name")
             .eq("id", childId)
             .single();
-
-          const previousChildPoints = child?.ignite_points || 0;
-          const newPoints = previousChildPoints + pointsToAward;
-
-          const { error: updateError } = await supabase
-            .from("children")
-            .update({ ignite_points: newPoints })
-            .eq("id", childId);
-
-          if (updateError) throw updateError;
 
           // Record in points history for child
           await recordPointsHistory({
             childId,
             clubId,
             amount: pointsToAward,
-            balanceAfter: newPoints,
+            balanceAfter: childBalanceAfter,
             sourceType: 'player_of_match',
             sourceId: eventId,
             description: `Player of the Match award for ${child?.name}`,
@@ -222,7 +219,7 @@ export default function PlayerOfMatchSelector({
             childId,
             clubId,
             previousPoints: previousChildPoints,
-            newPoints,
+            newPoints: childBalanceAfter,
           });
 
           // Notify parent with points
@@ -283,26 +280,18 @@ export default function PlayerOfMatchSelector({
 
       // Deduct points
       if (playerOfMatch.user_id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("ignite_points")
-          .eq("id", playerOfMatch.user_id)
-          .single();
+        // Atomic deduction
+        const { data: newBalance } = await supabase.rpc('increment_ignite_points', {
+          _user_id: playerOfMatch.user_id,
+          _amount: -pointsToDeduct,
+        });
 
-        const newPoints = Math.max(0, (profile?.ignite_points || 0) - pointsToDeduct);
-
-        await supabase
-          .from("profiles")
-          .update({ ignite_points: newPoints })
-          .eq("id", playerOfMatch.user_id);
-
-        // Record in points history (negative amount)
         if (pointsToDeduct > 0) {
           await recordPointsHistory({
             userId: playerOfMatch.user_id,
             clubId,
             amount: -pointsToDeduct,
-            balanceAfter: newPoints,
+            balanceAfter: newBalance || 0,
             sourceType: 'pom_removed',
             sourceId: eventId,
             description: 'Player of the Match award removed',
@@ -310,29 +299,21 @@ export default function PlayerOfMatchSelector({
           });
         }
       } else if (playerOfMatch.child_id) {
-        const { data: child } = await supabase
-          .from("children")
-          .select("ignite_points, name")
-          .eq("id", playerOfMatch.child_id)
-          .single();
+        // Atomic deduction for child
+        const { data: childNewBalance } = await supabase.rpc('increment_child_ignite_points', {
+          _child_id: playerOfMatch.child_id,
+          _amount: -pointsToDeduct,
+        });
 
-        const newPoints = Math.max(0, (child?.ignite_points || 0) - pointsToDeduct);
-
-        await supabase
-          .from("children")
-          .update({ ignite_points: newPoints })
-          .eq("id", playerOfMatch.child_id);
-
-        // Record in points history for child (negative amount)
         if (pointsToDeduct > 0) {
           await recordPointsHistory({
             childId: playerOfMatch.child_id,
             clubId,
             amount: -pointsToDeduct,
-            balanceAfter: newPoints,
+            balanceAfter: childNewBalance || 0,
             sourceType: 'pom_removed',
             sourceId: eventId,
-            description: `Player of the Match award removed for ${child?.name}`,
+            description: 'Player of the Match award removed',
             createdBy: user!.id,
           });
         }

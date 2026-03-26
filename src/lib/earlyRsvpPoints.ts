@@ -15,7 +15,8 @@ interface AwardEarlyRsvpPointsParams {
 }
 
 /**
- * Awards 1 Ignite point to a user if they RSVP "going" at least 3 days before the event.
+ * Awards 3 Ignite points to a user if they RSVP "going" at least 3 days before the event.
+ * Uses the early_rsvp_points_awarded flag on the RSVP row to prevent re-awards.
  * Returns true if points were awarded, false otherwise.
  */
 export async function awardEarlyRsvpPoints({
@@ -60,33 +61,42 @@ export async function awardEarlyRsvpPoints({
       return false;
     }
 
-    // Get current points
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("ignite_points")
-      .eq("id", userId)
-      .single();
+    // Mark RSVP as having awarded points FIRST (optimistic lock)
+    // If another request already set this, we'll know from the update count
+    const { data: updatedRsvp, error: markError } = await supabase
+      .from("rsvps")
+      .update({ early_rsvp_points_awarded: true })
+      .eq("id", rsvpId)
+      .eq("early_rsvp_points_awarded", false)
+      .select("id")
+      .maybeSingle();
 
-    const currentPoints = profile?.ignite_points || 0;
-    const newPoints = currentPoints + EARLY_RSVP_POINTS;
+    if (markError || !updatedRsvp) {
+      return false; // Another request already marked it
+    }
 
-    // Award points
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ ignite_points: newPoints })
-      .eq("id", userId);
+    // Atomic points increment
+    const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
+      _user_id: userId,
+      _amount: EARLY_RSVP_POINTS,
+    });
 
     if (updateError) {
       console.error("Failed to award early RSVP points:", updateError);
+      // Revert the flag since points weren't actually awarded
+      await supabase.from("rsvps").update({ early_rsvp_points_awarded: false }).eq("id", rsvpId);
       return false;
     }
+
+    const balanceAfter = newPoints || 0;
+    const previousPoints = balanceAfter - EARLY_RSVP_POINTS;
 
     // Record in points history
     await recordPointsHistory({
       userId,
       clubId,
       amount: EARLY_RSVP_POINTS,
-      balanceAfter: newPoints,
+      balanceAfter,
       sourceType: 'early_rsvp',
       sourceId: rsvpId,
       description: `Early RSVP bonus (${daysUntilEvent} days before event)`,
@@ -100,12 +110,6 @@ export async function awardEarlyRsvpPoints({
       .single();
     const pointsName = (clubData as any)?.points_display_name || 'reward points';
 
-    // Mark RSVP as having awarded points
-    await supabase
-      .from("rsvps")
-      .update({ early_rsvp_points_awarded: true })
-      .eq("id", rsvpId);
-
     // Create notification
     await supabase.from("notifications").insert({
       user_id: userId,
@@ -118,8 +122,8 @@ export async function awardEarlyRsvpPoints({
     const rewardName = await checkRewardThreshold({
       userId,
       clubId,
-      previousPoints: currentPoints,
-      newPoints,
+      previousPoints,
+      newPoints: balanceAfter,
     });
 
     // Send email notification (fire and forget)
@@ -128,7 +132,7 @@ export async function awardEarlyRsvpPoints({
         recipientUserId: userId,
         pointsAwarded: EARLY_RSVP_POINTS,
         reason: "Early RSVP bonus",
-        totalPoints: newPoints,
+        totalPoints: balanceAfter,
         clubName,
         rewardUnlocked: !!rewardName,
         rewardName,
