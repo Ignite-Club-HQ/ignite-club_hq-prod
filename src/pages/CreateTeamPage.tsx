@@ -457,31 +457,7 @@ export default function CreateTeamPage() {
     );
   }
 
-  // Show access denied if not a club admin
-  if (!isClubAdmin) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col bg-background">
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-semibold">Create {entityLabel(club)}</h1>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center p-6">
-          <Alert variant="destructive" className="max-w-md">
-            <ShieldAlert className="h-4 w-4" />
-            <AlertDescription>
-              Only club admins can create {entityLabelLower(club)}es. Please contact your club administrator.
-            </AlertDescription>
-          </Alert>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
