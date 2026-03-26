@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy } from "lucide-react";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
@@ -230,6 +230,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     return crypto.randomUUID();
   };
 
+  const isDuplicateError = (error: { code?: string | null; message?: string | null } | null | undefined) => {
+    const message = error?.message?.toLowerCase() || "";
+    return error?.code === "23505" || message.includes("duplicate") || message.includes("unique constraint");
+  };
+
   // Get or create generic invite link for the selected role (used for existing users or when no name restriction)
   const getOrCreateInviteLink = async (role: TeamRole): Promise<string> => {
     // First check for existing invite
@@ -273,8 +278,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       if (error) throw error;
 
       // If parent role, create or link children and assign to team
-      // Track created child IDs for second parent linking
+      // Track resolved child IDs so second-parent flows always link correctly
       const createdChildIds: string[] = [];
+      const resolvedChildren: { id: string; name: string; yearOfBirth: number | null }[] = [];
       if (selectedRole === "parent") {
         const validChildren = singleChildren.filter(c => c.name.trim());
         for (const child of validChildren) {
@@ -310,6 +316,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           if (childId) {
             createdChildIds.push(childId);
+            const existingClubChild = clubChildren.find(c => c.id === childId);
+            resolvedChildren.push({
+              id: childId,
+              name: child.name.trim(),
+              yearOfBirth: existingClubChild?.year_of_birth ?? (child.yearOfBirth ? parseInt(child.yearOfBirth) : null),
+            });
             // Check if already assigned to this team
             const { data: existing } = await supabase
               .from("child_team_assignments")
@@ -340,7 +352,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           club_id: clubId,
           role: "parent",
         });
-        if (roleErr && !roleErr.message?.includes("duplicate")) {
+        if (roleErr && !isDuplicateError(roleErr)) {
           console.error("Failed to add second parent role:", roleErr.message);
         }
 
@@ -363,13 +375,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentAddedDirectly = true;
       } else if (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") {
         // Create pending invite for new second parent
-        const validChildren = singleChildren.filter(c => c.name.trim());
         const secondToken = crypto.randomUUID();
-        const childrenMetadata = validChildren.length > 0 
-          ? validChildren.map(c => ({ 
-              name: c.name.trim(), 
-              yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
-              existingChildId: c.existingChildId || null,
+        const childrenMetadata = resolvedChildren.length > 0 
+          ? resolvedChildren.map(child => ({ 
+              name: child.name,
+              yearOfBirth: child.yearOfBirth,
+              existingChildId: child.id,
             }))
           : null;
 
@@ -1012,23 +1023,49 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <div className="space-y-4 pb-6">
             {bulkResults.map((result, idx) => (
               <div key={idx} className="p-3 rounded-lg border bg-muted/30">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-medium text-sm">{result.name}</p>
                     {result.email && (
                       <p className="text-xs text-muted-foreground">{result.email}</p>
                     )}
                   </div>
-                  {result.sent ? (
-                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
-                      <Mail className="h-3 w-3 mr-1" />
-                      Sent
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
-                      {result.email ? "Failed" : "Link only"}
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {result.sent ? (
+                      <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                        <Mail className="h-3 w-3 mr-1" />
+                        Sent
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                        {result.email ? "Failed" : "Link only"}
+                      </Badge>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(result.link);
+                          toast({
+                            title: "Invite link copied",
+                            description: `Share ${result.name}'s invite link wherever you like.`,
+                          });
+                        } catch {
+                          toast({
+                            title: "Could not copy link",
+                            description: "Please try again.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5 mr-1" />
+                      Copy link
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
