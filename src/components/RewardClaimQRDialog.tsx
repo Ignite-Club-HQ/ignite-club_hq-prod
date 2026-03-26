@@ -51,22 +51,8 @@ export function RewardClaimQRDialog({
   const handleMarkAsClaimed = async () => {
     setResetting(true);
     try {
-      // Get the reward's points cost from the redemption record
-      const { data: redemption } = await supabase
-        .from("reward_redemptions")
-        .select("points_spent")
-        .eq("id", redemptionId)
-        .single();
-
-      const pointsToDeduct = redemption?.points_spent || 0;
-
-      if (pointsToDeduct > 0) {
-        // Atomic points deduction (subtract cost, not reset to 0)
-        await supabase.rpc('increment_ignite_points', {
-          _user_id: userId,
-          _amount: -pointsToDeduct,
-        });
-      }
+      // Points were already deducted during redemption (in RewardRedemptionCard).
+      // This handler only marks the redemption as fulfilled.
 
       // Mark redemption as fulfilled
       if (redemptionId) {
