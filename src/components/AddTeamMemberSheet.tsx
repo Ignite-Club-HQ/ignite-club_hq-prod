@@ -176,7 +176,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         parent_name: parentMap.get(c.parent_id) || "Unknown",
       }));
     },
-    enabled: open && !!clubId && selectedRole === "parent",
+    enabled: open && !!clubId && (selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")),
   });
 
 
@@ -760,7 +760,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         // Build metadata for children (for parent role)
         const validChildren = member.children.filter(c => c.name.trim());
         const childrenMetadata = validChildren.length > 0 ? JSON.stringify(
-          validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
+          validChildren.map(c => ({ 
+            name: c.name.trim(), 
+            yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+            existingChildId: c.existingChildId || null,
+          }))
         ) : null;
 
         // Add linked_invite_token if this parent is paired with another
@@ -952,7 +956,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const updateChild = (memberId: string, childId: string, field: "name" | "yearOfBirth", value: string) => {
     setBulkMembers(bulkMembers.map(m => 
       m.id === memberId 
-        ? { ...m, children: m.children.map(c => c.id === childId ? { ...c, [field]: value } : c) }
+        ? { ...m, children: m.children.map(c => {
+            if (c.id !== childId) return c;
+            const updated = { ...c, [field]: value };
+            // Auto-detect existing children by name match when name changes
+            if (field === "name") {
+              const match = findMatchingChild(value);
+              if (match) {
+                updated.existingChildId = match.id;
+                updated.existingChildParentName = match.parent_name;
+              } else {
+                updated.existingChildId = undefined;
+                updated.existingChildParentName = undefined;
+              }
+            }
+            return updated;
+          }) }
         : m
     ));
   };
@@ -1781,11 +1800,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   // Convert members to the expected format and auto-trigger invites
                   const formattedMembers: BulkMember[] = members.map(m => ({
                     ...m,
-                    children: m.children.map(child => ({
-                      id: crypto.randomUUID(),
-                      name: child.name,
-                      yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
-                    })),
+                    children: m.children.map(child => {
+                      const match = findMatchingChild(child.name);
+                      return {
+                        id: crypto.randomUUID(),
+                        name: child.name,
+                        yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
+                        existingChildId: match?.id,
+                        existingChildParentName: match?.parent_name,
+                      };
+                    }),
                   }));
                   // Pass members directly to mutation to avoid state timing issues
                   addBulkMembersMutation.mutate(formattedMembers);
@@ -1865,28 +1889,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       )}
                       
                       {member.children.map((child) => (
-                        <div key={child.id} className="flex gap-2 items-center">
-                          <Input
-                            placeholder="Child's name"
-                            value={child.name}
-                            onChange={(e) => updateChild(member.id, child.id, "name", e.target.value)}
-                            className="h-8 text-sm flex-1"
-                          />
-                          <Input
-                            placeholder="Year"
-                            value={child.yearOfBirth}
-                            onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
-                            className="h-8 text-sm w-16"
-                            maxLength={4}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => removeChildFromMember(member.id, child.id)}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
+                        <div key={child.id} className="space-y-1">
+                          <div className="flex gap-2 items-center">
+                            <Input
+                              placeholder="Child's name"
+                              value={child.name}
+                              onChange={(e) => updateChild(member.id, child.id, "name", e.target.value)}
+                              className={`h-8 text-sm flex-1 ${child.existingChildId ? 'border-amber-500/50' : ''}`}
+                            />
+                            <Input
+                              placeholder="Year"
+                              value={child.yearOfBirth}
+                              onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
+                              className="h-8 text-sm w-16"
+                              maxLength={4}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => removeChildFromMember(member.id, child.id)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          {child.existingChildId && (
+                            <p className="text-[10px] text-amber-600 pl-1">
+                              ⚠️ Matches existing child (parent: {child.existingChildParentName}) — will link instead of creating new
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>
