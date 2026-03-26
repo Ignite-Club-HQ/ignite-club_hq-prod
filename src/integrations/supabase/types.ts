@@ -5954,12 +5954,20 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
       }
+      is_guardian_of_child: {
+        Args: { _child_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_league_admin: {
         Args: { p_mini_league_id: string; p_user_id: string }
         Returns: boolean
       }
       is_league_parent: {
         Args: { p_mini_league_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_parent_of_child: {
+        Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
       is_team_member: {
