@@ -412,7 +412,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         related_id: teamId,
       });
 
-      return { secondParentInviteLink, secondParentAddedDirectly };
+      return { secondParentInviteLink, secondParentAddedDirectly, roleWasDuplicate };
     },
     onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
