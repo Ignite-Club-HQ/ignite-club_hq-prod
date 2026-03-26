@@ -1625,181 +1625,166 @@ export default function HomePage() {
                 aria-label={`${event.title}${event.is_cancelled ? ' (cancelled)' : ''}, ${formatEventDate(event.event_date)}`}
               >
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge
-                          variant="secondary"
-                          className={`${eventTypeColors[event.type]} text-xs font-medium`}
-                        >
-                          {getEventTypeLabel(event.type, { miniLeagueId: event.mini_league_id })}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {event.teams?.name || event.clubs?.name}
-                        </span>
-                        {event.is_cancelled && (
-                          <Badge variant="destructive" className="text-xs">
-                            Cancelled
-                          </Badge>
-                        )}
-                      </div>
-                      <Link to={`/events/${event.id}`} className="block">
-                        <h3 className="font-semibold hover:text-primary transition-colors">
-                          {event.title}
-                          {event.opponent && ` vs ${event.opponent}`}
-                        </h3>
+                  {/* Line 1: Title + Club/Team badge + RSVP */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Link to={`/events/${event.id}`} className="font-semibold truncate hover:text-primary transition-colors">
+                        {event.title}{event.opponent ? ` vs ${event.opponent}` : ''}
                       </Link>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-                          {formatEventDate(event.event_date)}
-                        </span>
-                      </div>
-                      {(event.location_name || event.suburb) && (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground max-w-full">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                          <span className="truncate max-w-[250px] sm:max-w-[400px]">{event.location_name || event.suburb}</span>
-                        </div>
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {event.teams?.name || event.clubs?.name}
+                      </Badge>
+                      {event.is_cancelled && (
+                        <Badge variant="destructive" className="text-xs shrink-0">
+                          Cancelled
+                        </Badge>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      {/* RSVP status indicator */}
-                      <button
-                        className="flex items-center text-xs font-medium hover:opacity-80 transition-opacity"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setQuickRsvpEvent(event);
-                        }}
-                        aria-label={`RSVP status: ${getUserRsvpStatus(event.id) || 'No response'}. Tap to change.`}
-                      >
-                        {getRsvpIcon(getUserRsvpStatus(event.id))}
-                      </button>
-                    </div>
+                    <button
+                      className="flex items-center text-xs font-medium hover:opacity-80 transition-opacity shrink-0"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setQuickRsvpEvent(event);
+                      }}
+                      aria-label={`RSVP status: ${getUserRsvpStatus(event.id) || 'No response'}. Tap to change.`}
+                    >
+                      {getRsvpIcon(getUserRsvpStatus(event.id))}
+                    </button>
                   </div>
-                  {/* Admin actions row */}
-                  {(isAppAdmin || userRoles?.some(r => 
-                    (r.team_id === event.team_id && (r.role === "coach" || r.role === "team_admin")) ||
-                    (r.club_id === event.club_id && r.role === "club_admin") ||
-                    (r.role === "league_admin" && r.club_id === event.club_id)
-                  )) && (
-                    <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border/50 justify-end">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          navigate(`/events/${event.id}/edit`);
-                        }}
-                        aria-label={`Edit ${event.title}`}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      {!event.is_cancelled && (
-                        <>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={async (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setLoadingRemindCount(true);
-                              
-                              // Get RSVPed user IDs
-                              const { data: rsvps } = await supabase
-                                .from("rsvps")
-                                .select("user_id")
-                                .eq("event_id", event.id)
-                                .is("child_id", null);
-                              const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-                              
-                              // Get all member IDs based on event scope
-                              let allMemberIds: string[] = [];
-                              
-                              if (event.mini_league_id) {
-                                // Mini league event - get parent user IDs from mini_league_players
-                                const { data: players } = await supabase
-                                  .from("mini_league_players")
-                                  .select("parent_user_id")
-                                  .eq("mini_league_id", event.mini_league_id);
-                                const parentIds = players?.map(p => p.parent_user_id).filter(Boolean) as string[] || [];
-                                
-                                // Also get league admins
-                                const { data: league } = await supabase
-                                  .from("mini_leagues")
-                                  .select("club_id")
-                                  .eq("id", event.mini_league_id)
-                                  .single();
-                                
-                                if (league) {
-                                  const { data: adminRoles } = await supabase
-                                    .from("user_roles")
-                                    .select("user_id")
-                                    .eq("club_id", league.club_id)
-                                    .in("role", ["club_admin", "league_admin", "coach"]);
-                                  
-                                  const adminIds = adminRoles?.map(r => r.user_id) || [];
-                                  
-                                  allMemberIds = [...new Set([...parentIds, ...adminIds])];
-                                }
-                              } else {
-                                let memberQuery = supabase.from("user_roles").select("user_id");
-                                if (event.team_id) {
-                                  memberQuery = memberQuery.eq("team_id", event.team_id);
-                                } else {
-                                  memberQuery = memberQuery.eq("club_id", event.club_id);
-                                }
-                                
-                                const { data: members } = await memberQuery;
-                                allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-                              }
-                              const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
-                              
-                              setNonRsvpCount(count);
-                              setEventToRemind(event);
-                              setRemindDialogOpen(true);
-                              setLoadingRemindCount(false);
-                            }}
-                          >
-                            {loadingRemindCount ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Bell className="h-3 w-3" />
-                            )}
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-7 w-7 text-warning"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setEventToCancel(event);
-                              setCancelDialogOpen(true);
-                            }}
-                          >
-                            <XCircle className="h-3 w-3" />
-                          </Button>
-                        </>
+                  {/* Line 2: Date + Location + Admin actions */}
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground min-w-0">
+                      <span className="flex items-center gap-1 shrink-0">
+                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                        {formatEventDate(event.event_date)}
+                      </span>
+                      {(event.location_name || event.suburb) && (
+                        <span className="flex items-center gap-1 truncate">
+                          <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{event.location_name || event.suburb}</span>
+                        </span>
                       )}
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        className="h-7 w-7 text-destructive"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setEventToDelete(event);
-                          setDeleteDialogOpen(true);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
                     </div>
-                  )}
+                    {/* Admin actions */}
+                    {(isAppAdmin || userRoles?.some(r => 
+                      (r.team_id === event.team_id && (r.role === "coach" || r.role === "team_admin")) ||
+                      (r.club_id === event.club_id && r.role === "club_admin") ||
+                      (r.role === "league_admin" && r.club_id === event.club_id)
+                    )) && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/events/${event.id}/edit`);
+                          }}
+                          aria-label={`Edit ${event.title}`}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        {!event.is_cancelled && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setLoadingRemindCount(true);
+                                
+                                const { data: rsvps } = await supabase
+                                  .from("rsvps")
+                                  .select("user_id")
+                                  .eq("event_id", event.id)
+                                  .is("child_id", null);
+                                const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
+                                
+                                let allMemberIds: string[] = [];
+                                
+                                if (event.mini_league_id) {
+                                  const { data: players } = await supabase
+                                    .from("mini_league_players")
+                                    .select("parent_user_id")
+                                    .eq("mini_league_id", event.mini_league_id);
+                                  const parentIds = players?.map(p => p.parent_user_id).filter(Boolean) as string[] || [];
+                                  
+                                  const { data: league } = await supabase
+                                    .from("mini_leagues")
+                                    .select("club_id")
+                                    .eq("id", event.mini_league_id)
+                                    .single();
+                                  
+                                  if (league) {
+                                    const { data: adminRoles } = await supabase
+                                      .from("user_roles")
+                                      .select("user_id")
+                                      .eq("club_id", league.club_id)
+                                      .in("role", ["club_admin", "league_admin", "coach"]);
+                                    
+                                    const adminIds = adminRoles?.map(r => r.user_id) || [];
+                                    allMemberIds = [...new Set([...parentIds, ...adminIds])];
+                                  }
+                                } else {
+                                  let memberQuery = supabase.from("user_roles").select("user_id");
+                                  if (event.team_id) {
+                                    memberQuery = memberQuery.eq("team_id", event.team_id);
+                                  } else {
+                                    memberQuery = memberQuery.eq("club_id", event.club_id);
+                                  }
+                                  
+                                  const { data: members } = await memberQuery;
+                                  allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                                }
+                                const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
+                                
+                                setNonRsvpCount(count);
+                                setEventToRemind(event);
+                                setRemindDialogOpen(true);
+                                setLoadingRemindCount(false);
+                              }}
+                            >
+                              {loadingRemindCount ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Bell className="h-3 w-3" />
+                              )}
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-7 w-7 text-warning"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEventToCancel(event);
+                                setCancelDialogOpen(true);
+                              }}
+                            >
+                              <XCircle className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEventToDelete(event);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
               );
