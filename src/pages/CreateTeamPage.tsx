@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck, Crown, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, FolderOpen, Baby, UserCheck, Crown, ShieldAlert, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,18 +66,28 @@ export default function CreateTeamPage() {
     enabled: !!clubId,
   });
 
-  // Check if current user is a club admin
+  // Check if current user is a club admin or app admin
   const { data: isClubAdmin, isLoading: isCheckingAdmin } = useQuery({
     queryKey: ["is-club-admin", clubId, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      // Check for app_admin role
+      const { data: appAdminRole } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      if (appAdminRole) return true;
+      
+      // Check for club_admin role for this club
+      const { data: clubAdminRole } = await supabase
         .from("user_roles")
         .select("id")
         .eq("user_id", user!.id)
         .eq("club_id", clubId!)
         .eq("role", "club_admin")
         .maybeSingle();
-      return !!data;
+      return !!clubAdminRole;
     },
     enabled: !!clubId && !!user,
   });
@@ -183,6 +193,66 @@ export default function CreateTeamPage() {
         description: `A ${entityLabelLower(club)} called "${name.trim()}" already exists in this club. Please choose a different name.`,
         variant: "destructive",
       });
+      return;
+    }
+
+    // Non-admin flow: submit as a team creation request
+    if (!isClubAdmin) {
+      // Upload logo first if provided
+      let logoUrl: string | null = null;
+      if (logoFile) {
+        try {
+          const fileExt = logoFile.name.split('.').pop();
+          const fileName = `team-requests/${user!.id}/${Date.now()}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage
+            .from('club-logos')
+            .upload(fileName, logoFile, { upsert: true });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage
+              .from('club-logos')
+              .getPublicUrl(fileName);
+            logoUrl = urlData.publicUrl;
+          }
+        } catch (error) {
+          console.error('Logo upload error:', error);
+        }
+      }
+
+      const { error: requestError } = await supabase
+        .from("team_creation_requests")
+        .insert({
+          club_id: clubId!,
+          requested_by: user!.id,
+          name: name.trim(),
+          level_age: levelAge.trim() || null,
+          description: description.trim() || null,
+          logo_url: logoUrl,
+          team_type: teamType,
+          folder_id: folderId || null,
+          ...(club?.class_mode_enabled ? {
+            class_day: classDay || null,
+            class_time: classTime || null,
+            class_duration_minutes: classDuration,
+            class_capacity: classCapacity,
+          } : {}),
+        } as any);
+
+      setSaving(false);
+
+      if (requestError) {
+        toast({
+          title: "Error",
+          description: `Failed to submit ${entityLabelLower(club)} request. Please try again.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Request Submitted!",
+        description: `Your request to create "${name.trim()}" has been sent to the club admin for approval.`,
+      });
+      navigate(-1);
       return;
     }
 
@@ -387,31 +457,7 @@ export default function CreateTeamPage() {
     );
   }
 
-  // Show access denied if not a club admin
-  if (!isClubAdmin) {
-    return (
-      <div className="min-h-[100dvh] flex flex-col bg-background">
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-semibold">Create {entityLabel(club)}</h1>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center p-6">
-          <Alert variant="destructive" className="max-w-md">
-            <ShieldAlert className="h-4 w-4" />
-            <AlertDescription>
-              Only club admins can create {entityLabelLower(club)}es. Please contact your club administrator.
-            </AlertDescription>
-          </Alert>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -630,8 +676,8 @@ export default function CreateTeamPage() {
             )}
           </div>
 
-          {/* Assign Team Admin Section */}
-          {clubId && (
+          {/* Assign Team Admin Section - only for club admins */}
+          {clubId && isClubAdmin && (
             <AssignTeamAdminSection
               clubId={clubId}
               teamName={name || `this ${entityLabelLower(club)}`}
@@ -639,18 +685,33 @@ export default function CreateTeamPage() {
             />
           )}
 
-          {/* Info Card - only show if not assigning someone else */}
+          {/* Info Card */}
           {!adminAssignment && (
-            <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
+            <div className={`rounded-xl p-4 border ${isClubAdmin ? 'bg-primary/5 border-primary/10' : 'bg-amber-500/5 border-amber-500/20'}`}>
               <div className="flex gap-3">
                 <div className="shrink-0 mt-0.5">
-                  <Sparkles className="h-5 w-5 text-primary" />
+                  {isClubAdmin ? (
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  ) : (
+                    <Clock className="h-5 w-5 text-amber-500" />
+                  )}
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">You'll be the {entityLabelLower(club)} admin</p>
-                  <p className="text-xs text-muted-foreground">
-                    As the creator, you'll have full control to manage members, events, and {entityLabelLower(club)} settings.
-                  </p>
+                  {isClubAdmin ? (
+                    <>
+                      <p className="text-sm font-medium text-foreground">You'll be the {entityLabelLower(club)} admin</p>
+                      <p className="text-xs text-muted-foreground">
+                        As the creator, you'll have full control to manage members, events, and {entityLabelLower(club)} settings.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-foreground">Requires club admin approval</p>
+                      <p className="text-xs text-muted-foreground">
+                        Your {entityLabelLower(club)} request will be sent to the club admin for review. Once approved, the {entityLabelLower(club)} will be created and you'll be assigned as its admin.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -664,12 +725,17 @@ export default function CreateTeamPage() {
           <Button
             className="w-full h-12 text-base font-semibold shadow-lg"
             onClick={handleSubmit}
-            disabled={saving || !name.trim() || teamLimitExceeded}
+            disabled={saving || !name.trim() || (isClubAdmin && teamLimitExceeded)}
           >
             {saving ? (
               <Loader2 className="h-5 w-5 animate-spin" />
-            ) : teamLimitExceeded ? (
+            ) : isClubAdmin && teamLimitExceeded ? (
               "Upgrade Required"
+            ) : !isClubAdmin ? (
+              <>
+                <Send className="h-5 w-5 mr-2" />
+                Submit Request
+              </>
             ) : (
               `Create ${entityLabel(club)}`
             )}

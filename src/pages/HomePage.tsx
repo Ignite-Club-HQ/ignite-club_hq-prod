@@ -2174,7 +2174,7 @@ export default function HomePage() {
 
       {/* Quick Actions - Role-aware smart grid */}
       {(() => {
-        const canCreateTeam = isAppAdmin || userRoles?.some(r => r.role === 'club_admin');
+        const canCreateTeam = true; // All users can create teams (non-admins go through approval)
         const canCreateEvents = isAppAdmin || userRoles?.some(r => 
           ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
         );
@@ -2214,21 +2214,19 @@ export default function HomePage() {
           });
         }
 
-        // Create Team - club admin only
-        if (canCreateTeam) {
-          actions.push({
-            key: "create-team",
-            icon: <UserPlus className="h-5 w-5 text-foreground" aria-hidden="true" />,
-            label: activeClubFilter ? "Create Team" : "Create Team or Club",
-            onClick: () => {
-              if (activeClubFilter) {
-                navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-              } else {
-                navigate("/clubs", { state: { fromCreateTeam: true } });
-              }
-            },
-          });
-        }
+        // Create Team - available to all users
+        actions.push({
+          key: "create-team",
+          icon: <UserPlus className="h-5 w-5 text-foreground" aria-hidden="true" />,
+          label: activeClubFilter ? "Create Team" : "Create Team or Club",
+          onClick: () => {
+            if (activeClubFilter) {
+              navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+            } else {
+              navigate("/clubs", { state: { fromCreateTeam: true } });
+            }
+          },
+        });
 
         if (actions.length === 0) return null;
 

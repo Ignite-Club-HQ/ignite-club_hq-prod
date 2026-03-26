@@ -4892,6 +4892,87 @@ export type Database = {
         }
         Relationships: []
       }
+      team_creation_requests: {
+        Row: {
+          class_capacity: number | null
+          class_day: string | null
+          class_duration_minutes: number | null
+          class_time: string | null
+          club_id: string
+          created_at: string
+          description: string | null
+          folder_id: string | null
+          id: string
+          level_age: string | null
+          logo_url: string | null
+          name: string
+          rejection_reason: string | null
+          requested_by: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          team_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          class_capacity?: number | null
+          class_day?: string | null
+          class_duration_minutes?: number | null
+          class_time?: string | null
+          club_id: string
+          created_at?: string
+          description?: string | null
+          folder_id?: string | null
+          id?: string
+          level_age?: string | null
+          logo_url?: string | null
+          name: string
+          rejection_reason?: string | null
+          requested_by: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          team_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          class_capacity?: number | null
+          class_day?: string | null
+          class_duration_minutes?: number | null
+          class_time?: string | null
+          club_id?: string
+          created_at?: string
+          description?: string | null
+          folder_id?: string | null
+          id?: string
+          level_age?: string | null
+          logo_url?: string | null
+          name?: string
+          rejection_reason?: string | null
+          requested_by?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          team_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_creation_requests_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_creation_requests_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_folders: {
         Row: {
           club_id: string | null

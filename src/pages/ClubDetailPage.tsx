@@ -76,6 +76,7 @@ import { SponsorsManager } from "@/components/SponsorsManager";
 import ClubRewardsManager from "@/components/ClubRewardsManager";
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { ClubTeamSponsorAllocator } from "@/components/ClubTeamSponsorAllocator";
+import { PendingTeamRequests } from "@/components/PendingTeamRequests";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3 } from "lucide-react";
@@ -985,6 +986,7 @@ export default function ClubDetailPage() {
           </AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4 pt-2">
+              {isAdmin && <PendingTeamRequests clubId={id!} />}
               {isAdmin && (
                 <div className="flex items-center gap-2 justify-end">
                   <Button variant="outline" size="sm" onClick={() => setCreateFolderDialogOpen(true)}>
