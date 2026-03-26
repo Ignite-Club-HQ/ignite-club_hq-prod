@@ -5424,6 +5424,57 @@ export type Database = {
           },
         ]
       }
+      user_activity_logs: {
+        Row: {
+          club_id: string | null
+          created_at: string
+          duration_seconds: number
+          id: string
+          page_label: string | null
+          page_path: string
+          session_id: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          club_id?: string | null
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          page_label?: string | null
+          page_path: string
+          session_id: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          club_id?: string | null
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          page_label?: string | null
+          page_path?: string
+          session_id?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_activity_logs_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_activity_logs_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_passkeys: {
         Row: {
           counter: number
