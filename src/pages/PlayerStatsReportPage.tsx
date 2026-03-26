@@ -305,45 +305,40 @@ export default function PlayerStatsReportPage() {
     queryKey: ["pro-football-access", user?.id],
     queryFn: async () => {
       // Check team subscriptions
-      const { data: teamSubs } = await supabase
-        .from("team_subscriptions")
-        .select("team_id, is_pro_football")
-        .eq("is_pro_football", true);
+      // Get user's team and club memberships first
+      const { data: userTeamRoles } = await supabase
+        .from("user_roles")
+        .select("team_id")
+        .eq("user_id", user!.id)
+        .not("team_id", "is", null);
 
-      if (teamSubs && teamSubs.length > 0) {
-        // Check if user is a member of any pro football team
-        const { data: userTeamRoles } = await supabase
-          .from("user_roles")
-          .select("team_id")
-          .eq("user_id", user!.id)
-          .not("team_id", "is", null);
+      const { data: userClubRoles } = await supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .not("club_id", "is", null);
 
-        if (userTeamRoles) {
-          const userTeamIds = userTeamRoles.map((r) => r.team_id);
-          const hasTeamAccess = teamSubs.some((s) => userTeamIds.includes(s.team_id));
-          if (hasTeamAccess) return true;
-        }
+      const userTeamIds = userTeamRoles?.map((r) => r.team_id) || [];
+      const userClubIds = userClubRoles?.map((r) => r.club_id) || [];
+
+      // Check team subscriptions
+      if (userTeamIds.length > 0) {
+        const { data: teamSubs } = await supabase
+          .from("team_subscriptions")
+          .select("team_id, is_pro_football, admin_pro_football_override")
+          .in("team_id", userTeamIds);
+
+        if (teamSubs?.some((s) => s.is_pro_football || s.admin_pro_football_override)) return true;
       }
 
       // Check club subscriptions
-      const { data: clubSubs } = await supabase
-        .from("club_subscriptions")
-        .select("club_id, is_pro_football")
-        .eq("is_pro_football", true);
+      if (userClubIds.length > 0) {
+        const { data: clubSubs } = await supabase
+          .from("club_subscriptions")
+          .select("club_id, is_pro_football, admin_pro_football_override")
+          .in("club_id", userClubIds);
 
-      if (clubSubs && clubSubs.length > 0) {
-        // Check if user is a member of any pro football club
-        const { data: userClubRoles } = await supabase
-          .from("user_roles")
-          .select("club_id")
-          .eq("user_id", user!.id)
-          .not("club_id", "is", null);
-
-        if (userClubRoles) {
-          const userClubIds = userClubRoles.map((r) => r.club_id);
-          const hasClubAccess = clubSubs.some((s) => userClubIds.includes(s.club_id));
-          if (hasClubAccess) return true;
-        }
+        if (clubSubs?.some((s) => s.is_pro_football || s.admin_pro_football_override)) return true;
       }
 
       return false;
