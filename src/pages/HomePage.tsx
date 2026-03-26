@@ -1654,9 +1654,9 @@ export default function HomePage() {
                         </span>
                       </div>
                       {(event.suburb || event.address) && (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground max-w-full">
                           <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                          <span className="truncate">{event.suburb || event.address}</span>
+                          <span className="truncate max-w-[250px] sm:max-w-[400px]">{event.suburb || event.address}</span>
                         </div>
                       )}
                     </div>
