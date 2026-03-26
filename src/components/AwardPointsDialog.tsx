@@ -90,7 +90,7 @@ export default function AwardPointsDialog({
           userId: memberId,
           clubId,
           previousPoints,
-          newPoints,
+          newPoints: balanceAfter,
         });
       }
 
@@ -120,7 +120,7 @@ export default function AwardPointsDialog({
             recipientUserId: memberId,
             pointsAwarded: points,
             reason: reason || (points > 0 ? 'Points awarded by admin' : 'Points adjustment'),
-            totalPoints: newPoints,
+            totalPoints: balanceAfter,
             clubName,
             clubLogoUrl,
             rewardUnlocked: !!rewardName,

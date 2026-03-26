@@ -141,28 +141,23 @@ export default function PlayerOfMatchSelector({
       // Only award points if there's a reward configured
       if (pointsToAward > 0) {
         if (userId) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("ignite_points")
-            .eq("id", userId)
-            .single();
-
-          const previousPoints = profile?.ignite_points || 0;
-          const newPoints = previousPoints + pointsToAward;
-
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update({ ignite_points: newPoints })
-            .eq("id", userId);
+          // Atomic points increment
+          const { data: newBalance, error: updateError } = await supabase.rpc('increment_ignite_points', {
+            _user_id: userId,
+            _amount: pointsToAward,
+          });
 
           if (updateError) throw updateError;
+
+          const balanceAfter = newBalance || 0;
+          const previousPoints = balanceAfter - pointsToAward;
 
           // Record in points history
           await recordPointsHistory({
             userId,
             clubId,
             amount: pointsToAward,
-            balanceAfter: newPoints,
+            balanceAfter,
             sourceType: 'player_of_match',
             sourceId: eventId,
             description: 'Player of the Match award',
