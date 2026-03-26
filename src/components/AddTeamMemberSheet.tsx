@@ -311,7 +311,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
             if (childError) {
               console.error("Failed to create child:", childError.message);
-              continue;
+              throw new Error(`We couldn't save ${child.name.trim()}. Please try again.`);
             }
             childId = newChild?.id;
           }
@@ -339,6 +339,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               });
               if (assignError) {
                 console.error("Failed to assign child to team:", assignError.message);
+                throw new Error(`We saved ${child.name.trim()}, but couldn't add them to ${teamName}. Please try again.`);
               }
             }
           }
