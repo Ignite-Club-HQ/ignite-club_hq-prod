@@ -1074,6 +1074,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 setInviteLink(null);
                 setCustomName("");
                 setCustomEmail("");
+                setSingleChildren([]);
+                setSecondParentName("");
+                setSecondParentEmail("");
+                setSecondParentSearch("");
+                setSelectedSecondParent(null);
+                setCustomMessage("");
+                setShowMessageEditor(false);
               }}>
                 Add Another
               </Button>
@@ -1725,7 +1732,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               <Button
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => addPendingMemberMutation.mutate()}
-                disabled={!customName.trim() || !customEmail.trim() || addPendingMemberMutation.isPending}
+                disabled={!customName.trim() || addPendingMemberMutation.isPending}
               >
                 {addPendingMemberMutation.isPending ? (
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -1830,7 +1837,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       />
                       <Input
                         type="email"
-                        placeholder="Email (required)"
+                        placeholder="Email (optional)"
                         value={member.email}
                         onChange={(e) => updateBulkMember(member.id, "email", e.target.value)}
                       />
