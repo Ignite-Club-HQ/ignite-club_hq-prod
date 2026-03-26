@@ -366,7 +366,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         const validChildren = singleChildren.filter(c => c.name.trim());
         const secondToken = crypto.randomUUID();
         const childrenMetadata = validChildren.length > 0 
-          ? validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
+          ? validChildren.map(c => ({ 
+              name: c.name.trim(), 
+              yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+              existingChildId: c.existingChildId || null,
+            }))
           : null;
 
         await supabase.from("pending_invites").insert({
@@ -1993,7 +1997,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 <Send className="h-5 w-5 mr-2" />
               )}
               {validBulkCount > 0 
-                ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""} & Send Invites`
+                ? (() => {
+                    const emailCount = bulkMembers.filter(m => m.name.trim() && m.email.trim()).length;
+                    return emailCount > 0
+                      ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""} & Send ${emailCount} Invite${emailCount > 1 ? "s" : ""}`
+                      : `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""}`;
+                  })()
                 : "Enter names to continue"}
             </Button>
           </TabsContent>
