@@ -1061,7 +1061,7 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-                <div className="flex flex-wrap gap-2 justify-between items-center">
+                <div className="flex flex-wrap gap-2 justify-between items-center pl-1">
                   <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
                     <SelectTrigger className="w-[180px] h-8 text-xs">
                       <SelectValue placeholder="Filter by role" />
