@@ -115,7 +115,30 @@ export function useActivityTracking() {
     };
 
     const handleBeforeUnload = () => {
-      flushDuration();
+      // Use sendBeacon for reliable delivery during page unload
+      if (activeLogIdRef.current) {
+        const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
+        if (elapsed >= 1) {
+          const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_activity_logs?id=eq.${activeLogIdRef.current}`;
+          const body = JSON.stringify({ duration_seconds: elapsed });
+          const headers = {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Prefer': 'return=minimal',
+          };
+          try {
+            const blob = new Blob([body], { type: 'application/json' });
+            const success = navigator.sendBeacon(url, blob);
+            if (!success) {
+              // Fallback: fire-and-forget fetch (may not complete)
+              fetch(url, { method: 'PATCH', headers, body, keepalive: true }).catch(() => {});
+            }
+          } catch {
+            // Silently fail - activity tracking is non-critical
+          }
+        }
+      }
     };
 
     document.addEventListener("visibilitychange", handleVisibility);
