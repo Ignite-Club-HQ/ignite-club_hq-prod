@@ -1293,8 +1293,10 @@ export default function TeamDetailPage() {
                                   </Avatar>
                                   <div className="flex-1">
                                     <p className="font-medium text-sm">{child.name}</p>
-                                    {parent?.display_name && (
-                                      <p className="text-xs text-muted-foreground">Parent: {parent.display_name}</p>
+                                    {child.allParentNames && child.allParentNames.length > 0 && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {child.allParentNames.length === 1 ? "Parent" : "Parents"}: {child.allParentNames.join(" & ")}
+                                      </p>
                                     )}
                                   </div>
                                   <Badge variant="outline" className="text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30">
