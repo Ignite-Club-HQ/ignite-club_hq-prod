@@ -462,6 +462,23 @@ export default function JoinTeamPage() {
             }
           }
         }
+        
+        // Link second parent (existing user) as guardian to created children
+        if (metadata.second_parent_user_id && createdChildIds.length > 0) {
+          for (const cid of createdChildIds) {
+            await supabase.from("child_guardians").insert({
+              child_id: cid,
+              guardian_id: metadata.second_parent_user_id,
+              relationship_type: "parent",
+              is_primary: false,
+            }).then(({ error: guardErr }) => {
+              if (guardErr && !guardErr.message?.includes("duplicate")) {
+                console.error("[JoinTeam] Failed to link second parent:", guardErr.message);
+              }
+            });
+          }
+          console.log("[JoinTeam] Linked second parent to", createdChildIds.length, "children");
+        }
       } else if (pendingInviteData.role === "parent" && metadata?.child_id) {
         // Link existing child to this parent (child was pre-created by admin)
         console.log("[JoinTeam] Linking existing child to parent:", metadata.child_id);
