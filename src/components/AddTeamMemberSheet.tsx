@@ -564,9 +564,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentAddedDirectly,
       };
     },
-    onSuccess: async ({ link, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName }) => {
+    onSuccess: async ({ link, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly }) => {
       setInviteLink(link);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
+
+      if (secondParentAddedDirectly && selectedSecondParent) {
+        toast({
+          title: "Second parent added",
+          description: `${selectedSecondParent.display_name} has also been added as Parent`,
+        });
+      }
 
       // Auto-send email notification if email was provided
       if (email) {
