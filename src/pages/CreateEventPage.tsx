@@ -115,6 +115,10 @@ export default function CreateEventPage() {
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
 
+  // Conflict detection state
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [conflictingEvents, setConflictingEvents] = useState<{ title: string; team_name?: string; start_time?: string }[]>([]);
+
   // Collapsible sections state - all expanded by default
   const [openSections, setOpenSections] = useState({
     details: true,
