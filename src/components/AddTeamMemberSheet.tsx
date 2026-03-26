@@ -275,7 +275,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         club_id: clubId,
         role: selectedRole,
       });
-      if (error) throw error;
+
+      if (error && !isDuplicateError(error)) throw error;
 
       // If parent role, create or link children and assign to team
       // Track resolved child IDs so second-parent flows always link correctly
