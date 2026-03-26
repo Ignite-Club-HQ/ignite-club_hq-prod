@@ -325,11 +325,47 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
-      // Create second parent invite if provided
+      // Handle second parent
       let secondParentInviteLink: string | null = null;
-      if (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") {
+      let secondParentAddedDirectly = false;
+      
+      if (selectedSecondParent && selectedRole === "parent") {
+        // Add existing user directly as second parent
+        await supabase.from("user_roles").insert({
+          user_id: selectedSecondParent.id,
+          team_id: teamId,
+          club_id: clubId,
+          role: "parent",
+        });
+
+        // Link children as guardian
         const validChildren = singleChildren.filter(c => c.name.trim());
-        const childrenNames = validChildren.map(c => c.name.trim());
+        for (const child of validChildren) {
+          const childId = child.existingChildId;
+          if (childId) {
+            // Check if this child's parent is already the second parent
+            const existingChild = clubChildren.find(c => c.id === childId);
+            if (existingChild && existingChild.parent_id !== selectedSecondParent.id) {
+              await supabase.from("child_guardians").insert({
+                child_id: childId,
+                guardian_id: selectedSecondParent.id,
+              }).select().maybeSingle();
+            }
+          }
+        }
+
+        // Send notification
+        await supabase.from("notifications").insert({
+          user_id: selectedSecondParent.id,
+          type: "membership",
+          message: `You have been added to ${teamName} as Parent`,
+          related_id: teamId,
+        });
+
+        secondParentAddedDirectly = true;
+      } else if (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") {
+        // Create pending invite for new second parent
+        const validChildren = singleChildren.filter(c => c.name.trim());
         const secondToken = crypto.randomUUID();
         const childrenMetadata = validChildren.length > 0 
           ? validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
