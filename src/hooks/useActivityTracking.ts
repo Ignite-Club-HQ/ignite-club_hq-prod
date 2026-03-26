@@ -115,7 +115,31 @@ export function useActivityTracking() {
     };
 
     const handleBeforeUnload = () => {
-      flushDuration();
+      // Use fetch with keepalive for reliable delivery during page unload
+      // (sendBeacon only supports POST, but we need PATCH)
+      if (activeLogIdRef.current) {
+        const elapsed = Math.round((Date.now() - startTimeRef.current) / 1000);
+        if (elapsed >= 1) {
+          try {
+            fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_activity_logs?id=eq.${activeLogIdRef.current}`,
+              {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                  'Prefer': 'return=minimal',
+                },
+                body: JSON.stringify({ duration_seconds: elapsed }),
+                keepalive: true,
+              }
+            ).catch(() => {});
+          } catch {
+            // Silently fail - activity tracking is non-critical
+          }
+        }
+      }
     };
 
     document.addEventListener("visibilitychange", handleVisibility);
