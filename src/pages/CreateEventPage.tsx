@@ -1383,7 +1383,7 @@ export default function CreateEventPage() {
       <div className="sticky bottom-4 pt-2">
         <Button
           className="w-full h-12 text-base font-semibold shadow-lg"
-          onClick={handleSubmit}
+          onClick={() => handleSubmit()}
           disabled={saving || !title.trim() || !clubId || !eventDateTime || ((type === "game" || type === "training") && !teamId)}
         >
           {saving ? (
@@ -1393,6 +1393,35 @@ export default function CreateEventPage() {
           )}
         </Button>
       </div>
+
+      {/* Conflict Detection Dialog */}
+      <AlertDialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Training Already Scheduled</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>There {conflictingEvents.length === 1 ? "is" : "are"} already {conflictingEvents.length} training session{conflictingEvents.length > 1 ? "s" : ""} at the same time and location:</p>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  {conflictingEvents.map((evt, i) => (
+                    <li key={i}>
+                      <span className="font-medium">{evt.title}</span>
+                      {evt.team_name && <span className="text-muted-foreground"> — {evt.team_name}</span>}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-sm text-muted-foreground pt-1">This is fine if multiple teams share the venue. Just confirming you're aware.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go Back</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setConflictDialogOpen(false); handleSubmit(true); }}>
+              Continue & Create
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
