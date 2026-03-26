@@ -1,7 +1,17 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,6 +114,10 @@ export default function CreateEventPage() {
 
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
+
+  // Conflict detection state
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [conflictingEvents, setConflictingEvents] = useState<{ title: string; team_name?: string; start_time?: string }[]>([]);
 
   // Collapsible sections state - all expanded by default
   const [openSections, setOpenSections] = useState({
@@ -449,7 +463,82 @@ export default function CreateEventPage() {
     return dates;
   };
 
-  const handleSubmit = async () => {
+  // Check for conflicting events at the same day, time, and location
+  const checkForConflicts = useCallback(async (): Promise<boolean> => {
+    if (type !== "training" || !clubId || !eventDateTime || !address.trim()) {
+      return false; // Only check training events with a location set
+    }
+
+    const parsedDateTime = new Date(eventDateTime);
+    const eventDateStr = parsedDateTime.toISOString().split("T")[0];
+    const eventHour = parsedDateTime.getHours();
+    const eventMinute = parsedDateTime.getMinutes();
+    const normalizedAddress = address.trim().toLowerCase();
+
+    // Query events for the same club on the same date
+    const { data: existingEvents } = await supabase
+      .from("events")
+      .select("id, title, event_date, address, team_id, teams(name), parent_event_id, is_recurring, recurrence_end_date")
+      .eq("club_id", clubId)
+      .eq("is_cancelled", false)
+      .gte("event_date", `${eventDateStr}T00:00:00`)
+      .lte("event_date", `${eventDateStr}T23:59:59`);
+
+    if (!existingEvents || existingEvents.length === 0) {
+      // Also check for recurring events that might fall on this date
+      const dayOfWeek = parsedDateTime.getDay();
+      const { data: recurringParents } = await supabase
+        .from("events")
+        .select("id, title, event_date, address, team_id, teams(name), recurrence_end_date")
+        .eq("club_id", clubId)
+        .eq("is_recurring", true)
+        .eq("is_cancelled", false)
+        .not("address", "is", null)
+        .lte("event_date", parsedDateTime.toISOString())
+        .or(`recurrence_end_date.gte.${eventDateStr},recurrence_end_date.is.null`);
+
+      if (!recurringParents || recurringParents.length === 0) return false;
+
+      const conflicts = recurringParents.filter(evt => {
+        if (!evt.address || evt.address.trim().toLowerCase() !== normalizedAddress) return false;
+        const evtDate = new Date(evt.event_date);
+        if (evtDate.getHours() !== eventHour || evtDate.getMinutes() !== eventMinute) return false;
+        // Check if the recurring pattern would include our date (weekly assumed)
+        const evtDay = evtDate.getDay();
+        return evtDay === dayOfWeek;
+      });
+
+      if (conflicts.length > 0) {
+        setConflictingEvents(conflicts.map(e => ({
+          title: e.title,
+          team_name: (e.teams as any)?.name,
+          start_time: new Date(e.event_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        })));
+        return true;
+      }
+      return false;
+    }
+
+    // Check direct date matches
+    const conflicts = existingEvents.filter(evt => {
+      if (!evt.address || evt.address.trim().toLowerCase() !== normalizedAddress) return false;
+      const evtDate = new Date(evt.event_date);
+      return evtDate.getHours() === eventHour && evtDate.getMinutes() === eventMinute;
+    });
+
+    if (conflicts.length > 0) {
+      setConflictingEvents(conflicts.map(e => ({
+        title: e.title,
+        team_name: (e.teams as any)?.name,
+        start_time: new Date(e.event_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      })));
+      return true;
+    }
+
+    return false;
+  }, [type, clubId, eventDateTime, address]);
+
+  const handleSubmit = async (skipConflictCheck = false) => {
     if (!title.trim() || !clubId || !eventDateTime) {
       toast({
         title: "Missing information",
@@ -483,6 +572,15 @@ export default function CreateEventPage() {
         variant: "destructive",
       });
       return;
+    }
+
+    // Check for conflicts before saving
+    if (!skipConflictCheck && type === "training") {
+      const hasConflicts = await checkForConflicts();
+      if (hasConflicts) {
+        setConflictDialogOpen(true);
+        return;
+      }
     }
 
     setSaving(true);
@@ -1285,7 +1383,7 @@ export default function CreateEventPage() {
       <div className="sticky bottom-4 pt-2">
         <Button
           className="w-full h-12 text-base font-semibold shadow-lg"
-          onClick={handleSubmit}
+          onClick={() => handleSubmit()}
           disabled={saving || !title.trim() || !clubId || !eventDateTime || ((type === "game" || type === "training") && !teamId)}
         >
           {saving ? (
@@ -1295,6 +1393,35 @@ export default function CreateEventPage() {
           )}
         </Button>
       </div>
+
+      {/* Conflict Detection Dialog */}
+      <AlertDialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Training Already Scheduled</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>There {conflictingEvents.length === 1 ? "is" : "are"} already {conflictingEvents.length} training session{conflictingEvents.length > 1 ? "s" : ""} at the same time and location:</p>
+                <ul className="list-disc pl-5 space-y-1 text-sm">
+                  {conflictingEvents.map((evt, i) => (
+                    <li key={i}>
+                      <span className="font-medium">{evt.title}</span>
+                      {evt.team_name && <span className="text-muted-foreground"> — {evt.team_name}</span>}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-sm text-muted-foreground pt-1">This is fine if multiple teams share the venue. Just confirming you're aware.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go Back</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setConflictDialogOpen(false); handleSubmit(true); }}>
+              Continue & Create
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
