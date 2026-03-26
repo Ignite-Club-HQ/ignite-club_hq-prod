@@ -954,7 +954,7 @@ export default function JoinTeamPage() {
               </div>
             )}
 
-            <Button onClick={() => navigate(`/teams/${invite.team_id}`)} className="w-full" size="lg">
+            <Button onClick={() => navigate(`/teams/${invite.team_id}?from=invite`)} className="w-full" size="lg">
               View Team
             </Button>
           </CardContent>
