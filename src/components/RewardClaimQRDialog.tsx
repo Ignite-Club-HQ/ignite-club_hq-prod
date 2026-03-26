@@ -161,7 +161,7 @@ export function RewardClaimQRDialog({
               onClick={() => setConfirming(true)}
             >
               <CheckCircle className="h-4 w-4 mr-2" />
-              Mark as Claimed (Reset Points)
+              Mark as Claimed
             </Button>
             <Button
               variant="outline"
@@ -180,7 +180,7 @@ export function RewardClaimQRDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Reward Claimed</AlertDialogTitle>
             <AlertDialogDescription>
-              This will reset your points to 0 and mark the reward as claimed.
+              This will deduct the reward cost from your points and mark the reward as claimed.
               <br /><br />
               <strong>Only press this after receiving your reward!</strong>
             </AlertDialogDescription>
@@ -194,7 +194,7 @@ export function RewardClaimQRDialog({
               {resetting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                "Confirm & Reset Points"
+                "Confirm & Claim Reward"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

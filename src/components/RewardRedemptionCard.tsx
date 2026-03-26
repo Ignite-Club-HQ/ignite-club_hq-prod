@@ -289,43 +289,33 @@ export default function RewardRedemptionCard() {
 
       if (redemptionError) throw redemptionError;
 
-      // Deduct points from the appropriate source
-      const remainingPoints = pointsSource.points - reward.points_required;
-      
+      // Deduct points atomically from the appropriate source
       if (pointsSource.isChild) {
-        const { error: updateError } = await supabase
-          .from("children")
-          .update({
-            ignite_points: remainingPoints,
-          })
-          .eq("id", pointsSource.id);
-        if (updateError) throw updateError;
+        const { data: childNewBalance } = await supabase.rpc('increment_child_ignite_points', {
+          _child_id: pointsSource.id,
+          _amount: -reward.points_required,
+        });
 
-        // Record in points history for child
         await recordPointsHistory({
           childId: pointsSource.id,
           clubId: reward.club_id,
           amount: -reward.points_required,
-          balanceAfter: remainingPoints,
+          balanceAfter: childNewBalance || 0,
           sourceType: 'redemption',
           sourceId: reward.id,
           description: `Redeemed: ${reward.name}`,
         });
       } else {
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({
-            ignite_points: remainingPoints,
-          })
-          .eq("id", user!.id);
-        if (updateError) throw updateError;
+        const { data: newBalance } = await supabase.rpc('increment_ignite_points', {
+          _user_id: user!.id,
+          _amount: -reward.points_required,
+        });
 
-        // Record in points history
         await recordPointsHistory({
           userId: user!.id,
           clubId: reward.club_id,
           amount: -reward.points_required,
-          balanceAfter: remainingPoints,
+          balanceAfter: newBalance || 0,
           sourceType: 'redemption',
           sourceId: reward.id,
           description: `Redeemed: ${reward.name}`,
