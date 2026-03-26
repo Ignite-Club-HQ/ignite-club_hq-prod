@@ -298,22 +298,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               }).select().maybeSingle(); // ignore duplicate errors
             }
           } else {
-            // Create new child
-            const { data: newChild, error: childError } = await supabase
-              .from("children")
-              .insert({
-                parent_id: selectedUser.id,
-                name: child.name.trim(),
-                year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
-              })
-              .select("id")
-              .single();
+            // Create new child via secure RPC so admins can add children for existing parents
+            const { data: newChildId, error: childError } = await supabase.rpc(
+              "create_child_for_parent_on_team",
+              {
+                p_parent_user_id: selectedUser.id,
+                p_team_id: teamId,
+                p_name: child.name.trim(),
+                p_year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
+              }
+            );
 
             if (childError) {
               console.error("Failed to create child:", childError.message, childError.code, childError.details, childError.hint, JSON.stringify(childError));
               throw new Error(`We couldn't save ${child.name.trim()}. ${childError.message}`);
             }
-            childId = newChild?.id;
+            childId = newChildId;
           }
 
           if (childId) {
