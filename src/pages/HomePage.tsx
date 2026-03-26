@@ -520,11 +520,14 @@ export default function HomePage() {
     },
     enabled: !!user && !!userRoles,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes to prevent flash on re-renders
+    placeholderData: (prev) => prev, // Keep previous data during key changes to prevent flash
   });
   
   // Show PRO badge only after we've confirmed they don't have Pro access
   // Must wait for both userRoles AND hasProAccess queries to complete to prevent flash
-  const showProBadge = !isLoadingUserRoles && !isLoadingProAccess && !hasProAccess && !isAppAdmin;
+  // Also require userRoles to be defined — when user is briefly undefined on app resume,
+  // disabled queries have isLoading=false AND data=undefined, which would cause a false flash
+  const showProBadge = !!userRoles && !isLoadingUserRoles && !isLoadingProAccess && !hasProAccess && !isAppAdmin;
 
   // Fetch clubs for rewards with Pro status
   const { data: rewardClubs = [] } = useQuery({
