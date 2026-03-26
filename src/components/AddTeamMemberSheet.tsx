@@ -194,9 +194,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     enabled: debouncedSearch.length >= 2,
   });
 
-  // Filter out existing members
+  // Filter out existing members — but allow the current user (admin adding themselves as parent)
   const filteredResults = searchResults.filter(
-    user => !existingMembers?.includes(user.id)
+    u => u.id === user?.id || !existingMembers?.includes(u.id)
   );
 
   // Search for second parent (existing users)
