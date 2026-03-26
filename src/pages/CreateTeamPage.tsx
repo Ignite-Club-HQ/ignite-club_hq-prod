@@ -725,12 +725,17 @@ export default function CreateTeamPage() {
           <Button
             className="w-full h-12 text-base font-semibold shadow-lg"
             onClick={handleSubmit}
-            disabled={saving || !name.trim() || teamLimitExceeded}
+            disabled={saving || !name.trim() || (isClubAdmin && teamLimitExceeded)}
           >
             {saving ? (
               <Loader2 className="h-5 w-5 animate-spin" />
-            ) : teamLimitExceeded ? (
+            ) : isClubAdmin && teamLimitExceeded ? (
               "Upgrade Required"
+            ) : !isClubAdmin ? (
+              <>
+                <Send className="h-5 w-5 mr-2" />
+                Submit Request
+              </>
             ) : (
               `Create ${entityLabel(club)}`
             )}
