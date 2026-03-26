@@ -116,20 +116,19 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Get current profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('ignite_points')
-        .eq('id', duty.assigned_to)
-        .single();
+      // Atomic points increment
+      const { data: newPointsResult, error: rpcError } = await supabase.rpc('increment_ignite_points', {
+        _user_id: duty.assigned_to,
+        _amount: 10,
+      });
 
-      if (!profile) {
-        console.log(`Duty ${duty.id}: User ${duty.assigned_to} not found, skipping`);
+      if (rpcError) {
+        console.log(`Duty ${duty.id}: Failed to increment points for ${duty.assigned_to}: ${rpcError.message}`);
         continue;
       }
 
-      const newPoints = (profile.ignite_points || 0) + 10;
-      const updateData: any = { ignite_points: newPoints };
+      const newPoints = newPointsResult || 0;
+      const previousPoints = newPoints - 10;
       let rewardUnlocked = false;
       let rewardName: string | undefined;
 
@@ -145,8 +144,7 @@ Deno.serve(async (req) => {
 
       if (availableRewards && availableRewards.length > 0) {
         const reward = availableRewards[0];
-        // Only notify if they just crossed this threshold (old points were below)
-        if ((profile.ignite_points || 0) < reward.points_required) {
+        if (previousPoints < reward.points_required) {
           rewardUnlocked = true;
           rewardName = reward.name;
 
@@ -158,12 +156,6 @@ Deno.serve(async (req) => {
           console.log(`User ${duty.assigned_to}: Reward "${reward.name}" unlocked!`);
         }
       }
-
-      // Update profile with new points
-      await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', duty.assigned_to);
 
       // Record in points history
       await supabase.from('points_history').insert({
@@ -312,23 +304,20 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Award points
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('ignite_points')
-        .eq('id', rsvp.user_id)
-        .single();
+      // Atomic points increment
+      const { data: newPtsResult, error: attRpcError } = await supabase.rpc('increment_ignite_points', {
+        _user_id: rsvp.user_id,
+        _amount: attendancePts,
+      });
 
-      if (!profile) {
+      if (attRpcError) {
         await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
         attendanceProcessed++;
         continue;
       }
 
-      const previousPts = profile.ignite_points || 0;
-      const newPts = previousPts + attendancePts;
-
-      await supabase.from('profiles').update({ ignite_points: newPts }).eq('id', rsvp.user_id);
+      const newPts = newPtsResult || 0;
+      const previousPts = newPts - attendancePts;
 
       await supabase.from('points_history').insert({
         user_id: rsvp.user_id,
