@@ -1566,9 +1566,6 @@ export default function HomePage() {
       {/* Native App Download Banner - for mobile browser users */}
       <NativeAppDownloadBanner />
 
-      {/* My Teams & Leagues - Primary navigation */}
-      <MyTeamsScroll />
-
       {/* Upcoming Schedule - #1 use case */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
