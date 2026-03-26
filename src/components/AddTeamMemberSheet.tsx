@@ -1884,28 +1884,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       )}
                       
                       {member.children.map((child) => (
-                        <div key={child.id} className="flex gap-2 items-center">
-                          <Input
-                            placeholder="Child's name"
-                            value={child.name}
-                            onChange={(e) => updateChild(member.id, child.id, "name", e.target.value)}
-                            className="h-8 text-sm flex-1"
-                          />
-                          <Input
-                            placeholder="Year"
-                            value={child.yearOfBirth}
-                            onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
-                            className="h-8 text-sm w-16"
-                            maxLength={4}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => removeChildFromMember(member.id, child.id)}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
+                        <div key={child.id} className="space-y-1">
+                          <div className="flex gap-2 items-center">
+                            <Input
+                              placeholder="Child's name"
+                              value={child.name}
+                              onChange={(e) => updateChild(member.id, child.id, "name", e.target.value)}
+                              className={`h-8 text-sm flex-1 ${child.existingChildId ? 'border-amber-500/50' : ''}`}
+                            />
+                            <Input
+                              placeholder="Year"
+                              value={child.yearOfBirth}
+                              onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
+                              className="h-8 text-sm w-16"
+                              maxLength={4}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => removeChildFromMember(member.id, child.id)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          {child.existingChildId && (
+                            <p className="text-[10px] text-amber-600 pl-1">
+                              ⚠️ Matches existing child (parent: {child.existingChildParentName}) — will link instead of creating new
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>
