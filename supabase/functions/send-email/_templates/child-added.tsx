@@ -83,20 +83,16 @@ export const ChildAddedEmail = ({
               Hi {recipientName},
             </Text>
 
-            <Text style={headingText}>
-              Team: {teamName} ⚽
-            </Text>
-
             {useCustomMessage ? (
               <Text style={bodyText}>
                 {customMessage}
               </Text>
             ) : (
               <>
-                <Text style={bodyText}>
+                <Text style={headingText}>
                   {childrenNames.length === 1
-                    ? `${childrenNames[0]} has been added to ${teamName}.`
-                    : `Your children have been added to ${teamName}.`}
+                    ? `${childrenNames[0]} has been added to ${teamName} ⚽`
+                    : `Your children have been added to ${teamName} ⚽`}
                 </Text>
 
                 <Text style={bodyText}>
