@@ -301,7 +301,7 @@ export function PendingInviteWelcomeDialog() {
                 .from("pending_invites")
                 .select("invited_user_id, status")
                 .eq("invite_token", linkedToken)
-                .single();
+                .maybeSingle();
 
               const otherAccepted = otherInvite?.status === "accepted" && otherInvite?.invited_user_id;
 
