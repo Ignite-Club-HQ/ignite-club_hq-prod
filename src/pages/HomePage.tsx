@@ -389,6 +389,7 @@ export default function HomePage() {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000, // Prevent refetch flash on app resume
   });
 
   // Fetch pending reward redemptions
@@ -2218,7 +2219,7 @@ export default function HomePage() {
             const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
               ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
             );
-            const proResolved = !isLoadingProAccess && !isLoadingUserRoles;
+            const proResolved = !!userRoles && !isLoadingProAccess && !isLoadingUserRoles;
             const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
             const showVaultRestricted = proResolved && !canAccessVault;
             
