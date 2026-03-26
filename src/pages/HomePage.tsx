@@ -1,6 +1,5 @@
 import { useState, lazy, Suspense, useMemo, useEffect } from "react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
@@ -194,7 +193,7 @@ export default function HomePage() {
   const [rewardQROpen, setRewardQROpen] = useState(false);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
-  const [earnPointsOpen, setEarnPointsOpen] = useState(false);
+  
   const [selectedUpgradeClub, setSelectedUpgradeClub] = useState<string>("");
   const [remindDialogOpen, setRemindDialogOpen] = useState(false);
   const [eventToRemind, setEventToRemind] = useState<Event | null>(null);
