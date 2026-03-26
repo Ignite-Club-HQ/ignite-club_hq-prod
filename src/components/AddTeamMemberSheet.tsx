@@ -1498,7 +1498,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   </div>
                 )}
 
-                {customName.trim() && customEmail.trim() && (
+                {customName.trim() && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="flex items-center gap-1.5">
@@ -1629,7 +1629,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 )}
 
                 {/* Second parent/guardian fields */}
-                {customName.trim() && customEmail.trim() && selectedRole === "parent" && singleChildren.length > 0 && (
+                {customName.trim() && selectedRole === "parent" && singleChildren.length > 0 && (
                   <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-blue-600" />
@@ -1745,13 +1745,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 ) : (
                   <Send className="h-5 w-5 mr-2" />
                 )}
-                {customName.trim() && customEmail.trim() 
+                {customName.trim()
                   ? (selectedSecondParent
-                    ? `Send Invite & Add ${selectedSecondParent.display_name}`
+                    ? `${customEmail.trim() ? 'Send Invite' : 'Add'} & Add ${selectedSecondParent.display_name}`
                     : secondParentName.trim() && secondParentEmail.trim() 
                       ? `Send Invites to ${customName} & ${secondParentName}` 
-                      : `Send Invite to ${customName}`) 
-                  : "Enter name and email to continue"}
+                      : customEmail.trim()
+                        ? `Send Invite to ${customName}`
+                        : `Add ${customName} as Pending`) 
+                  : "Enter name to continue"}
               </Button>
             )}
           </TabsContent>
