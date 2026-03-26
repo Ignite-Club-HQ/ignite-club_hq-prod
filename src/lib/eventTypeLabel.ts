@@ -16,6 +16,8 @@ export function getEventTypeLabel(
       return "Game";
     case "training":
       return "Training";
+    case "social":
+      return "Social";
     case "mini_league":
       return "Session";
     default:
