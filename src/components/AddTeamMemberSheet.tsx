@@ -1699,7 +1699,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 ) : (
                   <UserPlus className="h-5 w-5 mr-2" />
                 )}
-                Add {selectedUser.display_name} as {selectedRoleOption?.label}
+                {selectedSecondParent || (secondParentName.trim() && secondParentEmail.trim()) 
+                  ? `Add Parents to Team`
+                  : `Add ${selectedUser.display_name} as ${selectedRoleOption?.label}`}
               </Button>
             ) : (
               <Button
