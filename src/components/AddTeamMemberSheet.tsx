@@ -454,7 +454,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 replyTo: (clubBranding as any)?.contact_email || undefined,
                 templateData: {
                   recipientName: selectedUser.display_name || "Parent",
-                  childName: childrenNames.length === 1 ? childrenNames[0] : childrenNames.join(" & "),
+                  childrenNames,
                   teamName,
                   clubName: clubBranding?.name || "The Club",
                   clubLogoUrl: clubBranding?.logo_url || undefined,
@@ -483,7 +483,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 replyTo: (clubBranding as any)?.contact_email || undefined,
                 templateData: {
                   recipientName: selectedSecondParent.display_name || "Parent",
-                  childName: childrenNames.length === 1 ? childrenNames[0] : childrenNames.join(" & "),
+                  childrenNames,
                   teamName,
                   clubName: clubBranding?.name || "The Club",
                   clubLogoUrl: clubBranding?.logo_url || undefined,
