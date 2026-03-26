@@ -51,15 +51,22 @@ export function RewardClaimQRDialog({
   const handleMarkAsClaimed = async () => {
     setResetting(true);
     try {
-      // Reset user's points to 0
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          ignite_points: 0,
-        })
-        .eq("id", userId);
+      // Get the reward's points cost from the redemption record
+      const { data: redemption } = await supabase
+        .from("reward_redemptions")
+        .select("points_spent")
+        .eq("id", redemptionId)
+        .single();
 
-      if (profileError) throw profileError;
+      const pointsToDeduct = redemption?.points_spent || 0;
+
+      if (pointsToDeduct > 0) {
+        // Atomic points deduction (subtract cost, not reset to 0)
+        await supabase.rpc('increment_ignite_points', {
+          _user_id: userId,
+          _amount: -pointsToDeduct,
+        });
+      }
 
       // Mark redemption as fulfilled
       if (redemptionId) {
@@ -81,7 +88,9 @@ export function RewardClaimQRDialog({
 
       toast({
         title: "Reward Claimed!",
-        description: "Points have been reset to 0.",
+        description: pointsToDeduct > 0 
+          ? `${pointsToDeduct} points deducted for reward redemption.`
+          : "Reward marked as claimed.",
       });
 
       setConfirming(false);

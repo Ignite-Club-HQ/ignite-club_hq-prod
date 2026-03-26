@@ -280,26 +280,18 @@ export default function PlayerOfMatchSelector({
 
       // Deduct points
       if (playerOfMatch.user_id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("ignite_points")
-          .eq("id", playerOfMatch.user_id)
-          .single();
+        // Atomic deduction
+        const { data: newBalance } = await supabase.rpc('increment_ignite_points', {
+          _user_id: playerOfMatch.user_id,
+          _amount: -pointsToDeduct,
+        });
 
-        const newPoints = Math.max(0, (profile?.ignite_points || 0) - pointsToDeduct);
-
-        await supabase
-          .from("profiles")
-          .update({ ignite_points: newPoints })
-          .eq("id", playerOfMatch.user_id);
-
-        // Record in points history (negative amount)
         if (pointsToDeduct > 0) {
           await recordPointsHistory({
             userId: playerOfMatch.user_id,
             clubId,
             amount: -pointsToDeduct,
-            balanceAfter: newPoints,
+            balanceAfter: newBalance || 0,
             sourceType: 'pom_removed',
             sourceId: eventId,
             description: 'Player of the Match award removed',
@@ -307,29 +299,21 @@ export default function PlayerOfMatchSelector({
           });
         }
       } else if (playerOfMatch.child_id) {
-        const { data: child } = await supabase
-          .from("children")
-          .select("ignite_points, name")
-          .eq("id", playerOfMatch.child_id)
-          .single();
+        // Atomic deduction for child
+        const { data: childNewBalance } = await supabase.rpc('increment_child_ignite_points', {
+          _child_id: playerOfMatch.child_id,
+          _amount: -pointsToDeduct,
+        });
 
-        const newPoints = Math.max(0, (child?.ignite_points || 0) - pointsToDeduct);
-
-        await supabase
-          .from("children")
-          .update({ ignite_points: newPoints })
-          .eq("id", playerOfMatch.child_id);
-
-        // Record in points history for child (negative amount)
         if (pointsToDeduct > 0) {
           await recordPointsHistory({
             childId: playerOfMatch.child_id,
             clubId,
             amount: -pointsToDeduct,
-            balanceAfter: newPoints,
+            balanceAfter: childNewBalance || 0,
             sourceType: 'pom_removed',
             sourceId: eventId,
-            description: `Player of the Match award removed for ${child?.name}`,
+            description: 'Player of the Match award removed',
             createdBy: user!.id,
           });
         }
