@@ -438,6 +438,64 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         });
       }
 
+      // Send child-added email to primary parent (existing user)
+      if (selectedRole === "parent" && selectedUser) {
+        const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
+        if (childrenNames.length > 0) {
+          try {
+            await supabase.functions.invoke("send-email", {
+              body: {
+                toUserId: selectedUser.id,
+                subject: childrenNames.length === 1
+                  ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                  : `${clubBranding?.name || 'Your club'}: Your children have been added to ${teamName} ⚽`,
+                template: "child-added",
+                senderName: clubBranding?.name || undefined,
+                replyTo: (clubBranding as any)?.contact_email || undefined,
+                templateData: {
+                  recipientName: selectedUser.display_name || "Parent",
+                  childName: childrenNames.length === 1 ? childrenNames[0] : childrenNames.join(" & "),
+                  teamName,
+                  clubName: clubBranding?.name || "The Club",
+                  clubLogoUrl: clubBranding?.logo_url || undefined,
+                },
+              },
+            });
+          } catch (err) {
+            console.error("[AddMember] Failed to send child-added email to primary parent:", err);
+          }
+        }
+      }
+
+      // Send child-added email to second parent (existing user added directly)
+      if (result?.secondParentAddedDirectly && selectedSecondParent) {
+        const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
+        if (childrenNames.length > 0) {
+          try {
+            await supabase.functions.invoke("send-email", {
+              body: {
+                toUserId: selectedSecondParent.id,
+                subject: childrenNames.length === 1
+                  ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                  : `${clubBranding?.name || 'Your club'}: Your children have been added to ${teamName} ⚽`,
+                template: "child-added",
+                senderName: clubBranding?.name || undefined,
+                replyTo: (clubBranding as any)?.contact_email || undefined,
+                templateData: {
+                  recipientName: selectedSecondParent.display_name || "Parent",
+                  childName: childrenNames.length === 1 ? childrenNames[0] : childrenNames.join(" & "),
+                  teamName,
+                  clubName: clubBranding?.name || "The Club",
+                  clubLogoUrl: clubBranding?.logo_url || undefined,
+                },
+              },
+            });
+          } catch (err) {
+            console.error("[AddMember] Failed to send child-added email to second parent:", err);
+          }
+        }
+      }
+
       // Send second parent email if applicable
       if (result?.secondParentInviteLink && secondParentEmail.trim()) {
         try {
