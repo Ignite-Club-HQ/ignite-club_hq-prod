@@ -296,6 +296,7 @@ export default function HomePage() {
           type,
           event_date,
           address,
+          location_name,
           suburb,
           club_id,
           team_id,
@@ -1654,10 +1655,10 @@ export default function HomePage() {
                           {formatEventDate(event.event_date)}
                         </span>
                       </div>
-                      {(event.suburb || event.address) && (
+                      {(event.location_name || event.suburb) && (
                         <div className="flex items-center gap-1 text-sm text-muted-foreground max-w-full">
                           <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                          <span className="truncate max-w-[250px] sm:max-w-[400px]">{event.suburb || event.address}</span>
+                          <span className="truncate max-w-[250px] sm:max-w-[400px]">{event.location_name || event.suburb}</span>
                         </div>
                       )}
                     </div>
