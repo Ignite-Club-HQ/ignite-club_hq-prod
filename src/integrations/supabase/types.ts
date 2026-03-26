@@ -5925,6 +5925,14 @@ export type Database = {
         Returns: boolean
       }
       hash_email: { Args: { email: string }; Returns: string }
+      increment_child_ignite_points: {
+        Args: { _amount: number; _child_id: string }
+        Returns: number
+      }
+      increment_ignite_points: {
+        Args: { _amount: number; _user_id: string }
+        Returns: number
+      }
       is_blocked_by: {
         Args: { _blocked_id: string; _blocker_id: string }
         Returns: boolean
@@ -6038,6 +6046,18 @@ export type Database = {
       team_has_club_pro_access: { Args: { _team_id: string }; Returns: boolean }
       team_has_club_pro_football_access: {
         Args: { _team_id: string }
+        Returns: boolean
+      }
+      try_insert_points_cooldown: {
+        Args: {
+          _action_type: string
+          _awarded_date: string
+          _club_id: string
+          _daily_cap: number
+          _points_awarded: number
+          _scope_id: string
+          _user_id: string
+        }
         Returns: boolean
       }
       user_email_matches_invite: {
