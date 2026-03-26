@@ -130,11 +130,12 @@ export default function TeamDetailPage() {
 
   const isClassMode = !!team?.clubs?.class_mode_enabled;
 
-  // Default to "child" filter for junior teams
+  // Default to "child" filter only when arriving from an invite link for junior teams
   useEffect(() => {
     if (team && !hasSetInitialFilter) {
       const tType = (team as any).team_type || "mixed";
-      if (tType === "junior") {
+      const fromInvite = new URLSearchParams(window.location.search).get("from") === "invite";
+      if (tType === "junior" && fromInvite) {
         setMemberRoleFilter("child");
       }
       setHasSetInitialFilter(true);
