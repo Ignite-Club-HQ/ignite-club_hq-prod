@@ -1800,11 +1800,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   // Convert members to the expected format and auto-trigger invites
                   const formattedMembers: BulkMember[] = members.map(m => ({
                     ...m,
-                    children: m.children.map(child => ({
-                      id: crypto.randomUUID(),
-                      name: child.name,
-                      yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
-                    })),
+                    children: m.children.map(child => {
+                      const match = findMatchingChild(child.name);
+                      return {
+                        id: crypto.randomUUID(),
+                        name: child.name,
+                        yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
+                        existingChildId: match?.id,
+                        existingChildParentName: match?.parent_name,
+                      };
+                    }),
                   }));
                   // Pass members directly to mutation to avoid state timing issues
                   addBulkMembersMutation.mutate(formattedMembers);
