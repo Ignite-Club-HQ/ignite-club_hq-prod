@@ -87,6 +87,7 @@ interface Event {
   type: EventType;
   event_date: string;
   address: string | null;
+  location_name: string | null;
   suburb: string | null;
   club_id: string;
   team_id: string | null;
