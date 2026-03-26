@@ -760,7 +760,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         // Build metadata for children (for parent role)
         const validChildren = member.children.filter(c => c.name.trim());
         const childrenMetadata = validChildren.length > 0 ? JSON.stringify(
-          validChildren.map(c => ({ name: c.name.trim(), yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null }))
+          validChildren.map(c => ({ 
+            name: c.name.trim(), 
+            yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+            existingChildId: c.existingChildId || null,
+          }))
         ) : null;
 
         // Add linked_invite_token if this parent is paired with another
@@ -952,7 +956,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const updateChild = (memberId: string, childId: string, field: "name" | "yearOfBirth", value: string) => {
     setBulkMembers(bulkMembers.map(m => 
       m.id === memberId 
-        ? { ...m, children: m.children.map(c => c.id === childId ? { ...c, [field]: value } : c) }
+        ? { ...m, children: m.children.map(c => {
+            if (c.id !== childId) return c;
+            const updated = { ...c, [field]: value };
+            // Auto-detect existing children by name match when name changes
+            if (field === "name") {
+              const match = findMatchingChild(value);
+              if (match) {
+                updated.existingChildId = match.id;
+                updated.existingChildParentName = match.parent_name;
+              } else {
+                updated.existingChildId = undefined;
+                updated.existingChildParentName = undefined;
+              }
+            }
+            return updated;
+          }) }
         : m
     ));
   };
