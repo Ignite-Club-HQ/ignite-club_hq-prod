@@ -394,7 +394,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         related_id: teamId,
       });
 
-      return { secondParentInviteLink };
+      return { secondParentInviteLink, secondParentAddedDirectly };
     },
     onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
@@ -402,6 +402,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         title: "Member added",
         description: `${selectedUser?.display_name} has been added to the team`,
       });
+
+      if (result?.secondParentAddedDirectly && selectedSecondParent) {
+        toast({
+          title: "Second parent added",
+          description: `${selectedSecondParent.display_name} has also been added as Parent`,
+        });
+      }
 
       // Send second parent email if applicable
       if (result?.secondParentInviteLink && secondParentEmail.trim()) {
