@@ -111,7 +111,6 @@ export const TeamInviteEmail = ({
               /* Custom message override — split on double-newlines for paragraphs */
               <>
                 {customMessage!.split(/\n\n+/).map((paragraph, i) => {
-                  // If the paragraph contains bullet lines, render each line separately
                   const lines = paragraph.split(/\n/);
                   if (lines.length === 1) {
                     return <Text key={i} style={bodyText}>{paragraph}</Text>;
@@ -177,8 +176,8 @@ export const TeamInviteEmail = ({
               <>
                 <Text style={headingText}>
                   {hasChildren
-                    ? `${childLabel}'s team for the season is now confirmed ⚽`
-                    : `Your child's team for the season is now confirmed ⚽`}
+                    ? `${childLabel} has been added to ${teamName} ⚽`
+                    : `Your child has been added to ${teamName} ⚽`}
                 </Text>
 
                 <Text style={bodyText}>
