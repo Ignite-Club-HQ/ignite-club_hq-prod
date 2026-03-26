@@ -493,6 +493,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                   safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(themeData)));
                   setCachedThemeData(themeData);
                   applyThemeCSS(themeData, isDarkMode);
+                  // Preload logo image for instant header display
+                  if (themeData.logoUrl) { const img = new Image(); img.src = themeData.logoUrl; }
                   console.log('[ClubTheme] Applied theme CSS from DB load');
                 }
               }
