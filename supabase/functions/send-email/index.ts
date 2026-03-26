@@ -47,6 +47,7 @@ const MAX_REQUEST_SIZE = 102400; // 100KB max for email content
 type TemplateType = 
   | "team-invite" 
   | "invite-reminder" 
+  | "child-added"
   | "event-reminder" 
   | "membership-confirmation" 
   | "magic-link"
@@ -633,6 +634,20 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           teamLink: data.teamLink,
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+        })
+      );
+    
+    case "child-added":
+      return await renderAsync(
+        React.createElement(ChildAddedEmail, {
+          recipientName: data.recipientName,
+          teamName: data.teamName,
+          clubName: data.clubName,
+          inviteLink: data.inviteLink || `https://igniteclubhq.app`,
+          clubLogoUrl: data.clubLogoUrl,
+          primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          childrenNames: data.childrenNames || (data.childName ? [data.childName] : []),
+          customMessage: data.customMessage,
         })
       );
     
