@@ -1061,7 +1061,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               <p className="font-medium mb-1">{customName}</p>
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5" />
-                Invite sent to {customEmail}
+                {customEmail ? `Invite sent to ${customEmail}` : "Invite link created — share it with them"}
               </p>
             </div>
 
