@@ -589,14 +589,14 @@ export default function MessagesPage() {
       
       const { data: subs } = await supabase
         .from("club_subscriptions")
-        .select("club_id, is_pro, is_pro_football, expires_at")
+        .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
         .in("club_id", clubIds);
 
       const statusMap: Record<string, boolean> = {};
       clubIds.forEach(id => {
         const sub = subs?.find(s => s.club_id === id);
         statusMap[id as string] = sub ? 
-          (sub.is_pro || sub.is_pro_football) && 
+          (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && 
           (!sub.expires_at || new Date(sub.expires_at) > new Date()) : false;
       });
       
