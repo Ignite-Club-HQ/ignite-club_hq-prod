@@ -170,7 +170,7 @@ export default function PlayerOfMatchSelector({
             userId,
             clubId,
             previousPoints,
-            newPoints,
+            newPoints: balanceAfter,
           });
 
           // Send notification with points
@@ -183,28 +183,30 @@ export default function PlayerOfMatchSelector({
             related_id: eventId,
           });
         } else if (childId) {
+          // Atomic child points increment
+          const { data: childNewBalance, error: childUpdateError } = await supabase.rpc('increment_child_ignite_points', {
+            _child_id: childId,
+            _amount: pointsToAward,
+          });
+
+          if (childUpdateError) throw childUpdateError;
+
+          const childBalanceAfter = childNewBalance || 0;
+          const previousChildPoints = childBalanceAfter - pointsToAward;
+
+          // Get child info for notification
           const { data: child } = await supabase
             .from("children")
-            .select("ignite_points, parent_id, name")
+            .select("parent_id, name")
             .eq("id", childId)
             .single();
-
-          const previousChildPoints = child?.ignite_points || 0;
-          const newPoints = previousChildPoints + pointsToAward;
-
-          const { error: updateError } = await supabase
-            .from("children")
-            .update({ ignite_points: newPoints })
-            .eq("id", childId);
-
-          if (updateError) throw updateError;
 
           // Record in points history for child
           await recordPointsHistory({
             childId,
             clubId,
             amount: pointsToAward,
-            balanceAfter: newPoints,
+            balanceAfter: childBalanceAfter,
             sourceType: 'player_of_match',
             sourceId: eventId,
             description: `Player of the Match award for ${child?.name}`,
@@ -217,7 +219,7 @@ export default function PlayerOfMatchSelector({
             childId,
             clubId,
             previousPoints: previousChildPoints,
-            newPoints,
+            newPoints: childBalanceAfter,
           });
 
           // Notify parent with points
