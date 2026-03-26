@@ -284,17 +284,15 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('club-theme-updated', handleThemeUpdate);
   }, []);
 
-  // CRITICAL: Detect user switch OR fresh login and reset ALL theme state
-  // This prevents stale theme data from previous user appearing during Google OAuth login
-  // Fresh login scenario: lastUserId is null but user.id exists
-  // User switch scenario: both exist but are different
+  // CRITICAL: Detect user switch and reset ALL theme state
+  // Only clear cache on actual user SWITCH (different user ID), not fresh login (same user returning)
+  // Fresh login: restore from localStorage cache for instant logo display
   useLayoutEffect(() => {
     const isFreshLogin = user?.id && !lastUserId;
     const isUserSwitch = user?.id && lastUserId && user.id !== lastUserId;
     
-    if (isFreshLogin || isUserSwitch) {
-      console.log('[ClubTheme] User change detected:', isFreshLogin ? 'fresh login' : 'user switch', 'userId:', user?.id);
-      // Set user switching flag FIRST - this prevents isThemeReady from being true
+    if (isUserSwitch) {
+      console.log('[ClubTheme] User switch detected, clearing theme state');
       setIsUserSwitching(true);
       // Clear CSS immediately to prevent flash of wrong colors
       const root = document.documentElement;
@@ -305,22 +303,52 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       root.style.removeProperty("--accent");
       root.style.removeProperty("--accent-foreground");
       root.style.removeProperty("--ring");
-      // Reset state - will be populated from new user's cache/DB
-      // CRITICAL: Clear cachedThemeData so hasLocalThemeData becomes false
-      // This prevents stale localStorage data from making isThemeReady=true prematurely
       setActiveClubThemeState(null);
       setCachedThemeData(null);
       setHasCheckedDefault(false);
       setHasStartedDbLoad(false);
-      setIsLoadingFromDb(true); // Mark as loading to prevent isThemeReady from being true
+      setIsLoadingFromDb(true);
       
-      // CRITICAL FIX: Also clear localStorage for THIS user to prevent stale cache
-      // The correct theme will be fetched from DB and re-cached
-      if (user?.id) {
-        localStorage.removeItem(getStorageKey(user.id));
-        localStorage.removeItem(getStorageDataKey(user.id));
+      // Clear localStorage for the OLD user's cache to prevent cross-contamination
+      if (lastUserId) {
+        localStorage.removeItem(getStorageKey(lastUserId));
+        localStorage.removeItem(getStorageDataKey(lastUserId));
       }
+    } else if (isFreshLogin) {
+      console.log('[ClubTheme] Fresh login detected, restoring from cache if available');
+      // On fresh login, try to restore from cache immediately for instant logo
+      const storedId = localStorage.getItem(getStorageKey(user.id));
+      const storedData = localStorage.getItem(getStorageDataKey(user.id));
+      
+      if (storedId && storedData) {
+        try {
+          const parsedData = JSON.parse(storedData) as CachedThemeData;
+          if (parsedData.clubId === storedId) {
+            const themeFromCache: ClubTheme = { 
+              ...parsedData, 
+              logoUrl: parsedData.logoUrl ?? null, 
+              sport: parsedData.sport ?? null 
+            };
+            setActiveClubThemeState(storedId);
+            setCachedThemeData(themeFromCache);
+            applyThemeCSS(themeFromCache, getEffectiveTheme() === "dark");
+            
+            // Preload the logo image so it's ready when the header renders
+            if (themeFromCache.logoUrl) {
+              const img = new Image();
+              img.src = themeFromCache.logoUrl;
+            }
+          }
+        } catch {
+          // Invalid cache, will be populated from DB
+        }
+      }
+      
+      setHasCheckedDefault(false);
+      setHasStartedDbLoad(false);
+      setIsLoadingFromDb(true);
     }
+    
     // Update lastUserId after handling
     if (user?.id !== lastUserId) {
       setLastUserId(user?.id ?? null);
@@ -465,6 +493,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
                   safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(themeData)));
                   setCachedThemeData(themeData);
                   applyThemeCSS(themeData, isDarkMode);
+                  // Preload logo image for instant header display
+                  if (themeData.logoUrl) { const img = new Image(); img.src = themeData.logoUrl; }
                   console.log('[ClubTheme] Applied theme CSS from DB load');
                 }
               }
@@ -658,6 +688,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       safeSetItem(getStorageDataKey(user.id), JSON.stringify(toCacheableTheme(firstTheme)));
       setCachedThemeData(firstTheme);
       applyThemeCSS(firstTheme, isDarkMode);
+      if (firstTheme.logoUrl) { const img = new Image(); img.src = firstTheme.logoUrl; }
       
       // Also save to database for cross-device sync
       supabase

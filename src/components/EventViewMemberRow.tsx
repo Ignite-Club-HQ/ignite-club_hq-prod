@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Bell, BellOff, BellRing, Loader2, Mail, Smartphone, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,9 +28,6 @@ interface EventViewMemberRowProps {
   onNudge: (userId: string, displayName: string) => void;
 }
 
-const LONG_PRESS_MS = 600;
-const MOVE_THRESHOLD = 10;
-
 export function EventViewMemberRow({
   member,
   variant,
@@ -40,47 +37,43 @@ export function EventViewMemberRow({
   onSendReminder,
   onNudge,
 }: EventViewMemberRowProps) {
-  const [showMenu, setShowMenu] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showDots, setShowDots] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const touchMoved = useRef(false);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    const touch = e.touches[0];
-    touchStart.current = { x: touch.clientX, y: touch.clientY };
-    longPressTimer.current = setTimeout(() => {
-      setShowMenu(true);
-    }, LONG_PRESS_MS);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStart.current || !longPressTimer.current) return;
-    e.stopPropagation();
-    const touch = e.touches[0];
-    const dx = Math.abs(touch.clientX - touchStart.current.x);
-    const dy = Math.abs(touch.clientY - touchStart.current.y);
-    if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    e.stopPropagation();
+  const clearTimer = useCallback(() => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-  };
+  }, []);
+
+  const handleTouchStart = useCallback(() => {
+    if (variant !== "not-viewed") return;
+    touchMoved.current = false;
+    longPressTimer.current = setTimeout(() => {
+      setShowDots(true);
+    }, 600);
+  }, [variant]);
+
+  const handleTouchMove = useCallback(() => {
+    touchMoved.current = true;
+    clearTimer();
+  }, [clearTimer]);
+
+  const handleTouchEnd = useCallback(() => {
+    clearTimer();
+  }, [clearTimer]);
 
   return (
     <div
       className={`flex items-center gap-2 p-2 rounded-lg select-none ${
         variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
       }`}
-      onTouchStart={variant === "not-viewed" ? handleTouchStart : undefined}
-      onTouchMove={variant === "not-viewed" ? handleTouchMove : undefined}
-      onTouchEnd={variant === "not-viewed" ? handleTouchEnd : undefined}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onContextMenu={(e) => { if (variant === "not-viewed") e.preventDefault(); }}
     >
       <Avatar className="h-7 w-7">
@@ -108,14 +101,18 @@ export function EventViewMemberRow({
             {new Date(member.viewedAt).toLocaleDateString()}
           </span>
         )}
-        {variant === "not-viewed" && showMenu && (
-          <DropdownMenu modal={false} open={showMenu} onOpenChange={setShowMenu}>
+        {variant === "not-viewed" && showDots && (
+          <DropdownMenu modal={false} open={menuOpen} onOpenChange={(open) => {
+            setMenuOpen(open);
+            if (!open) setShowDots(false);
+          }}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 touch-none"
+                className="h-7 w-7 touch-none animate-in fade-in duration-150"
                 disabled={isBusy}
+                onClick={(e) => e.stopPropagation()}
               >
                 {isBusy ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

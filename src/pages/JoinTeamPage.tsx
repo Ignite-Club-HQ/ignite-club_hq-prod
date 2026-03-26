@@ -318,22 +318,14 @@ export default function JoinTeamPage() {
         throw new Error("This invite has already been used");
       }
 
-      // Mark the pending invite as accepted
-      await supabase
-        .from("pending_invites")
-        .update({ 
-          status: "accepted", 
-          accepted_at: new Date().toISOString(),
-          invited_user_id: user.id
-        })
-        .eq("id", pendingInviteData.id);
-
       // Create children from invite metadata (if parent role with children)
       const metadata = pendingInviteData.metadata as { 
-        children?: { name: string; yearOfBirth: number | null }[];
+        children?: { name: string; yearOfBirth: number | null; existingChildId?: string | null }[];
         mini_league_id?: string;
         child_id?: string;
         player_id?: string;
+        second_parent_user_id?: string;
+        linked_invite_token?: string;
       } | null;
       
       if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
@@ -345,39 +337,55 @@ export default function JoinTeamPage() {
           .select("id, name, year_of_birth")
           .eq("parent_id", user.id);
         
+        const createdChildIds: string[] = [];
         for (const childData of metadata.children) {
           const childNameLower = childData.name.toLowerCase().trim();
           
-          // Check if a child with the same name already exists for this parent
-          const existingChild = existingChildren?.find(
-            c => c.name.toLowerCase().trim() === childNameLower
-          );
-          
           let childId: string | null = null;
           
-          if (existingChild) {
-            // Child already exists, use existing ID
-            childId = existingChild.id;
-            console.log("[JoinTeam] Child already exists:", childData.name, "ID:", childId);
-          } else {
-            // Create the child record
-            const { data: newChild, error: childError } = await supabase
-              .from("children")
-              .insert({
-                parent_id: user.id,
-                name: childData.name,
-                year_of_birth: childData.yearOfBirth,
-              })
-              .select("id")
-              .single();
-            
-            if (childError) {
-              console.error("[JoinTeam] Failed to create child:", childError.message);
-              continue;
+          if (childData.existingChildId) {
+            // Admin linked to an existing club child — add as guardian
+            childId = childData.existingChildId;
+            console.log("[JoinTeam] Linking to existing club child:", childData.name, "ID:", childId);
+            const { error: guardErr } = await supabase.from("child_guardians").insert({
+              child_id: childId,
+              guardian_id: user.id,
+              relationship_type: "parent",
+              is_primary: false,
+            });
+            if (guardErr && !guardErr.message?.includes("duplicate")) {
+              console.error("[JoinTeam] Failed to link guardian:", guardErr.message);
             }
-            childId = newChild?.id || null;
-            console.log("[JoinTeam] Created new child:", childData.name, "ID:", childId);
+          } else {
+            // Check if a child with the same name already exists for this parent
+            const existingChild = existingChildren?.find(
+              c => c.name.toLowerCase().trim() === childNameLower
+            );
+            
+            if (existingChild) {
+              childId = existingChild.id;
+              console.log("[JoinTeam] Child already exists:", childData.name, "ID:", childId);
+            } else {
+              // Create the child record
+              const { data: newChild, error: childError } = await supabase
+                .from("children")
+                .insert({
+                  parent_id: user.id,
+                  name: childData.name,
+                  year_of_birth: childData.yearOfBirth,
+                })
+                .select("id")
+                .single();
+              
+              if (childError) {
+                console.error("[JoinTeam] Failed to create child:", childError.message);
+                continue;
+              }
+              childId = newChild?.id || null;
+              console.log("[JoinTeam] Created new child:", childData.name, "ID:", childId);
+            }
           }
+          if (childId) createdChildIds.push(childId);
           
           // Assign child to the team (with duplicate check)
           if (childId && pendingInviteData.team_id) {
@@ -443,6 +451,23 @@ export default function JoinTeamPage() {
                 .eq("id", metadata.player_id);
             }
           }
+        }
+        
+        // Link second parent (existing user) as guardian to created children
+        if (metadata.second_parent_user_id && createdChildIds.length > 0) {
+          for (const cid of createdChildIds) {
+            await supabase.from("child_guardians").insert({
+              child_id: cid,
+              guardian_id: metadata.second_parent_user_id,
+              relationship_type: "parent",
+              is_primary: false,
+            }).then(({ error: guardErr }) => {
+              if (guardErr && !guardErr.message?.includes("duplicate")) {
+                console.error("[JoinTeam] Failed to link second parent:", guardErr.message);
+              }
+            });
+          }
+          console.log("[JoinTeam] Linked second parent to", createdChildIds.length, "children");
         }
       } else if (pendingInviteData.role === "parent" && metadata?.child_id) {
         // Link existing child to this parent (child was pre-created by admin)
@@ -531,6 +556,17 @@ export default function JoinTeamPage() {
           throw new Error(`Failed to add ${role} role: ${roleError.message}`);
         }
       }
+    }
+
+    if (isPendingInvite && pendingInviteData?.id) {
+      await supabase
+        .from("pending_invites")
+        .update({ 
+          status: "accepted", 
+          accepted_at: new Date().toISOString(),
+          invited_user_id: user.id
+        })
+        .eq("id", pendingInviteData.id);
     }
 
     // Send notification to the new member
@@ -887,7 +923,7 @@ export default function JoinTeamPage() {
             <p className="text-muted-foreground mb-4">
               You already have all available roles in {invite.teams?.name}.
             </p>
-            <Button onClick={() => navigate(`/teams/${invite.team_id}`)}>View Team</Button>
+            <Button onClick={() => navigate(`/teams/${invite.team_id}?from=invite`)}>View Team</Button>
           </CardContent>
         </Card>
       </div>
@@ -918,7 +954,7 @@ export default function JoinTeamPage() {
               </div>
             )}
 
-            <Button onClick={() => navigate(`/teams/${invite.team_id}`)} className="w-full" size="lg">
+            <Button onClick={() => navigate(`/teams/${invite.team_id}?from=invite`)} className="w-full" size="lg">
               View Team
             </Button>
           </CardContent>

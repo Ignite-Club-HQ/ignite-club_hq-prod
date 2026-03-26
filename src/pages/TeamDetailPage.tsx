@@ -130,11 +130,12 @@ export default function TeamDetailPage() {
 
   const isClassMode = !!team?.clubs?.class_mode_enabled;
 
-  // Default to "child" filter for junior teams
+  // Default to "child" filter only when arriving from an invite link for junior teams
   useEffect(() => {
     if (team && !hasSetInitialFilter) {
       const tType = (team as any).team_type || "mixed";
-      if (tType === "junior") {
+      const fromInvite = new URLSearchParams(window.location.search).get("from") === "invite";
+      if (tType === "junior" && fromInvite) {
         setMemberRoleFilter("child");
       }
       setHasSetInitialFilter(true);
@@ -1062,7 +1063,7 @@ export default function TeamDetailPage() {
               <div className="space-y-4 pt-2">
                 <div className="flex flex-wrap gap-2 justify-between items-center">
                   <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
-                    <SelectTrigger className="w-[160px] h-8 text-xs">
+                    <SelectTrigger className="w-[180px] h-8 text-xs">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent>
