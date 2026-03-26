@@ -798,6 +798,33 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
         queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
       }
+
+      // Send child-added email to second parent (existing user added directly)
+      if (secondParentAddedDirectly && selectedSecondParent && childrenNames.length > 0) {
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              toUserId: selectedSecondParent.id,
+              subject: childrenNames.length === 1
+                ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                : `${clubBranding?.name || 'Your club'}: Your children have been added to ${teamName} ⚽`,
+              template: "child-added",
+              senderName: clubBranding?.name || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
+              templateData: {
+                recipientName: selectedSecondParent.display_name || "Parent",
+                childrenNames,
+                teamName,
+                clubName: clubBranding?.name || "The Club",
+                clubLogoUrl: clubBranding?.logo_url || undefined,
+                customMessage: customMessage.trim() || undefined,
+              },
+            },
+          });
+        } catch (err) {
+          console.error("[AddMember] Failed to send child-added email to second parent (new flow):", err);
+        }
+      }
     },
     onError: (error: Error) => {
       toast({
