@@ -76,7 +76,7 @@ export function MemberCSVImportDialog({
   // Validation helpers
   const isMemberValid = (member: ParsedMember) => {
     return member.name.trim().length > 0 && 
-           isValidEmail(member.email) && 
+           (!member.email || isValidEmail(member.email)) && 
            VALID_ROLES.includes(member.role);
   };
 
