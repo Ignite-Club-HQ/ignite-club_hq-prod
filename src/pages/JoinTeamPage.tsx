@@ -330,10 +330,12 @@ export default function JoinTeamPage() {
 
       // Create children from invite metadata (if parent role with children)
       const metadata = pendingInviteData.metadata as { 
-        children?: { name: string; yearOfBirth: number | null }[];
+        children?: { name: string; yearOfBirth: number | null; existingChildId?: string | null }[];
         mini_league_id?: string;
         child_id?: string;
         player_id?: string;
+        second_parent_user_id?: string;
+        linked_invite_token?: string;
       } | null;
       
       if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
