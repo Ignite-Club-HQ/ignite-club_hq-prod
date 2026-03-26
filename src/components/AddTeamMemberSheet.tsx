@@ -273,6 +273,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       if (error) throw error;
 
       // If parent role, create or link children and assign to team
+      // Track created child IDs for second parent linking
+      const createdChildIds: string[] = [];
       if (selectedRole === "parent") {
         const validChildren = singleChildren.filter(c => c.name.trim());
         for (const child of validChildren) {
@@ -307,6 +309,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           }
 
           if (childId) {
+            createdChildIds.push(childId);
             // Check if already assigned to this team
             const { data: existing } = await supabase
               .from("child_team_assignments")
@@ -338,20 +341,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           role: "parent",
         });
 
-        // Link children as guardian
-        const validChildren = singleChildren.filter(c => c.name.trim());
-        for (const child of validChildren) {
-          const childId = child.existingChildId;
-          if (childId) {
-            // Check if this child's parent is already the second parent
-            const existingChild = clubChildren.find(c => c.id === childId);
-            if (existingChild && existingChild.parent_id !== selectedSecondParent.id) {
-              await supabase.from("child_guardians").insert({
-                child_id: childId,
-                guardian_id: selectedSecondParent.id,
-              }).select().maybeSingle();
-            }
-          }
+        // Link all children (existing and newly created) as guardian for second parent
+        for (const childId of createdChildIds) {
+          await supabase.from("child_guardians").insert({
+            child_id: childId,
+            guardian_id: selectedSecondParent.id,
+          }).select().maybeSingle(); // ignore duplicate errors
         }
 
         // Send notification
@@ -1015,7 +1010,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
-                      Failed
+                      {result.email ? "Failed" : "Link only"}
                     </Badge>
                   )}
                 </div>
@@ -1718,7 +1713,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 ) : (
                   <UserPlus className="h-5 w-5 mr-2" />
                 )}
-                {selectedSecondParent || (secondParentName.trim() && secondParentEmail.trim()) 
+                {selectedRole === "parent" && (selectedSecondParent || (secondParentName.trim() && secondParentEmail.trim()))
                   ? `Add Parents to Team`
                   : `Add ${selectedUser.display_name} as ${selectedRoleOption?.label}`}
               </Button>
