@@ -652,9 +652,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           setIsSendingNotification(false);
         }
       } else {
+        // No email - copy link to clipboard for sharing
+        try { await navigator.clipboard.writeText(link); } catch {}
         toast({
-          title: "Member added as pending",
-          description: `${customName} has been added. Share the invite link with them.`,
+          title: "Member added — link copied!",
+          description: `${customName} has been added. Paste the invite link to share it with them.`,
         });
       }
 
