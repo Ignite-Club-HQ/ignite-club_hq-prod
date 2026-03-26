@@ -276,7 +276,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         role: selectedRole,
       });
 
-      if (error && !isDuplicateError(error)) throw error;
+      const roleWasDuplicate = error && isDuplicateError(error);
+      if (error && !roleWasDuplicate) throw error;
 
       // If parent role, create or link children and assign to team
       // Track resolved child IDs so second-parent flows always link correctly
@@ -411,14 +412,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         related_id: teamId,
       });
 
-      return { secondParentInviteLink, secondParentAddedDirectly };
+      return { secondParentInviteLink, secondParentAddedDirectly, roleWasDuplicate };
     },
     onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
-      toast({
-        title: "Member added",
-        description: `${selectedUser?.display_name} has been added to the team`,
-      });
+      
+      if (result?.roleWasDuplicate) {
+        const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
+        toast({
+          title: "Already a member",
+          description: `${selectedUser?.display_name} is already a ${roleName} on this team. Any new children have been linked.`,
+        });
+      } else {
+        toast({
+          title: "Member added",
+          description: `${selectedUser?.display_name} has been added to the team`,
+        });
+      }
 
       if (result?.secondParentAddedDirectly && selectedSecondParent) {
         toast({
