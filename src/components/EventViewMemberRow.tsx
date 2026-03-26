@@ -40,38 +40,7 @@ export function EventViewMemberRow({
   onSendReminder,
   onNudge,
 }: EventViewMemberRowProps) {
-  const [showMenu, setShowMenu] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    const touch = e.touches[0];
-    touchStart.current = { x: touch.clientX, y: touch.clientY };
-    longPressTimer.current = setTimeout(() => {
-      setShowMenu(true);
-    }, LONG_PRESS_MS);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStart.current || !longPressTimer.current) return;
-    e.stopPropagation();
-    const touch = e.touches[0];
-    const dx = Math.abs(touch.clientX - touchStart.current.x);
-    const dy = Math.abs(touch.clientY - touchStart.current.y);
-    if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div
