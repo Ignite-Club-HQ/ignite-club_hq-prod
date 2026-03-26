@@ -67,6 +67,7 @@ import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
+import { MyTeamsScroll } from "@/components/MyTeamsScroll";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -2168,133 +2169,92 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Quick Actions */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Quick Actions</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {/* Create Team button - show for all but indicate admin-only when in club mode */}
-          {(() => {
-            const isClubAdmin = userRoles?.some(r => r.role === 'club_admin' && r.club_id === activeClubFilter);
-            const showAdminIndicator = activeClubFilter && !isClubAdmin;
-            
-            return (
-              <Button 
-                variant="outline" 
-                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
-                aria-label={activeClubFilter ? "Create Team" : "Create Team or Club"}
-                aria-disabled={showAdminIndicator || undefined}
-                onClick={() => {
-                  if (showAdminIndicator) {
-                    toast({ description: "Only club admins can create teams" });
-                    return;
-                  }
-                  if (activeClubFilter) {
-                    navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-                  } else {
-                    navigate("/clubs", { state: { fromCreateTeam: true } });
-                  }
-                }}
-              >
-                <UserPlus className="h-5 w-5 text-foreground" aria-hidden="true" />
-                <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
-                {showAdminIndicator && (
-                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
-                    Admin
-                  </span>
-                )}
-              </Button>
-            );
-          })()}
-          <Button 
-            variant="outline" 
-            className="w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2"
-            aria-label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}
-            onClick={() => setTeamDialogOpen(true)}
-          >
-            <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />
-            <span className="text-sm">{activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}</span>
-          </Button>
-          {(() => {
-            // Vault access requires: Pro subscription AND admin/coach role
-            const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
-              ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
-            );
-            const proResolved = !!userRoles && !isLoadingProAccess && !isLoadingUserRoles;
-            const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
-            const showVaultRestricted = proResolved && !canAccessVault;
-            
-            return (
-              <Button 
-                variant="outline" 
-                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showVaultRestricted ? 'opacity-60' : ''}`}
-                aria-label={`File Vault${showProBadge ? ' (Pro feature)' : ''}`}
-                aria-disabled={showVaultRestricted || undefined}
-                onClick={() => {
-                  if (!hasVaultRoleAccess) {
-                    toast({
-                      description: "Only admins, coaches, and committee members can access the File Vault",
-                    });
-                    return;
-                  }
-                  if (showProBadge) {
-                    toast({
-                      description: "File Vault is a Pro feature. Upgrade to access.",
-                    });
-                    return;
-                  }
-                  navigate("/vault");
-                }}
-              >
-                <div className="flex items-center gap-1">
-                  <FolderOpen className="h-5 w-5 text-foreground" aria-hidden="true" />
-                  {showProBadge && (
-                    <Lock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-                  )}
-                </div>
-                <span className="text-sm flex items-center gap-1">
-                  File Vault
-                  {showProBadge && (
-                    <Badge variant="secondary" className="text-[8px] px-1 py-0">PRO</Badge>
-                  )}
-                </span>
-                {showVaultRestricted && (
-                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
-                )}
-              </Button>
-            );
-          })()}
-          {(() => {
-            const canCreateEvents = userRoles?.some(r => 
-              ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member', 'app_admin'].includes(r.role)
-            );
-            const showAdminIndicator = !canCreateEvents;
-            
-            return (
-              <Button 
-                variant="outline" 
-                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
-                aria-label="New Event"
-                aria-disabled={showAdminIndicator || undefined}
-                onClick={() => {
-                  if (showAdminIndicator) {
-                    toast({
-                      description: "Only admins and coaches can create events",
-                    });
-                    return;
-                  }
-                  navigate('/events/new');
-                }}
-              >
-                <Plus className="h-5 w-5 text-foreground" aria-hidden="true" />
-                <span className="text-sm">New Event</span>
-                {showAdminIndicator && (
-                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
-                )}
-              </Button>
-            );
-          })()}
-        </div>
-      </section>
+      {/* My Teams & Leagues */}
+      <MyTeamsScroll />
+
+      {/* Quick Actions - Role-aware smart grid */}
+      {(() => {
+        const canCreateTeam = isAppAdmin || userRoles?.some(r => r.role === 'club_admin');
+        const canCreateEvents = isAppAdmin || userRoles?.some(r => 
+          ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
+        );
+        const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
+          ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
+        );
+        const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
+
+        // Build actions list dynamically
+        const actions: { key: string; icon: React.ReactNode; label: string; onClick: () => void }[] = [];
+
+        // Join Team - always visible
+        actions.push({
+          key: "join",
+          icon: <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />,
+          label: activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team",
+          onClick: () => setTeamDialogOpen(true),
+        });
+
+        // Create Event - admin/coach only
+        if (canCreateEvents) {
+          actions.push({
+            key: "event",
+            icon: <Plus className="h-5 w-5 text-foreground" aria-hidden="true" />,
+            label: "New Event",
+            onClick: () => navigate('/events/new'),
+          });
+        }
+
+        // File Vault - Pro + admin role
+        if (canAccessVault) {
+          actions.push({
+            key: "vault",
+            icon: <FolderOpen className="h-5 w-5 text-foreground" aria-hidden="true" />,
+            label: "File Vault",
+            onClick: () => navigate("/vault"),
+          });
+        }
+
+        // Create Team - club admin only
+        if (canCreateTeam) {
+          actions.push({
+            key: "create-team",
+            icon: <UserPlus className="h-5 w-5 text-foreground" aria-hidden="true" />,
+            label: activeClubFilter ? "Create Team" : "Create Team or Club",
+            onClick: () => {
+              if (activeClubFilter) {
+                navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+              } else {
+                navigate("/clubs", { state: { fromCreateTeam: true } });
+              }
+            },
+          });
+        }
+
+        if (actions.length === 0) return null;
+
+        // Use 2 columns for 2+ actions, single column for 1
+        const gridCols = actions.length >= 2 ? "grid-cols-2" : "grid-cols-1";
+
+        return (
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold">Quick Actions</h2>
+            <div className={`grid ${gridCols} gap-3`}>
+              {actions.map(action => (
+                <Button
+                  key={action.key}
+                  variant="outline"
+                  className="w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2"
+                  aria-label={action.label}
+                  onClick={action.onClick}
+                >
+                  {action.icon}
+                  <span className="text-sm">{action.label}</span>
+                </Button>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Join Team/Club Dialogs */}
       <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
