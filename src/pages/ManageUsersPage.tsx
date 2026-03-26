@@ -1540,6 +1540,13 @@ export default function ManageUsersPage() {
           )}
         </TabsContent>
 
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="mt-4">
+          <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+            <UserAnalyticsTab />
+          </Suspense>
+        </TabsContent>
+
         {/* Audit Log Tab */}
         <TabsContent value="audit" className="space-y-4 mt-4">
           <div className="flex items-center justify-between gap-4">
