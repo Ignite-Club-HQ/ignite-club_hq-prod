@@ -1481,7 +1481,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
                 {customName.trim() && (
                   <div className="space-y-2">
-                    <Label>Email *</Label>
+                    <Label>Email (optional)</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -1493,7 +1493,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      An invite email will be sent to this address
+                      {customEmail.trim() ? "An invite email will be sent to this address" : "Without email, you'll get a shareable invite link"}
                     </p>
                   </div>
                 )}
