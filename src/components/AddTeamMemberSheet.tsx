@@ -199,6 +199,26 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     user => !existingMembers?.includes(user.id)
   );
 
+  // Search for second parent (existing users)
+  const { data: secondParentSearchResults = [] } = useQuery({
+    queryKey: ["second-parent-search", debouncedSecondParentSearch],
+    queryFn: async () => {
+      if (debouncedSecondParentSearch.length < 2) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .ilike("display_name", `%${debouncedSecondParentSearch}%`)
+        .limit(5);
+      return data || [];
+    },
+    enabled: debouncedSecondParentSearch.length >= 2 && !selectedSecondParent,
+  });
+
+  // Filter second parent results: exclude primary user and existing members
+  const filteredSecondParentResults = secondParentSearchResults.filter(
+    user => user.id !== selectedUser?.id && !existingMembers?.includes(user.id)
+  );
+
   // Find matching existing children by exact name (case-insensitive)
   const findMatchingChild = (name: string) => {
     if (!name.trim()) return null;
