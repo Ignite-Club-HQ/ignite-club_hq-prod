@@ -66,18 +66,17 @@ export default function CreateTeamPage() {
     enabled: !!clubId,
   });
 
-  // Check if current user is a club admin
+  // Check if current user is a club admin or app admin
   const { data: isClubAdmin, isLoading: isCheckingAdmin } = useQuery({
     queryKey: ["is-club-admin", clubId, user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
-        .select("id")
+        .select("id, role")
         .eq("user_id", user!.id)
-        .eq("club_id", clubId!)
-        .eq("role", "club_admin")
-        .maybeSingle();
-      return !!data;
+        .in("role", ["club_admin", "app_admin"]);
+      if (!data) return false;
+      return data.some(r => r.role === 'app_admin' || (r as any).club_id === clubId);
     },
     enabled: !!clubId && !!user,
   });
