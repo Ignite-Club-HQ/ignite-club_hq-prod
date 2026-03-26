@@ -1275,7 +1275,10 @@ export default function TeamDetailPage() {
                     ))}
                     
                     {/* Children Section */}
-                    {teamChildren.length > 0 && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
+                    {(teamChildren.length > 0 || pendingInvites.some(inv => {
+                      const meta = inv.metadata as { children?: { name: string }[] } | null;
+                      return meta?.children && meta.children.length > 0;
+                    })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
                       <div className="mt-4 pt-4 border-t">
                         <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
                         <div className="space-y-2">
@@ -1306,6 +1309,35 @@ export default function TeamDetailPage() {
                               </Card>
                             );
                           })}
+                          {/* Pending Children from unaccepted invites */}
+                          {pendingInvites.flatMap(inv => {
+                            const meta = inv.metadata as { children?: { name: string }[] } | null;
+                            if (!meta?.children) return [];
+                            return meta.children.map((child, idx) => ({
+                              key: `pending-child-${inv.id}-${idx}`,
+                              name: child.name,
+                              parentLabel: inv.invited_label || inv.invited_email?.split("@")[0] || "Pending Parent",
+                            }));
+                          }).map(pendingChild => (
+                            <Card key={pendingChild.key} className="opacity-70">
+                              <CardContent className="p-3 flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm">
+                                    {pendingChild.name?.charAt(0)?.toUpperCase() || "?"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">{pendingChild.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Parent: {pendingChild.parentLabel}
+                                  </p>
+                                </div>
+                                <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
+                                  Pending
+                                </Badge>
+                              </CardContent>
+                            </Card>
+                          ))}
                         </div>
                       </div>
                     )}
