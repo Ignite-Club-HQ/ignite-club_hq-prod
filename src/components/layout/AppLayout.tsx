@@ -12,6 +12,7 @@ import { SkipToContent } from "@/components/SkipToContent";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { PendingInviteWelcomeDialog } from "@/components/PendingInviteWelcomeDialog";
 import { useAdMobInit } from "@/hooks/useAdMob";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
 
@@ -20,6 +21,7 @@ const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized } = useAuth();
   useAdMobInit();
+  useActivityTracking();
   const { isThemeReady } = useClubTheme();
   const location = useLocation();
   const [retrying, setRetrying] = useState(false);
