@@ -110,6 +110,11 @@ export const TeamInviteEmail = ({
             {useCustomMessage ? (
               /* Custom message override — split on double-newlines for paragraphs */
               <>
+                {!isAdminRole && (
+                  <Text style={headingText}>
+                    Team: {teamName} ⚽
+                  </Text>
+                )}
                 {customMessage!.split(/\n\n+/).map((paragraph, i) => {
                   // If the paragraph contains bullet lines, render each line separately
                   const lines = paragraph.split(/\n/);
@@ -176,9 +181,13 @@ export const TeamInviteEmail = ({
               /* Bridgewater-specific default copy */
               <>
                 <Text style={headingText}>
+                  Team: {teamName} ⚽
+                </Text>
+
+                <Text style={bodyText}>
                   {hasChildren
-                    ? `${childLabel}'s team for the season is now confirmed ⚽`
-                    : `Your child's team for the season is now confirmed ⚽`}
+                    ? `${childLabel}'s team for the season is now confirmed.`
+                    : `Your child's team for the season is now confirmed.`}
                 </Text>
 
                 <Text style={bodyText}>
@@ -202,9 +211,13 @@ export const TeamInviteEmail = ({
               /* Generic default copy for all other clubs */
               <>
                 <Text style={headingText}>
+                  Team: {teamName} ⚽
+                </Text>
+
+                <Text style={bodyText}>
                   {hasChildren
-                    ? `${childLabel} has been added to ${teamName} 🎉`
-                    : `You've been invited to join ${teamName} 🎉`}
+                    ? `${childLabel} has been added to ${teamName}.`
+                    : `You've been invited to join ${teamName}.`}
                 </Text>
 
                 <Text style={bodyText}>
