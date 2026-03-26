@@ -337,7 +337,24 @@ export function PendingInviteWelcomeDialog() {
               }
             } else if (childrenData.length > 0) {
               // No linked invite — standard single parent flow
-              await createChildrenFromMetadata(childrenData, user.id, invite.team_id);
+              const createdIds = await createChildrenFromMetadata(childrenData, user.id, invite.team_id);
+              
+              // If a second parent was added directly (existing user), link them as guardian
+              if (meta.second_parent_user_id && createdIds.length > 0) {
+                for (const childId of createdIds) {
+                  await supabase.from("child_guardians").insert({
+                    child_id: childId,
+                    guardian_id: meta.second_parent_user_id,
+                    relationship_type: "parent",
+                    is_primary: false,
+                  }).then(({ error: guardErr }) => {
+                    if (guardErr && !guardErr.message?.includes("duplicate")) {
+                      console.error("[InviteAutoAccept] Failed to link second parent:", guardErr.message);
+                    }
+                  });
+                }
+                console.log("[InviteAutoAccept] Linked second parent", meta.second_parent_user_id, "to", createdIds.length, "children");
+              }
             }
           }
         } catch (err) {
