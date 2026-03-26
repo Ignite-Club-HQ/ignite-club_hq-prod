@@ -333,13 +333,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       let secondParentAddedDirectly = false;
       
       if (selectedSecondParent && selectedRole === "parent") {
-        // Add existing user directly as second parent
-        await supabase.from("user_roles").insert({
+        // Add existing user directly as second parent (ignore duplicate)
+        const { error: roleErr } = await supabase.from("user_roles").insert({
           user_id: selectedSecondParent.id,
           team_id: teamId,
           club_id: clubId,
           role: "parent",
         });
+        if (roleErr && !roleErr.message?.includes("duplicate")) {
+          console.error("Failed to add second parent role:", roleErr.message);
+        }
 
         // Link all children (existing and newly created) as guardian for second parent
         for (const childId of createdChildIds) {
@@ -517,13 +520,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       let secondParentAddedDirectly = false;
 
       if (selectedSecondParent && selectedRole === "parent") {
-        // Add existing user directly as second parent
-        await supabase.from("user_roles").insert({
+        // Add existing user directly as second parent (ignore duplicate)
+        const { error: roleErr } = await supabase.from("user_roles").insert({
           user_id: selectedSecondParent.id,
           team_id: teamId,
           club_id: clubId,
           role: "parent",
         });
+        if (roleErr && !roleErr.message?.includes("duplicate")) {
+          console.error("Failed to add second parent role:", roleErr.message);
+        }
 
         await supabase.from("notifications").insert({
           user_id: selectedSecondParent.id,
