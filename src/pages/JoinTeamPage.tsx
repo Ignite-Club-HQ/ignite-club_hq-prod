@@ -923,7 +923,7 @@ export default function JoinTeamPage() {
             <p className="text-muted-foreground mb-4">
               You already have all available roles in {invite.teams?.name}.
             </p>
-            <Button onClick={() => navigate(`/teams/${invite.team_id}`)}>View Team</Button>
+            <Button onClick={() => navigate(`/teams/${invite.team_id}?from=invite`)}>View Team</Button>
           </CardContent>
         </Card>
       </div>
@@ -954,7 +954,7 @@ export default function JoinTeamPage() {
               </div>
             )}
 
-            <Button onClick={() => navigate(`/teams/${invite.team_id}`)} className="w-full" size="lg">
+            <Button onClick={() => navigate(`/teams/${invite.team_id}?from=invite`)} className="w-full" size="lg">
               View Team
             </Button>
           </CardContent>
