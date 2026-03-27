@@ -152,48 +152,33 @@ export function MyTeamsScroll() {
       <h2 className="text-lg font-semibold">My Teams</h2>
       <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
         {items.map((item) => (
-          <div
+          <button
             key={`${item.type}-${item.id}`}
-            className="shrink-0 w-[120px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 relative"
+            onClick={() => {
+              if (item.type === "team") {
+                navigate(`/teams/${item.id}`);
+              } else {
+                navigate(`/mini-leagues/${item.id}`);
+              }
+            }}
+            className="shrink-0 w-[120px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97]"
           >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const param = item.type === "team" ? `team=${item.id}` : `club=${item.id}`;
-                navigate(`/media?${param}`);
-              }}
-              className="absolute top-1.5 right-1.5 p-1 rounded-full hover:bg-muted transition-colors"
-              aria-label={`${item.name} photos`}
-            >
-              <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-            <button
-              onClick={() => {
-                if (item.type === "team") {
-                  navigate(`/teams/${item.id}`);
-                } else {
-                  navigate(`/mini-leagues/${item.id}`);
-                }
-              }}
-              className="flex flex-col items-center gap-1.5 w-full hover:opacity-80 transition-opacity active:scale-[0.97]"
-            >
-              {item.logo_url ? (
-                <img
-                  src={item.logo_url}
-                  alt=""
-                  className="h-8 w-8 rounded-full object-cover"
-                />
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </div>
-              )}
-              <span className="text-xs font-medium text-center w-full truncate">{item.name}</span>
-              {item.type === "league" && (
-                <span className="text-[10px] text-muted-foreground">League</span>
-              )}
-            </button>
-          </div>
+            {item.logo_url ? (
+              <img
+                src={item.logo_url}
+                alt=""
+                className="h-8 w-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </div>
+            )}
+            <span className="text-xs font-medium text-center w-full truncate">{item.name}</span>
+            {item.type === "league" && (
+              <span className="text-[10px] text-muted-foreground">League</span>
+            )}
+          </button>
         ))}
       </div>
     </section>
