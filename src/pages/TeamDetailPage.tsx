@@ -1105,23 +1105,22 @@ export default function TeamDetailPage() {
                   <span className="text-base font-semibold leading-tight">Team</span>
                   <span className="text-[10px] text-muted-foreground leading-tight">Players, parents & coaches</span>
                 </div>
-                <Badge variant="secondary" className="shrink-0 ml-1 text-xs">
-                  {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
-                    ? "..."
-                    : `${Object.keys(members).length + teamChildren.length + pendingInvites.reduce((count, inv) => {
-                        const meta = inv.metadata as { children?: { name: string }[] } | null;
-                        return count + (meta?.children?.length || 0);
-                      }, 0)} members`}
-                </Badge>
                 <div className="flex -space-x-2 ml-auto shrink-0">
-                  {Object.values(members).slice(0, 3).map((member, i) => (
-                    <Avatar key={i} className="h-6 w-6 border-2 border-background">
+                  {Object.values(members).slice(0, 5).map((member, i) => (
+                    <Avatar key={i} className="h-7 w-7 border-2 border-background">
                       <AvatarImage src={member.profile?.avatar_url || undefined} />
                       <AvatarFallback className="bg-primary/20 text-primary text-[9px]">
                         {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
                   ))}
+                  {Object.keys(members).length + teamChildren.length > 5 && (
+                    <Avatar className="h-7 w-7 border-2 border-background">
+                      <AvatarFallback className="bg-muted text-muted-foreground text-[9px]">
+                        +{Object.keys(members).length + teamChildren.length - 5}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                 </div>
                 <Button
                   variant="ghost"
