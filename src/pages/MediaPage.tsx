@@ -113,16 +113,26 @@ export default function MediaPage() {
   });
   const [showFilters, setShowFilters] = useState(false);
 
+  // Apply team/club filter from URL search params (e.g. from My Teams gallery link)
+  const urlTeamId = searchParams.get("team");
+  const urlClubId = searchParams.get("club");
+
   // Sync club filter with theme - reset to "all" when theme is cleared
   useEffect(() => {
-    if (activeClubFilter) {
+    if (urlTeamId) {
+      setSelectedTeamId(urlTeamId);
+      setShowFilters(true);
+    } else if (urlClubId) {
+      setSelectedClubId(urlClubId);
+      setShowFilters(true);
+    } else if (activeClubFilter) {
       setSelectedClubId(activeClubFilter);
-      setSelectedTeamId("all"); // Reset team when club changes
+      setSelectedTeamId("all");
     } else {
       setSelectedClubId("all");
       setSelectedTeamId("all");
     }
-  }, [activeClubFilter]);
+  }, [activeClubFilter, urlTeamId, urlClubId]);
 
 
   // Scroll to highlighted photo when loaded
