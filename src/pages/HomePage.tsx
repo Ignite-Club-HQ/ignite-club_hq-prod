@@ -66,8 +66,7 @@ import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
-import { MyTeamsScroll } from "@/components/MyTeamsScroll";
-import { LatestPhotosScroll } from "@/components/LatestPhotosScroll";
+import { MyTeamsPremiumCarousel } from "@/components/MyTeamsPremiumCarousel";
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 
 type EventType = "game" | "training" | "social";
@@ -1589,11 +1588,8 @@ export default function HomePage() {
       <NativeAppDownloadBanner />
 
 
-      {/* Latest Photos */}
-      <LatestPhotosScroll showProBadge={showProBadge} />
-
-      {/* My Teams & Leagues */}
-      <MyTeamsScroll />
+      {/* My Teams & Leagues - Premium Carousel */}
+      <MyTeamsPremiumCarousel />
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <UpcomingClassesWidget />
