@@ -457,7 +457,7 @@ export default function TeamDetailPage() {
   const isCoachOrAdmin = userRole === "team_admin" || userRole === "coach" || isAppAdmin;
   const isAdmin = isCoachOrAdmin;
   // isMember includes club admins - they have implicit access to all teams in their club
-  const isMember = userRoles.length > 0 || isAppAdmin;
+  const isMember = userRoles.length > 0 || isAppAdmin || isClubAdmin;
   
   // isClubAdmin is already defined above (before isSubscriptionLoading calculation)
   
