@@ -1639,7 +1639,7 @@ export default function HomePage() {
                       )}
                     </div>
                     <button
-                      className="flex items-center text-xs font-medium hover:opacity-80 transition-opacity shrink-0"
+                      className="flex items-center justify-center text-xs font-medium hover:opacity-80 transition-opacity shrink-0 min-h-[44px] min-w-[44px]"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1674,7 +1674,7 @@ export default function HomePage() {
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-9 w-9"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1682,15 +1682,15 @@ export default function HomePage() {
                           }}
                           aria-label={`Edit ${event.title}`}
                         >
-                          <Pencil className="h-3 w-3" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         {!event.is_cancelled && (
                           <>
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              className="h-7 w-7"
-                              onClick={async (e) => {
+                              className="h-9 w-9"
+                              aria-label={`Send reminder for ${event.title}`}
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setLoadingRemindCount(true);
