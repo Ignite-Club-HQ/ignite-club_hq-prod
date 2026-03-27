@@ -600,18 +600,37 @@ export default function NotificationsPage() {
         }
         break;
       case "team_invite": {
-        // related_id is the pending_invite id — look up the token to build the join URL
+        // related_id is the pending_invite id — look up status and team
         const { data: inviteData } = await supabase
           .from("pending_invites")
-          .select("invite_token, team_id, club_id")
+          .select("invite_token, team_id, club_id, status")
           .eq("id", relatedId)
           .maybeSingle();
-        if (inviteData?.invite_token) {
-          if (inviteData.team_id) {
-            navigate(`/join/${inviteData.invite_token}`);
-          } else {
-            navigate(`/join-club/${inviteData.invite_token}`);
+        if (inviteData) {
+          if (inviteData.status === 'accepted' || inviteData.status === 'auto_accepted') {
+            // Already accepted — go straight to team/club page
+            if (inviteData.team_id) {
+              navigate(`/messages/${inviteData.team_id}`);
+            } else if (inviteData.club_id) {
+              navigate(`/clubs/${inviteData.club_id}`);
+            }
+          } else if (inviteData.invite_token) {
+            if (inviteData.team_id) {
+              navigate(`/join/${inviteData.invite_token}`);
+            } else {
+              navigate(`/join-club/${inviteData.invite_token}`);
+            }
           }
+        }
+        break;
+      }
+      case "role_assigned":
+      case "member_joined":
+      case "invite_accepted":
+      case "team_join": {
+        // related_id is the team_id — navigate to team page
+        if (relatedId) {
+          navigate(`/messages/${relatedId}`);
         }
         break;
       }

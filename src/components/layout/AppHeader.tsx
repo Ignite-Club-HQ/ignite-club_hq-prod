@@ -590,8 +590,35 @@ export function AppHeader() {
         case "join_request_approved":
         case "join_request_denied":
         case "join_request_processed":
+          navigate("/notifications");
+          return;
         case "role_assigned":
-          navigate("/roles");
+        case "member_joined":
+        case "invite_accepted":
+        case "team_join":
+        case "team_invite":
+          // Navigate to team page if related_id is available
+          if (relatedId) {
+            // For team_invite, related_id is pending_invite id - look up team_id
+            if (notification.type === "team_invite") {
+              const { data: inviteData } = await supabase
+                .from("pending_invites")
+                .select("team_id, club_id, status")
+                .eq("id", relatedId)
+                .maybeSingle();
+              if (inviteData?.team_id) {
+                navigate(`/messages/${inviteData.team_id}`);
+              } else if (inviteData?.club_id) {
+                navigate(`/clubs/${inviteData.club_id}`);
+              } else {
+                navigate("/notifications");
+              }
+            } else {
+              navigate(`/messages/${relatedId}`);
+            }
+          } else {
+            navigate("/notifications");
+          }
           return;
         case "rsvp":
           navigate(`/events/${relatedId}`);
