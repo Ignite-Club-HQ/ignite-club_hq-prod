@@ -1771,7 +1771,7 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       <section aria-label="Points and rewards">
-      <Card className="border bg-primary/[0.06] overflow-hidden">
+      <Card className="border bg-primary/[0.06] overflow-hidden cursor-pointer" onClick={() => navigate("/profile?tab=points")}>
         <CardContent className="px-4 py-4 space-y-3">
           {/* Primary message area */}
           <div className="flex items-start justify-between gap-3">
