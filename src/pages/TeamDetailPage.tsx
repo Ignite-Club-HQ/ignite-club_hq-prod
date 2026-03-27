@@ -1027,7 +1027,7 @@ export default function TeamDetailPage() {
             <Card 
               className="hover:border-primary/50 transition-colors cursor-pointer"
               onClick={async () => {
-                // Check for nearby game event to auto-link
+                await Promise.all([refetchMembers(), refetchChildren()]);
                 const nearbyEventId = await findNearbyGameEvent(id!);
                 setLinkedEventId(nearbyEventId);
                 setShowPitchBoard(true);
