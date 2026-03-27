@@ -982,9 +982,9 @@ export default function TeamDetailPage() {
 
       {/* Primary Actions - Chat & Schedule */}
       {isMember && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
           <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
-            <Card className="border-primary/20 bg-primary/[0.04] hover:border-primary/50 transition-colors h-full" role="button">
+            <Card className="border-primary/20 bg-primary/[0.04] hover:border-primary/50 transition-colors" role="button">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-primary/10">
                   <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
@@ -995,14 +995,14 @@ export default function TeamDetailPage() {
             </Card>
           </Link>
           <Link to={`/events?team=${team.id}`} aria-label="View team schedule" className="block">
-            <Card className="hover:border-primary/50 transition-colors h-full" role="button">
+            <Card className="hover:border-primary/50 transition-colors" role="button">
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-primary/10">
+                <div className="p-2.5 rounded-xl bg-primary/10">
                   <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-semibold">Schedule</span>
-                  <p className="text-[11px] text-muted-foreground">Events</p>
+                  <p className="text-[11px] text-muted-foreground">Events & fixtures</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
