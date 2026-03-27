@@ -1070,6 +1070,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // double-counted player minutes (e.g. showing 15 min at 7 min game time).
       return savedState.players;
     }
+    if (savedState && !savedState.mockMode && realPlayers.length > 0) {
+      console.log("[PitchState] useState init - ignoring stale empty saved state and using real players");
+      return miniLeagueTeams
+        ? autoPlaceMiniLeaguePlayers(realPlayers, getInitialTeamSize())
+        : autoPlacePlayersOnPitch(realPlayers, getInitialTeamSize(), getInitialFormationIndex(getInitialTeamSize()));
+    }
     // For mini-league mode, auto-place players on both halves
     if (miniLeagueTeams) {
       console.log("[PitchState] useState init - using miniLeagueTeams mode");
@@ -1234,11 +1240,21 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Sync players when realPlayers loads asynchronously (e.g. children finishing fetch after PitchBoard opened)
   useEffect(() => {
-    if (realPlayers.length > 0 && players.length === 0 && !mockMode) {
-      console.log("[PitchState] realPlayers loaded async, syncing", realPlayers.length, "players");
-      setPlayers(realPlayers);
+    if (mockMode || realPlayers.length === 0 || players.length > 0) return;
+
+    const hasStaleEmptySavedState = !!savedState && !savedState.mockMode && savedState.players.length === 0;
+    if (hasStaleEmptySavedState) {
+      console.log("[PitchState] Clearing stale empty saved state and restoring real players");
+      clearPitchState(teamId);
     }
-  }, [realPlayers, players.length, mockMode]);
+
+    console.log("[PitchState] realPlayers loaded async, syncing", realPlayers.length, "players");
+    setPlayers(
+      miniLeagueTeams
+        ? autoPlaceMiniLeaguePlayers(realPlayers, teamSize)
+        : autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation)
+    );
+  }, [realPlayers, players.length, mockMode, savedState, teamId, miniLeagueTeams, teamSize, selectedFormation, autoPlaceMiniLeaguePlayers, autoPlacePlayersOnPitch]);
 
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
@@ -1311,6 +1327,19 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       // If mockMode is true, we have saved mock players - don't merge real players
       // Just use the saved state as-is
       if (savedState.mockMode) {
+        hasLoadedRef.current = true;
+        setHasInitialized(true);
+        return;
+      }
+
+      if (savedState.players.length === 0 && realPlayers.length > 0) {
+        console.log("[PitchState] Replacing stale empty saved state with live roster");
+        clearPitchState(teamId);
+        setPlayers(
+          miniLeagueTeams
+            ? autoPlaceMiniLeaguePlayers(realPlayers, teamSize)
+            : autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation)
+        );
         hasLoadedRef.current = true;
         setHasInitialized(true);
         return;
