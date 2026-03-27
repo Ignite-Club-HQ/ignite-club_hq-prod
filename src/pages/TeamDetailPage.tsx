@@ -1086,7 +1086,7 @@ export default function TeamDetailPage() {
       {(isMember || isClubAdmin) && (
         <Accordion 
           type="multiple" 
-          defaultValue={[]} 
+          defaultValue={["members"]} 
           className="space-y-4"
           onValueChange={(value) => {
             // Auto-refresh members list when expanding if empty
