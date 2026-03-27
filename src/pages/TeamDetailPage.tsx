@@ -1879,7 +1879,7 @@ export default function TeamDetailPage() {
         </Accordion>
       )}
       {/* Pitch Board Modal */}
-      {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && rawMembers && createPortal(
+      {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
             <div className="flex flex-col items-center gap-4">
@@ -1890,27 +1890,24 @@ export default function TeamDetailPage() {
                 <span className="text-4xl animate-bounce">⚽</span>
               </div>
               <Loader2 className="h-6 w-6 animate-spin text-white" />
-              <p className="text-lg font-medium text-white">Loading Pitch Board...</p>
+              <p className="text-lg font-medium text-white">
+                {isPitchBoardRosterLoading ? "Loading players..." : "Loading Pitch Board..."}
+              </p>
             </div>
           </div>
         }>
-          <PitchBoard
-            teamId={id!}
-            teamName={team.name}
-            members={[
-              ...rawMembers.map(m => ({
-                id: m.id,
-                user_id: m.user_id,
-                role: m.role,
-                profiles: m.profiles
-              })),
-              ...teamChildren.map(child => ({
-                id: `child-${child.children.id}`,
-                user_id: child.children.id,
-                role: "player" as string,
-                profiles: { display_name: child.children.name, avatar_url: null },
-              })),
-            ]}
+          {isPitchBoardRosterLoading ? (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-6 w-6 animate-spin text-white" />
+                <p className="text-lg font-medium text-white">Loading players...</p>
+              </div>
+            </div>
+          ) : (
+            <PitchBoard
+              teamId={id!}
+              teamName={team.name}
+              members={pitchBoardMembers}
             onClose={() => {
               setShowPitchBoard(false);
               setLinkedEventId(null);
