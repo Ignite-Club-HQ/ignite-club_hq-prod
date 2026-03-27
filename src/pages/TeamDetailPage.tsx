@@ -1887,10 +1887,10 @@ export default function TeamDetailPage() {
                 profiles: m.profiles
               })),
               ...teamChildren.map(child => ({
-                id: `child-${child.id}`,
-                user_id: child.id,
+                id: `child-${child.children.id}`,
+                user_id: child.children.id,
                 role: "player" as string,
-                profiles: { display_name: child.name, avatar_url: null },
+                profiles: { display_name: child.children.name, avatar_url: null },
               })),
             ]}
             onClose={() => {
