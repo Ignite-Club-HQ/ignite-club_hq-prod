@@ -974,311 +974,235 @@ export default function ClubDetailPage() {
         );
       })()}
 
-      {/* Collapsible Sections */}
-      <Accordion type="multiple" defaultValue={[]} className="space-y-4">
-        {/* Teams Section */}
-        <AccordionItem value="teams" className="border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              <span className="text-lg font-semibold">{club?.class_mode_enabled ? "Classes" : "Teams"}</span>
-              {activeTeams && <Badge variant="secondary" className="ml-2">{activeTeams.length}</Badge>}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="space-y-4 pt-2">
-              {isAdmin && <PendingTeamRequests clubId={id!} />}
-              {isAdmin && (
-                <div className="flex items-center gap-2 justify-end">
-                  <Button variant="outline" size="sm" onClick={() => setCreateFolderDialogOpen(true)}>
-                    <Folder className="h-4 w-4 mr-1" /> Add Folder
-                  </Button>
-                  <CreateTeamFolderDialog
-                    open={createFolderDialogOpen}
-                    onOpenChange={setCreateFolderDialogOpen}
-                    onCreateFolder={(name, description, color) => 
-                      createFolderMutation.mutate({ name, description, color })
-                    }
-                    isCreating={createFolderMutation.isPending}
-                    classMode={!!club?.class_mode_enabled}
-                  />
-                  <Link to={`/clubs/${id}/teams/new`}>
-                    <Button size="sm">
-                      <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
+      {/* Teams Section - flat filtered list */}
+      <section className="space-y-4">
+        {/* Header with title, count, and Add Team */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">{club?.class_mode_enabled ? "Classes" : "Teams"}</h2>
+            {activeTeams && <Badge variant="secondary">{activeTeams.length}</Badge>}
+          </div>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                      <MoreVertical className="h-4 w-4" />
                     </Button>
-                  </Link>
-                </div>
-              )}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setCreateFolderDialogOpen(true)}>
+                      <FolderPlus className="h-4 w-4 mr-2" />
+                      Manage Folders
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <CreateTeamFolderDialog
+                  open={createFolderDialogOpen}
+                  onOpenChange={setCreateFolderDialogOpen}
+                  onCreateFolder={(name, description, color) => 
+                    createFolderMutation.mutate({ name, description, color })
+                  }
+                  isCreating={createFolderMutation.isPending}
+                  classMode={!!club?.class_mode_enabled}
+                />
+                <Link to={`/clubs/${id}/teams/new`}>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
+                  </Button>
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
 
-              {/* Team Search and Show All Toggle */}
-              {activeTeams && activeTeams.length > 0 && (
-                <div className="space-y-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder={club?.class_mode_enabled ? "Search classes..." : "Search teams..."}
-                      value={teamSearchQuery}
-                      onChange={(e) => setTeamSearchQuery(e.target.value)}
-                      className="pl-9 pr-9"
-                    />
-                    {teamSearchQuery && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                        onClick={() => setTeamSearchQuery("")}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+        {isAdmin && <PendingTeamRequests clubId={id!} />}
+
+        {/* Filter chips */}
+        {activeTeams && activeTeams.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+              {[
+                { key: "all" as const, label: "All" },
+                { key: "junior" as const, label: "Junior" },
+                { key: "senior" as const, label: "Senior" },
+                { key: "my" as const, label: "My Teams" },
+              ].map((filter) => (
+                <button
+                  key={filter.key}
+                  onClick={() => setTeamFilter(filter.key)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors min-h-[36px] ${
+                    teamFilter === filter.key
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={club?.class_mode_enabled ? "Search classes..." : "Search teams..."}
+                value={teamSearchQuery}
+                onChange={(e) => setTeamSearchQuery(e.target.value)}
+                className="pl-9 pr-9"
+              />
+              {teamSearchQuery && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                  onClick={() => setTeamSearchQuery("")}
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Team list */}
+        {activeTeams?.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="p-6 text-center">
+              <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">No teams yet</p>
+              {isAdmin && (
+                <Link to={`/clubs/${id}/teams/new`} className="mt-3 inline-block">
+                  <Button variant="outline" size="sm">Create First Team</Button>
+                </Link>
+              )}
+            </CardContent>
+          </Card>
+        ) : (() => {
+          // Filter teams
+          const filteredTeams = activeTeams.filter((team) => {
+            // Filter by type
+            const teamType = (team as any).team_type?.toLowerCase() || "";
+            if (teamFilter === "junior" && teamType !== "junior") return false;
+            if (teamFilter === "senior" && teamType !== "senior") return false;
+            if (teamFilter === "my" && !userTeamIds.includes(team.id)) return false;
+            
+            // Search filter
+            if (teamSearchQuery.trim()) {
+              const query = teamSearchQuery.toLowerCase().trim();
+              return (
+                team.name?.toLowerCase().includes(query) ||
+                team.level_age?.toLowerCase().includes(query) ||
+                team.description?.toLowerCase().includes(query)
+              );
+            }
+            return true;
+          });
+
+          // Group by type when "All" filter is active (and no search)
+          const showGrouped = teamFilter === "all" && !teamSearchQuery.trim();
+          
+          const juniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "junior") : [];
+          const seniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "senior") : [];
+          const otherTeams = showGrouped 
+            ? filteredTeams.filter(t => {
+                const tt = (t as any).team_type?.toLowerCase();
+                return tt !== "junior" && tt !== "senior";
+              })
+            : filteredTeams;
+
+          const renderTeamRow = (team: typeof activeTeams[0]) => {
+            const teamSub = teamSubscriptions.find(s => s.team_id === team.id);
+            const clubHasPro = clubSubscription?.is_pro || clubSubscription?.admin_pro_override;
+            const clubHasProFootball = clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override;
+            const isPro = teamSub?.is_pro || teamSub?.admin_pro_override || clubHasPro;
+            const isProFootball = teamSub?.is_pro_football || teamSub?.admin_pro_football_override || clubHasProFootball;
+            const isUserTeamMember = userTeamIds.includes(team.id);
+
+            return (
+              <Link
+                key={team.id}
+                to={`/teams/${team.id}`}
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-colors hover:border-primary/40 hover:bg-accent/30 ${
+                  isUserTeamMember ? "border-primary/30 bg-primary/[0.04]" : "border-border"
+                }`}
+              >
+                <Avatar className="h-9 w-9 shrink-0">
+                  <AvatarImage src={team.logo_url || undefined} />
+                  <AvatarFallback className="bg-primary/15 text-primary text-sm">
+                    {team.name?.charAt(0)?.toUpperCase() || "T"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium truncate">{team.name}</span>
+                    {isUserTeamMember && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-primary text-primary shrink-0">My Team</Badge>
+                    )}
+                    {isProFootball && (
+                      <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
+                    )}
+                    {isPro && !isProFootball && (
+                      <Badge className="bg-yellow-500 text-yellow-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO</Badge>
                     )}
                   </div>
-                  
-                  {/* Show All Teams Toggle - show for non-admins when there are teams they don't belong to */}
-                  {!isAdmin && activeTeams.length > 0 && (myTeamsCount === 0 || activeTeams.length > myTeamsCount) && (
-                    <div className="flex items-center justify-between px-1">
-                      <Label htmlFor="show-all-teams" className="text-sm text-muted-foreground cursor-pointer">
-                        Show all teams ({activeTeams.length})
-                      </Label>
-                      <Switch
-                        id="show-all-teams"
-                        checked={effectiveShowAllTeams}
-                        onCheckedChange={setShowAllTeams}
-                      />
-                    </div>
-                  )}
                 </div>
-              )}
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </Link>
+            );
+          };
 
-              {activeTeams?.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="p-6 text-center">
-                    <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                    <p className="text-muted-foreground">No teams yet</p>
-                    {isAdmin && (
-                      <Link to={`/clubs/${id}/teams/new`} className="mt-3 inline-block">
-                        <Button variant="outline" size="sm">Create First Team</Button>
-                      </Link>
+          if (filteredTeams.length === 0) {
+            return (
+              <p className="text-muted-foreground text-sm text-center py-6">
+                {teamSearchQuery ? "No teams match your search" : teamFilter === "my" ? "You haven't joined any teams yet" : `No ${teamFilter} teams`}
+              </p>
+            );
+          }
+
+          if (showGrouped) {
+            return (
+              <div className="space-y-4">
+                {juniorTeams.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Junior Teams</h3>
+                    <div className="space-y-1.5">
+                      {juniorTeams.map(renderTeamRow)}
+                    </div>
+                  </div>
+                )}
+                {seniorTeams.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Senior Teams</h3>
+                    <div className="space-y-1.5">
+                      {seniorTeams.map(renderTeamRow)}
+                    </div>
+                  </div>
+                )}
+                {otherTeams.length > 0 && (
+                  <div className="space-y-1.5">
+                    {(juniorTeams.length > 0 || seniorTeams.length > 0) && (
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Other</h3>
                     )}
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-3">
-                  {/* Render folders with their teams */}
-                  {teamFolders.map((folder) => {
-                    const folderTeams = groupedTeams.byFolder[folder.id] || [];
-                    const filteredFolderTeams = folderTeams.filter((team) => {
-                      // First check showAllTeams toggle
-                      if (!shouldShowTeam(team.id)) return false;
-                      // Then apply search filter
-                      if (!teamSearchQuery.trim()) return true;
-                      const query = teamSearchQuery.toLowerCase().trim();
-                      return (
-                        team.name?.toLowerCase().includes(query) ||
-                        team.level_age?.toLowerCase().includes(query) ||
-                        team.description?.toLowerCase().includes(query)
-                      );
-                    });
-                    
-                    // Hide folder if no teams match (after showAllTeams filter)
-                    // But always show empty folders to admins so they can drag teams into them
-                    if (filteredFolderTeams.length === 0 && !isAdmin) return null;
-                    
-                    const isExpanded = expandedFolders[folder.id] !== false;
-                    
-                      return (
-                      <Collapsible key={folder.id} open={isExpanded} onOpenChange={() => toggleFolder(folder.id)}>
-                        <div
-                          onDragOver={(e) => handleFolderDragOver(e, folder.id)}
-                          onDragLeave={handleFolderDragLeave}
-                          onDrop={(e) => handleFolderDrop(e, folder.id)}
-                          className={`rounded-lg transition-all ${dragOverFolderId === folder.id ? "ring-2 ring-primary ring-offset-2" : ""}`}
-                        >
-                          <SwipeableRow
-                            enabled={isAdmin}
-                            actionsWidth={140}
-                            actions={[
-                              {
-                                label: "Edit",
-                                icon: <Pencil className="h-4 w-4" />,
-                                onClick: () => handleOpenEditFolder(folder),
-                                className: "bg-primary text-primary-foreground",
-                              },
-                              {
-                                label: "Delete",
-                                icon: <Trash2 className="h-4 w-4" />,
-                                onClick: () => setDeletingFolder({ id: folder.id, name: folder.name }),
-                                className: "bg-destructive text-destructive-foreground",
-                              },
-                            ]}
-                          >
-                          <CollapsibleTrigger asChild>
-                            <Card className={`cursor-pointer hover:border-primary/30 active:scale-[0.99] transition-all ${getFolderColorClass(folder.color || 'default').bgClassName}`}>
-                              <CardContent className="p-3 flex items-center gap-3">
-                                {isExpanded ? (
-                                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 transition-transform" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform" />
-                                )}
-                                <Folder className={`h-5 w-5 shrink-0 ${getFolderColorClass(folder.color || 'default').className}`} />
-                                <span className="font-medium flex-1 text-left truncate">{folder.name}</span>
-                                <Badge variant="secondary" className="text-xs shrink-0">
-                                  {folderTeams.length} team{folderTeams.length !== 1 ? "s" : ""}
-                                </Badge>
-                              </CardContent>
-                            </Card>
-                          </CollapsibleTrigger>
-                          </SwipeableRow>
-                        </div>
-                        <CollapsibleContent className="pl-4 space-y-2 mt-2">
-                          {filteredFolderTeams.length === 0 ? (
-                            <p className="text-sm text-muted-foreground py-2 pl-2">No teams in this folder</p>
-                          ) : (
-                            filteredFolderTeams.map((team) => {
-                              const teamSub = teamSubscriptions.find(s => s.team_id === team.id);
-                              const clubHasPro = clubSubscription?.is_pro || clubSubscription?.admin_pro_override;
-                              const clubHasProFootball = clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override;
-                              const isPro = teamSub?.is_pro || teamSub?.admin_pro_override || clubHasPro;
-                              const isProFootball = teamSub?.is_pro_football || teamSub?.admin_pro_football_override || clubHasProFootball;
-                              const isUserTeamMember = userTeamIds.includes(team.id);
-                              return (
-                                <Card 
-                                  key={team.id} 
-                                  className={`hover:border-primary/50 transition-colors ${isUserTeamMember ? 'border-primary/30 bg-primary/5' : ''}`}
-                                >
-                                  <CardContent className="p-4 flex items-center gap-3">
-                                    <Link to={`/teams/${team.id}`} className="flex items-center gap-3 flex-1 min-w-0">
-                                      <Avatar className="h-10 w-10 shrink-0">
-                                        <AvatarImage src={team.logo_url || undefined} />
-                                        <AvatarFallback className="bg-primary/20 text-primary">
-                                          {team.name?.charAt(0)?.toUpperCase() || "T"}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <h4 className="font-medium truncate">{team.name}</h4>
-                                          {isUserTeamMember && (
-                                            <Badge variant="outline" className="text-xs border-primary text-primary">My Team</Badge>
-                                          )}
-                                          {isProFootball && (
-                                            <Badge className="bg-emerald-500 text-emerald-950 text-xs">PRO FOOTBALL</Badge>
-                                          )}
-                                          {isPro && !isProFootball && (
-                                            <Badge className="bg-yellow-500 text-yellow-950 text-xs">PRO</Badge>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </Link>
-                                    <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 p-1">
-                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                                    </Link>
-                                  </CardContent>
-                                </Card>
-                              );
-                            })
-                          )}
-                        </CollapsibleContent>
-                      </Collapsible>
-                    );
-                  })}
-
-                  {/* Uncategorized drop zone */}
-                  {teamFolders.length > 0 && (
-                    <div
-                      onDragOver={(e) => handleFolderDragOver(e, null)}
-                      onDragLeave={handleFolderDragLeave}
-                      onDrop={(e) => handleFolderDrop(e, null)}
-                      className={`rounded-lg transition-all ${dragOverFolderId === null && draggedTeamRef.current ? "ring-2 ring-primary ring-offset-2 bg-muted/30 p-2" : ""}`}
-                    >
-                      {groupedTeams.uncategorized.length > 0 && (
-                        <div className="flex items-center gap-2 mb-2 text-muted-foreground">
-                          <Folder className="h-4 w-4" />
-                          <span className="text-sm font-medium">Uncategorized</span>
-                        </div>
-                      )}
+                    <div className="space-y-1.5">
+                      {otherTeams.map(renderTeamRow)}
                     </div>
-                  )}
+                  </div>
+                )}
+              </div>
+            );
+          }
 
-                  {/* Render uncategorized teams */}
-                  {groupedTeams.uncategorized
-                    .filter((team) => {
-                      // First check showAllTeams toggle
-                      if (!shouldShowTeam(team.id)) return false;
-                      // Then apply search filter
-                      if (!teamSearchQuery.trim()) return true;
-                      const query = teamSearchQuery.toLowerCase().trim();
-                      return (
-                        team.name?.toLowerCase().includes(query) ||
-                        team.level_age?.toLowerCase().includes(query) ||
-                        team.description?.toLowerCase().includes(query)
-                      );
-                    })
-                    .map((team) => {
-                      const teamSub = teamSubscriptions.find(s => s.team_id === team.id);
-                      const clubHasPro = clubSubscription?.is_pro || clubSubscription?.admin_pro_override;
-                      const clubHasProFootball = clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override;
-                      const isPro = teamSub?.is_pro || teamSub?.admin_pro_override || clubHasPro;
-                      const isProFootball = teamSub?.is_pro_football || teamSub?.admin_pro_football_override || clubHasProFootball;
-                      const isUserTeamMember = userTeamIds.includes(team.id);
-                      return (
-                        <Card 
-                          key={team.id} 
-                          className={`hover:border-primary/50 transition-colors ${isUserTeamMember ? 'border-primary/30 bg-primary/5' : ''}`}
-                        >
-                          <CardContent className="p-4 flex items-center gap-3">
-                            <Link to={`/teams/${team.id}`} className="flex items-center gap-3 flex-1 min-w-0">
-                              <Avatar className="h-10 w-10 shrink-0">
-                                <AvatarImage src={team.logo_url || undefined} />
-                                <AvatarFallback className="bg-primary/20 text-primary">
-                                  {team.name?.charAt(0)?.toUpperCase() || "T"}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="font-medium truncate">{team.name}</h4>
-                                  {isUserTeamMember && (
-                                    <Badge variant="outline" className="text-xs border-primary text-primary">My Team</Badge>
-                                  )}
-                                  {isProFootball && (
-                                    <Badge className="bg-emerald-500 text-emerald-950 text-xs">PRO FOOTBALL</Badge>
-                                  )}
-                                  {isPro && !isProFootball && (
-                                    <Badge className="bg-yellow-500 text-yellow-950 text-xs">PRO</Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </Link>
-                            <Link to={`/teams/${team.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 p-1">
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            </Link>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  
-                  {/* No teams message */}
-                  {activeTeams.length > 0 && activeTeams.filter(team => shouldShowTeam(team.id)).length === 0 && !effectiveShowAllTeams && (
-                    <p className="text-muted-foreground text-sm text-center py-4">
-                      You haven't joined any teams yet. Toggle "Show all teams" to see all teams in this club.
-                    </p>
-                  )}
-                  {activeTeams.length > 0 && teamSearchQuery && 
-                    activeTeams.filter((team) => {
-                      if (!shouldShowTeam(team.id)) return false;
-                      const query = teamSearchQuery.toLowerCase().trim();
-                      return (
-                        team.name?.toLowerCase().includes(query) ||
-                        team.level_age?.toLowerCase().includes(query) ||
-                        team.description?.toLowerCase().includes(query)
-                      );
-                    }).length === 0 && (
-                    <p className="text-muted-foreground text-sm text-center py-4">No teams match your search</p>
-                  )}
-                </div>
-              )}
+          return (
+            <div className="space-y-1.5">
+              {filteredTeams.map(renderTeamRow)}
             </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+          );
+        })()}
+      </section>
 
       {/* Archived Teams Section - admins only */}
       {isAdmin && archivedTeams.length > 0 && (
