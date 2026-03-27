@@ -1653,26 +1653,28 @@ export default function HomePage() {
                 role="article"
                 aria-label={`${event.title}${event.is_cancelled ? ' (cancelled)' : ''}, ${formatEventDate(event.event_date)}`}
               >
-                <CardContent className="p-4">
-                  {/* Line 1: Title + Club/Team badge + RSVP */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Link to={`/events/${event.id}`} className="font-semibold truncate hover:text-primary transition-colors">
+                <CardContent className="p-3">
+                  {/* Row 1: Title + RSVP */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <Link to={`/events/${event.id}`} className="font-semibold text-sm leading-tight hover:text-primary transition-colors line-clamp-1">
                         {event.title}{event.opponent ? ` vs ${event.opponent}` : ''}
                       </Link>
-                      <Badge variant="secondary" className="text-xs shrink-0">
-                        {event.teams?.name || event.clubs?.name}
-                      </Badge>
-                      {event.is_cancelled && (
-                        <Badge variant="destructive" className="text-xs shrink-0">
-                          Cancelled
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                          {event.teams?.name || event.clubs?.name}
                         </Badge>
-                      )}
+                        {event.is_cancelled && (
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 shrink-0">
+                            Cancelled
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
-                          className="flex items-center gap-1.5 text-xs font-medium hover:bg-accent/50 transition-colors shrink-0 rounded-full px-2.5 py-1 border border-border/60"
+                          className="flex items-center gap-1 text-xs font-medium hover:bg-accent/50 transition-colors shrink-0 rounded-full px-2 py-0.5 border border-border/60 mt-0.5"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1689,16 +1691,16 @@ export default function HomePage() {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  {/* Line 2: Date + Location + Admin actions */}
-                  <div className="flex items-center justify-between gap-2 mt-1">
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground min-w-0">
+                  {/* Row 2: Date + Location + Admin actions */}
+                  <div className="flex items-center justify-between gap-2 mt-1.5">
+                    <div className="flex items-center gap-2.5 text-xs text-muted-foreground min-w-0">
                       <span className="flex items-center gap-1 shrink-0">
-                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Clock className="h-3 w-3" aria-hidden="true" />
                         {formatEventDate(event.event_date)}
                       </span>
                       {(event.location_name || event.suburb) && (
                         <span className="flex items-center gap-1 truncate">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
                           <span className="truncate">{event.location_name || event.suburb}</span>
                         </span>
                       )}
