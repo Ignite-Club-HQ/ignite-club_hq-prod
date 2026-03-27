@@ -127,7 +127,7 @@ function HeroCard({ event }: { event: EventItem }) {
 
   return (
     <Card
-      className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl min-w-[300px] w-[calc(100vw-2.5rem)] max-w-[420px] shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`} shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl min-w-[300px] w-[calc(100vw-2.5rem)] max-w-[420px] shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
