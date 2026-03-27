@@ -971,46 +971,69 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Quick Actions - Team Chat only for team members, not club admins who aren't members */}
+      {/* Next Event Card */}
+      {isMember && (
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Next Up</h3>
+          <TeamNextEventCard teamId={id!} clubId={team.club_id} />
+        </div>
+      )}
+
+      {/* Primary Actions - Chat & Schedule */}
       {isMember && (
         <div className="grid grid-cols-2 gap-3">
-          <Link to={`/messages/${team.id}`} aria-label="Open team chat">
-            <Card className="hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex flex-col items-center gap-2">
-                <MessageCircle className="h-6 w-6 text-primary" aria-hidden="true" />
-                <span className="text-sm font-medium">Team Chat</span>
+          <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
+            <Card className="hover:border-primary/50 transition-colors h-full" role="button">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10">
+                  <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold">Team Chat</span>
+                  <p className="text-[11px] text-muted-foreground">Messages</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
             </Card>
           </Link>
-          <Link to={`/events?team=${team.id}`} aria-label="View team schedule">
-            <Card className="hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex flex-col items-center gap-2">
-                <Calendar className="h-6 w-6 text-primary" aria-hidden="true" />
-                <span className="text-sm font-medium">Schedule</span>
+          <Link to={`/events?team=${team.id}`} aria-label="View team schedule" className="block">
+            <Card className="hover:border-primary/50 transition-colors h-full" role="button">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10">
+                  <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold">Schedule</span>
+                  <p className="text-[11px] text-muted-foreground">Events</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
             </Card>
           </Link>
-          {/* Vault - show as accessible during loading (optimistic) or when Pro */}
+        </div>
+      )}
+
+      {/* Secondary Actions - Vault & Pitch Board */}
+      {isMember && (
+        <div className="grid grid-cols-2 gap-2">
           {(isSubscriptionLoading || isTeamPro) ? (
-            <Link to={`/vault?team=${team.id}`} aria-label="Open file vault">
+            <Link to={`/vault?team=${team.id}`} aria-label="Open file vault" className="block">
               <Card className="hover:border-primary/50 transition-colors" role="button">
-                <CardContent className="p-4 flex flex-col items-center gap-2">
-                  <FolderOpen className="h-6 w-6 text-primary" aria-hidden="true" />
-                  <span className="text-sm font-medium">Vault</span>
+                <CardContent className="p-3 flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <span className="text-xs font-medium">Vault</span>
                 </CardContent>
               </Card>
             </Link>
           ) : (
             <Card className="border-muted bg-muted/30 cursor-not-allowed">
-              <CardContent className="p-4 flex flex-col items-center gap-2 relative">
-                <div className="absolute top-2 right-2">
-                  <Badge variant="secondary" className="text-xs gap-1">
-                    <Lock className="h-3 w-3" />
-                    Pro
-                  </Badge>
-                </div>
-                <FolderOpen className="h-6 w-6 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Vault</span>
+              <CardContent className="p-3 flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">Vault</span>
+                <Badge variant="secondary" className="text-[10px] ml-auto gap-0.5 h-4 px-1">
+                  <Lock className="h-2.5 w-2.5" />
+                  Pro
+                </Badge>
               </CardContent>
             </Card>
           )}
@@ -1021,63 +1044,36 @@ export default function TeamDetailPage() {
                 const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
                 const freshMembers = membersResult.data || [];
                 const freshChildren = childrenResult.data || [];
-
                 const nextPitchBoardMembers = [
                   ...freshMembers.map(m => ({
-                    id: m.id,
-                    user_id: m.user_id,
-                    role: m.role,
-                    profiles: m.profiles,
+                    id: m.id, user_id: m.user_id, role: m.role, profiles: m.profiles,
                   })),
                   ...freshChildren
                     .filter(child => child.children)
                     .map(child => ({
-                      id: `child-${child.children.id}`,
-                      user_id: child.children.id,
+                      id: `child-${child.children.id}`, user_id: child.children.id,
                       role: "player" as string,
                       profiles: { display_name: child.children.name, avatar_url: null },
                     })),
                 ];
-
                 setPitchBoardMembersOverride(nextPitchBoardMembers);
                 const nearbyEventId = await findNearbyGameEvent(id!);
                 setLinkedEventId(nearbyEventId);
                 setShowPitchBoard(true);
               }}
-              onMouseEnter={() => {
-                // Prefetch player positions data
-                queryClient.prefetchQuery({
-                  queryKey: ["team-player-positions", id],
-                  queryFn: async () => {
-                    const { data } = await supabase
-                      .from("team_player_positions")
-                      .select("*")
-                      .eq("team_id", id!);
-                    return data || [];
-                  },
-                  staleTime: 60000,
-                });
-                // Prefetch formations
-                queryClient.prefetchQuery({
-                  queryKey: ["pitch-formations", id],
-                  queryFn: async () => {
-                    const { data } = await supabase
-                      .from("pitch_formations")
-                      .select("*")
-                      .eq("team_id", id!);
-                    return data || [];
-                  },
-                  staleTime: 60000,
-                });
-              }}
             >
-              <CardContent className="p-4 flex flex-col items-center gap-2">
-                <LayoutGrid className="h-6 w-6 text-primary" />
-                <span className="text-sm font-medium">Pitch Board</span>
+              <CardContent className="p-3 flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4 text-primary" />
+                <span className="text-xs font-medium">Pitch Board</span>
               </CardContent>
             </Card>
           )}
         </div>
+      )}
+
+      {/* Latest Photos */}
+      {isMember && (
+        <TeamLatestPhotos teamId={id!} clubId={team.club_id} />
       )}
 
       {/* Collapsible Sections */}
