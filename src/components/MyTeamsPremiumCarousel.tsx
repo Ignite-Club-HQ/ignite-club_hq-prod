@@ -464,7 +464,20 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       <h2 className="text-lg font-semibold">My Teams</h2>
       <ScrollArea className="w-full">
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
-          {items.map((item) => (
+          {[...items]
+            .sort((a, b) => {
+              // Teams with upcoming events first
+              const aHasEvent = !!nextEvents[a.id];
+              const bHasEvent = !!nextEvents[b.id];
+              if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
+              // Then teams with photos (activity)
+              const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
+              const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
+              if (aHasPhotos !== bHasPhotos) return aHasPhotos ? -1 : 1;
+              // Then alphabetical
+              return a.name.localeCompare(b.name);
+            })
+            .map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
               item={item}
