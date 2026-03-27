@@ -573,6 +573,8 @@ export default function NotificationsPage() {
       case "event_cancelled":
       case "event_reminder":
       case "duty_assigned":
+      case "rsvp":
+      case "rsvp_updated":
         navigate(`/events/${relatedId}`);
         break;
       case "photo_comment":
