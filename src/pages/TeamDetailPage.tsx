@@ -644,9 +644,9 @@ export default function TeamDetailPage() {
 
   return (
     <div className="py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => {
+      {/* Header with integrated team identity */}
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => {
           if (window.history.length > 1) {
             navigate(-1);
           } else {
@@ -655,7 +655,50 @@ export default function TeamDetailPage() {
         }}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-2xl font-bold flex-1 truncate">{team.name}</h1>
+        <Avatar className="h-9 w-9 border-2 border-primary/20 shrink-0">
+          <AvatarImage src={team.logo_url || undefined} />
+          <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
+            {team.name?.charAt(0)?.toUpperCase() || "T"}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-bold truncate">{team.name}</h1>
+            {isTeamPro && (
+              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+            )}
+            {hasProFootball && !isTeamPro && (
+              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-tight">
+            {(() => {
+              const coaches = Object.values(members).filter(m => m.roles.some(r => r.role === 'coach'));
+              const coachName = coaches.length > 0 ? coaches[0].profile?.display_name : null;
+              if (coachName) return `Coach: ${coachName}`;
+              if (team.description) return team.description;
+              return null;
+            })()}
+          </p>
+        </div>
+        {/* Stacked member avatars */}
+        <div className="flex -space-x-1.5 shrink-0 mr-1">
+          {Object.values(members).slice(0, 3).map((member, i) => (
+            <Avatar key={i} className="h-6 w-6 border-2 border-background">
+              <AvatarImage src={member.profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-primary/20 text-primary text-[8px]">
+                {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+          ))}
+          {Object.keys(members).length + teamChildren.length > 3 && (
+            <Avatar className="h-6 w-6 border-2 border-background">
+              <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
+                +{Object.keys(members).length + teamChildren.length - 3}
+              </AvatarFallback>
+            </Avatar>
+          )}
+        </div>
           {isAdmin && isClassMode && (
             <Button variant="ghost" size="icon" onClick={() => navigate(`/teams/${id}/edit`)}>
               <Pencil className="h-4 w-4" />
