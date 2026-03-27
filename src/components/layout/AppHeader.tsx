@@ -593,13 +593,11 @@ export function AppHeader() {
           navigate("/notifications");
           return;
         case "role_assigned":
-        case "member_joined":
         case "invite_accepted":
         case "team_join":
         case "team_invite":
           // Navigate to team page if related_id is available
           if (relatedId) {
-            // For team_invite, related_id is pending_invite id - look up team_id
             if (notification.type === "team_invite") {
               const { data: inviteData } = await supabase
                 .from("pending_invites")
@@ -616,6 +614,13 @@ export function AppHeader() {
             } else {
               navigate(`/messages/${relatedId}`);
             }
+          } else {
+            navigate("/notifications");
+          }
+          return;
+        case "member_joined":
+          if (relatedId) {
+            navigate(`/teams/${relatedId}`);
           } else {
             navigate("/notifications");
           }
