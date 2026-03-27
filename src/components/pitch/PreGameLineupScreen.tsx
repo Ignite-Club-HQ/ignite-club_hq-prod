@@ -482,7 +482,9 @@ export default function PreGameLineupScreen({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}>
         <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-primary" />
+          <button onClick={onClose} className="p-1 -ml-1 rounded-full hover:bg-muted" aria-label="Close">
+            <X className="h-5 w-5 text-muted-foreground" />
+          </button>
           <h2 className="text-lg font-bold">Starting Lineup</h2>
           <Badge variant="outline" className="text-xs">
             {filledSlots}/{totalSlots}
