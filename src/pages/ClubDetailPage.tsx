@@ -106,6 +106,7 @@ export default function ClubDetailPage() {
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
   const [teamSearchQuery, setTeamSearchQuery] = useState("");
+  const [teamFilter, setTeamFilter] = useState<"all" | "junior" | "senior" | "my">("all");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [showAllTeams, setShowAllTeams] = useState<boolean | null>(null); // null = not yet initialized
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
