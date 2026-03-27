@@ -66,8 +66,8 @@ import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
-import { MyTeamsScroll } from "@/components/MyTeamsScroll";
-import { LatestPhotosScroll } from "@/components/LatestPhotosScroll";
+import { MyTeamsPremiumCarousel } from "@/components/MyTeamsPremiumCarousel";
+import { NextUpCarousel } from "@/components/NextUpCarousel";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -622,24 +622,25 @@ export default function HomePage() {
     enabled: !!selectedRewardClubId,
   });
 
-  // Fetch the minimum reward threshold across user's clubs
-  const { data: minRewardThreshold = null } = useQuery<number | null>({
-    queryKey: ["min-reward-threshold", rewardClubs.map((c: any) => c.id)],
+  // Fetch the next reward info across user's clubs
+  const { data: nextRewardInfo = null } = useQuery<{ points_required: number; name: string } | null>({
+    queryKey: ["next-reward-info", rewardClubs.map((c: any) => c.id)],
     queryFn: async () => {
       const proClubIds = rewardClubs.filter((c: any) => isAppAdmin || c.hasPro).map((c: any) => c.id);
       if (proClubIds.length === 0) return null;
       const { data } = await supabase
         .from("club_rewards")
-        .select("points_required")
+        .select("points_required, name")
         .in("club_id", proClubIds)
         .eq("is_active", true)
         .neq("reward_type", "player_of_match")
         .order("points_required", { ascending: true })
         .limit(1);
-      return data?.[0]?.points_required ?? null;
+      return data?.[0] ? { points_required: data[0].points_required, name: data[0].name } : null;
     },
     enabled: rewardClubs.length > 0,
   });
+  const minRewardThreshold = nextRewardInfo?.points_required ?? null;
 
   const { data: userChildren = [] } = useQuery({
     queryKey: ["user-children-home", user?.id],
@@ -1516,18 +1517,8 @@ export default function HomePage() {
 
   return (
     <div className="py-6 space-y-5">
-      {/* Welcome Section */}
-      <section className="space-y-1">
-        <h1 className="text-2xl font-bold">
-          Welcome, {profile?.display_name?.split(" ")[0]}! 👋
-        </h1>
-        <p className="text-muted-foreground">
-          {activeThemeData 
-            ? `Here's what's coming up @ ${activeThemeData.clubName}`
-            : "Here's what's coming up"
-          }
-        </p>
-      </section>
+      {/* Next Up Carousel - unified event section */}
+      <NextUpCarousel events={events || []} />
 
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
@@ -1597,383 +1588,24 @@ export default function HomePage() {
       {/* Native App Download Banner - for mobile browser users */}
       <NativeAppDownloadBanner />
 
-      {/* Upcoming Schedule - #1 use case */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Upcoming Schedule</h2>
-          <Link to="/events" className="text-sm text-primary hover:underline">
-            View all
-          </Link>
-        </div>
 
-        <div aria-live="polite" aria-busy={isLoading} aria-label={`Upcoming schedule${events?.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ''}`}>
-        {isLoading ? (
-          <div className="space-y-3" role="status" aria-label="Loading schedule">
-            {[1, 2, 3].map((i) => (
-              <Card key={i} aria-hidden="true">
-                <CardContent className="p-4">
-                  <div className="space-y-2 animate-pulse">
-                    <div className="flex items-center gap-2">
-                      <div className="h-5 w-16 bg-muted rounded" />
-                      <div className="h-4 w-24 bg-muted rounded" />
-                    </div>
-                    <div className="h-5 w-48 bg-muted rounded" />
-                    <div className="h-4 w-32 bg-muted rounded" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : events?.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="p-8 text-center">
-              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Nothing scheduled</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {userClubs && userClubs.length > 0 
-                  ? "Nothing scheduled yet" 
-                  : "Join a club or create one to see your schedule"}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {events?.map((event) => {
-              const typeColorMap: Record<string, string> = {
-                game: 'border-l-destructive',
-                training: 'border-l-primary',
-                social: 'border-l-warning',
-              };
-              const typeBorderClass = typeColorMap[event.type] || 'border-l-primary';
-              
-              return (
-              <Card 
-                key={event.id} 
-                className={`hover:border-primary/50 transition-colors border-l-4 ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
-                role="article"
-                aria-label={`${event.title}${event.is_cancelled ? ' (cancelled)' : ''}, ${formatEventDate(event.event_date)}`}
-              >
-                <CardContent className="p-4">
-                  {/* Line 1: Title + Club/Team badge + RSVP */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Link to={`/events/${event.id}`} className="font-semibold truncate hover:text-primary transition-colors">
-                        {event.title}{event.opponent ? ` vs ${event.opponent}` : ''}
-                      </Link>
-                      <Badge variant="secondary" className="text-xs shrink-0">
-                        {event.teams?.name || event.clubs?.name}
-                      </Badge>
-                      {event.is_cancelled && (
-                        <Badge variant="destructive" className="text-xs shrink-0">
-                          Cancelled
-                        </Badge>
-                      )}
-                    </div>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          className="flex items-center gap-1.5 text-xs font-medium hover:bg-accent/50 transition-colors shrink-0 rounded-full px-2.5 py-1 border border-border/60"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setQuickRsvpEvent(event);
-                          }}
-                          aria-label={`RSVP status: ${getRsvpLabel(getUserRsvpStatus(event.id))}. Tap to change.`}
-                        >
-                          {getRsvpIcon(getUserRsvpStatus(event.id))}
-                          <span className="text-foreground">{getRsvpLabel(getUserRsvpStatus(event.id))}</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">
-                        Tap to change RSVP
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  {/* Line 2: Date + Location + Admin actions */}
-                  <div className="flex items-center justify-between gap-2 mt-1">
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground min-w-0">
-                      <span className="flex items-center gap-1 shrink-0">
-                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                        {formatEventDate(event.event_date)}
-                      </span>
-                      {(event.location_name || event.suburb) && (
-                        <span className="flex items-center gap-1 truncate">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                          <span className="truncate">{event.location_name || event.suburb}</span>
-                        </span>
-                      )}
-                    </div>
-                    {/* Admin actions */}
-                    {(isAppAdmin || userRoles?.some(r => 
-                      (r.team_id === event.team_id && (r.role === "coach" || r.role === "team_admin")) ||
-                      (r.club_id === event.club_id && r.role === "club_admin") ||
-                      (r.role === "league_admin" && r.club_id === event.club_id)
-                    )) && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="h-9 w-9"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            navigate(`/events/${event.id}/edit`);
-                          }}
-                          aria-label={`Edit ${event.title}`}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        {!event.is_cancelled && (
-                          <>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              className="h-9 w-9"
-                              aria-label={`Send reminder for ${event.title}`}
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setLoadingRemindCount(true);
-                                
-                                const { data: rsvps } = await supabase
-                                  .from("rsvps")
-                                  .select("user_id")
-                                  .eq("event_id", event.id)
-                                  .is("child_id", null);
-                                const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-                                
-                                let allMemberIds: string[] = [];
-                                
-                                if (event.mini_league_id) {
-                                  const { data: players } = await supabase
-                                    .from("mini_league_players")
-                                    .select("parent_user_id")
-                                    .eq("mini_league_id", event.mini_league_id);
-                                  const parentIds = players?.map(p => p.parent_user_id).filter(Boolean) as string[] || [];
-                                  
-                                  const { data: league } = await supabase
-                                    .from("mini_leagues")
-                                    .select("club_id")
-                                    .eq("id", event.mini_league_id)
-                                    .single();
-                                  
-                                  if (league) {
-                                    const { data: adminRoles } = await supabase
-                                      .from("user_roles")
-                                      .select("user_id")
-                                      .eq("club_id", league.club_id)
-                                      .in("role", ["club_admin", "league_admin", "coach"]);
-                                    
-                                    const adminIds = adminRoles?.map(r => r.user_id) || [];
-                                    allMemberIds = [...new Set([...parentIds, ...adminIds])];
-                                  }
-                                } else {
-                                  let memberQuery = supabase.from("user_roles").select("user_id");
-                                  if (event.team_id) {
-                                    memberQuery = memberQuery.eq("team_id", event.team_id);
-                                  } else {
-                                    memberQuery = memberQuery.eq("club_id", event.club_id);
-                                  }
-                                  
-                                  const { data: members } = await memberQuery;
-                                  allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-                                }
-                                const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
-                                
-                                setNonRsvpCount(count);
-                                setEventToRemind(event);
-                                setRemindDialogOpen(true);
-                                setLoadingRemindCount(false);
-                              }}
-                            >
-                              {loadingRemindCount ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Bell className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              className="h-9 w-9 text-warning"
-                              aria-label={`Cancel ${event.title}`}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setEventToCancel(event);
-                                setCancelDialogOpen(true);
-                              }}
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="h-9 w-9 text-destructive"
-                          aria-label={`Delete ${event.title}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setEventToDelete(event);
-                            setDeleteDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              );
-            })}
-          </div>
-        )}
-        </div>
-      </section>
-
-      {/* Latest Photos */}
-      <LatestPhotosScroll showProBadge={showProBadge} />
-
-      {/* My Teams & Leagues */}
-      <MyTeamsScroll />
+      {/* My Teams & Leagues - Premium Carousel */}
+      <MyTeamsPremiumCarousel
+        onJoinTeam={() => setTeamDialogOpen(true)}
+        onCreateTeam={() => {
+          if (activeClubFilter) {
+            navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+          } else {
+            navigate("/clubs", { state: { fromCreateTeam: true } });
+          }
+        }}
+      />
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <UpcomingClassesWidget />
 
-      {/* Quick Actions - Role-aware smart grid */}
-      {(() => {
-        const canCreateTeam = true; // All users can create teams (non-admins go through approval)
-        const canCreateEvents = isAppAdmin || userRoles?.some(r => 
-          ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
-        );
-        const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
-          ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
-        );
-        const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
 
-        // Build actions list dynamically
-        const actions: { key: string; icon: React.ReactNode; label: string; onClick: () => void }[] = [];
 
-        // Join Team - always visible
-        actions.push({
-          key: "join",
-          icon: <UserCheck className="h-6 w-6 text-foreground" aria-hidden="true" />,
-          label: activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team",
-          onClick: () => setTeamDialogOpen(true),
-        });
-
-        // Create Event - admin/coach only
-        if (canCreateEvents) {
-          actions.push({
-            key: "event",
-            icon: <Plus className="h-6 w-6 text-foreground" aria-hidden="true" />,
-            label: "New Event",
-            onClick: () => navigate('/events/new'),
-          });
-        }
-
-        // File Vault - Pro + admin role
-        if (canAccessVault) {
-          actions.push({
-            key: "vault",
-            icon: <FolderOpen className="h-6 w-6 text-foreground" aria-hidden="true" />,
-            label: "File Vault",
-            onClick: () => navigate("/vault"),
-          });
-        }
-
-        // Create Team - available to all users
-        actions.push({
-          key: "create-team",
-          icon: <UserPlus className="h-6 w-6 text-foreground" aria-hidden="true" />,
-          label: activeClubFilter ? "Create Team" : "Create Team or Club",
-          onClick: () => {
-            if (activeClubFilter) {
-              navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-            } else {
-              navigate("/clubs", { state: { fromCreateTeam: true } });
-            }
-          },
-        });
-
-        if (actions.length === 0) return null;
-
-        // Use 2 columns for 2+ actions, single column for 1
-        const gridCols = actions.length >= 2 ? "grid-cols-2" : "grid-cols-1";
-
-        return (
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Quick Actions</h2>
-            <div className={`grid ${gridCols} gap-3`}>
-              {actions.map(action => (
-                <Button
-                  key={action.key}
-                  variant="outline"
-                  className="w-full h-auto min-h-[4.5rem] py-5 flex flex-col gap-2.5 border-border bg-card shadow-sm hover:bg-accent/50 hover:border-primary/40 hover:shadow-md transition-all"
-                  aria-label={action.label}
-                  onClick={action.onClick}
-                >
-                  {action.icon}
-                  <span className="text-sm font-medium">{action.label}</span>
-                </Button>
-              ))}
-            </div>
-          </section>
-        );
-      })()}
-
-      {/* Pitch Boards - below Quick Actions */}
-      {displayedTeams.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Pitch Boards</h2>
-            {sortedTeams.length > 2 && (
-              <button 
-                onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
-                className="text-sm text-muted-foreground hover:text-foreground hover:underline"
-                aria-expanded={pitchBoardsExpanded}
-              >
-                {pitchBoardsExpanded ? "Show less" : "View all"}
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {displayedTeams.map((team) => (
-              <Card 
-                key={team.id}
-                className="hover:border-primary/50 transition-colors cursor-pointer"
-                role="button"
-                tabIndex={0}
-                aria-label={`Open pitch board for ${team.name}${team.readOnly ? ' (view only)' : ''}`}
-                onClick={() => openPitchBoard(team.id, team.name, team.readOnly)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    openPitchBoard(team.id, team.name, team.readOnly);
-                  }
-                }}
-              >
-                <CardContent className="p-4 flex flex-col items-center gap-2 relative">
-                  {team.readOnly && (
-                    <Badge variant="secondary" className="absolute top-1 right-1 text-xs px-1 py-0">
-                      View
-                    </Badge>
-                  )}
-                  <LayoutGrid className="h-6 w-6 text-foreground" aria-hidden="true" />
-                  <span className="text-sm font-medium text-center w-full" title={team.name}>
-                    <span className="block truncate">{team.name}</span>
-                  </span>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Join Team/Club Dialogs */}
       <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
         <ResponsiveDialogContent>
           <ResponsiveDialogHeader>
@@ -2139,48 +1771,63 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       <section aria-label="Points and rewards">
-      <Card className="border bg-primary/[0.04]">
-        <CardContent className="px-4 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="p-2 rounded-xl bg-primary/10 shrink-0">
-                <Flame className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
-                  </span>
-                  {showProBadge && (
-                    <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
-                      <Lock className="h-2.5 w-2.5 mr-0.5" />
-                      Pro
-                    </Badge>
-                  )}
+      <Card className="border bg-primary/[0.06] overflow-hidden cursor-pointer" onClick={() => navigate("/profile?section=points-history")}>
+        <CardContent className="px-4 py-4 space-y-3">
+          {/* Primary message area */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 rounded-lg bg-primary/15 shrink-0">
+                  <Flame className="h-4 w-4 text-primary" />
                 </div>
-                <p className="text-2xl font-bold leading-tight">{profile?.ignite_points || 0}</p>
-                {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
+                </span>
+                {showProBadge && (
+                  <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
+                    <Lock className="h-2.5 w-2.5 mr-0.5" />
+                    Pro
+                  </Badge>
+                )}
+              </div>
+
+              {/* Primary: progress to next reward */}
+              {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold ? (
+                <div>
+                  <p className="text-base font-semibold leading-tight">
                     {minRewardThreshold - (profile?.ignite_points || 0)} points to next reward
                   </p>
-                )}
-                {minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
-                  <p className="text-xs text-primary font-medium mt-0.5">
-                    Rewards available!
-                  </p>
-                )}
-                {latestPendingRedemption && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
+                    {profile?.ignite_points || 0} total points
                   </p>
-                )}
-              </div>
+                </div>
+              ) : minRewardThreshold !== null ? (
+                <div>
+                  <p className="text-base font-semibold leading-tight text-primary">
+                    🎉 Rewards available!
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {profile?.ignite_points || 0} total points
+                  </p>
+                </div>
+              ) : (
+                <p className="text-2xl font-bold leading-tight">{profile?.ignite_points || 0}</p>
+              )}
+
+              {/* Pending claim */}
+              {latestPendingRedemption && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
+                </p>
+              )}
             </div>
-            <div className="shrink-0">
+
+            {/* CTA */}
+            <div className="shrink-0 pt-1">
               {latestPendingRedemption ? (
                 <Button
                   size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs"
+                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs font-medium"
                   onClick={() => setClaimDialogOpen(true)}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
@@ -2189,26 +1836,53 @@ export default function HomePage() {
               ) : (
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
+                  className="gap-1.5 h-8 text-xs font-medium"
                   onClick={handleBrowseRewards}
                 >
                   <Gift className="h-3.5 w-3.5" />
-                  Browse
+                  View Rewards
                 </Button>
               )}
             </div>
           </div>
-          {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-            <div className="mt-3" role="progressbar" aria-valuenow={profile?.ignite_points || 0} aria-valuemin={0} aria-valuemax={minRewardThreshold} aria-label="Progress to next reward">
-              <div className="h-1 rounded-full bg-muted overflow-hidden">
+
+          {/* Progress bar */}
+          {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (() => {
+            const currentPoints = profile?.ignite_points || 0;
+            const progress = Math.min(100, (currentPoints / minRewardThreshold) * 100);
+            const isClose = progress >= 70;
+            return (
+              <div className="space-y-1.5">
                 <div 
-                  className="h-full rounded-full bg-primary/70 transition-all"
-                  style={{ width: `${Math.min(100, ((profile?.ignite_points || 0) / minRewardThreshold) * 100)}%` }}
-                />
+                  className="h-2 rounded-full bg-muted overflow-hidden relative" 
+                  role="progressbar" 
+                  aria-valuenow={currentPoints} 
+                  aria-valuemin={0} 
+                  aria-valuemax={minRewardThreshold} 
+                  aria-label="Progress to next reward"
+                >
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-1000 ease-out"
+                    style={{ width: `${progress}%` }}
+                  />
+                  {/* Threshold marker */}
+                  <div className="absolute right-0 top-0 h-full w-0.5 bg-primary/40" />
+                </div>
+                <div className="flex items-center justify-between">
+                  {isClose && (
+                    <p className="text-[11px] text-primary/80 font-medium">
+                      Nearly there — keep going!
+                    </p>
+                  )}
+                  {nextRewardInfo?.name && (
+                    <p className="text-[11px] text-muted-foreground ml-auto truncate max-w-[60%]">
+                      Next: {nextRewardInfo.name}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
       </section>
