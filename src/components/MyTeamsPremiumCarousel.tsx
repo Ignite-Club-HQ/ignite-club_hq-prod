@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, Trophy, Plus, ChevronRight } from "lucide-react";
+import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams } from "@/lib/clubTeamCache";
@@ -81,7 +82,7 @@ function TeamCard({ item, nextEvent, photos }: {
       }}
     >
       <CardContent className="p-4 space-y-3">
-        {/* Header: avatar + name */}
+        {/* Header: avatar + name + menu */}
         <div className="flex items-center gap-3">
           {item.logo_url ? (
             <img
@@ -106,10 +107,42 @@ function TeamCard({ item, nextEvent, photos }: {
             <h3 className="font-semibold text-[15px] leading-tight truncate">{item.name}</h3>
             <p className="text-[11px] text-muted-foreground truncate">{item.club_name}</p>
           </div>
-          {/* Activity indicator dot */}
-          {hasActivity && nextEvent && (
-            <div className={`h-2 w-2 rounded-full shrink-0 ${eventDotColors[nextEvent.type] || "bg-primary"}`} />
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Activity indicator dot */}
+            {hasActivity && nextEvent && (
+              <div className={`h-2 w-2 rounded-full ${eventDotColors[nextEvent.type] || "bg-primary"}`} />
+            )}
+            {/* 3-dot menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted/80 active:bg-muted transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="Team actions"
+                >
+                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem onClick={() => navigate("/events")}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  View schedule
+                </DropdownMenuItem>
+                {item.canManage && (
+                  <DropdownMenuItem onClick={() => navigate("/events/new")}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add event
+                  </DropdownMenuItem>
+                )}
+                {photos.length > 0 && (
+                  <DropdownMenuItem onClick={() => navigate(`/media?team=${item.id}`)}>
+                    <Image className="h-4 w-4 mr-2" />
+                    View photos
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Status area */}
@@ -125,47 +158,17 @@ function TeamCard({ item, nextEvent, photos }: {
               </span>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground italic">No upcoming events</p>
-              <button
-                className="text-[11px] text-primary font-medium flex items-center gap-0.5 hover:underline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (item.canManage) {
-                    navigate("/events/new");
-                  } else {
-                    navigate("/events");
-                  }
-                }}
-              >
-                {item.canManage ? (
-                  <>
-                    <Plus className="h-3 w-3" />
-                    Add event
-                  </>
-                ) : (
-                  <>
-                    View schedule
-                    <ChevronRight className="h-3 w-3" />
-                  </>
-                )}
-              </button>
-            </div>
+            <p className="text-xs text-muted-foreground italic">No upcoming events</p>
           )}
         </div>
 
-        {/* Photo thumbnails */}
+        {/* Photo thumbnails — non-interactive, just visual */}
         {photos.length > 0 && (
           <div className="flex gap-1.5">
             {photos.slice(0, 2).map((url, i) => (
-              <button
+              <div
                 key={i}
                 className="h-12 w-16 rounded-md overflow-hidden bg-muted"
-                aria-label="View team photos"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/media?team=${item.id}`);
-                }}
               >
                 <img
                   src={url}
@@ -173,7 +176,7 @@ function TeamCard({ item, nextEvent, photos }: {
                   className="h-full w-full object-cover"
                   loading="lazy"
                 />
-              </button>
+              </div>
             ))}
           </div>
         )}
