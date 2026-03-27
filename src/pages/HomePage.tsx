@@ -276,6 +276,8 @@ export default function HomePage() {
       };
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: allEvents, isLoading } = useQuery({
@@ -336,6 +338,8 @@ export default function HomePage() {
       return filtered as Event[];
     },
     enabled: !!user && !!userMemberships,
+    staleTime: 2 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Filter events by active club theme
@@ -361,6 +365,8 @@ export default function HomePage() {
       return data;
     },
     enabled: !!user && eventIds.length > 0,
+    staleTime: 2 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const getUserRsvpStatus = (eventId: string) => {
@@ -401,7 +407,8 @@ export default function HomePage() {
       return data;
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000, // Prevent refetch flash on app resume
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch pending reward redemptions
@@ -427,6 +434,8 @@ export default function HomePage() {
       return data || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const latestPendingRedemption = pendingRedemptions[0] as {
@@ -473,6 +482,8 @@ export default function HomePage() {
       return clubs || [];
     },
     enabled: !!user && !!userRoles,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Check if user has Pro access (via club or team subscription)
@@ -604,6 +615,8 @@ export default function HomePage() {
       });
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch rewards for selected club
@@ -1059,7 +1072,8 @@ export default function HomePage() {
       return data as Club[];
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
   });
 
   const { data: teams, error: teamsError, isLoading: teamsLoading } = useQuery({
@@ -1078,7 +1092,8 @@ export default function HomePage() {
       return data as Team[];
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch all mini leagues for join request dropdown
@@ -1098,7 +1113,8 @@ export default function HomePage() {
       return data as MiniLeague[];
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch user's soccer teams with Pro Football subscription where user is direct team member (coach/team_admin)
@@ -1841,7 +1857,7 @@ export default function HomePage() {
                 <Button
                   size="sm"
                   className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs font-medium"
-                  onClick={() => setClaimDialogOpen(true)}
+                  onClick={(e) => { e.stopPropagation(); setClaimDialogOpen(true); }}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Claim
@@ -1850,7 +1866,7 @@ export default function HomePage() {
                 <Button
                   size="sm"
                   className="gap-1.5 h-8 text-xs font-medium"
-                  onClick={handleBrowseRewards}
+                  onClick={(e) => { e.stopPropagation(); handleBrowseRewards(); }}
                 >
                   <Gift className="h-3.5 w-3.5" />
                   View Rewards

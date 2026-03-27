@@ -479,19 +479,20 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Reset player minutes for a fresh game setup
     const freshPlayers = updatedPlayers.map(p => ({ ...p, minutesPlayed: 0 }));
     setPlayers(freshPlayers);
-    setShowLineupPicker(false);
     if (secondHalfGkId) {
       setPreferredSecondHalfGkId(secondHalfGkId);
     }
     if (firstHalfGkId || secondHalfGkId) {
       console.log("[PitchBoard] Lineup confirmed with GK rotation:", { firstHalfGkId, secondHalfGkId });
     }
-    // After confirming lineup, prompt auto-sub generation
+    // Open auto-sub dialog BEFORE hiding lineup picker to prevent pitch board flash
+    setAutoSubPlanEditMode(false);
+    setAutoSubFromPreGame(true);
+    setAutoSubPlanDialogOpen(true);
+    // Hide lineup picker after a brief delay so dialog renders on top
     setTimeout(() => {
-      setAutoSubPlanEditMode(false);
-      setAutoSubFromPreGame(true);
-      setAutoSubPlanDialogOpen(true);
-    }, 300);
+      setShowLineupPicker(false);
+    }, 100);
   }, []);
 
 
