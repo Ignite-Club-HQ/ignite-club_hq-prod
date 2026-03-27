@@ -718,7 +718,7 @@ workflows:
             echo "ERROR: package.json version is empty"
             exit 1
           fi
-          if [ "$APP_VERSION" = "1.1.0" ] || [ "$APP_VERSION" = "1.2.0" ]; then
+          if [ "$APP_VERSION" = "1.1.0" ] || [ "$APP_VERSION" = "1.2.0" ] || [ "$APP_VERSION" = "1.2.1" ]; then
             echo "ERROR: package.json version $APP_VERSION has already been published — bump it before deploying"
             exit 1
           fi
@@ -748,11 +748,23 @@ workflows:
           RUBY_SCRIPT
 
           cd "$ROOT_DIR/ios/App"
-          echo "=== xcodebuild build settings version check ==="
-          xcodebuild -project App.xcodeproj -scheme App -showBuildSettings | grep -E 'MARKETING_VERSION|CURRENT_PROJECT_VERSION'
+          RESOLVED_MARKETING_VERSION=$(xcodebuild -project App.xcodeproj -scheme App -showBuildSettings | awk '/MARKETING_VERSION/ {print $3; exit}')
+          RESOLVED_BUILD_NUMBER=$(xcodebuild -project App.xcodeproj -scheme App -showBuildSettings | awk '/CURRENT_PROJECT_VERSION/ {print $3; exit}')
+          echo "=== Resolved MARKETING_VERSION: $RESOLVED_MARKETING_VERSION ==="
+          echo "=== Resolved CURRENT_PROJECT_VERSION: $RESOLVED_BUILD_NUMBER ==="
           echo "=== Info.plist placeholders ==="
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" App/Info.plist
           /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" App/Info.plist
+
+          if [ "$RESOLVED_MARKETING_VERSION" != "$APP_VERSION" ]; then
+            echo "ERROR: Resolved MARKETING_VERSION ($RESOLVED_MARKETING_VERSION) does not match package.json version ($APP_VERSION)"
+            exit 1
+          fi
+
+          if [ "$RESOLVED_BUILD_NUMBER" != "$NEXT_BUILD_NUMBER" ]; then
+            echo "ERROR: Resolved CURRENT_PROJECT_VERSION ($RESOLVED_BUILD_NUMBER) does not match expected build number ($NEXT_BUILD_NUMBER)"
+            exit 1
+          fi
       - name: Add Crashlytics run script to Xcode project
         script: |
           cd ios/App
