@@ -1404,7 +1404,7 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {isMember && (
+          {isAdmin && (
           <AccordionItem value="chat-groups" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2">
@@ -1414,26 +1414,9 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-3 pt-2">
-                {isAdmin && (
-                  <div className="flex justify-end">
-                    <CreateGroupDialog teamId={id} />
-                  </div>
-                )}
-                
-                {/* Standard Team Chat Link */}
-                <Link to={`/messages/${team.id}`}>
-                  <Card className="hover:border-primary/50 transition-colors">
-                    <CardContent className="p-3 flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <MessageCircle className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">Team Chat</p>
-                        <p className="text-xs text-muted-foreground">Main team discussion</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+                <div className="flex justify-end">
+                  <CreateGroupDialog teamId={id} />
+                </div>
                 
                 <ChatGroupsList teamId={id} canManage={isAdmin} />
               </div>
