@@ -1577,9 +1577,9 @@ export default function HomePage() {
 
         <div aria-live="polite" aria-busy={isLoading} aria-label={`Upcoming schedule${events?.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ''}`}>
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-3" role="status" aria-label="Loading schedule">
             {[1, 2, 3].map((i) => (
-              <Card key={i}>
+              <Card key={i} aria-hidden="true">
                 <CardContent className="p-4">
                   <div className="space-y-2 animate-pulse">
                     <div className="flex items-center gap-2">
@@ -1639,7 +1639,7 @@ export default function HomePage() {
                       )}
                     </div>
                     <button
-                      className="flex items-center text-xs font-medium hover:opacity-80 transition-opacity shrink-0"
+                      className="flex items-center justify-center text-xs font-medium hover:opacity-80 transition-opacity shrink-0 min-h-[44px] min-w-[44px]"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1674,7 +1674,7 @@ export default function HomePage() {
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-9 w-9"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1682,14 +1682,15 @@ export default function HomePage() {
                           }}
                           aria-label={`Edit ${event.title}`}
                         >
-                          <Pencil className="h-3 w-3" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         {!event.is_cancelled && (
                           <>
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-9 w-9"
+                              aria-label={`Send reminder for ${event.title}`}
                               onClick={async (e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1747,15 +1748,16 @@ export default function HomePage() {
                               }}
                             >
                               {loadingRemindCount ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
                               ) : (
-                                <Bell className="h-3 w-3" />
+                                <Bell className="h-3.5 w-3.5" />
                               )}
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              className="h-7 w-7 text-warning"
+                              className="h-9 w-9 text-warning"
+                              aria-label={`Cancel ${event.title}`}
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1763,14 +1765,15 @@ export default function HomePage() {
                                 setCancelDialogOpen(true);
                               }}
                             >
-                              <XCircle className="h-3 w-3" />
+                              <XCircle className="h-3.5 w-3.5" />
                             </Button>
                           </>
                         )}
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          className="h-7 w-7 text-destructive"
+                          className="h-9 w-9 text-destructive"
+                          aria-label={`Delete ${event.title}`}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1778,7 +1781,7 @@ export default function HomePage() {
                             setDeleteDialogOpen(true);
                           }}
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     )}
@@ -2093,7 +2096,7 @@ export default function HomePage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
-      {/* Points & Rewards - Compact Banner */}
+      <section aria-label="Points and rewards">
       <Card className="border bg-primary/[0.04]">
         <CardContent className="px-4 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -2155,7 +2158,7 @@ export default function HomePage() {
             </div>
           </div>
           {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-            <div className="mt-3">
+            <div className="mt-3" role="progressbar" aria-valuenow={profile?.ignite_points || 0} aria-valuemin={0} aria-valuemax={minRewardThreshold} aria-label="Progress to next reward">
               <div className="h-1 rounded-full bg-muted overflow-hidden">
                 <div 
                   className="h-full rounded-full bg-primary/70 transition-all"
@@ -2166,6 +2169,7 @@ export default function HomePage() {
           )}
         </CardContent>
       </Card>
+      </section>
 
       {/* Reward Claim QR Dialog */}
       {latestPendingRedemption && user && (
