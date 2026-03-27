@@ -411,6 +411,24 @@ export default function TeamDetailPage() {
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
   }, [rawMembers]);
 
+  const pitchBoardMembers = useMemo(() => [
+    ...rawMembers.map(m => ({
+      id: m.id,
+      user_id: m.user_id,
+      role: m.role,
+      profiles: m.profiles,
+    })),
+    ...teamChildren
+      .filter(child => child.children)
+      .map(child => ({
+        id: `child-${child.children.id}`,
+        user_id: child.children.id,
+        role: "player" as string,
+        profiles: { display_name: child.children.name, avatar_url: null },
+      })),
+  ], [rawMembers, teamChildren]);
+
+  const isPitchBoardRosterLoading = isMembersLoading || isMembersFetching || isChildrenLoading || isChildrenFetching;
 
   const { data: userRoles = [], isLoading: isUserRoleLoading } = useQuery({
     queryKey: ["user-team-roles", id, user?.id],
@@ -1009,7 +1027,7 @@ export default function TeamDetailPage() {
             <Card 
               className="hover:border-primary/50 transition-colors cursor-pointer"
               onClick={async () => {
-                // Check for nearby game event to auto-link
+                await Promise.all([refetchMembers(), refetchChildren()]);
                 const nearbyEventId = await findNearbyGameEvent(id!);
                 setLinkedEventId(nearbyEventId);
                 setShowPitchBoard(true);
@@ -1861,7 +1879,7 @@ export default function TeamDetailPage() {
         </Accordion>
       )}
       {/* Pitch Board Modal */}
-      {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && rawMembers && createPortal(
+      {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
             <div className="flex flex-col items-center gap-4">
@@ -1872,44 +1890,42 @@ export default function TeamDetailPage() {
                 <span className="text-4xl animate-bounce">⚽</span>
               </div>
               <Loader2 className="h-6 w-6 animate-spin text-white" />
-              <p className="text-lg font-medium text-white">Loading Pitch Board...</p>
+              <p className="text-lg font-medium text-white">
+                {isPitchBoardRosterLoading ? "Loading players..." : "Loading Pitch Board..."}
+              </p>
             </div>
           </div>
         }>
-          <PitchBoard
-            teamId={id!}
-            teamName={team.name}
-            members={[
-              ...rawMembers.map(m => ({
-                id: m.id,
-                user_id: m.user_id,
-                role: m.role,
-                profiles: m.profiles
-              })),
-              ...teamChildren.map(child => ({
-                id: `child-${child.children.id}`,
-                user_id: child.children.id,
-                role: "player" as string,
-                profiles: { display_name: child.children.name, avatar_url: null },
-              })),
-            ]}
-            onClose={() => {
-              setShowPitchBoard(false);
-              setLinkedEventId(null);
-            }}
-            disableAutoSubs={teamSubscription?.disable_auto_subs || false}
-            initialRotationSpeed={teamSubscription?.rotation_speed || 2}
-            initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
-            initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
-            initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
-            initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
-            initialTeamSize={teamSubscription?.team_size}
-            initialFormation={teamSubscription?.formation || undefined}
-            readOnly={!canEditPitchBoard && !isSubsManager}
-            isSubsManager={!!isSubsManager}
-            initialLinkedEventId={linkedEventId}
-            initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
-          />
+          {isPitchBoardRosterLoading ? (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-6 w-6 animate-spin text-white" />
+                <p className="text-lg font-medium text-white">Loading players...</p>
+              </div>
+            </div>
+          ) : (
+            <PitchBoard
+              teamId={id!}
+              teamName={team.name}
+              members={pitchBoardMembers}
+              onClose={() => {
+                setShowPitchBoard(false);
+                setLinkedEventId(null);
+              }}
+              disableAutoSubs={teamSubscription?.disable_auto_subs || false}
+              initialRotationSpeed={teamSubscription?.rotation_speed || 2}
+              initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
+              initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
+              initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
+              initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
+              initialTeamSize={teamSubscription?.team_size}
+              initialFormation={teamSubscription?.formation || undefined}
+              readOnly={!canEditPitchBoard && !isSubsManager}
+              isSubsManager={!!isSubsManager}
+              initialLinkedEventId={linkedEventId}
+              initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
+            />
+          )}
         </Suspense>,
         document.body
       )}
