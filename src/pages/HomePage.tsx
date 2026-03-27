@@ -622,24 +622,25 @@ export default function HomePage() {
     enabled: !!selectedRewardClubId,
   });
 
-  // Fetch the minimum reward threshold across user's clubs
-  const { data: minRewardThreshold = null } = useQuery<number | null>({
-    queryKey: ["min-reward-threshold", rewardClubs.map((c: any) => c.id)],
+  // Fetch the next reward info across user's clubs
+  const { data: nextRewardInfo = null } = useQuery<{ points_required: number; name: string } | null>({
+    queryKey: ["next-reward-info", rewardClubs.map((c: any) => c.id)],
     queryFn: async () => {
       const proClubIds = rewardClubs.filter((c: any) => isAppAdmin || c.hasPro).map((c: any) => c.id);
       if (proClubIds.length === 0) return null;
       const { data } = await supabase
         .from("club_rewards")
-        .select("points_required")
+        .select("points_required, name")
         .in("club_id", proClubIds)
         .eq("is_active", true)
         .neq("reward_type", "player_of_match")
         .order("points_required", { ascending: true })
         .limit(1);
-      return data?.[0]?.points_required ?? null;
+      return data?.[0] ? { points_required: data[0].points_required, name: data[0].name } : null;
     },
     enabled: rewardClubs.length > 0,
   });
+  const minRewardThreshold = nextRewardInfo?.points_required ?? null;
 
   const { data: userChildren = [] } = useQuery({
     queryKey: ["user-children-home", user?.id],
@@ -1770,48 +1771,63 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       <section aria-label="Points and rewards">
-      <Card className="border bg-primary/[0.04]">
-        <CardContent className="px-4 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="p-2 rounded-xl bg-primary/10 shrink-0">
-                <Flame className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
-                  </span>
-                  {showProBadge && (
-                    <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
-                      <Lock className="h-2.5 w-2.5 mr-0.5" />
-                      Pro
-                    </Badge>
-                  )}
+      <Card className="border bg-primary/[0.06] overflow-hidden">
+        <CardContent className="px-4 py-4 space-y-3">
+          {/* Primary message area */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 rounded-lg bg-primary/15 shrink-0">
+                  <Flame className="h-4 w-4 text-primary" />
                 </div>
-                <p className="text-2xl font-bold leading-tight">{profile?.ignite_points || 0}</p>
-                {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
+                </span>
+                {showProBadge && (
+                  <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
+                    <Lock className="h-2.5 w-2.5 mr-0.5" />
+                    Pro
+                  </Badge>
+                )}
+              </div>
+
+              {/* Primary: progress to next reward */}
+              {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold ? (
+                <div>
+                  <p className="text-base font-semibold leading-tight">
                     {minRewardThreshold - (profile?.ignite_points || 0)} points to next reward
                   </p>
-                )}
-                {minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
-                  <p className="text-xs text-primary font-medium mt-0.5">
-                    Rewards available!
-                  </p>
-                )}
-                {latestPendingRedemption && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
+                    {profile?.ignite_points || 0} total points
                   </p>
-                )}
-              </div>
+                </div>
+              ) : minRewardThreshold !== null ? (
+                <div>
+                  <p className="text-base font-semibold leading-tight text-primary">
+                    🎉 Rewards available!
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {profile?.ignite_points || 0} total points
+                  </p>
+                </div>
+              ) : (
+                <p className="text-2xl font-bold leading-tight">{profile?.ignite_points || 0}</p>
+              )}
+
+              {/* Pending claim */}
+              {latestPendingRedemption && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
+                </p>
+              )}
             </div>
-            <div className="shrink-0">
+
+            {/* CTA */}
+            <div className="shrink-0 pt-1">
               {latestPendingRedemption ? (
                 <Button
                   size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs"
+                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs font-medium"
                   onClick={() => setClaimDialogOpen(true)}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
@@ -1820,26 +1836,53 @@ export default function HomePage() {
               ) : (
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
+                  className="gap-1.5 h-8 text-xs font-medium"
                   onClick={handleBrowseRewards}
                 >
                   <Gift className="h-3.5 w-3.5" />
-                  Browse
+                  View Rewards
                 </Button>
               )}
             </div>
           </div>
-          {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-            <div className="mt-3" role="progressbar" aria-valuenow={profile?.ignite_points || 0} aria-valuemin={0} aria-valuemax={minRewardThreshold} aria-label="Progress to next reward">
-              <div className="h-1 rounded-full bg-muted overflow-hidden">
+
+          {/* Progress bar */}
+          {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (() => {
+            const currentPoints = profile?.ignite_points || 0;
+            const progress = Math.min(100, (currentPoints / minRewardThreshold) * 100);
+            const isClose = progress >= 70;
+            return (
+              <div className="space-y-1.5">
                 <div 
-                  className="h-full rounded-full bg-primary/70 transition-all"
-                  style={{ width: `${Math.min(100, ((profile?.ignite_points || 0) / minRewardThreshold) * 100)}%` }}
-                />
+                  className="h-2 rounded-full bg-muted overflow-hidden relative" 
+                  role="progressbar" 
+                  aria-valuenow={currentPoints} 
+                  aria-valuemin={0} 
+                  aria-valuemax={minRewardThreshold} 
+                  aria-label="Progress to next reward"
+                >
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-1000 ease-out"
+                    style={{ width: `${progress}%` }}
+                  />
+                  {/* Threshold marker */}
+                  <div className="absolute right-0 top-0 h-full w-0.5 bg-primary/40" />
+                </div>
+                <div className="flex items-center justify-between">
+                  {isClose && (
+                    <p className="text-[11px] text-primary/80 font-medium">
+                      Nearly there — keep going!
+                    </p>
+                  )}
+                  {nextRewardInfo?.name && (
+                    <p className="text-[11px] text-muted-foreground ml-auto truncate max-w-[60%]">
+                      Next: {nextRewardInfo.name}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
       </section>
