@@ -195,8 +195,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   });
 
   // Filter out existing members — but allow the current user (admin adding themselves as parent)
+  // When adding a "parent" role, allow existing members to appear (we're adding a child under them)
   const filteredResults = searchResults.filter(
-    u => u.id === user?.id || !existingMembers?.includes(u.id)
+    u => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
   );
 
   // Search for second parent (existing users)
