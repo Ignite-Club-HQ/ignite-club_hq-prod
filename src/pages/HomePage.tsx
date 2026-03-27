@@ -1577,9 +1577,9 @@ export default function HomePage() {
 
         <div aria-live="polite" aria-busy={isLoading} aria-label={`Upcoming schedule${events?.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ''}`}>
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-3" role="status" aria-label="Loading schedule">
             {[1, 2, 3].map((i) => (
-              <Card key={i}>
+              <Card key={i} aria-hidden="true">
                 <CardContent className="p-4">
                   <div className="space-y-2 animate-pulse">
                     <div className="flex items-center gap-2">
@@ -2096,7 +2096,7 @@ export default function HomePage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
-      {/* Points & Rewards - Compact Banner */}
+      <section aria-label="Points and rewards">
       <Card className="border bg-primary/[0.04]">
         <CardContent className="px-4 py-4">
           <div className="flex items-center justify-between gap-4">
