@@ -26,6 +26,10 @@ import { DemoLoginSection } from "@/components/DemoLoginSection";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 
+// Preload Ignite icon so it's instantly available when switching from club theme
+const preloadedIgniteIcon = new Image();
+preloadedIgniteIcon.src = igniteIcon;
+
 // Helper to pick the best color from palette based on background contrast
 function getBestContrastColor(
   primary: { h: number; s: number; l: number } | null | undefined,
@@ -628,7 +632,7 @@ export function AppHeader() {
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg">
+            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : 'ignite'}>
               {shouldShowClubTheming ? (
                 <>
                   {showClubLogo ? (
@@ -670,11 +674,16 @@ export function AppHeader() {
                 </>
               ) : (
                 <>
-                  <img 
-                    src={igniteIcon} 
-                    alt="Ignite" 
-                    className="h-9 w-9 rounded-full object-contain"
-                  />
+                  <div className="h-9 w-9 shrink-0 rounded-full bg-primary/10">
+                    <img 
+                      src={igniteIcon} 
+                      alt="Ignite" 
+                      className="h-9 w-9 rounded-full object-contain"
+                      loading="eager"
+                      decoding="sync"
+                      fetchPriority="high"
+                    />
+                  </div>
                   <div className="flex flex-col leading-tight items-start">
                     <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
                     <span className="text-[11px] text-muted-foreground leading-none">Club HQ</span>

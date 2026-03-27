@@ -1,6 +1,4 @@
 import { useState, lazy, Suspense, useMemo, useEffect } from "react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
@@ -55,6 +53,7 @@ import {
 import { MobileCardSelect } from "@/components/MobileCardSelect";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -67,6 +66,7 @@ import { ClubSponsorSection } from "@/components/ClubSponsorSection";
 import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
+import { MyTeamsScroll } from "@/components/MyTeamsScroll";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -86,6 +86,7 @@ interface Event {
   type: EventType;
   event_date: string;
   address: string | null;
+  location_name: string | null;
   suburb: string | null;
   club_id: string;
   team_id: string | null;
@@ -192,7 +193,7 @@ export default function HomePage() {
   const [rewardQROpen, setRewardQROpen] = useState(false);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
-  const [earnPointsOpen, setEarnPointsOpen] = useState(false);
+  
   const [selectedUpgradeClub, setSelectedUpgradeClub] = useState<string>("");
   const [remindDialogOpen, setRemindDialogOpen] = useState(false);
   const [eventToRemind, setEventToRemind] = useState<Event | null>(null);
@@ -294,6 +295,7 @@ export default function HomePage() {
           type,
           event_date,
           address,
+          location_name,
           suburb,
           club_id,
           team_id,
@@ -364,16 +366,25 @@ export default function HomePage() {
     return userRsvps?.find(r => r.event_id === eventId)?.status || null;
   };
 
+  const getRsvpLabel = (status: string | null): string => {
+    switch (status) {
+      case "going": return "Going";
+      case "not_going": return "Not going";
+      case "maybe": return "Maybe";
+      default: return "RSVP";
+    }
+  };
+
   const getRsvpIcon = (status: string | null) => {
     switch (status) {
       case "going":
-        return <><CheckCircle2 className="h-4 w-4 mr-1 text-primary" aria-hidden="true" /><span className="sr-only">Going - </span></>;
+        return <CheckCircle2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />;
       case "not_going":
-        return <><X className="h-4 w-4 mr-1 text-destructive" aria-hidden="true" /><span className="sr-only">Not going - </span></>;
+        return <X className="h-3.5 w-3.5 text-destructive" aria-hidden="true" />;
       case "maybe":
-        return <><HelpCircle className="h-4 w-4 mr-1 text-warning" aria-hidden="true" /><span className="sr-only">Maybe - </span></>;
+        return <HelpCircle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />;
       default:
-        return <><Minus className="h-4 w-4 mr-1 text-muted-foreground" aria-hidden="true" /><span className="sr-only">No response - </span></>;
+        return <Minus className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />;
     }
   };
 
@@ -1483,7 +1494,7 @@ export default function HomePage() {
   // This prevents the "double flash" issue on login where the page loads, then shows loading, then loads again
 
   return (
-    <div className="py-6 space-y-6">
+    <div className="py-6 space-y-5">
       {/* Welcome Section */}
       <section className="space-y-1">
         <h1 className="text-2xl font-bold">
@@ -1565,125 +1576,618 @@ export default function HomePage() {
       {/* Native App Download Banner - for mobile browser users */}
       <NativeAppDownloadBanner />
 
-      {/* Points Card */}
-      <Card className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} border-0`}>
-        <CardContent className="p-4">
+      {/* Upcoming Schedule - #1 use case */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Upcoming Schedule</h2>
+          <Link to="/events" className="text-sm text-primary hover:underline">
+            View all
+          </Link>
+        </div>
+
+        <div aria-live="polite" aria-busy={isLoading} aria-label={`Upcoming schedule${events?.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ''}`}>
+        {isLoading ? (
+          <div className="space-y-3" role="status" aria-label="Loading schedule">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} aria-hidden="true">
+                <CardContent className="p-4">
+                  <div className="space-y-2 animate-pulse">
+                    <div className="flex items-center gap-2">
+                      <div className="h-5 w-16 bg-muted rounded" />
+                      <div className="h-4 w-24 bg-muted rounded" />
+                    </div>
+                    <div className="h-5 w-48 bg-muted rounded" />
+                    <div className="h-4 w-32 bg-muted rounded" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : events?.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="p-8 text-center">
+              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Nothing scheduled</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {userClubs && userClubs.length > 0 
+                  ? "Nothing scheduled yet" 
+                  : "Join a club or create one to see your schedule"}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {events?.map((event) => {
+              const typeColorMap: Record<string, string> = {
+                game: 'border-l-destructive',
+                training: 'border-l-primary',
+                social: 'border-l-warning',
+              };
+              const typeBorderClass = typeColorMap[event.type] || 'border-l-primary';
+              
+              return (
+              <Card 
+                key={event.id} 
+                className={`hover:border-primary/50 transition-colors border-l-4 ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
+                role="article"
+                aria-label={`${event.title}${event.is_cancelled ? ' (cancelled)' : ''}, ${formatEventDate(event.event_date)}`}
+              >
+                <CardContent className="p-4">
+                  {/* Line 1: Title + Club/Team badge + RSVP */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Link to={`/events/${event.id}`} className="font-semibold truncate hover:text-primary transition-colors">
+                        {event.title}{event.opponent ? ` vs ${event.opponent}` : ''}
+                      </Link>
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {event.teams?.name || event.clubs?.name}
+                      </Badge>
+                      {event.is_cancelled && (
+                        <Badge variant="destructive" className="text-xs shrink-0">
+                          Cancelled
+                        </Badge>
+                      )}
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="flex items-center gap-1.5 text-xs font-medium hover:bg-accent/50 transition-colors shrink-0 rounded-full px-2.5 py-1 border border-border/60"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setQuickRsvpEvent(event);
+                          }}
+                          aria-label={`RSVP status: ${getRsvpLabel(getUserRsvpStatus(event.id))}. Tap to change.`}
+                        >
+                          {getRsvpIcon(getUserRsvpStatus(event.id))}
+                          <span className="text-foreground">{getRsvpLabel(getUserRsvpStatus(event.id))}</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="text-xs">
+                        Tap to change RSVP
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  {/* Line 2: Date + Location + Admin actions */}
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground min-w-0">
+                      <span className="flex items-center gap-1 shrink-0">
+                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                        {formatEventDate(event.event_date)}
+                      </span>
+                      {(event.location_name || event.suburb) && (
+                        <span className="flex items-center gap-1 truncate">
+                          <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{event.location_name || event.suburb}</span>
+                        </span>
+                      )}
+                    </div>
+                    {/* Admin actions */}
+                    {(isAppAdmin || userRoles?.some(r => 
+                      (r.team_id === event.team_id && (r.role === "coach" || r.role === "team_admin")) ||
+                      (r.club_id === event.club_id && r.role === "club_admin") ||
+                      (r.role === "league_admin" && r.club_id === event.club_id)
+                    )) && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-9 w-9"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/events/${event.id}/edit`);
+                          }}
+                          aria-label={`Edit ${event.title}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        {!event.is_cancelled && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-9 w-9"
+                              aria-label={`Send reminder for ${event.title}`}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setLoadingRemindCount(true);
+                                
+                                const { data: rsvps } = await supabase
+                                  .from("rsvps")
+                                  .select("user_id")
+                                  .eq("event_id", event.id)
+                                  .is("child_id", null);
+                                const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
+                                
+                                let allMemberIds: string[] = [];
+                                
+                                if (event.mini_league_id) {
+                                  const { data: players } = await supabase
+                                    .from("mini_league_players")
+                                    .select("parent_user_id")
+                                    .eq("mini_league_id", event.mini_league_id);
+                                  const parentIds = players?.map(p => p.parent_user_id).filter(Boolean) as string[] || [];
+                                  
+                                  const { data: league } = await supabase
+                                    .from("mini_leagues")
+                                    .select("club_id")
+                                    .eq("id", event.mini_league_id)
+                                    .single();
+                                  
+                                  if (league) {
+                                    const { data: adminRoles } = await supabase
+                                      .from("user_roles")
+                                      .select("user_id")
+                                      .eq("club_id", league.club_id)
+                                      .in("role", ["club_admin", "league_admin", "coach"]);
+                                    
+                                    const adminIds = adminRoles?.map(r => r.user_id) || [];
+                                    allMemberIds = [...new Set([...parentIds, ...adminIds])];
+                                  }
+                                } else {
+                                  let memberQuery = supabase.from("user_roles").select("user_id");
+                                  if (event.team_id) {
+                                    memberQuery = memberQuery.eq("team_id", event.team_id);
+                                  } else {
+                                    memberQuery = memberQuery.eq("club_id", event.club_id);
+                                  }
+                                  
+                                  const { data: members } = await memberQuery;
+                                  allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
+                                }
+                                const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
+                                
+                                setNonRsvpCount(count);
+                                setEventToRemind(event);
+                                setRemindDialogOpen(true);
+                                setLoadingRemindCount(false);
+                              }}
+                            >
+                              {loadingRemindCount ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Bell className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-9 w-9 text-warning"
+                              aria-label={`Cancel ${event.title}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEventToCancel(event);
+                                setCancelDialogOpen(true);
+                              }}
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-9 w-9 text-destructive"
+                          aria-label={`Delete ${event.title}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEventToDelete(event);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              );
+            })}
+          </div>
+        )}
+        </div>
+      </section>
+
+      {/* My Teams & Leagues */}
+      <MyTeamsScroll />
+
+      {/* Upcoming Classes Widget - for parents with enrolled children */}
+      <UpcomingClassesWidget />
+
+      {/* Quick Actions - Role-aware smart grid */}
+      {(() => {
+        const canCreateTeam = true; // All users can create teams (non-admins go through approval)
+        const canCreateEvents = isAppAdmin || userRoles?.some(r => 
+          ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
+        );
+        const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
+          ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
+        );
+        const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
+
+        // Build actions list dynamically
+        const actions: { key: string; icon: React.ReactNode; label: string; onClick: () => void }[] = [];
+
+        // Join Team - always visible
+        actions.push({
+          key: "join",
+          icon: <UserCheck className="h-6 w-6 text-foreground" aria-hidden="true" />,
+          label: activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team",
+          onClick: () => setTeamDialogOpen(true),
+        });
+
+        // Create Event - admin/coach only
+        if (canCreateEvents) {
+          actions.push({
+            key: "event",
+            icon: <Plus className="h-6 w-6 text-foreground" aria-hidden="true" />,
+            label: "New Event",
+            onClick: () => navigate('/events/new'),
+          });
+        }
+
+        // File Vault - Pro + admin role
+        if (canAccessVault) {
+          actions.push({
+            key: "vault",
+            icon: <FolderOpen className="h-6 w-6 text-foreground" aria-hidden="true" />,
+            label: "File Vault",
+            onClick: () => navigate("/vault"),
+          });
+        }
+
+        // Create Team - available to all users
+        actions.push({
+          key: "create-team",
+          icon: <UserPlus className="h-6 w-6 text-foreground" aria-hidden="true" />,
+          label: activeClubFilter ? "Create Team" : "Create Team or Club",
+          onClick: () => {
+            if (activeClubFilter) {
+              navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+            } else {
+              navigate("/clubs", { state: { fromCreateTeam: true } });
+            }
+          },
+        });
+
+        if (actions.length === 0) return null;
+
+        // Use 2 columns for 2+ actions, single column for 1
+        const gridCols = actions.length >= 2 ? "grid-cols-2" : "grid-cols-1";
+
+        return (
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold">Quick Actions</h2>
+            <div className={`grid ${gridCols} gap-3`}>
+              {actions.map(action => (
+                <Button
+                  key={action.key}
+                  variant="outline"
+                  className="w-full h-auto min-h-[4.5rem] py-5 flex flex-col gap-2.5 border-border bg-card shadow-sm hover:bg-accent/50 hover:border-primary/40 hover:shadow-md transition-all"
+                  aria-label={action.label}
+                  onClick={action.onClick}
+                >
+                  {action.icon}
+                  <span className="text-sm font-medium">{action.label}</span>
+                </Button>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* Pitch Boards - below Quick Actions */}
+      {displayedTeams.length > 0 && (
+        <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-1.5">
-                {(userClubs[0] as any)?.points_icon_url && (
-                  <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-5 w-5 rounded object-cover" />
+            <h2 className="text-lg font-semibold">Pitch Boards</h2>
+            {sortedTeams.length > 2 && (
+              <button 
+                onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
+                className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+                aria-expanded={pitchBoardsExpanded}
+              >
+                {pitchBoardsExpanded ? "Show less" : "View all"}
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {displayedTeams.map((team) => (
+              <Card 
+                key={team.id}
+                className="hover:border-primary/50 transition-colors cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open pitch board for ${team.name}${team.readOnly ? ' (view only)' : ''}`}
+                onClick={() => openPitchBoard(team.id, team.name, team.readOnly)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openPitchBoard(team.id, team.name, team.readOnly);
+                  }
+                }}
+              >
+                <CardContent className="p-4 flex flex-col items-center gap-2 relative">
+                  {team.readOnly && (
+                    <Badge variant="secondary" className="absolute top-1 right-1 text-xs px-1 py-0">
+                      View
+                    </Badge>
+                  )}
+                  <LayoutGrid className="h-6 w-6 text-foreground" aria-hidden="true" />
+                  <span className="text-sm font-medium text-center w-full" title={team.name}>
+                    <span className="block truncate">{team.name}</span>
+                  </span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Join Team/Club Dialogs */}
+      <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
+        <ResponsiveDialogContent>
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Request to Join Club</ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
+              Select a club and role to request membership.
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          <div className="space-y-4 pt-4">
+            {/* Only show club selector if not in club mode */}
+            {!activeClubFilter ? (
+              <MobileCardSelect
+                value={selectedClub}
+                onValueChange={setSelectedClub}
+                options={clubs?.map((club) => ({
+                  value: club.id,
+                  label: club.name,
+                  icon: <span>{getSportEmoji(club.sport)}</span>,
+                })) || []}
+                label={`Select Club ${clubs ? `(${clubs.length} available)` : "(loading...)"}`}
+                placeholder="Choose a club..."
+                searchable
+                searchPlaceholder="Search clubs..."
+                emptyMessage={clubsLoading ? "Loading clubs..." : clubsError ? `Error: ${clubsError.message}` : "No clubs found."}
+              />
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Club</label>
+                <div className="flex items-center gap-2 p-4 rounded-xl border-2 border-primary bg-primary/5">
+                  <span>{getSportEmoji(clubs?.find(c => c.id === activeClubFilter)?.sport)}</span>
+                  <span className="font-medium">{clubs?.find(c => c.id === activeClubFilter)?.name}</span>
+                </div>
+              </div>
+            )}
+            <MobileCardSelect
+              value={selectedClubRole}
+              onValueChange={(v) => setSelectedClubRole(v as ClubRole)}
+              options={clubRoleOptions}
+              label="Select Role"
+              placeholder="Choose a role..."
+            />
+          </div>
+          <ResponsiveDialogFooter>
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => clubRequestMutation.mutate()}
+              disabled={!(activeClubFilter || selectedClub) || clubRequestMutation.isPending}
+            >
+              {clubRequestMutation.isPending ? "Submitting..." : "Submit Request"}
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+
+      <ResponsiveDialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
+        <ResponsiveDialogContent>
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>
+              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Request to Join Class" : "Request to Join Team"}
+            </ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>
+              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled
+                ? "Select a class and role to request membership."
+                : "Select a team and role to request membership."}
+            </ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          <div className="space-y-4 pt-4">
+            {/* Only show club filter if not in club mode */}
+            {!activeClubFilter && (
+              <MobileCardSelect
+                value={selectedClubForTeam || "all"}
+                onValueChange={(v) => {
+                  setSelectedClubForTeam(v);
+                  setSelectedTeam(""); // Reset selection when club changes
+                }}
+                options={[
+                  { value: "all", label: "All clubs" },
+                  ...(clubs?.map((club) => ({
+                    value: club.id,
+                    label: club.name,
+                    icon: <span>{getSportEmoji(club.sport)}</span>,
+                  })) || [])
+                ]}
+                label="Select Club (optional)"
+                placeholder="All clubs..."
+                searchable
+                searchPlaceholder="Search clubs..."
+                emptyMessage="No clubs found."
+              />
+            )}
+            <MobileCardSelect
+              value={selectedTeam}
+              onValueChange={setSelectedTeam}
+              options={[
+                // Teams section
+                ...(teams
+                  ?.filter(team => {
+                    if (activeClubFilter) {
+                      return team.club_id === activeClubFilter;
+                    }
+                    return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
+                  })
+                  .map((team) => ({
+                    value: team.id,
+                    label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
+                    icon: <span>{getSportEmoji(team.clubs?.sport)}</span>,
+                  })) || []),
+                // Mini Leagues section - prefixed with "league_" to distinguish from teams
+                ...(miniLeagues
+                  ?.filter(league => {
+                    if (activeClubFilter) {
+                      return league.club_id === activeClubFilter;
+                    }
+                    return !selectedClubForTeam || selectedClubForTeam === "all" || league.club_id === selectedClubForTeam;
+                  })
+                  .map((league) => ({
+                    value: `league_${league.id}`,
+                    label: activeClubFilter 
+                      ? `⭐ ${league.name} (League)` 
+                      : `⭐ ${league.name} (${league.clubs?.name}) - League`,
+                    icon: <span>⭐</span>,
+                  })) || []),
+              ]}
+              label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Select Class" : "Select Team"}
+              placeholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Choose a class..." : "Choose a team..."}
+              searchable
+              searchPlaceholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Search classes..." : "Search teams..."}
+              emptyMessage={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "No classes found." : "No teams found."}
+            />
+            {isLeagueSelected ? (
+              <MobileCardSelect
+                value={selectedLeagueRole}
+                onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}
+                options={leagueRoleOptions}
+                label="Select Role"
+                placeholder="Choose a role..."
+              />
+            ) : (
+              <MobileCardSelect
+                value={selectedTeamRole}
+                onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}
+                options={teamRoleOptions}
+                label="Select Role"
+                placeholder="Choose a role..."
+              />
+            )}
+          </div>
+          <ResponsiveDialogFooter>
+            {(hasExistingTeamRole || hasExistingLeagueRole) && (
+              <p className="text-sm text-destructive mb-2">
+                You already have this role in this {isLeagueSelected ? "league" : "team"}
+              </p>
+            )}
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => teamRequestMutation.mutate()}
+              disabled={!selectedTeam || teamRequestMutation.isPending || hasExistingTeamRole || hasExistingLeagueRole}
+            >
+              {teamRequestMutation.isPending ? "Submitting..." : "Submit Request"}
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+
+      <section aria-label="Points and rewards">
+      <Card className="border bg-primary/[0.04]">
+        <CardContent className="px-4 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2 rounded-xl bg-primary/10 shrink-0">
+                <Flame className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
+                  </span>
+                  {showProBadge && (
+                    <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
+                      <Lock className="h-2.5 w-2.5 mr-0.5" />
+                      Pro
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-2xl font-bold leading-tight">{profile?.ignite_points || 0}</p>
+                {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {minRewardThreshold - (profile?.ignite_points || 0)} points to next reward
+                  </p>
                 )}
-                <p className="text-primary-foreground/80 text-sm font-medium">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</p>
-                {showProBadge && (
-                  <Badge variant="outline" className="text-xs bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground py-0 h-5">
-                    <Lock className="h-3 w-3 mr-1" />
-                    Pro
-                  </Badge>
+                {minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
+                  <p className="text-xs text-primary font-medium mt-0.5">
+                    Rewards available!
+                  </p>
+                )}
+                {latestPendingRedemption && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
+                  </p>
                 )}
               </div>
-              <p className="text-3xl font-bold text-primary-foreground">
-                {profile?.ignite_points || 0}
-              </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="shrink-0">
               {latestPendingRedemption ? (
                 <Button
                   size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5"
+                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs"
                   onClick={() => setClaimDialogOpen(true)}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Mark as Claimed
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Claim
                 </Button>
-              ) : minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold ? (
+              ) : (
                 <Button
                   size="sm"
-                  variant="secondary"
-                  className="gap-1.5"
+                  variant="ghost"
+                  className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
                   onClick={handleBrowseRewards}
                 >
-                  <Gift className="h-4 w-4" />
-                  View Rewards
+                  <Gift className="h-3.5 w-3.5" />
+                  Browse
                 </Button>
-              ) : null}
+              )}
             </div>
           </div>
-          {!latestPendingRedemption && minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-            <div className="flex items-center justify-between mt-2">
-              <p className="text-primary-foreground/70 text-sm">
-                💡 {minRewardThreshold - (profile?.ignite_points || 0)} more points to unlock rewards!
-              </p>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                className="text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 h-7 px-2"
-                onClick={handleBrowseRewards}
-              >
-                <Gift className="h-3.5 w-3.5 mr-1" />
-                Browse
-              </Button>
+          {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
+            <div className="mt-3" role="progressbar" aria-valuenow={profile?.ignite_points || 0} aria-valuemin={0} aria-valuemax={minRewardThreshold} aria-label="Progress to next reward">
+              <div className="h-1 rounded-full bg-muted overflow-hidden">
+                <div 
+                  className="h-full rounded-full bg-primary/70 transition-all"
+                  style={{ width: `${Math.min(100, ((profile?.ignite_points || 0) / minRewardThreshold) * 100)}%` }}
+                />
+              </div>
             </div>
           )}
-          {latestPendingRedemption && (
-            <p className="text-primary-foreground/80 text-sm mt-2">
-              🎁 You have a reward ready to claim: {latestPendingRedemption.club_rewards?.name}
-            </p>
-          )}
-          {!latestPendingRedemption && minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
-            <p className="text-primary-foreground/80 text-sm mt-2">
-              🎁 You have rewards available! Tap to browse and redeem.
-            </p>
-          )}
-          {!latestPendingRedemption && minRewardThreshold === null && (
-            <p className="text-primary-foreground/60 text-sm mt-2">
-              ✨ Earn points through club activities — rewards coming soon!
-            </p>
-          )}
-          {/* How to earn points hints - collapsible */}
-          <Collapsible
-            open={earnPointsOpen}
-            onOpenChange={(open) => {
-              setEarnPointsOpen(open);
-              if (!open) {
-                localStorage.setItem('earnPointsHintsSeen', 'true');
-              }
-            }}
-          >
-            <div className="mt-3 pt-3 border-t border-primary-foreground/15">
-              <CollapsibleTrigger className="flex items-center justify-between w-full active:scale-[0.99] transition-transform">
-                <p className="text-primary-foreground/60 text-xs font-medium uppercase tracking-wide">Earn points by</p>
-                <ChevronDown className={`h-3.5 w-3.5 text-primary-foreground/50 transition-transform duration-200 ${earnPointsOpen ? 'rotate-180' : ''}`} />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-1.5">
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    💬 Chat activity
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    📸 Uploading photos
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    🤝 Volunteering
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    🎯 Early RSVPs
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    💬 Photo comments
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    📋 Attending events
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs bg-primary-foreground/15 text-primary-foreground/90 rounded-full px-2.5 py-1">
-                    🔥 Weekly streaks
-                  </span>
-                </div>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
         </CardContent>
       </Card>
+      </section>
 
       {/* Reward Claim QR Dialog */}
       {latestPendingRedemption && user && (
@@ -1864,6 +2368,7 @@ export default function HomePage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Pro Upgrade Card */}
       {hasProAccess === false && userRoles && userRoles.length > 0 && userClubs.length > 0 && (() => {
         const isAnyAdmin = userRoles.some(r => r.role === "club_admin" || r.role === "team_admin");
         return (
@@ -1943,570 +2448,6 @@ export default function HomePage() {
         </ResponsiveDialogContent>
       </ResponsiveDialog>
 
-      {/* Upcoming Classes Widget - for parents with enrolled children */}
-      <UpcomingClassesWidget />
-
-      {/* Upcoming Schedule - Moved above Quick Actions */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Upcoming Schedule</h2>
-          <Link to="/events" className="text-sm text-primary hover:underline">
-            View all
-          </Link>
-        </div>
-
-        <div aria-live="polite" aria-busy={isLoading} aria-label={`Upcoming schedule${events?.length ? `, ${events.length} event${events.length === 1 ? '' : 's'}` : ''}`}>
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <Card key={i}>
-                <CardContent className="p-4">
-                  <div className="space-y-2 animate-pulse">
-                    <div className="flex items-center gap-2">
-                      <div className="h-5 w-16 bg-muted rounded" />
-                      <div className="h-4 w-24 bg-muted rounded" />
-                    </div>
-                    <div className="h-5 w-48 bg-muted rounded" />
-                    <div className="h-4 w-32 bg-muted rounded" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : events?.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="p-8 text-center">
-              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Nothing scheduled</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {userClubs && userClubs.length > 0 
-                  ? "Nothing scheduled yet" 
-                  : "Join a club or create one to see your schedule"}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {events?.map((event) => {
-              const typeColorMap: Record<string, string> = {
-                game: 'border-l-destructive',
-                training: 'border-l-primary',
-                social: 'border-l-warning',
-              };
-              const typeBorderClass = typeColorMap[event.type] || 'border-l-primary';
-              
-              return (
-              <Card 
-                key={event.id} 
-                className={`hover:border-primary/50 transition-colors cursor-pointer border-l-[3px] ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
-                onClick={() => navigate(`/events/${event.id}`)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
-                tabIndex={0}
-                role="link"
-                aria-label={`${event.title}${event.is_cancelled ? ' (Cancelled)' : ''}`}
-              >
-                <CardContent className="p-3 pl-3.5">
-                  {/* Row 1: Title + RSVP */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? 'line-through' : ''}`}>{event.title}</h3>
-                      <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0 font-normal text-muted-foreground">
-                        {event.teams?.name || event.clubs?.name}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {event.is_cancelled && (
-                        <Badge variant="destructive" className="text-[11px] h-5">Cancelled</Badge>
-                      )}
-                      {!event.is_cancelled && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 text-[11px] px-2 rounded-md"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setQuickRsvpEvent(event);
-                          }}
-                        >
-                          {getRsvpIcon(getUserRsvpStatus(event.id))}
-                          RSVP
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  {/* Row 2: Date + location + admin actions */}
-                  <div className="flex items-center justify-between mt-0.5">
-                    <div className="flex items-center gap-3 text-[13px] text-muted-foreground flex-wrap min-w-0">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3 shrink-0" />
-                        {formatEventDate(event.event_date)}
-                      </span>
-                      {event.suburb && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          {event.suburb}
-                        </span>
-                      )}
-                    </div>
-                    {canManageEvent(event) && (
-                      <div className="flex items-center shrink-0 -mr-1" onClick={(e) => e.stopPropagation()}>
-                        <Link to={`/events/${event.id}/edit`} onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                        </Link>
-                        {!event.is_cancelled && (
-                          <>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              className="h-7 w-7 text-primary"
-                              disabled={loadingRemindCount}
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setLoadingRemindCount(true);
-                                
-                                const { data: rsvps } = await supabase
-                                  .from("rsvps")
-                                  .select("user_id")
-                                  .eq("event_id", event.id);
-                                
-                                const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-                                
-                                let allMemberIds: string[] = [];
-                                
-                                if (event.mini_league_id) {
-                                  const { data: league } = await supabase
-                                    .from("mini_leagues")
-                                    .select("club_id")
-                                    .eq("id", event.mini_league_id)
-                                    .single();
-                                  
-                                  if (league) {
-                                    const { data: playersData } = await supabase
-                                      .from("mini_league_players")
-                                      .select("parent_user_id")
-                                      .eq("mini_league_id", event.mini_league_id)
-                                      .not("parent_user_id", "is", null);
-                                    
-                                    const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-                                    
-                                    const { data: adminRoles } = await supabase
-                                      .from("user_roles")
-                                      .select("user_id")
-                                      .eq("club_id", league.club_id)
-                                      .in("role", ["club_admin", "league_admin", "coach"]);
-                                    
-                                    const adminIds = adminRoles?.map(r => r.user_id) || [];
-                                    
-                                    allMemberIds = [...new Set([...parentIds, ...adminIds])];
-                                  }
-                                } else {
-                                  let memberQuery = supabase.from("user_roles").select("user_id");
-                                  if (event.team_id) {
-                                    memberQuery = memberQuery.eq("team_id", event.team_id);
-                                  } else {
-                                    memberQuery = memberQuery.eq("club_id", event.club_id);
-                                  }
-                                  
-                                  const { data: members } = await memberQuery;
-                                  allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-                                }
-                                const count = allMemberIds.filter(id => !rsvpUserIds.includes(id)).length;
-                                
-                                setNonRsvpCount(count);
-                                setEventToRemind(event);
-                                setRemindDialogOpen(true);
-                                setLoadingRemindCount(false);
-                              }}
-                            >
-                              {loadingRemindCount ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Bell className="h-3 w-3" />
-                              )}
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              className="h-7 w-7 text-warning"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setEventToCancel(event);
-                                setCancelDialogOpen(true);
-                              }}
-                            >
-                              <XCircle className="h-3 w-3" />
-                            </Button>
-                          </>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="h-7 w-7 text-destructive"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setEventToDelete(event);
-                            setDeleteDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              );
-            })}
-          </div>
-        )}
-        </div>
-      </section>
-
-      {/* Quick Actions */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Quick Actions</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {/* Create Team button - show for all but indicate admin-only when in club mode */}
-          {(() => {
-            const isClubAdmin = userRoles?.some(r => r.role === 'club_admin' && r.club_id === activeClubFilter);
-            const showAdminIndicator = activeClubFilter && !isClubAdmin;
-            
-            return (
-              <Button 
-                variant="outline" 
-                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
-                aria-label={activeClubFilter ? "Create Team" : "Create Team or Club"}
-                aria-disabled={showAdminIndicator || undefined}
-                onClick={() => {
-                  if (showAdminIndicator) {
-                    toast({ description: "Only club admins can create teams" });
-                    return;
-                  }
-                  if (activeClubFilter) {
-                    navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-                  } else {
-                    navigate("/clubs", { state: { fromCreateTeam: true } });
-                  }
-                }}
-              >
-                <UserPlus className="h-5 w-5 text-foreground" aria-hidden="true" />
-                <span className="text-sm">{activeClubFilter ? "Create Team" : "Create Team or Club"}</span>
-                {showAdminIndicator && (
-                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">
-                    Admin
-                  </span>
-                )}
-              </Button>
-            );
-          })()}
-          <Button 
-            variant="outline" 
-            className="w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2"
-            aria-label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}
-            onClick={() => setTeamDialogOpen(true)}
-          >
-            <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />
-            <span className="text-sm">{activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team"}</span>
-          </Button>
-          {(() => {
-            // Vault access requires: Pro subscription AND admin/coach role
-            const hasVaultRoleAccess = isAppAdmin || userRoles?.some(r => 
-              ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
-            );
-            const proResolved = !!userRoles && !isLoadingProAccess && !isLoadingUserRoles;
-            const canAccessVault = (hasProAccess || isAppAdmin) && hasVaultRoleAccess;
-            const showVaultRestricted = proResolved && !canAccessVault;
-            
-            return (
-              <Button 
-                variant="outline" 
-                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showVaultRestricted ? 'opacity-60' : ''}`}
-                aria-label={`File Vault${showProBadge ? ' (Pro feature)' : ''}`}
-                aria-disabled={showVaultRestricted || undefined}
-                onClick={() => {
-                  if (!hasVaultRoleAccess) {
-                    toast({
-                      description: "Only admins, coaches, and committee members can access the File Vault",
-                    });
-                    return;
-                  }
-                  if (showProBadge) {
-                    toast({
-                      description: "File Vault is a Pro feature. Upgrade to access.",
-                    });
-                    return;
-                  }
-                  navigate("/vault");
-                }}
-              >
-                <div className="flex items-center gap-1">
-                  <FolderOpen className="h-5 w-5 text-foreground" aria-hidden="true" />
-                  {showProBadge && (
-                    <Lock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-                  )}
-                </div>
-                <span className="text-sm flex items-center gap-1">
-                  File Vault
-                  {showProBadge && (
-                    <Badge variant="secondary" className="text-[8px] px-1 py-0">PRO</Badge>
-                  )}
-                </span>
-                {showVaultRestricted && (
-                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
-                )}
-              </Button>
-            );
-          })()}
-          {(() => {
-            const canCreateEvents = userRoles?.some(r => 
-              ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member', 'app_admin'].includes(r.role)
-            );
-            const showAdminIndicator = !canCreateEvents;
-            
-            return (
-              <Button 
-                variant="outline" 
-                className={`w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2 relative ${showAdminIndicator ? 'opacity-60' : ''}`}
-                aria-label="New Event"
-                aria-disabled={showAdminIndicator || undefined}
-                onClick={() => {
-                  if (showAdminIndicator) {
-                    toast({
-                      description: "Only admins and coaches can create events",
-                    });
-                    return;
-                  }
-                  navigate('/events/new');
-                }}
-              >
-                <Plus className="h-5 w-5 text-foreground" aria-hidden="true" />
-                <span className="text-sm">New Event</span>
-                {showAdminIndicator && (
-                  <span className="absolute top-1 right-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Admin</span>
-                )}
-              </Button>
-            );
-          })()}
-        </div>
-      </section>
-
-      {/* Join Team/Club Dialogs */}
-      <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
-        <ResponsiveDialogContent>
-          <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Request to Join Club</ResponsiveDialogTitle>
-            <ResponsiveDialogDescription>
-              Select a club and role to request membership.
-            </ResponsiveDialogDescription>
-          </ResponsiveDialogHeader>
-          <div className="space-y-4 pt-4">
-            {/* Only show club selector if not in club mode */}
-            {!activeClubFilter ? (
-              <MobileCardSelect
-                value={selectedClub}
-                onValueChange={setSelectedClub}
-                options={clubs?.map((club) => ({
-                  value: club.id,
-                  label: club.name,
-                  icon: <span>{getSportEmoji(club.sport)}</span>,
-                })) || []}
-                label={`Select Club ${clubs ? `(${clubs.length} available)` : "(loading...)"}`}
-                placeholder="Choose a club..."
-                searchable
-                searchPlaceholder="Search clubs..."
-                emptyMessage={clubsLoading ? "Loading clubs..." : clubsError ? `Error: ${clubsError.message}` : "No clubs found."}
-              />
-            ) : (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Club</label>
-                <div className="flex items-center gap-2 p-4 rounded-xl border-2 border-primary bg-primary/5">
-                  <span>{getSportEmoji(clubs?.find(c => c.id === activeClubFilter)?.sport)}</span>
-                  <span className="font-medium">{clubs?.find(c => c.id === activeClubFilter)?.name}</span>
-                </div>
-              </div>
-            )}
-            <MobileCardSelect
-              value={selectedClubRole}
-              onValueChange={(v) => setSelectedClubRole(v as ClubRole)}
-              options={clubRoleOptions}
-              label="Select Role"
-              placeholder="Choose a role..."
-            />
-          </div>
-          <ResponsiveDialogFooter>
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => clubRequestMutation.mutate()}
-              disabled={!(activeClubFilter || selectedClub) || clubRequestMutation.isPending}
-            >
-              {clubRequestMutation.isPending ? "Submitting..." : "Submit Request"}
-            </Button>
-          </ResponsiveDialogFooter>
-        </ResponsiveDialogContent>
-      </ResponsiveDialog>
-
-      <ResponsiveDialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
-        <ResponsiveDialogContent>
-          <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>
-              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Request to Join Class" : "Request to Join Team"}
-            </ResponsiveDialogTitle>
-            <ResponsiveDialogDescription>
-              {activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled
-                ? "Select a class and role to request membership."
-                : "Select a team and role to request membership."}
-            </ResponsiveDialogDescription>
-          </ResponsiveDialogHeader>
-          <div className="space-y-4 pt-4">
-            {/* Only show club filter if not in club mode */}
-            {!activeClubFilter && (
-              <MobileCardSelect
-                value={selectedClubForTeam || "all"}
-                onValueChange={(v) => {
-                  setSelectedClubForTeam(v);
-                  setSelectedTeam(""); // Reset selection when club changes
-                }}
-                options={[
-                  { value: "all", label: "All clubs" },
-                  ...(clubs?.map((club) => ({
-                    value: club.id,
-                    label: club.name,
-                    icon: <span>{getSportEmoji(club.sport)}</span>,
-                  })) || [])
-                ]}
-                label="Select Club (optional)"
-                placeholder="All clubs..."
-                searchable
-                searchPlaceholder="Search clubs..."
-                emptyMessage="No clubs found."
-              />
-            )}
-            <MobileCardSelect
-              value={selectedTeam}
-              onValueChange={setSelectedTeam}
-              options={[
-                // Teams section
-                ...(teams
-                  ?.filter(team => {
-                    if (activeClubFilter) {
-                      return team.club_id === activeClubFilter;
-                    }
-                    return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
-                  })
-                  .map((team) => ({
-                    value: team.id,
-                    label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
-                    icon: <span>{getSportEmoji(team.clubs?.sport)}</span>,
-                  })) || []),
-                // Mini Leagues section - prefixed with "league_" to distinguish from teams
-                ...(miniLeagues
-                  ?.filter(league => {
-                    if (activeClubFilter) {
-                      return league.club_id === activeClubFilter;
-                    }
-                    return !selectedClubForTeam || selectedClubForTeam === "all" || league.club_id === selectedClubForTeam;
-                  })
-                  .map((league) => ({
-                    value: `league_${league.id}`,
-                    label: activeClubFilter 
-                      ? `⭐ ${league.name} (League)` 
-                      : `⭐ ${league.name} (${league.clubs?.name}) - League`,
-                    icon: <span>⭐</span>,
-                  })) || []),
-              ]}
-              label={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Select Class" : "Select Team"}
-              placeholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Choose a class..." : "Choose a team..."}
-              searchable
-              searchPlaceholder={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Search classes..." : "Search teams..."}
-              emptyMessage={activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "No classes found." : "No teams found."}
-            />
-            {isLeagueSelected ? (
-              <MobileCardSelect
-                value={selectedLeagueRole}
-                onValueChange={(v) => setSelectedLeagueRole(v as LeagueRole)}
-                options={leagueRoleOptions}
-                label="Select Role"
-                placeholder="Choose a role..."
-              />
-            ) : (
-              <MobileCardSelect
-                value={selectedTeamRole}
-                onValueChange={(v) => setSelectedTeamRole(v as TeamRole)}
-                options={teamRoleOptions}
-                label="Select Role"
-                placeholder="Choose a role..."
-              />
-            )}
-          </div>
-          <ResponsiveDialogFooter>
-            {(hasExistingTeamRole || hasExistingLeagueRole) && (
-              <p className="text-sm text-destructive mb-2">
-                You already have this role in this {isLeagueSelected ? "league" : "team"}
-              </p>
-            )}
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => teamRequestMutation.mutate()}
-              disabled={!selectedTeam || teamRequestMutation.isPending || hasExistingTeamRole || hasExistingLeagueRole}
-            >
-              {teamRequestMutation.isPending ? "Submitting..." : "Submit Request"}
-            </Button>
-          </ResponsiveDialogFooter>
-        </ResponsiveDialogContent>
-      </ResponsiveDialog>
-      {/* My Soccer Teams - Pitch Board Access (last 2 used) */}
-      {displayedTeams.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Pitch Boards</h2>
-            {sortedTeams.length > 2 && (
-              <button 
-                onClick={() => setPitchBoardsExpanded(!pitchBoardsExpanded)}
-                className="text-sm text-muted-foreground hover:text-foreground hover:underline"
-                aria-expanded={pitchBoardsExpanded}
-              >
-                {pitchBoardsExpanded ? "Show less" : "View all"}
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {displayedTeams.map((team) => (
-              <Card 
-                key={team.id}
-                className="hover:border-primary/50 transition-colors cursor-pointer"
-                role="button"
-                tabIndex={0}
-                aria-label={`Open pitch board for ${team.name}${team.readOnly ? ' (view only)' : ''}`}
-                onClick={() => openPitchBoard(team.id, team.name, team.readOnly)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    openPitchBoard(team.id, team.name, team.readOnly);
-                  }
-                }}
-              >
-                <CardContent className="p-4 flex flex-col items-center gap-2 relative">
-                  {team.readOnly && (
-                    <Badge variant="secondary" className="absolute top-1 right-1 text-xs px-1 py-0">
-                      View
-                    </Badge>
-                  )}
-                  <LayoutGrid className="h-6 w-6 text-foreground" aria-hidden="true" />
-                  <span className="text-sm font-medium text-center w-full" title={team.name}>
-                    <span className="block truncate">{team.name}</span>
-                  </span>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Club Sponsor Section - shown when a club is selected (not class-mode), or carousel when no filter */}
       {activeClubFilter ? (

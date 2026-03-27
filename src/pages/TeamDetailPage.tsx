@@ -101,6 +101,7 @@ export default function TeamDetailPage() {
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
   const [showPitchBoard, setShowPitchBoard] = useState(false);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
+  const [pitchBoardMembersOverride, setPitchBoardMembersOverride] = useState<Array<{ id: string; user_id: string; role: string; profiles: { display_name: string | null; avatar_url: string | null } | null }>>([]);
   const [isSavingPitchSettings, setIsSavingPitchSettings] = useState(false);
   
   // Handle admin invite dialog from team creation flow
@@ -267,35 +268,26 @@ export default function TeamDetailPage() {
   const { data: teamChildren = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, refetch: refetchChildren } = useQuery({
     queryKey: ["team-children", id],
     queryFn: async () => {
-      // First get the child assignments
-      const { data: assignments, error: assignError } = await supabase
-        .from("child_team_assignments")
-        .select("id, child_id")
-        .eq("team_id", id!);
-      if (assignError) throw assignError;
-      if (!assignments || assignments.length === 0) return [];
-      
-      const childIds = assignments.map(a => a.child_id);
-      
-      // Fetch children separately - this handles RLS better
-      const { data: childrenData, error: childError } = await supabase
-        .from("children")
-        .select("id, name, year_of_birth, parent_id")
-        .in("id", childIds);
-      if (childError) throw childError;
-      
-      // Fetch guardians from child_guardians table
+      const { data: rpcChildren, error: rpcError } = await supabase.rpc("get_team_children_for_pitch_board", {
+        p_team_id: id!,
+      });
+      if (rpcError) throw rpcError;
+
+      const childrenRows = rpcChildren || [];
+      if (childrenRows.length === 0) return [];
+
+      const childIds = childrenRows.map((row) => row.child_id);
+
       const { data: guardianLinks } = await supabase
         .from("child_guardians")
         .select("child_id, guardian_id")
         .in("child_id", childIds);
-      
-      // Collect all parent/guardian IDs
+
       const parentIds = [...new Set([
-        ...(childrenData || []).map(c => c.parent_id).filter(Boolean),
-        ...(guardianLinks || []).map(g => g.guardian_id).filter(Boolean),
+        ...childrenRows.map((c) => c.parent_id).filter(Boolean),
+        ...(guardianLinks || []).map((g) => g.guardian_id).filter(Boolean),
       ])];
-      
+
       let parentProfiles: Record<string, { id: string; display_name: string | null }> = {};
       if (parentIds.length > 0) {
         const { data: profiles } = await supabase
@@ -307,40 +299,37 @@ export default function TeamDetailPage() {
           return acc;
         }, {} as Record<string, { id: string; display_name: string | null }>);
       }
-      
-      // Build guardian map per child
+
       const guardiansByChild: Record<string, string[]> = {};
       for (const link of (guardianLinks || [])) {
         if (!guardiansByChild[link.child_id]) guardiansByChild[link.child_id] = [];
         guardiansByChild[link.child_id].push(link.guardian_id);
       }
-      
-      // Combine the data
-      return assignments.map(assignment => {
-        const child = (childrenData || []).find(c => c.id === assignment.child_id);
-        if (!child) return { id: assignment.id, child_id: assignment.child_id, children: null };
-        
-        // Build list of all parent names (primary + guardians)
+
+      return childrenRows.map((child) => {
         const allParentNames: string[] = [];
         if (child.parent_id && parentProfiles[child.parent_id]?.display_name) {
           allParentNames.push(parentProfiles[child.parent_id].display_name!);
         }
-        for (const gId of (guardiansByChild[child.id] || [])) {
+        for (const gId of (guardiansByChild[child.child_id] || [])) {
           if (gId !== child.parent_id && parentProfiles[gId]?.display_name) {
             allParentNames.push(parentProfiles[gId].display_name!);
           }
         }
-        
+
         return {
-          id: assignment.id,
-          child_id: assignment.child_id,
+          id: child.assignment_id,
+          child_id: child.child_id,
           children: {
-            ...child,
+            id: child.child_id,
+            name: child.child_name,
+            year_of_birth: child.year_of_birth,
+            parent_id: child.parent_id,
             profiles: child.parent_id ? parentProfiles[child.parent_id] : null,
             allParentNames,
           },
         };
-      }).filter(a => a.children !== null);
+      });
     },
     enabled: !!id,
     staleTime: 0,
@@ -411,6 +400,24 @@ export default function TeamDetailPage() {
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
   }, [rawMembers]);
 
+  const pitchBoardMembers = useMemo(() => [
+    ...rawMembers.map(m => ({
+      id: m.id,
+      user_id: m.user_id,
+      role: m.role,
+      profiles: m.profiles,
+    })),
+    ...teamChildren
+      .filter(child => child.children)
+      .map(child => ({
+        id: `child-${child.children.id}`,
+        user_id: child.children.id,
+        role: "player" as string,
+        profiles: { display_name: child.children.name, avatar_url: null },
+      })),
+  ], [rawMembers, teamChildren]);
+
+  const isPitchBoardRosterLoading = isMembersLoading || isMembersFetching || isChildrenLoading || isChildrenFetching;
 
   const { data: userRoles = [], isLoading: isUserRoleLoading } = useQuery({
     queryKey: ["user-team-roles", id, user?.id],
@@ -479,7 +486,7 @@ export default function TeamDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
-        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error")
+        .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error, metadata")
         .eq("team_id", id!)
         .eq("status", "pending")
         .order("created_at", { ascending: false });
@@ -1009,7 +1016,28 @@ export default function TeamDetailPage() {
             <Card 
               className="hover:border-primary/50 transition-colors cursor-pointer"
               onClick={async () => {
-                // Check for nearby game event to auto-link
+                const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
+                const freshMembers = membersResult.data || [];
+                const freshChildren = childrenResult.data || [];
+
+                const nextPitchBoardMembers = [
+                  ...freshMembers.map(m => ({
+                    id: m.id,
+                    user_id: m.user_id,
+                    role: m.role,
+                    profiles: m.profiles,
+                  })),
+                  ...freshChildren
+                    .filter(child => child.children)
+                    .map(child => ({
+                      id: `child-${child.children.id}`,
+                      user_id: child.children.id,
+                      role: "player" as string,
+                      profiles: { display_name: child.children.name, avatar_url: null },
+                    })),
+                ];
+
+                setPitchBoardMembersOverride(nextPitchBoardMembers);
                 const nearbyEventId = await findNearbyGameEvent(id!);
                 setLinkedEventId(nearbyEventId);
                 setShowPitchBoard(true);
@@ -1073,7 +1101,10 @@ export default function TeamDetailPage() {
                 <Badge variant="secondary" className="ml-2">
                   {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
                     ? "..."
-                    : Object.keys(members).length + teamChildren.length}
+                    : Object.keys(members).length + teamChildren.length + pendingInvites.reduce((count, inv) => {
+                        const meta = inv.metadata as { children?: { name: string }[] } | null;
+                        return count + (meta?.children?.length || 0);
+                      }, 0)}
                 </Badge>
                 <Button
                   variant="ghost"
@@ -1275,7 +1306,10 @@ export default function TeamDetailPage() {
                     ))}
                     
                     {/* Children Section */}
-                    {teamChildren.length > 0 && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
+                    {(teamChildren.length > 0 || pendingInvites.some(inv => {
+                      const meta = inv.metadata as { children?: { name: string }[] } | null;
+                      return meta?.children && meta.children.length > 0;
+                    })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
                       <div className="mt-4 pt-4 border-t">
                         <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
                         <div className="space-y-2">
@@ -1306,6 +1340,35 @@ export default function TeamDetailPage() {
                               </Card>
                             );
                           })}
+                          {/* Pending Children from unaccepted invites */}
+                          {pendingInvites.flatMap(inv => {
+                            const meta = inv.metadata as { children?: { name: string }[] } | null;
+                            if (!meta?.children) return [];
+                            return meta.children.map((child, idx) => ({
+                              key: `pending-child-${inv.id}-${idx}`,
+                              name: child.name,
+                              parentLabel: inv.invited_label || inv.invited_email?.split("@")[0] || "Pending Parent",
+                            }));
+                          }).map(pendingChild => (
+                            <Card key={pendingChild.key} className="opacity-70">
+                              <CardContent className="p-3 flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm">
+                                    {pendingChild.name?.charAt(0)?.toUpperCase() || "?"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">{pendingChild.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Parent: {pendingChild.parentLabel}
+                                  </p>
+                                </div>
+                                <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
+                                  Pending
+                                </Badge>
+                              </CardContent>
+                            </Card>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -1826,7 +1889,7 @@ export default function TeamDetailPage() {
         </Accordion>
       )}
       {/* Pitch Board Modal */}
-      {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && rawMembers && createPortal(
+      {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
             <div className="flex flex-col items-center gap-4">
@@ -1837,36 +1900,43 @@ export default function TeamDetailPage() {
                 <span className="text-4xl animate-bounce">⚽</span>
               </div>
               <Loader2 className="h-6 w-6 animate-spin text-white" />
-              <p className="text-lg font-medium text-white">Loading Pitch Board...</p>
+              <p className="text-lg font-medium text-white">
+                {isPitchBoardRosterLoading ? "Loading players..." : "Loading Pitch Board..."}
+              </p>
             </div>
           </div>
         }>
-          <PitchBoard
-            teamId={id!}
-            teamName={team.name}
-            members={rawMembers.map(m => ({
-              id: m.id,
-              user_id: m.user_id,
-              role: m.role,
-              profiles: m.profiles
-            }))}
-            onClose={() => {
-              setShowPitchBoard(false);
-              setLinkedEventId(null);
-            }}
-            disableAutoSubs={teamSubscription?.disable_auto_subs || false}
-            initialRotationSpeed={teamSubscription?.rotation_speed || 2}
-            initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
-            initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
-            initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
-            initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
-            initialTeamSize={teamSubscription?.team_size}
-            initialFormation={teamSubscription?.formation || undefined}
-            readOnly={!canEditPitchBoard && !isSubsManager}
-            isSubsManager={!!isSubsManager}
-            initialLinkedEventId={linkedEventId}
-            initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
-          />
+          {isPitchBoardRosterLoading ? (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-6 w-6 animate-spin text-white" />
+                <p className="text-lg font-medium text-white">Loading players...</p>
+              </div>
+            </div>
+          ) : (
+            <PitchBoard
+              teamId={id!}
+              teamName={team.name}
+              members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
+              onClose={() => {
+                setShowPitchBoard(false);
+                setLinkedEventId(null);
+                setPitchBoardMembersOverride([]);
+              }}
+              disableAutoSubs={teamSubscription?.disable_auto_subs || false}
+              initialRotationSpeed={teamSubscription?.rotation_speed || 2}
+              initialDisablePositionSwaps={teamSubscription?.disable_position_swaps || false}
+              initialDisableBatchSubs={teamSubscription?.disable_batch_subs || false}
+              initialRotateGkAtHalftime={teamSubscription?.rotate_gk_at_halftime ?? true}
+              initialMinutesPerHalf={teamSubscription?.minutes_per_half || 10}
+              initialTeamSize={teamSubscription?.team_size}
+              initialFormation={teamSubscription?.formation || undefined}
+              readOnly={!canEditPitchBoard && !isSubsManager}
+              isSubsManager={!!isSubsManager}
+              initialLinkedEventId={linkedEventId}
+              initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
+            />
+          )}
         </Suspense>,
         document.body
       )}
