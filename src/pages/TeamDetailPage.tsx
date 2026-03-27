@@ -1012,7 +1012,7 @@ export default function TeamDetailPage() {
       )}
 
       {/* Secondary Actions - Vault & Pitch Board */}
-      {isMember && (
+      {(isAdmin || isCoachOrAdmin || isClubAdmin) && (
         <div className="grid grid-cols-2 gap-2">
           {(isSubscriptionLoading || isTeamPro) ? (
             <Link to={`/vault?team=${team.id}`} aria-label="Open file vault" className="block">
