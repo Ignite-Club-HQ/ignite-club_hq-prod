@@ -59,7 +59,7 @@ const typeLeftBorder: Record<string, string> = {
   social: "border-l-warning",
 };
 
-function HeroCard({ event }: { event: EventItem }) {
+function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -127,7 +127,7 @@ function HeroCard({ event }: { event: EventItem }) {
 
   return (
     <Card
-      className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl min-w-[300px] w-[calc(100vw-2.5rem)] max-w-[420px] shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl ${fullWidth ? "w-full" : "min-w-[300px] w-[calc(100vw-2.5rem)] max-w-[420px]"} shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
@@ -238,6 +238,7 @@ export function NextUpCarousel({ events }: NextUpCarouselProps) {
 
   const heroEvent = events[0];
   const secondaryEvents = events.slice(1, 6);
+  const hasSecondary = secondaryEvents.length > 0;
 
   return (
     <section className="space-y-3">
@@ -247,15 +248,19 @@ export function NextUpCarousel({ events }: NextUpCarouselProps) {
           View all
         </Link>
       </div>
-      <ScrollArea className="w-full">
-        <div className="flex gap-3 pb-3">
-          <HeroCard event={heroEvent} />
-          {secondaryEvents.map((event) => (
-            <CompactCard key={event.id} event={event} />
-          ))}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      {hasSecondary ? (
+        <ScrollArea className="w-full">
+          <div className="flex gap-3 pb-3">
+            <HeroCard event={heroEvent} />
+            {secondaryEvents.map((event) => (
+              <CompactCard key={event.id} event={event} />
+            ))}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      ) : (
+        <HeroCard event={heroEvent} fullWidth />
+      )}
     </section>
   );
 }
