@@ -665,11 +665,11 @@ export default function TeamDetailPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <h1 className="text-xl font-bold truncate">{team.name}</h1>
-            {isTeamPro && (
-              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+            {isTeamPro && !hasProFootball && (
+              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO</Badge>
             )}
-            {hasProFootball && !isTeamPro && (
-              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+            {hasProFootball && (
+              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
             )}
           </div>
           <p className="text-[11px] text-muted-foreground leading-tight">
