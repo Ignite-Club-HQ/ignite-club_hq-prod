@@ -1095,19 +1095,30 @@ export default function TeamDetailPage() {
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Users className="h-5 w-5 text-primary" />
-                <span className="text-lg font-semibold">Members</span>
-                <Badge variant="secondary" className="ml-2">
+                <span className="text-lg font-semibold">Team</span>
+                <Badge variant="secondary" className="ml-1">
                   {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
                     ? "..."
-                    : Object.keys(members).length + teamChildren.length + pendingInvites.reduce((count, inv) => {
+                    : `${Object.keys(members).length + teamChildren.length + pendingInvites.reduce((count, inv) => {
                         const meta = inv.metadata as { children?: { name: string }[] } | null;
                         return count + (meta?.children?.length || 0);
-                      }, 0)}
+                      }, 0)} members`}
                 </Badge>
+                {/* Show first few avatars inline */}
+                <div className="flex -space-x-2 ml-auto mr-2">
+                  {Object.values(members).slice(0, 3).map((member, i) => (
+                    <Avatar key={i} className="h-6 w-6 border-2 border-background">
+                      <AvatarImage src={member.profile?.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/20 text-primary text-[10px]">
+                        {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                  ))}
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 ml-auto"
+                  className="h-7 w-7"
                   onClick={(e) => {
                     e.stopPropagation();
                     refetchMembers();
