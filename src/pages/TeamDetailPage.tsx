@@ -3,7 +3,10 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy, ChevronRight } from "lucide-react";
+import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
+import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
+import { TeamChatPreview } from "@/components/team/TeamChatPreview";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -641,9 +644,9 @@ export default function TeamDetailPage() {
 
   return (
     <div className="py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => {
+      {/* Header with integrated team identity */}
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => {
           if (window.history.length > 1) {
             navigate(-1);
           } else {
@@ -652,7 +655,50 @@ export default function TeamDetailPage() {
         }}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-2xl font-bold flex-1 truncate">{team.name}</h1>
+        <Avatar className="h-9 w-9 border-2 border-primary/20 shrink-0">
+          <AvatarImage src={team.logo_url || undefined} />
+          <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
+            {team.name?.charAt(0)?.toUpperCase() || "T"}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-bold truncate">{team.name}</h1>
+            {isTeamPro && (
+              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+            )}
+            {hasProFootball && !isTeamPro && (
+              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-tight">
+            {(() => {
+              const coaches = Object.values(members).filter(m => m.roles.some(r => r.role === 'coach'));
+              const coachName = coaches.length > 0 ? coaches[0].profile?.display_name : null;
+              if (coachName) return `Coach: ${coachName}`;
+              if (team.description) return team.description;
+              return null;
+            })()}
+          </p>
+        </div>
+        {/* Stacked member avatars */}
+        <div className="flex -space-x-1.5 shrink-0 mr-1">
+          {Object.values(members).slice(0, 3).map((member, i) => (
+            <Avatar key={i} className="h-6 w-6 border-2 border-background">
+              <AvatarImage src={member.profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-primary/20 text-primary text-[8px]">
+                {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+          ))}
+          {Object.keys(members).length + teamChildren.length > 3 && (
+            <Avatar className="h-6 w-6 border-2 border-background">
+              <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
+                +{Object.keys(members).length + teamChildren.length - 3}
+              </AvatarFallback>
+            </Avatar>
+          )}
+        </div>
           {isAdmin && isClassMode && (
             <Button variant="ghost" size="icon" onClick={() => navigate(`/teams/${id}/edit`)}>
               <Pencil className="h-4 w-4" />
@@ -806,38 +852,6 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Team Info */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-2 border-primary/20">
-              <AvatarImage src={team.logo_url || undefined} />
-              <AvatarFallback className="bg-primary/20 text-primary text-xl">
-                {team.name?.charAt(0)?.toUpperCase() || "T"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xl">{getSportEmoji(team.clubs?.sport)}</span>
-                <span className="font-semibold text-lg">{team.name}</span>
-                {isTeamPro && (
-                  <Badge className="bg-yellow-500 text-yellow-950">PRO</Badge>
-                )}
-                {hasProFootball && (
-                  <Badge className="bg-emerald-500 text-emerald-950">PRO FOOTBALL</Badge>
-                )}
-              </div>
-              <p className="text-muted-foreground text-sm">{team.clubs?.name}</p>
-              {team.level_age && (
-                <Badge variant="outline" className="mt-1">{team.level_age}</Badge>
-              )}
-            </div>
-          </div>
-          {team.description && (
-            <p className="text-muted-foreground text-sm mt-3">{team.description}</p>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Enrolment Link for Class-mode teams - hide if already enrolled */}
       {team.clubs?.class_mode_enabled && team.class_day && !isEnrolledInClass && (
@@ -969,46 +983,63 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Quick Actions - Team Chat only for team members, not club admins who aren't members */}
+      {/* Next Event Card - no label, card speaks for itself */}
       {isMember && (
-        <div className="grid grid-cols-2 gap-3">
-          <Link to={`/messages/${team.id}`} aria-label="Open team chat">
-            <Card className="hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex flex-col items-center gap-2">
-                <MessageCircle className="h-6 w-6 text-primary" aria-hidden="true" />
-                <span className="text-sm font-medium">Team Chat</span>
+        <TeamNextEventCard teamId={id!} clubId={team.club_id} />
+      )}
+
+      {/* Primary Actions - Chat & Schedule */}
+      {isMember && (
+        <div className="space-y-3">
+          <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
+            <Card className="border-primary/20 bg-primary/[0.04] hover:border-primary/50 transition-colors" role="button">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/10">
+                  <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
+                </div>
+                <TeamChatPreview teamId={team.id} />
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
             </Card>
           </Link>
-          <Link to={`/events?team=${team.id}`} aria-label="View team schedule">
+          <Link to={`/events?team=${team.id}`} aria-label="View team schedule" className="block">
             <Card className="hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex flex-col items-center gap-2">
-                <Calendar className="h-6 w-6 text-primary" aria-hidden="true" />
-                <span className="text-sm font-medium">Schedule</span>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/10">
+                  <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold">Schedule</span>
+                  <p className="text-[11px] text-muted-foreground">Events & fixtures</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
             </Card>
           </Link>
-          {/* Vault - show as accessible during loading (optimistic) or when Pro */}
+        </div>
+      )}
+
+      {/* Secondary Actions - Vault & Pitch Board */}
+      {(isAdmin || isCoachOrAdmin || isClubAdmin) && (
+        <div className="grid grid-cols-2 gap-2">
           {(isSubscriptionLoading || isTeamPro) ? (
-            <Link to={`/vault?team=${team.id}`} aria-label="Open file vault">
+            <Link to={`/vault?team=${team.id}`} aria-label="Open file vault" className="block">
               <Card className="hover:border-primary/50 transition-colors" role="button">
-                <CardContent className="p-4 flex flex-col items-center gap-2">
-                  <FolderOpen className="h-6 w-6 text-primary" aria-hidden="true" />
-                  <span className="text-sm font-medium">Vault</span>
+                <CardContent className="p-3 flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <span className="text-xs font-medium">Vault</span>
                 </CardContent>
               </Card>
             </Link>
           ) : (
             <Card className="border-muted bg-muted/30 cursor-not-allowed">
-              <CardContent className="p-4 flex flex-col items-center gap-2 relative">
-                <div className="absolute top-2 right-2">
-                  <Badge variant="secondary" className="text-xs gap-1">
-                    <Lock className="h-3 w-3" />
-                    Pro
-                  </Badge>
-                </div>
-                <FolderOpen className="h-6 w-6 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Vault</span>
+              <CardContent className="p-3 flex items-center gap-2">
+                <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">Vault</span>
+                <Badge variant="secondary" className="text-[10px] ml-auto gap-0.5 h-4 px-1">
+                  <Lock className="h-2.5 w-2.5" />
+                  Pro
+                </Badge>
               </CardContent>
             </Card>
           )}
@@ -1019,70 +1050,43 @@ export default function TeamDetailPage() {
                 const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
                 const freshMembers = membersResult.data || [];
                 const freshChildren = childrenResult.data || [];
-
                 const nextPitchBoardMembers = [
                   ...freshMembers.map(m => ({
-                    id: m.id,
-                    user_id: m.user_id,
-                    role: m.role,
-                    profiles: m.profiles,
+                    id: m.id, user_id: m.user_id, role: m.role, profiles: m.profiles,
                   })),
                   ...freshChildren
                     .filter(child => child.children)
                     .map(child => ({
-                      id: `child-${child.children.id}`,
-                      user_id: child.children.id,
+                      id: `child-${child.children.id}`, user_id: child.children.id,
                       role: "player" as string,
                       profiles: { display_name: child.children.name, avatar_url: null },
                     })),
                 ];
-
                 setPitchBoardMembersOverride(nextPitchBoardMembers);
                 const nearbyEventId = await findNearbyGameEvent(id!);
                 setLinkedEventId(nearbyEventId);
                 setShowPitchBoard(true);
               }}
-              onMouseEnter={() => {
-                // Prefetch player positions data
-                queryClient.prefetchQuery({
-                  queryKey: ["team-player-positions", id],
-                  queryFn: async () => {
-                    const { data } = await supabase
-                      .from("team_player_positions")
-                      .select("*")
-                      .eq("team_id", id!);
-                    return data || [];
-                  },
-                  staleTime: 60000,
-                });
-                // Prefetch formations
-                queryClient.prefetchQuery({
-                  queryKey: ["pitch-formations", id],
-                  queryFn: async () => {
-                    const { data } = await supabase
-                      .from("pitch_formations")
-                      .select("*")
-                      .eq("team_id", id!);
-                    return data || [];
-                  },
-                  staleTime: 60000,
-                });
-              }}
             >
-              <CardContent className="p-4 flex flex-col items-center gap-2">
-                <LayoutGrid className="h-6 w-6 text-primary" />
-                <span className="text-sm font-medium">Pitch Board</span>
+              <CardContent className="p-3 flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4 text-primary" />
+                <span className="text-xs font-medium">Pitch Board</span>
               </CardContent>
             </Card>
           )}
         </div>
       )}
 
+      {/* Latest Photos */}
+      {isMember && (
+        <TeamLatestPhotos teamId={id!} clubId={team.club_id} />
+      )}
+
       {/* Collapsible Sections */}
       {(isMember || isClubAdmin) && (
         <Accordion 
           type="multiple" 
-          defaultValue={[]} 
+          defaultValue={["members"]} 
           className="space-y-4"
           onValueChange={(value) => {
             // Auto-refresh members list when expanding if empty
@@ -1095,21 +1099,33 @@ export default function TeamDetailPage() {
           {/* Members Section */}
           <AccordionItem value="members" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-2 flex-1">
-                <Users className="h-5 w-5 text-primary" />
-                <span className="text-lg font-semibold">Members</span>
-                <Badge variant="secondary" className="ml-2">
-                  {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
-                    ? "..."
-                    : Object.keys(members).length + teamChildren.length + pendingInvites.reduce((count, inv) => {
-                        const meta = inv.metadata as { children?: { name: string }[] } | null;
-                        return count + (meta?.children?.length || 0);
-                      }, 0)}
-                </Badge>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <Users className="h-5 w-5 text-primary shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-base font-semibold leading-tight">Team</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">Players, parents & coaches</span>
+                </div>
+                <div className="flex -space-x-2 ml-auto shrink-0">
+                  {Object.values(members).slice(0, 5).map((member, i) => (
+                    <Avatar key={i} className="h-7 w-7 border-2 border-background">
+                      <AvatarImage src={member.profile?.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/20 text-primary text-[9px]">
+                        {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                  ))}
+                  {Object.keys(members).length + teamChildren.length > 5 && (
+                    <Avatar className="h-7 w-7 border-2 border-background">
+                      <AvatarFallback className="bg-muted text-muted-foreground text-[9px]">
+                        +{Object.keys(members).length + teamChildren.length - 5}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 ml-auto"
+                  className="h-7 w-7"
                   onClick={(e) => {
                     e.stopPropagation();
                     refetchMembers();
@@ -1395,42 +1411,7 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {isMember && (
-          <AccordionItem value="chat-groups" className="border rounded-lg px-4">
-            <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-primary" />
-                <span className="text-lg font-semibold">Chat Groups</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-3 pt-2">
-                {isAdmin && (
-                  <div className="flex justify-end">
-                    <CreateGroupDialog teamId={id} />
-                  </div>
-                )}
-                
-                {/* Standard Team Chat Link */}
-                <Link to={`/messages/${team.id}`}>
-                  <Card className="hover:border-primary/50 transition-colors">
-                    <CardContent className="p-3 flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <MessageCircle className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">Team Chat</p>
-                        <p className="text-xs text-muted-foreground">Main team discussion</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-                
-                <ChatGroupsList teamId={id} canManage={isAdmin} />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-          )}
+
 
           {/* Admin Section - collapsed by default */}
           {isAdmin && (

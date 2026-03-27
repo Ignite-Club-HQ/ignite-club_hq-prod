@@ -1,0 +1,102 @@
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent } from "@/components/ui/card";
+import { Calendar, MapPin, Clock, ChevronRight } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { getEventTypeLabel } from "@/lib/eventTypeLabel";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface TeamNextEventCardProps {
+  teamId: string;
+  clubId: string;
+}
+
+export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
+  const navigate = useNavigate();
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  const { data: nextEvent, isLoading } = useQuery({
+    queryKey: ["team-next-event", teamId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("events")
+        .select("id, title, event_date, start_time, end_time, location_name, location, type, opponent, is_home_game, mini_league_id, is_cancelled")
+        .eq("team_id", teamId)
+        .eq("is_cancelled", false)
+        .gte("event_date", today)
+        .order("event_date", { ascending: true })
+        .order("start_time", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!teamId,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  if (isLoading) {
+    return <Skeleton className="h-24 w-full rounded-lg" />;
+  }
+
+  if (!nextEvent) {
+    return null;
+  }
+
+  const typeLabel = getEventTypeLabel(nextEvent.type, { miniLeagueId: nextEvent.mini_league_id });
+  const eventDate = parseISO(nextEvent.event_date);
+  const locationDisplay = nextEvent.location_name || nextEvent.location;
+
+  return (
+    <Card
+      className="border-primary/30 bg-gradient-to-br from-primary/[0.08] to-primary/[0.03] hover:border-primary/50 transition-all cursor-pointer shadow-sm"
+      onClick={() => navigate(`/events/${nextEvent.id}`)}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          {/* Date badge */}
+          <div className="flex flex-col items-center justify-center rounded-xl bg-primary/15 p-2.5 min-w-[52px]">
+            <span className="text-[11px] font-semibold text-primary uppercase leading-none">
+              {format(eventDate, "EEE")}
+            </span>
+            <span className="text-lg font-bold text-primary leading-tight">
+              {format(eventDate, "d")}
+            </span>
+            <span className="text-[10px] text-primary/70 uppercase leading-none">
+              {format(eventDate, "MMM")}
+            </span>
+          </div>
+
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-primary uppercase tracking-wide">
+                {typeLabel}
+              </span>
+            </div>
+            <p className="font-semibold text-sm truncate">
+              {nextEvent.title}
+              {nextEvent.opponent && (
+                <span className="text-muted-foreground font-normal"> vs {nextEvent.opponent}</span>
+              )}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              {nextEvent.start_time && (
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {nextEvent.start_time.slice(0, 5)}
+                  {nextEvent.end_time && ` – ${nextEvent.end_time.slice(0, 5)}`}
+                </span>
+              )}
+              {locationDisplay && (
+                <span className="flex items-center gap-1 truncate max-w-[180px]">
+                  <MapPin className="h-3 w-3 shrink-0" />
+                  {locationDisplay}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
