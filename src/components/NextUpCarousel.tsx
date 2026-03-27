@@ -238,6 +238,7 @@ export function NextUpCarousel({ events }: NextUpCarouselProps) {
 
   const heroEvent = events[0];
   const secondaryEvents = events.slice(1, 6);
+  const hasSecondary = secondaryEvents.length > 0;
 
   return (
     <section className="space-y-3">
@@ -247,15 +248,19 @@ export function NextUpCarousel({ events }: NextUpCarouselProps) {
           View all
         </Link>
       </div>
-      <ScrollArea className="w-full">
-        <div className="flex gap-3 pb-3">
-          <HeroCard event={heroEvent} />
-          {secondaryEvents.map((event) => (
-            <CompactCard key={event.id} event={event} />
-          ))}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      {hasSecondary ? (
+        <ScrollArea className="w-full">
+          <div className="flex gap-3 pb-3">
+            <HeroCard event={heroEvent} />
+            {secondaryEvents.map((event) => (
+              <CompactCard key={event.id} event={event} />
+            ))}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      ) : (
+        <HeroCard event={heroEvent} fullWidth />
+      )}
     </section>
   );
 }
