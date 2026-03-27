@@ -6,6 +6,7 @@ import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy, ChevronRight } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
+import { TeamChatPreview } from "@/components/team/TeamChatPreview";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
