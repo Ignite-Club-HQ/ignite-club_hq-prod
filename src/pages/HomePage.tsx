@@ -1867,7 +1867,7 @@ export default function HomePage() {
                 <Button
                   key={action.key}
                   variant="outline"
-                  className="w-full h-auto min-h-[4.5rem] py-5 flex flex-col gap-2.5 border-border/80 bg-card hover:bg-accent/50 hover:border-primary/40 transition-all"
+                  className="w-full h-auto min-h-[4.5rem] py-5 flex flex-col gap-2.5 border-border bg-card shadow-sm hover:bg-accent/50 hover:border-primary/40 hover:shadow-md transition-all"
                   aria-label={action.label}
                   onClick={action.onClick}
                 >
@@ -2094,7 +2094,7 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       {/* Points & Rewards - Compact Banner */}
-      <Card className="border bg-card">
+      <Card className="border bg-primary/[0.04]">
         <CardContent className="px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
