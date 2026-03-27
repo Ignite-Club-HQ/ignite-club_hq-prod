@@ -760,6 +760,17 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       };
     }), [members, teamPlayerPositions, miniLeagueTeams]);
 
+  const savedPlayers = savedState?.players || [];
+  const savedRosterMissingCurrentPlayers =
+    savedPlayers.length > 0 && realPlayers.some((player) => !savedPlayers.some((savedPlayer) => savedPlayer.id === player.id));
+  const savedRosterHasNoPlayersOnPitch =
+    savedPlayers.length > 0 && savedPlayers.every((player) => player.position === null);
+  const shouldRebuildFromRealRoster =
+    !!savedState &&
+    !savedState.mockMode &&
+    realPlayers.length > 0 &&
+    (savedPlayers.length === 0 || savedRosterMissingCurrentPlayers || savedRosterHasNoPlayersOnPitch);
+
   // Helper to auto-place players on pitch using formation
   // Only places players in positions they're eligible for based on assignedPositions
   // Uses smart matching to ensure all position types get filled by eligible players
@@ -1034,6 +1045,12 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   // For mini-league mode, auto-place both teams on the pitch
   const [players, setPlayers] = useState<Player[]>(() => {
     console.log("[PitchState] useState init - savedState:", savedState ? "exists" : "null", "realPlayers count:", realPlayers.length);
+    if (shouldRebuildFromRealRoster) {
+      console.log("[PitchState] useState init - rebuilding stale saved roster from live team members");
+      return miniLeagueTeams
+        ? autoPlaceMiniLeaguePlayers(realPlayers, getInitialTeamSize())
+        : autoPlacePlayersOnPitch(realPlayers, getInitialTeamSize(), getInitialFormationIndex(getInitialTeamSize()));
+    }
     if (savedState?.players && savedState.players.length > 0) {
       console.log("[PitchState] useState init - using saved players");
       // For mini-league mode, we need to check if saved state has proper two-team layout
@@ -1087,6 +1104,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Keep playersRef in sync with players state (for use in effects with stale closures)
   playersRef.current = players;
+  const recoveredInvalidSavedRosterRef = useRef(shouldRebuildFromRealRoster);
   
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [touchDragPlayer, setTouchDragPlayer] = useState<string | null>(null);
@@ -1240,7 +1258,26 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Sync players when realPlayers loads asynchronously (e.g. children finishing fetch after PitchBoard opened)
   useEffect(() => {
-    if (mockMode || realPlayers.length === 0 || players.length > 0) return;
+    if (mockMode || realPlayers.length === 0) return;
+
+    if (shouldRebuildFromRealRoster && !recoveredInvalidSavedRosterRef.current) {
+      recoveredInvalidSavedRosterRef.current = true;
+      clearPitchState(teamId);
+      console.log("[PitchState] Restoring live roster because saved state is stale", {
+        savedCount: savedPlayers.length,
+        realCount: realPlayers.length,
+        missingCurrentPlayers: savedRosterMissingCurrentPlayers,
+        noPlayersOnPitch: savedRosterHasNoPlayersOnPitch,
+      });
+      setPlayers(
+        miniLeagueTeams
+          ? autoPlaceMiniLeaguePlayers(realPlayers, teamSize)
+          : autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation)
+      );
+      return;
+    }
+
+    if (players.length > 0) return;
 
     const hasStaleEmptySavedState = !!savedState && !savedState.mockMode && savedState.players.length === 0;
     if (hasStaleEmptySavedState) {
@@ -1254,7 +1291,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         ? autoPlaceMiniLeaguePlayers(realPlayers, teamSize)
         : autoPlacePlayersOnPitch(realPlayers, teamSize, selectedFormation)
     );
-  }, [realPlayers, players.length, mockMode, savedState, teamId, miniLeagueTeams, teamSize, selectedFormation, autoPlaceMiniLeaguePlayers, autoPlacePlayersOnPitch]);
+  }, [realPlayers, players.length, mockMode, savedState, teamId, miniLeagueTeams, teamSize, selectedFormation, autoPlaceMiniLeaguePlayers, autoPlacePlayersOnPitch, shouldRebuildFromRealRoster, savedPlayers.length, savedRosterMissingCurrentPlayers, savedRosterHasNoPlayersOnPitch]);
 
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
