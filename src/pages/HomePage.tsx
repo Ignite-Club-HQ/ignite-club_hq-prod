@@ -276,6 +276,8 @@ export default function HomePage() {
       };
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: allEvents, isLoading } = useQuery({
@@ -336,6 +338,8 @@ export default function HomePage() {
       return filtered as Event[];
     },
     enabled: !!user && !!userMemberships,
+    staleTime: 2 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Filter events by active club theme
@@ -361,6 +365,8 @@ export default function HomePage() {
       return data;
     },
     enabled: !!user && eventIds.length > 0,
+    staleTime: 2 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const getUserRsvpStatus = (eventId: string) => {
@@ -401,7 +407,8 @@ export default function HomePage() {
       return data;
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000, // Prevent refetch flash on app resume
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch pending reward redemptions
@@ -427,6 +434,8 @@ export default function HomePage() {
       return data || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const latestPendingRedemption = pendingRedemptions[0] as {
@@ -473,6 +482,8 @@ export default function HomePage() {
       return clubs || [];
     },
     enabled: !!user && !!userRoles,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Check if user has Pro access (via club or team subscription)
