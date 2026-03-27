@@ -18,6 +18,7 @@ interface TeamOrLeague {
   club_name: string;
   sport: string | null;
   club_id: string;
+  canManage: boolean;
 }
 
 interface NextEventInfo {
