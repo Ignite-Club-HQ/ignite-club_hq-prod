@@ -46,7 +46,7 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
   // Get unread count
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["team-chat-unread", teamId, user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<number> => {
       if (!user?.id) return 0;
 
       // Get last read timestamp
