@@ -1649,53 +1649,52 @@ export default function HomePage() {
               return (
               <Card 
                 key={event.id} 
-                className={`hover:border-primary/50 transition-colors border-l-4 ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
+                className={`hover:border-primary/50 transition-colors cursor-pointer border-l-[3px] ${typeBorderClass} ${event.is_cancelled ? 'opacity-60' : ''}`}
                 role="article"
                 aria-label={`${event.title}${event.is_cancelled ? ' (cancelled)' : ''}, ${formatEventDate(event.event_date)}`}
+                onClick={() => navigate(`/events/${event.id}`)}
               >
-                <CardContent className="p-3">
+                <CardContent className="p-3 pl-3.5">
                   {/* Row 1: Title + RSVP */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <Link to={`/events/${event.id}`} className="font-semibold text-sm leading-tight hover:text-primary transition-colors line-clamp-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? 'line-through' : ''}`}>
                         {event.title}{event.opponent ? ` vs ${event.opponent}` : ''}
-                      </Link>
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                          {event.teams?.name || event.clubs?.name}
-                        </Badge>
-                        {event.is_cancelled && (
-                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 shrink-0">
-                            Cancelled
-                          </Badge>
-                        )}
-                      </div>
+                      </h3>
+                      <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0 font-normal text-muted-foreground">
+                        {event.teams?.name || event.clubs?.name}
+                      </Badge>
+                      {event.is_cancelled && (
+                        <Badge variant="destructive" className="text-[11px] h-5 shrink-0">Cancelled</Badge>
+                      )}
                     </div>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          className="flex items-center gap-1 text-xs font-medium hover:bg-accent/50 transition-colors shrink-0 rounded-full px-2 py-0.5 border border-border/60 mt-0.5"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setQuickRsvpEvent(event);
-                          }}
-                          aria-label={`RSVP status: ${getRsvpLabel(getUserRsvpStatus(event.id))}. Tap to change.`}
-                        >
-                          {getRsvpIcon(getUserRsvpStatus(event.id))}
-                          <span className="text-foreground">{getRsvpLabel(getUserRsvpStatus(event.id))}</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">
-                        Tap to change RSVP
-                      </TooltipContent>
-                    </Tooltip>
+                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className="flex items-center gap-1 text-xs font-medium hover:bg-accent/50 transition-colors rounded-full px-2 py-0.5 border border-border/60"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setQuickRsvpEvent(event);
+                            }}
+                            aria-label={`RSVP status: ${getRsvpLabel(getUserRsvpStatus(event.id))}. Tap to change.`}
+                          >
+                            {getRsvpIcon(getUserRsvpStatus(event.id))}
+                            <span className="text-foreground">{getRsvpLabel(getUserRsvpStatus(event.id))}</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="text-xs">
+                          Tap to change RSVP
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
                   </div>
                   {/* Row 2: Date + Location + Admin actions */}
-                  <div className="flex items-center justify-between gap-2 mt-1.5">
-                    <div className="flex items-center gap-2.5 text-xs text-muted-foreground min-w-0">
-                      <span className="flex items-center gap-1 shrink-0">
-                        <Clock className="h-3 w-3" aria-hidden="true" />
+                  <div className="flex items-center justify-between mt-0.5">
+                    <div className="flex items-center gap-3 text-[13px] text-muted-foreground flex-wrap min-w-0">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
                         {formatEventDate(event.event_date)}
                       </span>
                       {(event.location_name || event.suburb) && (
@@ -1711,11 +1710,11 @@ export default function HomePage() {
                       (r.club_id === event.club_id && r.role === "club_admin") ||
                       (r.role === "league_admin" && r.club_id === event.club_id)
                     )) && (
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center shrink-0 -mr-1" onClick={(e) => e.stopPropagation()}>
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          className="h-9 w-9"
+                          className="h-7 w-7 text-muted-foreground"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1723,14 +1722,14 @@ export default function HomePage() {
                           }}
                           aria-label={`Edit ${event.title}`}
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                          <Pencil className="h-3 w-3" />
                         </Button>
                         {!event.is_cancelled && (
                           <>
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              className="h-9 w-9"
+                              className="h-7 w-7 text-primary"
                               aria-label={`Send reminder for ${event.title}`}
                               onClick={async (e) => {
                                 e.preventDefault();
@@ -1789,15 +1788,15 @@ export default function HomePage() {
                               }}
                             >
                               {loadingRemindCount ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <Loader2 className="h-3 w-3 animate-spin" />
                               ) : (
-                                <Bell className="h-3.5 w-3.5" />
+                                <Bell className="h-3 w-3" />
                               )}
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              className="h-9 w-9 text-warning"
+                              className="h-7 w-7 text-warning"
                               aria-label={`Cancel ${event.title}`}
                               onClick={(e) => {
                                 e.preventDefault();
@@ -1806,14 +1805,14 @@ export default function HomePage() {
                                 setCancelDialogOpen(true);
                               }}
                             >
-                              <XCircle className="h-3.5 w-3.5" />
+                              <XCircle className="h-3 w-3" />
                             </Button>
                           </>
                         )}
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          className="h-9 w-9 text-destructive"
+                          className="h-7 w-7 text-destructive"
                           aria-label={`Delete ${event.title}`}
                           onClick={(e) => {
                             e.preventDefault();
@@ -1822,7 +1821,7 @@ export default function HomePage() {
                             setDeleteDialogOpen(true);
                           }}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     )}
