@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, MessageCircle } from "lucide-react";
+import { Users, Calendar } from "lucide-react";
 import { getCachedTeam, cacheTeams } from "@/lib/clubTeamCache";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 
@@ -46,7 +46,6 @@ export function MyTeamsScroll() {
       if (!roles) return [];
 
       const teamIds = [...new Set(roles.filter(r => r.team_id).map(r => r.team_id))] as string[];
-      const clubIds = [...new Set(roles.filter(r => r.club_id).map(r => r.club_id))] as string[];
 
       const result: TeamOrLeague[] = [];
 
@@ -126,7 +125,7 @@ export function MyTeamsScroll() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch next event per team
+  // Fetch next event per team/league
   const teamIds = items.filter(i => i.type === "team").map(i => i.id);
   const leagueIds = items.filter(i => i.type === "league").map(i => i.id);
 
@@ -188,56 +187,13 @@ export function MyTeamsScroll() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch unread message counts per team
-  const { data: unreadCounts = {} } = useQuery({
-    queryKey: ["team-unread-counts", user?.id, teamIds],
-    queryFn: async () => {
-      if (!user || teamIds.length === 0) return {};
-      const map: Record<string, number> = {};
-
-      // Get last read timestamps from chat_read_receipts for team chats
-      const { data: receipts } = await supabase
-        .from("chat_read_receipts")
-        .select("chat_id, last_read_at")
-        .eq("user_id", user.id)
-        .eq("chat_type", "team");
-
-      const receiptMap: Record<string, string> = {};
-      receipts?.forEach(r => { receiptMap[r.chat_id] = r.last_read_at; });
-
-      // For each team, count messages after last read
-      for (const teamId of teamIds) {
-        const lastRead = receiptMap[teamId];
-        let query = supabase
-          .from("team_messages")
-          .select("id", { count: "exact", head: true })
-          .eq("team_id", teamId)
-          .neq("author_id", user.id)
-          .is("deleted_at", null);
-
-        if (lastRead) {
-          query = query.gt("created_at", lastRead);
-        }
-
-        const { count } = await query;
-        if (count && count > 0) {
-          map[teamId] = count;
-        }
-      }
-
-      return map;
-    },
-    enabled: !!user && teamIds.length > 0,
-    staleTime: 2 * 60 * 1000,
-  });
-
   if (isLoading) {
     return (
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">My Teams</h2>
         <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
           {[1, 2, 3].map(i => (
-            <div key={i} className="shrink-0 w-[140px] h-[100px] rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="shrink-0 w-[140px] h-[96px] rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
       </section>
@@ -252,7 +208,6 @@ export function MyTeamsScroll() {
       <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
         {items.map((item) => {
           const nextEvent = nextEvents[item.id];
-          const unread = unreadCounts[item.id] || 0;
 
           return (
             <button
@@ -264,15 +219,8 @@ export function MyTeamsScroll() {
                   navigate(`/mini-leagues/${item.id}`);
                 }
               }}
-              className="shrink-0 w-[140px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97] relative"
+              className="shrink-0 w-[140px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97]"
             >
-              {/* Unread badge */}
-              {unread > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                  {unread > 99 ? "99+" : unread}
-                </span>
-              )}
-
               {item.logo_url ? (
                 <img
                   src={item.logo_url}
@@ -286,7 +234,7 @@ export function MyTeamsScroll() {
               )}
               <span className="text-xs font-medium text-center w-full truncate">{item.name}</span>
 
-              {/* Contextual info */}
+              {/* Contextual info: next event or type label */}
               {nextEvent ? (
                 <span className="flex items-center gap-1 text-[10px] text-muted-foreground w-full justify-center">
                   <Calendar className="h-2.5 w-2.5 shrink-0" />
@@ -296,14 +244,6 @@ export function MyTeamsScroll() {
                 <span className="text-[10px] text-muted-foreground">League</span>
               ) : (
                 <span className="text-[10px] text-muted-foreground">No upcoming</span>
-              )}
-
-              {/* Unread messages text indicator */}
-              {unread > 0 && (
-                <span className="flex items-center gap-1 text-[10px] text-primary font-medium">
-                  <MessageCircle className="h-2.5 w-2.5" />
-                  {unread} new
-                </span>
               )}
             </button>
           );
