@@ -1405,7 +1405,7 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {isAdmin && (
+          {isMember && (
           <AccordionItem value="chat-groups" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2">
@@ -1415,9 +1415,11 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-3 pt-2">
-                <div className="flex justify-end">
-                  <CreateGroupDialog teamId={id} />
-                </div>
+                {isAdmin && (
+                  <div className="flex justify-end">
+                    <CreateGroupDialog teamId={id} />
+                  </div>
+                )}
                 
                 <ChatGroupsList teamId={id} canManage={isAdmin} />
               </div>
