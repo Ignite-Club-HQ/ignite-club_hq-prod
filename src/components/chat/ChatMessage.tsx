@@ -124,22 +124,33 @@ export const ChatMessage = memo(function ChatMessage({
   const addReactionMutation = useMutation({
     mutationFn: async ({ reactionType, existingReactionId }: { reactionType: string; existingReactionId?: string }) => {
       const messageIdField = getMessageIdField();
+      console.log('[Reaction] Adding reaction', { messageIdField, messageId: id, currentUserId, reactionType, messageType });
+      
+      if (!currentUserId) {
+        console.error('[Reaction] No currentUserId - cannot add reaction');
+        throw new Error('Not authenticated');
+      }
       
       // Query for existing reaction first (same pattern as GroupChatPage)
       const { data: existingReaction, error: fetchError } = await supabase
         .from("message_reactions")
         .select("id, reaction_type")
         .eq(messageIdField, id)
-        .eq("user_id", currentUserId!)
+        .eq("user_id", currentUserId)
         .maybeSingle();
       
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('[Reaction] Fetch existing error:', fetchError);
+        throw fetchError;
+      }
+      
+      console.log('[Reaction] Existing reaction:', existingReaction);
       
       if (existingReaction) {
         if (existingReaction.reaction_type === reactionType) {
           // Same emoji — remove it
           const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
-          if (error) throw error;
+          if (error) { console.error('[Reaction] Delete error:', error); throw error; }
           return;
         } else {
           // Different emoji — update in place
@@ -147,17 +158,20 @@ export const ChatMessage = memo(function ChatMessage({
             .from("message_reactions")
             .update({ reaction_type: reactionType })
             .eq("id", existingReaction.id);
-          if (error) throw error;
+          if (error) { console.error('[Reaction] Update error:', error); throw error; }
           return;
         }
       }
       
       // No existing reaction — insert new
-      const { error } = await supabase.from("message_reactions").insert({
+      const insertPayload = {
         [messageIdField]: id,
-        user_id: currentUserId!,
+        user_id: currentUserId,
         reaction_type: reactionType,
-      });
+      };
+      console.log('[Reaction] Inserting:', insertPayload);
+      const { data: insertData, error } = await supabase.from("message_reactions").insert(insertPayload).select();
+      console.log('[Reaction] Insert result:', { data: insertData, error });
       if (error) throw error;
     },
     onMutate: async ({ reactionType }) => {
