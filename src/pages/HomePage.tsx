@@ -1841,7 +1841,7 @@ export default function HomePage() {
                 <Button
                   size="sm"
                   className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs font-medium"
-                  onClick={() => setClaimDialogOpen(true)}
+                  onClick={(e) => { e.stopPropagation(); setClaimDialogOpen(true); }}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Claim
@@ -1850,7 +1850,7 @@ export default function HomePage() {
                 <Button
                   size="sm"
                   className="gap-1.5 h-8 text-xs font-medium"
-                  onClick={handleBrowseRewards}
+                  onClick={(e) => { e.stopPropagation(); handleBrowseRewards(); }}
                 >
                   <Gift className="h-3.5 w-3.5" />
                   View Rewards
