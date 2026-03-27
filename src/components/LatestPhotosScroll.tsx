@@ -100,7 +100,14 @@ export function LatestPhotosScroll({ showProBadge = false }: LatestPhotosScrollP
     return (
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Latest Photos</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Latest Photos</h2>
+            {showProBadge && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                <Crown className="h-3 w-3" /> Pro
+              </Badge>
+            )}
+          </div>
           <button
             onClick={() => navigate("/media")}
             className="text-sm text-primary hover:underline"
