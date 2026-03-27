@@ -1515,8 +1515,21 @@ export default function HomePage() {
   // Don't block entire page on events loading - show skeleton/loading state inline instead
   // This prevents the "double flash" issue on login where the page loads, then shows loading, then loads again
 
+  const activeClubName = clubs?.find(c => c.id === activeClubFilter)?.name;
+  const firstName = profile?.display_name?.split(' ')[0] || 'there';
+
   return (
     <div className="py-6 space-y-5">
+      {/* Welcome Header */}
+      <div className="px-1">
+        <h1 className="text-2xl font-bold text-foreground">
+          Welcome, {firstName}! 👋
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Here's what's coming up{activeClubName ? ` @ ${activeClubName}` : ''}
+        </p>
+      </div>
+
       {/* Next Up Carousel - unified event section */}
       <NextUpCarousel events={events || []} />
 
