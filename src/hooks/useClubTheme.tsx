@@ -130,6 +130,15 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
     root.style.removeProperty("--accent");
     root.style.removeProperty("--accent-foreground");
     root.style.removeProperty("--ring");
+    // Also clear light-mode branded overrides
+    root.style.removeProperty("--background");
+    root.style.removeProperty("--card");
+    root.style.removeProperty("--card-foreground");
+    root.style.removeProperty("--border");
+    root.style.removeProperty("--input");
+    root.style.removeProperty("--muted");
+    root.style.removeProperty("--popover");
+    root.style.removeProperty("--popover-foreground");
     return;
   }
 
