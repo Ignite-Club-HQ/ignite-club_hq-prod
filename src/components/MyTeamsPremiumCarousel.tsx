@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, Trophy } from "lucide-react";
+import { Users, Calendar, Trophy, Plus, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -18,6 +18,7 @@ interface TeamOrLeague {
   club_name: string;
   sport: string | null;
   club_id: string;
+  canManage: boolean;
 }
 
 interface NextEventInfo {
@@ -115,7 +116,32 @@ function TeamCard({ item, nextEvent, photos }: {
               </span>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground italic">No upcoming events</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground italic">No upcoming events</p>
+              <button
+                className="text-[11px] text-primary font-medium flex items-center gap-0.5 hover:underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (item.canManage) {
+                    navigate("/events/new");
+                  } else {
+                    navigate("/events");
+                  }
+                }}
+              >
+                {item.canManage ? (
+                  <>
+                    <Plus className="h-3 w-3" />
+                    Add event
+                  </>
+                ) : (
+                  <>
+                    View schedule
+                    <ChevronRight className="h-3 w-3" />
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
 
@@ -180,10 +206,14 @@ export function MyTeamsPremiumCarousel() {
 
           for (const team of teams) {
             if (activeClubFilter && team.club_id !== activeClubFilter) continue;
+            const teamRoles = roles.filter(r => r.team_id === team.id);
+            const clubRoles = roles.filter(r => r.club_id === team.club_id);
+            const canManage = teamRoles.some(r => ['coach', 'team_admin'].includes(r.role)) ||
+              clubRoles.some(r => ['club_admin', 'app_admin'].includes(r.role));
             result.push({
               id: team.id, name: team.name, logo_url: team.logo_url, type: "team",
               club_name: team.clubs?.name || "", sport: team.clubs?.sport || null,
-              club_id: team.club_id,
+              club_id: team.club_id, canManage,
             });
           }
         }
@@ -218,10 +248,11 @@ export function MyTeamsPremiumCarousel() {
         if (leagues) {
           for (const league of leagues) {
             if (activeClubFilter && league.club_id !== activeClubFilter) continue;
+            const canManage = leagueAdminClubIds.includes(league.club_id);
             result.push({
               id: league.id, name: league.name, logo_url: null, type: "league",
               club_name: league.clubs?.name || "", sport: league.clubs?.sport || null,
-              club_id: league.club_id,
+              club_id: league.club_id, canManage,
             });
           }
         }
