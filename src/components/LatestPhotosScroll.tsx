@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Image, Crown } from "lucide-react";
+import { Image, Lock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 
@@ -103,8 +103,9 @@ export function LatestPhotosScroll({ showProBadge = false }: LatestPhotosScrollP
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold">Latest Photos</h2>
             {showProBadge && (
-              <Badge variant="secondary" className="gap-1 text-xs">
-                <Crown className="h-3 w-3" /> Pro
+              <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
+                <Lock className="h-2.5 w-2.5 mr-0.5" />
+                Pro
               </Badge>
             )}
           </div>
@@ -132,8 +133,9 @@ export function LatestPhotosScroll({ showProBadge = false }: LatestPhotosScrollP
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">Latest Photos</h2>
           {showProBadge && (
-            <Badge variant="secondary" className="gap-1 text-xs">
-              <Crown className="h-3 w-3" /> Pro
+            <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
+              <Lock className="h-2.5 w-2.5 mr-0.5" />
+              Pro
             </Badge>
           )}
         </div>
