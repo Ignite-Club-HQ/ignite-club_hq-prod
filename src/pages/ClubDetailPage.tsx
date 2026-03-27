@@ -1086,8 +1086,9 @@ export default function ClubDetailPage() {
           const filteredTeams = activeTeams.filter((team) => {
             // Filter by type
             const teamType = (team as any).team_type?.toLowerCase() || "";
+            const isSeniorOrMixed = teamType === "senior" || teamType === "mixed";
             if (teamFilter === "junior" && teamType !== "junior") return false;
-            if (teamFilter === "senior" && teamType !== "senior") return false;
+            if (teamFilter === "senior" && !isSeniorOrMixed) return false;
             if (teamFilter === "my" && !userTeamIds.includes(team.id)) return false;
             
             // Search filter
