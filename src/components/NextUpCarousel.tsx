@@ -120,9 +120,9 @@ function HeroCard({ event }: { event: EventItem }) {
   });
 
   const rsvpButtons: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string }[] = [
-    { status: "going", label: "Going", icon: <CheckCircle2 className="h-4 w-4" />, activeClass: "bg-primary text-primary-foreground hover:bg-primary/90" },
-    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-4 w-4" />, activeClass: "bg-warning text-warning-foreground hover:bg-warning/90" },
-    { status: "not_going", label: "Can't go", icon: <X className="h-4 w-4" />, activeClass: "bg-destructive text-destructive-foreground hover:bg-destructive/90" },
+    { status: "going", label: "Going", icon: <CheckCircle2 className="h-4 w-4" aria-hidden="true" />, activeClass: "bg-primary text-primary-foreground hover:bg-primary/90" },
+    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-4 w-4" aria-hidden="true" />, activeClass: "bg-warning text-warning-foreground hover:bg-warning/90" },
+    { status: "not_going", label: "Can't go", icon: <X className="h-4 w-4" aria-hidden="true" />, activeClass: "bg-destructive text-destructive-foreground hover:bg-destructive/90" },
   ];
 
   return (
