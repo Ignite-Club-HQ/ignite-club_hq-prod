@@ -1107,11 +1107,11 @@ export default function ClubDetailPage() {
           const showGrouped = teamFilter === "all" && !teamSearchQuery.trim();
           
           const juniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "junior") : [];
-          const seniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "senior") : [];
+          const seniorTeams = showGrouped ? filteredTeams.filter(t => { const tt = (t as any).team_type?.toLowerCase(); return tt === "senior" || tt === "mixed"; }) : [];
           const otherTeams = showGrouped 
             ? filteredTeams.filter(t => {
                 const tt = (t as any).team_type?.toLowerCase();
-                return tt !== "junior" && tt !== "senior";
+                return tt !== "junior" && tt !== "senior" && tt !== "mixed";
               })
             : filteredTeams;
 
