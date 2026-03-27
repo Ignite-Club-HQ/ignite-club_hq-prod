@@ -1070,7 +1070,8 @@ export default function HomePage() {
       return data as Club[];
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
   });
 
   const { data: teams, error: teamsError, isLoading: teamsLoading } = useQuery({
@@ -1089,7 +1090,8 @@ export default function HomePage() {
       return data as Team[];
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch all mini leagues for join request dropdown
@@ -1109,7 +1111,8 @@ export default function HomePage() {
       return data as MiniLeague[];
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch user's soccer teams with Pro Football subscription where user is direct team member (coach/team_admin)
