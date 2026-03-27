@@ -182,7 +182,7 @@ export default function HomePage() {
   // Track if user selected a league (prefixed with "league_") or team in the unified dropdown
   const isLeagueSelected = selectedTeam.startsWith("league_");
   const actualLeagueId = isLeagueSelected ? selectedTeam.replace("league_", "") : null;
-  const [pitchBoardTeam, setPitchBoardTeam] = useState<{ id: string; name: string; members: any[]; readOnly: boolean; linkedEventId?: string | null } | null>(null);
+  const [pitchBoardTeam, setPitchBoardTeam] = useState<{ id: string; name: string; members: Array<{ id: string; user_id: string; role: string; profiles: { display_name: string | null; avatar_url: string | null } | null }>; readOnly: boolean; linkedEventId?: string | null } | null>(null);
   const [pitchBoardLoading, setPitchBoardLoading] = useState(false);
   const [pitchBoardsExpanded, setPitchBoardsExpanded] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -1357,19 +1357,39 @@ export default function HomePage() {
         return;
       }
       
-      // Fetch members and check for nearby game in parallel
-      const [membersResult, nearbyEventId] = await Promise.all([
+      // Fetch roster and check for nearby game in parallel
+      const [membersResult, childrenResult, nearbyEventId] = await Promise.all([
         supabase
           .from("user_roles")
           .select("*, profiles (display_name, avatar_url)")
           .eq("team_id", teamId),
+        supabase.rpc("get_team_children_for_pitch_board", {
+          p_team_id: teamId,
+        }),
         findNearbyGameEvent(teamId)
       ]);
+
+      const teamMembers = (membersResult.data || []).map((member) => ({
+        id: member.id,
+        user_id: member.user_id,
+        role: member.role,
+        profiles: member.profiles,
+      }));
+
+      const teamChildren = (childrenResult.data || []).map((child) => ({
+        id: `child-${child.child_id}`,
+        user_id: child.child_id,
+        role: "player",
+        profiles: {
+          display_name: child.child_name,
+          avatar_url: null,
+        },
+      }));
       
       setPitchBoardTeam({ 
         id: teamId, 
         name: teamName, 
-        members: membersResult.data || [], 
+        members: [...teamMembers, ...teamChildren], 
         readOnly,
         linkedEventId: nearbyEventId 
       });
