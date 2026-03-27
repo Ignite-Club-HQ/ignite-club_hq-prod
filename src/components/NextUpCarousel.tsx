@@ -59,7 +59,7 @@ const typeLeftBorder: Record<string, string> = {
   social: "border-l-warning",
 };
 
-function HeroCard({ event }: { event: EventItem }) {
+function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
