@@ -1631,7 +1631,7 @@ export default function HomePage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {events?.map((event) => {
+            {events?.slice(1).map((event) => {
               const typeColorMap: Record<string, string> = {
                 game: 'border-l-destructive',
                 training: 'border-l-primary',
