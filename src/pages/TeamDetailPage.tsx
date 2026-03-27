@@ -411,6 +411,24 @@ export default function TeamDetailPage() {
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
   }, [rawMembers]);
 
+  const pitchBoardMembers = useMemo(() => [
+    ...rawMembers.map(m => ({
+      id: m.id,
+      user_id: m.user_id,
+      role: m.role,
+      profiles: m.profiles,
+    })),
+    ...teamChildren
+      .filter(child => child.children)
+      .map(child => ({
+        id: `child-${child.children.id}`,
+        user_id: child.children.id,
+        role: "player" as string,
+        profiles: { display_name: child.children.name, avatar_url: null },
+      })),
+  ], [rawMembers, teamChildren]);
+
+  const isPitchBoardRosterLoading = isMembersLoading || isMembersFetching || isChildrenLoading || isChildrenFetching;
 
   const { data: userRoles = [], isLoading: isUserRoleLoading } = useQuery({
     queryKey: ["user-team-roles", id, user?.id],
