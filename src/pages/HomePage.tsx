@@ -1784,7 +1784,7 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       <section aria-label="Points and rewards">
-      <Card className="border bg-primary/[0.06] overflow-hidden cursor-pointer" onClick={() => navigate("/profile?section=points-history")}>
+      <Card className="border bg-primary/[0.06] overflow-hidden cursor-pointer" role="button" tabIndex={0} aria-label="View points and rewards" onClick={() => navigate("/profile?section=points-history")} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate("/profile?section=points-history"); } }}>
         <CardContent className="px-4 py-4 space-y-3">
           {/* Primary message area */}
           <div className="flex items-start justify-between gap-3">
@@ -2176,7 +2176,7 @@ export default function HomePage() {
 
       {/* Pitch Board Loading Overlay */}
       {pitchBoardLoading && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
+         <div className="fixed inset-0 z-[9999] flex items-center justify-center" role="status" aria-label="Loading Pitch Board" style={{ backgroundColor: '#2d5a27' }}>
           <div className="flex flex-col items-center gap-4">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-xl bg-primary">
@@ -2196,7 +2196,7 @@ export default function HomePage() {
       {pitchBoardTeam && (
         <Suspense fallback={
           createPortal(
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center" role="status" aria-label="Loading Pitch Board" style={{ backgroundColor: '#2d5a27' }}>
               <div className="flex flex-col items-center gap-4">
                 <div className="flex items-center gap-3">
                   <div className="p-3 rounded-xl bg-primary">

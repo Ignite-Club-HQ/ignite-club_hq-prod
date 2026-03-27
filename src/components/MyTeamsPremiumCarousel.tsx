@@ -63,11 +63,20 @@ function TeamCard({ item, nextEvent, photos }: {
           ? `border-l-[3px] ${accentBorder} shadow-md hover:shadow-lg` 
           : "hover:border-primary/40 shadow-sm hover:shadow-md opacity-80"
       }`}
+      role="button"
+      tabIndex={0}
+      aria-label={`${item.name} — ${item.club_name}`}
       onClick={() => {
         if (item.type === "team") {
           navigate(`/teams/${item.id}`);
         } else {
           navigate(`/mini-leagues/${item.id}`);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
         }
       }}
     >
@@ -107,7 +116,7 @@ function TeamCard({ item, nextEvent, photos }: {
         <div className="space-y-1.5">
           {nextEvent ? (
             <div className="flex items-center gap-2 text-sm">
-              <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
+              <Calendar className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
               <span className="font-medium text-foreground truncate">
                 {nextEvent.title}
               </span>
@@ -149,9 +158,10 @@ function TeamCard({ item, nextEvent, photos }: {
         {photos.length > 0 && (
           <div className="flex gap-1.5">
             {photos.slice(0, 2).map((url, i) => (
-              <div
+              <button
                 key={i}
                 className="h-12 w-16 rounded-md overflow-hidden bg-muted"
+                aria-label="View team photos"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigate(`/media?team=${item.id}`);
@@ -163,7 +173,7 @@ function TeamCard({ item, nextEvent, photos }: {
                   className="h-full w-full object-cover"
                   loading="lazy"
                 />
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -263,7 +273,17 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         }
       }
 
-      return result.sort((a, b) => a.name.localeCompare(b.name));
+      // Sort: admin/coach teams first, then by name
+      return result.sort((a, b) => {
+        // Priority 1: canManage (admin/coach) teams first
+        if (a.canManage && !b.canManage) return -1;
+        if (!a.canManage && b.canManage) return 1;
+        // Priority 2: teams before leagues
+        if (a.type === "team" && b.type === "league") return -1;
+        if (a.type === "league" && b.type === "team") return 1;
+        // Priority 3: alphabetical
+        return a.name.localeCompare(b.name);
+      });
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
@@ -464,7 +484,24 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       <h2 className="text-lg font-semibold">My Teams</h2>
       <ScrollArea className="w-full">
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
-          {items.map((item) => (
+          {[...items]
+            .sort((a, b) => {
+              // Always keep teams ahead of mini leagues
+              if (a.type !== b.type) return a.type === "team" ? -1 : 1;
+              // Within the same type, admin/coach entries first
+              if (a.canManage !== b.canManage) return a.canManage ? -1 : 1;
+              // Then items with upcoming events
+              const aHasEvent = !!nextEvents[a.id];
+              const bHasEvent = !!nextEvents[b.id];
+              if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
+              // Then items with photos (activity)
+              const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
+              const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
+              if (aHasPhotos !== bHasPhotos) return aHasPhotos ? -1 : 1;
+              // Then alphabetical
+              return a.name.localeCompare(b.name);
+            })
+            .map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
               item={item}

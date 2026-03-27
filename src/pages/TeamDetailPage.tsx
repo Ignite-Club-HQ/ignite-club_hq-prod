@@ -457,7 +457,7 @@ export default function TeamDetailPage() {
   const isCoachOrAdmin = userRole === "team_admin" || userRole === "coach" || isAppAdmin;
   const isAdmin = isCoachOrAdmin;
   // isMember includes club admins - they have implicit access to all teams in their club
-  const isMember = userRoles.length > 0 || isAppAdmin;
+  const isMember = userRoles.length > 0 || isAppAdmin || isClubAdmin;
   
   // isClubAdmin is already defined above (before isSubscriptionLoading calculation)
   
@@ -627,9 +627,10 @@ export default function TeamDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="py-6 space-y-6">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-32 w-full" />
+      <div className="py-6 space-y-6" role="status" aria-label="Loading team">
+        <Skeleton className="h-8 w-32" aria-hidden="true" />
+        <Skeleton className="h-32 w-full" aria-hidden="true" />
+        <span className="sr-only">Loading team…</span>
       </div>
     );
   }
@@ -646,14 +647,14 @@ export default function TeamDetailPage() {
     <div className="py-6 space-y-6">
       {/* Header with integrated team identity */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => {
+        <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" aria-label="Go back" onClick={() => {
           if (window.history.length > 1) {
             navigate(-1);
           } else {
             navigate(`/clubs/${team.club_id}`);
           }
         }}>
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
         </Button>
         <Avatar className="h-9 w-9 border-2 border-primary/20 shrink-0">
           <AvatarImage src={team.logo_url || undefined} />
@@ -662,24 +663,24 @@ export default function TeamDetailPage() {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <h1 className="text-xl font-bold truncate">{team.name}</h1>
-            {isTeamPro && (
-              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+          <h1 className="text-xl font-bold truncate">{team.name}</h1>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {isTeamPro && !hasProFootball && (
+              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO</Badge>
             )}
-            {hasProFootball && !isTeamPro && (
-              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+            {hasProFootball && (
+              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
             )}
+            <p className="text-[11px] text-muted-foreground leading-tight truncate">
+              {(() => {
+                const coaches = Object.values(members).filter(m => m.roles.some(r => r.role === 'coach'));
+                const coachName = coaches.length > 0 ? coaches[0].profile?.display_name : null;
+                if (coachName) return `Coach: ${coachName}`;
+                if (team.description) return team.description;
+                return null;
+              })()}
+            </p>
           </div>
-          <p className="text-[11px] text-muted-foreground leading-tight">
-            {(() => {
-              const coaches = Object.values(members).filter(m => m.roles.some(r => r.role === 'coach'));
-              const coachName = coaches.length > 0 ? coaches[0].profile?.display_name : null;
-              if (coachName) return `Coach: ${coachName}`;
-              if (team.description) return team.description;
-              return null;
-            })()}
-          </p>
         </div>
         {/* Stacked member avatars */}
         <div className="flex -space-x-1.5 shrink-0 mr-1">
@@ -700,15 +701,15 @@ export default function TeamDetailPage() {
           )}
         </div>
           {isAdmin && isClassMode && (
-            <Button variant="ghost" size="icon" onClick={() => navigate(`/teams/${id}/edit`)}>
-              <Pencil className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
           {isAdmin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Team options menu">
+                <MoreVertical className="h-5 w-5" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -856,7 +857,11 @@ export default function TeamDetailPage() {
       {/* Enrolment Link for Class-mode teams - hide if already enrolled */}
       {team.clubs?.class_mode_enabled && team.class_day && !isEnrolledInClass && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 hover:border-primary/50 transition-colors cursor-pointer"
+          role="button"
+          tabIndex={0}
+          aria-label="Enrol in this class"
           onClick={() => navigate(`/clubs/${team.club_id}/enrol`)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/clubs/${team.club_id}/enrol`); } }}
         >
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -937,9 +942,10 @@ export default function TeamDetailPage() {
                       <button
                         key={opt.value}
                         type="button"
+                        aria-pressed={selectedRole === opt.value}
                         onClick={() => setSelectedRole(opt.value)}
                         className={`
-                          p-3 rounded-lg border-2 text-left transition-all
+                          p-3 rounded-lg border-2 text-left transition-all min-h-[44px]
                           ${selectedRole === opt.value 
                             ? 'border-primary bg-primary/10 ring-1 ring-primary/20' 
                             : 'border-border hover:border-primary/50 hover:bg-muted/50'
@@ -1046,6 +1052,32 @@ export default function TeamDetailPage() {
           {isSoccerClub && (hasProFootball || isAppAdmin) && (
             <Card 
               className="hover:border-primary/50 transition-colors cursor-pointer"
+              role="button"
+              tabIndex={0}
+              aria-label="Open Pitch Board"
+              onKeyDown={async (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
+                const freshMembers = membersResult.data || [];
+                const freshChildren = childrenResult.data || [];
+                const nextPitchBoardMembers = [
+                  ...freshMembers.map(m => ({
+                    id: m.id, user_id: m.user_id, role: m.role, profiles: m.profiles,
+                  })),
+                  ...freshChildren
+                    .filter(child => child.children)
+                    .map(child => ({
+                      id: `child-${child.children.id}`, user_id: child.children.id,
+                      role: "player" as string,
+                      profiles: { display_name: child.children.name, avatar_url: null },
+                    })),
+                ];
+                setPitchBoardMembersOverride(nextPitchBoardMembers);
+                const nearbyEventId = await findNearbyGameEvent(id!);
+                setLinkedEventId(nearbyEventId);
+                setShowPitchBoard(true);
+              }}
               onClick={async () => {
                 const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
                 const freshMembers = membersResult.data || [];
@@ -1069,7 +1101,7 @@ export default function TeamDetailPage() {
               }}
             >
               <CardContent className="p-3 flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4 text-primary" />
+                <LayoutGrid className="h-4 w-4 text-primary" aria-hidden="true" />
                 <span className="text-xs font-medium">Pitch Board</span>
               </CardContent>
             </Card>
@@ -1100,9 +1132,9 @@ export default function TeamDetailPage() {
           <AccordionItem value="members" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <Users className="h-5 w-5 text-primary shrink-0" />
+                <Users className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
                 <div className="flex flex-col min-w-0">
-                  <span className="text-base font-semibold leading-tight">Team</span>
+                  <h2 className="text-base font-semibold leading-tight">Team</h2>
                   <span className="text-[10px] text-muted-foreground leading-tight">Players, parents & coaches</span>
                 </div>
                 <div className="flex -space-x-2 ml-auto shrink-0">
@@ -1125,7 +1157,8 @@ export default function TeamDetailPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-11 w-11"
+                  aria-label="Refresh members list"
                   onClick={(e) => {
                     e.stopPropagation();
                     refetchMembers();
@@ -1133,7 +1166,7 @@ export default function TeamDetailPage() {
                   }}
                   disabled={isMembersFetching || isChildrenFetching}
                 >
-                  <RefreshCw className={`h-4 w-4 ${isMembersFetching || isChildrenFetching ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-4 w-4 ${isMembersFetching || isChildrenFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
                 </Button>
               </div>
             </AccordionTrigger>
@@ -1225,9 +1258,10 @@ export default function TeamDetailPage() {
                                       <AlertDialogTrigger asChild>
                                         <button
                                           onClick={(e) => e.stopPropagation()}
-                                          className="ml-0.5 hover:bg-destructive/20 rounded-full p-0.5 -mr-1"
+                                          aria-label={`Remove ${label} role`}
+                                          className="ml-0.5 hover:bg-destructive/20 rounded-full p-1.5 -mr-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
                                         >
-                                          <X className="h-3 w-3" />
+                                          <X className="h-3 w-3" aria-hidden="true" />
                                         </button>
                                       </AlertDialogTrigger>
                                     )}
@@ -1400,7 +1434,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
                   <ClipboardCheck className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Attendance</span>
+                  <h2 className="text-lg font-semibold">Attendance</h2>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
@@ -1419,7 +1453,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Settings className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Admin</span>
+                  <h2 className="text-lg font-semibold">Admin</h2>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
@@ -1494,7 +1528,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Crown className="h-5 w-5 text-yellow-500" />
-                  <span className="text-lg font-semibold">App Admin</span>
+                  <h2 className="text-lg font-semibold">App Admin</h2>
                   <Badge className="bg-yellow-500 text-yellow-950 text-xs">Admin Only</Badge>
                 </div>
               </AccordionTrigger>
@@ -1590,7 +1624,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Fee Payments</span>
+                  <h2 className="text-lg font-semibold">Fee Payments</h2>
                   {/* Only show Pro lock when NOT loading AND NOT Pro AND NOT AppAdmin */}
                   {!isSubscriptionLoading && !isTeamPro && !isAppAdmin && (
                     <div className="flex items-center gap-1.5 ml-2">
@@ -1629,7 +1663,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
                   <Building2 className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Team Sponsor</span>
+                  <h2 className="text-lg font-semibold">Team Sponsor</h2>
                   {!isTeamPro && !isAppAdmin && !isSubscriptionLoading && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
@@ -1666,7 +1700,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
                   <Flame className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Team Rewards</span>
+                  <h2 className="text-lg font-semibold">Team Rewards</h2>
                   {!isTeamPro && !isAppAdmin && !isSubscriptionLoading && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
@@ -1703,7 +1737,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!hasProFootball && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
                   <LayoutGrid className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Pitch Settings</span>
+                  <h2 className="text-lg font-semibold">Pitch Settings</h2>
                   {!hasProFootball && !isAppAdmin && !isSubscriptionLoading && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
