@@ -120,15 +120,19 @@ function HeroCard({ event }: { event: EventItem }) {
   });
 
   const rsvpButtons: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string }[] = [
-    { status: "going", label: "Going", icon: <CheckCircle2 className="h-4 w-4" />, activeClass: "bg-primary text-primary-foreground hover:bg-primary/90" },
-    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-4 w-4" />, activeClass: "bg-warning text-warning-foreground hover:bg-warning/90" },
-    { status: "not_going", label: "Can't go", icon: <X className="h-4 w-4" />, activeClass: "bg-destructive text-destructive-foreground hover:bg-destructive/90" },
+    { status: "going", label: "Going", icon: <CheckCircle2 className="h-4 w-4" aria-hidden="true" />, activeClass: "bg-primary text-primary-foreground hover:bg-primary/90" },
+    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-4 w-4" aria-hidden="true" />, activeClass: "bg-warning text-warning-foreground hover:bg-warning/90" },
+    { status: "not_going", label: "Can't go", icon: <X className="h-4 w-4" aria-hidden="true" />, activeClass: "bg-destructive text-destructive-foreground hover:bg-destructive/90" },
   ];
 
   return (
     <Card
       className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl min-w-[280px] w-[calc(100vw-3rem)] max-w-[400px] shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3.5 space-y-2.5">
         <div className="space-y-0.5">
@@ -148,20 +152,20 @@ function HeroCard({ event }: { event: EventItem }) {
 
         <div className="flex flex-col gap-1 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <Calendar className="h-3.5 w-3.5 shrink-0 text-foreground/70" />
+            <Calendar className="h-3.5 w-3.5 shrink-0 text-foreground/70" aria-hidden="true" />
             <span className="font-medium text-foreground">{dateLabel}</span>
             <span>at {dateTime}</span>
           </div>
           {(event.location_name || event.suburb) && (
             <div className="flex items-center gap-2">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-foreground/70" />
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-foreground/70" aria-hidden="true" />
               <span className="truncate">{event.location_name || event.suburb}</span>
             </div>
           )}
         </div>
 
         {!event.is_cancelled && (
-          <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             {rsvpButtons.map(({ status, label, icon, activeClass }) => {
               const isActive = currentStatus === status;
               return (
@@ -169,11 +173,13 @@ function HeroCard({ event }: { event: EventItem }) {
                   key={status}
                   variant={isActive ? "default" : "outline"}
                   size="sm"
+                  aria-pressed={isActive}
+                  aria-label={`RSVP ${label}`}
                   className={`flex-1 gap-1 text-[11px] font-medium h-8 ${isActive ? activeClass : ""}`}
                   disabled={rsvpMutation.isPending}
                   onClick={() => rsvpMutation.mutate(status)}
                 >
-                  {rsvpMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : icon}
+                  {rsvpMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : icon}
                   {label}
                 </Button>
               );
@@ -193,7 +199,11 @@ function CompactCard({ event }: { event: EventItem }) {
   return (
     <Card
       className={`border-l-[3px] ${borderClass} cursor-pointer hover:border-primary/50 transition-colors min-w-[220px] w-[65vw] max-w-[280px] shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3 pl-3.5 space-y-1.5">
         <div className="flex items-center gap-2 min-w-0">
@@ -208,13 +218,13 @@ function CompactCard({ event }: { event: EventItem }) {
           {event.teams?.name || event.clubs?.name}
         </Badge>
         <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-          <Clock className="h-3 w-3 shrink-0" />
+          <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
           <span className="font-medium text-foreground">{dateLabel}</span>
           <span>at {dateTime}</span>
         </div>
         {(event.location_name || event.suburb) && (
           <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <MapPin className="h-3 w-3 shrink-0" />
+            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
             <span className="truncate">{event.location_name || event.suburb}</span>
           </div>
         )}
