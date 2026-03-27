@@ -49,13 +49,15 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
     queryFn: async (): Promise<number> => {
       if (!user?.id) return 0;
 
-      // Get last read timestamp
-      const readQuery = supabase
-        .from("message_reads")
+      // Get last read timestamp  
+      const readResult = await (supabase
+        .from("message_reads") as any)
         .select("read_at")
         .eq("user_id", user.id)
-        .eq("team_id", teamId);
-      const readResult = await (readQuery as any).order("read_at", { ascending: false }).limit(1).maybeSingle();
+        .eq("team_id", teamId)
+        .order("read_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       const lastRead = readResult.data?.read_at || "1970-01-01T00:00:00Z";
 
