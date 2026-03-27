@@ -1815,7 +1815,7 @@ export default function HomePage() {
         // Join Team - always visible
         actions.push({
           key: "join",
-          icon: <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />,
+          icon: <UserCheck className="h-6 w-6 text-foreground" aria-hidden="true" />,
           label: activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team",
           onClick: () => setTeamDialogOpen(true),
         });
@@ -1824,7 +1824,7 @@ export default function HomePage() {
         if (canCreateEvents) {
           actions.push({
             key: "event",
-            icon: <Plus className="h-5 w-5 text-foreground" aria-hidden="true" />,
+            icon: <Plus className="h-6 w-6 text-foreground" aria-hidden="true" />,
             label: "New Event",
             onClick: () => navigate('/events/new'),
           });
@@ -1834,7 +1834,7 @@ export default function HomePage() {
         if (canAccessVault) {
           actions.push({
             key: "vault",
-            icon: <FolderOpen className="h-5 w-5 text-foreground" aria-hidden="true" />,
+            icon: <FolderOpen className="h-6 w-6 text-foreground" aria-hidden="true" />,
             label: "File Vault",
             onClick: () => navigate("/vault"),
           });
@@ -1843,7 +1843,7 @@ export default function HomePage() {
         // Create Team - available to all users
         actions.push({
           key: "create-team",
-          icon: <UserPlus className="h-5 w-5 text-foreground" aria-hidden="true" />,
+          icon: <UserPlus className="h-6 w-6 text-foreground" aria-hidden="true" />,
           label: activeClubFilter ? "Create Team" : "Create Team or Club",
           onClick: () => {
             if (activeClubFilter) {
