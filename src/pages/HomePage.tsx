@@ -1517,10 +1517,8 @@ export default function HomePage() {
 
   return (
     <div className="py-6 space-y-5">
-      {/* Next Up Hero - first upcoming event */}
-      {events && events.length > 0 && (
-        <NextUpHero event={events[0]} />
-      )}
+      {/* Next Up Carousel - unified event section */}
+      <NextUpCarousel events={events || []} />
 
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
