@@ -172,7 +172,12 @@ function TeamCard({ item, nextEvent, photos }: {
   );
 }
 
-export function MyTeamsPremiumCarousel() {
+interface MyTeamsPremiumCarouselProps {
+  onJoinTeam?: () => void;
+  onCreateTeam?: () => void;
+}
+
+export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPremiumCarouselProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
@@ -374,7 +379,85 @@ export function MyTeamsPremiumCarousel() {
     );
   }
 
-  if (items.length === 0) return null;
+  const addTeamCard = (onJoinTeam || onCreateTeam) ? (
+    <Card
+      className="shrink-0 w-[82vw] max-w-[320px] cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all snap-start"
+      onClick={() => {
+        if (onJoinTeam && onCreateTeam) {
+          // Could show a choice, but for simplicity navigate to create
+          onCreateTeam();
+        } else if (onJoinTeam) {
+          onJoinTeam();
+        } else if (onCreateTeam) {
+          onCreateTeam();
+        }
+      }}
+    >
+      <CardContent className="p-4 flex flex-col items-center justify-center gap-2 min-h-[100px]">
+        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+          <Plus className="h-5 w-5 text-primary" />
+        </div>
+        <span className="text-sm font-medium text-primary">Join or Create Team</span>
+        {onJoinTeam && onCreateTeam && (
+          <div className="flex gap-3 mt-1">
+            <button
+              className="text-[11px] text-muted-foreground hover:text-primary hover:underline"
+              onClick={(e) => { e.stopPropagation(); onJoinTeam(); }}
+            >
+              Join team
+            </button>
+            <span className="text-[11px] text-muted-foreground">•</span>
+            <button
+              className="text-[11px] text-muted-foreground hover:text-primary hover:underline"
+              onClick={(e) => { e.stopPropagation(); onCreateTeam(); }}
+            >
+              Create team
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  ) : null;
+
+  // Empty state: show add team as a larger primary card
+  if (items.length === 0) {
+    if (!addTeamCard) return null;
+    return (
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">My Teams</h2>
+        <Card
+          className="cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all"
+          onClick={() => onCreateTeam?.()}
+        >
+          <CardContent className="p-6 flex flex-col items-center justify-center gap-3">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Users className="h-6 w-6 text-primary" />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-sm font-medium">No teams yet</p>
+              <p className="text-xs text-muted-foreground">Join an existing team or create a new one</p>
+            </div>
+            {onJoinTeam && onCreateTeam && (
+              <div className="flex gap-4 mt-1">
+                <button
+                  className="text-sm text-primary font-medium hover:underline"
+                  onClick={(e) => { e.stopPropagation(); onJoinTeam(); }}
+                >
+                  Join team
+                </button>
+                <button
+                  className="text-sm text-primary font-medium hover:underline"
+                  onClick={(e) => { e.stopPropagation(); onCreateTeam(); }}
+                >
+                  Create team
+                </button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-3">
@@ -389,6 +472,7 @@ export function MyTeamsPremiumCarousel() {
               photos={teamPhotos[item.id] || []}
             />
           ))}
+          {addTeamCard}
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
