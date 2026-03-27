@@ -674,11 +674,16 @@ export function AppHeader() {
                 </>
               ) : (
                 <>
-                  <img 
-                    src={igniteIcon} 
-                    alt="Ignite" 
-                    className="h-9 w-9 rounded-full object-contain"
-                  />
+                  <div className="h-9 w-9 shrink-0 rounded-full bg-primary/10">
+                    <img 
+                      src={igniteIcon} 
+                      alt="Ignite" 
+                      className="h-9 w-9 rounded-full object-contain"
+                      loading="eager"
+                      decoding="sync"
+                      fetchPriority="high"
+                    />
+                  </div>
                   <div className="flex flex-col leading-tight items-start">
                     <span className="font-bold text-lg text-gradient-emerald leading-none">Ignite</span>
                     <span className="text-[11px] text-muted-foreground leading-none">Club HQ</span>
