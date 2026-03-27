@@ -121,113 +121,144 @@ export const ChatMessage = memo(function ChatMessage({
   const isPendingMessage = id.startsWith("temp-") || id.startsWith("queued-");
   const canReply = !!onReply && !isPendingMessage;
 
-  const addReactionMutation = useMutation({
-    mutationFn: async ({ reactionType, existingReactionId }: { reactionType: string; existingReactionId?: string }) => {
-      const messageIdField = getMessageIdField();
-      console.log('[Reaction] Adding reaction', { messageIdField, messageId: id, currentUserId, reactionType, messageType });
-      
-      if (!currentUserId) {
-        console.error('[Reaction] No currentUserId - cannot add reaction');
-        throw new Error('Not authenticated');
+  const updateReactionMessages = useCallback((updater: (messages: any[]) => any[]) => {
+    queryClient.setQueryData(queryKey, (old: any) => {
+      const existingMessages: any[] = Array.isArray(old)
+        ? old
+        : old?.messages || [];
+
+      const updatedMessages = updater(existingMessages);
+
+      if (Array.isArray(old) || old === undefined) {
+        return updatedMessages;
       }
-      
-      // Query for existing reaction first (same pattern as GroupChatPage)
+
+      return {
+        ...old,
+        messages: updatedMessages,
+      };
+    });
+  }, [queryClient, queryKey]);
+
+  const addReactionMutation = useMutation({
+    mutationFn: async ({ reactionType }: { reactionType: string; existingReactionId?: string }) => {
+      const messageIdField = getMessageIdField();
+
+      if (!currentUserId) {
+        throw new Error("Not authenticated");
+      }
+
       const { data: existingReaction, error: fetchError } = await supabase
         .from("message_reactions")
-        .select("id, reaction_type")
+        .select("id, user_id, reaction_type")
         .eq(messageIdField, id)
         .eq("user_id", currentUserId)
         .maybeSingle();
-      
-      if (fetchError) {
-        console.error('[Reaction] Fetch existing error:', fetchError);
-        throw fetchError;
-      }
-      
-      console.log('[Reaction] Existing reaction:', existingReaction);
-      
+
+      if (fetchError) throw fetchError;
+
       if (existingReaction) {
         if (existingReaction.reaction_type === reactionType) {
-          // Same emoji — remove it
-          const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
-          if (error) { console.error('[Reaction] Delete error:', error); throw error; }
-          return;
-        } else {
-          // Different emoji — update in place
           const { error } = await supabase
             .from("message_reactions")
-            .update({ reaction_type: reactionType })
+            .delete()
             .eq("id", existingReaction.id);
-          if (error) { console.error('[Reaction] Update error:', error); throw error; }
-          return;
+
+          if (error) throw error;
+
+          return { action: "delete" as const, reactionId: existingReaction.id };
         }
+
+        const { data: updatedReaction, error } = await supabase
+          .from("message_reactions")
+          .update({ reaction_type: reactionType })
+          .eq("id", existingReaction.id)
+          .select("id, user_id, reaction_type")
+          .single();
+
+        if (error) throw error;
+
+        return { action: "update" as const, reaction: updatedReaction };
       }
-      
-      // No existing reaction — insert new
-      const insertPayload = {
-        [messageIdField]: id,
-        user_id: currentUserId,
-        reaction_type: reactionType,
-      };
-      console.log('[Reaction] Inserting:', insertPayload);
-      const { data: insertData, error } = await supabase.from("message_reactions").insert(insertPayload).select();
-      console.log('[Reaction] Insert result:', { data: insertData, error });
+
+      const { data: insertedReaction, error } = await supabase
+        .from("message_reactions")
+        .insert({
+          [messageIdField]: id,
+          user_id: currentUserId,
+          reaction_type: reactionType,
+        })
+        .select("id, user_id, reaction_type")
+        .single();
+
       if (error) throw error;
+
+      return { action: "insert" as const, reaction: insertedReaction };
     },
     onMutate: async ({ reactionType }) => {
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
 
-      const updateMessages = (updater: (messages: any[]) => any[]) => {
-        queryClient.setQueryData(queryKey, (old: any) => {
-          const existingMessages: any[] = Array.isArray(old)
-            ? old
-            : old?.messages || [];
+      if (!currentUserId) {
+        return { previousMessages, tempReactionId: null };
+      }
 
-          const newMessages = updater(existingMessages);
+      const existingUserReaction = reactions.find((reaction) => reaction.user_id === currentUserId);
+      const shouldRemoveReaction = existingUserReaction?.reaction_type === reactionType;
+      const tempReactionId = shouldRemoveReaction ? null : `temp-${Date.now()}`;
 
-          if (Array.isArray(old) || old === undefined) {
-            return newMessages;
-          }
+      updateReactionMessages((msgs) =>
+        msgs.map((msg: any) => {
+          if (msg.id !== id) return msg;
+
+          const filteredReactions = (msg.reactions || []).filter(
+            (reaction: any) => reaction.user_id !== currentUserId
+          );
 
           return {
-            ...old,
-            messages: newMessages,
+            ...msg,
+            reactions: shouldRemoveReaction || !tempReactionId
+              ? filteredReactions
+              : [
+                  ...filteredReactions,
+                  { id: tempReactionId, user_id: currentUserId, reaction_type: reactionType },
+                ],
           };
-        });
-      };
-
-      updateMessages((msgs) =>
-        msgs.map((msg: any) => {
-          if (msg.id === id) {
-            const filteredReactions = (msg.reactions || []).filter(
-              (r: any) => r.user_id !== currentUserId
-            );
-            return {
-              ...msg,
-              reactions: [
-                ...filteredReactions,
-                { id: `temp-${Date.now()}`, user_id: currentUserId, reaction_type: reactionType },
-              ],
-            };
-          }
-          return msg;
         })
       );
 
-      return { previousMessages };
+      return { previousMessages, tempReactionId };
     },
-      
+    onSuccess: (result) => {
+      if (!result) return;
+
+      updateReactionMessages((msgs) =>
+        msgs.map((msg: any) => {
+          if (msg.id !== id) return msg;
+
+          if (result.action === "delete") {
+            return {
+              ...msg,
+              reactions: (msg.reactions || []).filter((reaction: any) => reaction.id !== result.reactionId),
+            };
+          }
+
+          return {
+            ...msg,
+            reactions: [
+              ...(msg.reactions || []).filter((reaction: any) => reaction.user_id !== result.reaction.user_id),
+              result.reaction,
+            ],
+          };
+        })
+      );
+    },
     onError: (err, variables, context) => {
-      console.error('[Reaction] Mutation error:', err);
+      console.error("[Reaction] Mutation error:", err);
       if (context?.previousMessages) {
         queryClient.setQueryData(queryKey, context.previousMessages);
       }
       toast.error("Failed to add reaction");
-    },
-    onSettled: () => {
-      // Refetch to ensure consistency with DB state
-      queryClient.invalidateQueries({ queryKey });
     },
   });
 
@@ -245,30 +276,17 @@ export const ChatMessage = memo(function ChatMessage({
     onMutate: async (reactionId: string) => {
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
-      
-      queryClient.setQueryData(queryKey, (old: any) => {
-        if (!old) return old;
-        
-        const existingMessages: any[] = Array.isArray(old)
-          ? old
-          : old?.messages || [];
-        
-        const updatedMessages = existingMessages.map((msg: any) => {
-          if (msg.id === id) {
-            return {
-              ...msg,
-              reactions: (msg.reactions || []).filter((r: any) => r.id !== reactionId)
-            };
-          }
-          return msg;
-        });
-        
-        if (Array.isArray(old)) {
-          return updatedMessages;
-        }
-        return { ...old, messages: updatedMessages };
-      });
-      
+
+      updateReactionMessages((msgs) =>
+        msgs.map((msg: any) => {
+          if (msg.id !== id) return msg;
+          return {
+            ...msg,
+            reactions: (msg.reactions || []).filter((reaction: any) => reaction.id !== reactionId),
+          };
+        })
+      );
+
       return { previousMessages };
     },
     onError: (err, variables, context) => {
