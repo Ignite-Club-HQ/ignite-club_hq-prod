@@ -1078,7 +1078,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     console.log("[PitchState] useState init - using realPlayers as fallback");
     return realPlayers;
   });
-  
+
   // Keep playersRef in sync with players state (for use in effects with stale closures)
   playersRef.current = players;
   
@@ -1231,6 +1231,14 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
 
   // Mock player mode state
   const [mockMode, setMockMode] = useState(() => savedState?.mockMode || false);
+
+  // Sync players when realPlayers loads asynchronously (e.g. children finishing fetch after PitchBoard opened)
+  useEffect(() => {
+    if (realPlayers.length > 0 && players.length === 0 && !mockMode) {
+      console.log("[PitchState] realPlayers loaded async, syncing", realPlayers.length, "players");
+      setPlayers(realPlayers);
+    }
+  }, [realPlayers, players.length, mockMode]);
 
   // Match stats panel state
   const [statsOpen, setStatsOpen] = useState(false);
