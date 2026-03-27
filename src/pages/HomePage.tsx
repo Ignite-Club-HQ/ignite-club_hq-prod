@@ -1691,6 +1691,7 @@ export default function HomePage() {
                               size="icon"
                               className="h-9 w-9"
                               aria-label={`Send reminder for ${event.title}`}
+                              onClick={async (e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setLoadingRemindCount(true);
@@ -1747,9 +1748,9 @@ export default function HomePage() {
                               }}
                             >
                               {loadingRemindCount ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
                               ) : (
-                                <Bell className="h-3 w-3" />
+                                <Bell className="h-3.5 w-3.5" />
                               )}
                             </Button>
                             <Button 
