@@ -197,8 +197,8 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
     root.style.setProperty("--muted", `${h} 10% 91%`);
     root.style.setProperty("--popover", `${h} 8% 98%`);
     root.style.setProperty("--popover-foreground", `${h} 10% 10%`);
-  } else if (!isDarkMode && !primary) {
-    // No club theme in light mode - restore defaults
+  } else {
+    // Dark mode or no club theme in light mode - restore defaults
     root.style.removeProperty("--background");
     root.style.removeProperty("--card");
     root.style.removeProperty("--card-foreground");
