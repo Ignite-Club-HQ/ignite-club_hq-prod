@@ -130,10 +130,10 @@ function HeroCard({ event }: { event: EventItem }) {
       className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl min-w-[300px] w-[85vw] max-w-[360px] shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
       onClick={() => navigate(`/events/${event.id}`)}
     >
-      <CardContent className="p-4 space-y-3">
-        <div className="space-y-1">
+      <CardContent className="p-3.5 space-y-2.5">
+        <div className="space-y-0.5">
           <div className="flex items-start justify-between gap-2">
-            <h3 className={`text-lg font-bold leading-tight ${event.is_cancelled ? "line-through" : ""}`}>
+            <h3 className={`text-base font-bold leading-tight ${event.is_cancelled ? "line-through" : ""}`}>
               {event.title}
               {event.opponent ? ` vs ${event.opponent}` : ""}
             </h3>
@@ -161,7 +161,7 @@ function HeroCard({ event }: { event: EventItem }) {
         </div>
 
         {!event.is_cancelled && (
-          <div className="flex gap-2 pt-0.5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
             {rsvpButtons.map(({ status, label, icon, activeClass }) => {
               const isActive = currentStatus === status;
               return (
@@ -169,11 +169,11 @@ function HeroCard({ event }: { event: EventItem }) {
                   key={status}
                   variant={isActive ? "default" : "outline"}
                   size="sm"
-                  className={`flex-1 gap-1 text-xs font-medium ${isActive ? activeClass : ""}`}
+                  className={`flex-1 gap-1 text-[11px] font-medium h-8 ${isActive ? activeClass : ""}`}
                   disabled={rsvpMutation.isPending}
                   onClick={() => rsvpMutation.mutate(status)}
                 >
-                  {rsvpMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : icon}
+                  {rsvpMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : icon}
                   {label}
                 </Button>
               );
