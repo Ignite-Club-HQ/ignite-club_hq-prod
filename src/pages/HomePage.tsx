@@ -1871,7 +1871,7 @@ export default function HomePage() {
                   aria-label={action.label}
                   onClick={action.onClick}
                 >
-                  {React.cloneElement(action.icon as React.ReactElement, { className: "h-6 w-6 text-foreground" })}
+                  {action.icon}
                   <span className="text-sm font-medium">{action.label}</span>
                 </Button>
               ))}
