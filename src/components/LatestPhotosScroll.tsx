@@ -98,7 +98,7 @@ export function LatestPhotosScroll() {
           <h2 className="text-lg font-semibold">Latest Photos</h2>
           <button
             onClick={() => navigate("/media")}
-            className="text-xs text-primary font-medium hover:underline"
+            className="text-sm text-primary hover:underline"
           >
             View all
           </button>
@@ -120,7 +120,7 @@ export function LatestPhotosScroll() {
         <h2 className="text-lg font-semibold">Latest Photos</h2>
         <button
           onClick={() => navigate("/media")}
-          className="text-xs text-primary font-medium hover:underline"
+          className="text-sm text-primary hover:underline"
         >
           View all
         </button>
