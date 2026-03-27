@@ -1589,7 +1589,16 @@ export default function HomePage() {
 
 
       {/* My Teams & Leagues - Premium Carousel */}
-      <MyTeamsPremiumCarousel />
+      <MyTeamsPremiumCarousel
+        onJoinTeam={() => setTeamDialogOpen(true)}
+        onCreateTeam={() => {
+          if (activeClubFilter) {
+            navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+          } else {
+            navigate("/clubs", { state: { fromCreateTeam: true } });
+          }
+        }}
+      />
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <UpcomingClassesWidget />
@@ -1607,14 +1616,6 @@ export default function HomePage() {
 
         // Build actions list dynamically
         const actions: { key: string; icon: React.ReactNode; label: string; onClick: () => void }[] = [];
-
-        // Join Team - always visible
-        actions.push({
-          key: "join",
-          icon: <UserCheck className="h-6 w-6 text-foreground" aria-hidden="true" />,
-          label: activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team",
-          onClick: () => setTeamDialogOpen(true),
-        });
 
         // Create Event - admin/coach only
         if (canCreateEvents) {
@@ -1636,19 +1637,6 @@ export default function HomePage() {
           });
         }
 
-        // Create Team - available to all users
-        actions.push({
-          key: "create-team",
-          icon: <UserPlus className="h-6 w-6 text-foreground" aria-hidden="true" />,
-          label: activeClubFilter ? "Create Team" : "Create Team or Club",
-          onClick: () => {
-            if (activeClubFilter) {
-              navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-            } else {
-              navigate("/clubs", { state: { fromCreateTeam: true } });
-            }
-          },
-        });
 
         if (actions.length === 0) return null;
 
