@@ -267,35 +267,26 @@ export default function TeamDetailPage() {
   const { data: teamChildren = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, refetch: refetchChildren } = useQuery({
     queryKey: ["team-children", id],
     queryFn: async () => {
-      // First get the child assignments
-      const { data: assignments, error: assignError } = await supabase
-        .from("child_team_assignments")
-        .select("id, child_id")
-        .eq("team_id", id!);
-      if (assignError) throw assignError;
-      if (!assignments || assignments.length === 0) return [];
-      
-      const childIds = assignments.map(a => a.child_id);
-      
-      // Fetch children separately - this handles RLS better
-      const { data: childrenData, error: childError } = await supabase
-        .from("children")
-        .select("id, name, year_of_birth, parent_id")
-        .in("id", childIds);
-      if (childError) throw childError;
-      
-      // Fetch guardians from child_guardians table
+      const { data: rpcChildren, error: rpcError } = await supabase.rpc("get_team_children_for_pitch_board", {
+        p_team_id: id!,
+      });
+      if (rpcError) throw rpcError;
+
+      const childrenRows = rpcChildren || [];
+      if (childrenRows.length === 0) return [];
+
+      const childIds = childrenRows.map((row) => row.child_id);
+
       const { data: guardianLinks } = await supabase
         .from("child_guardians")
         .select("child_id, guardian_id")
         .in("child_id", childIds);
-      
-      // Collect all parent/guardian IDs
+
       const parentIds = [...new Set([
-        ...(childrenData || []).map(c => c.parent_id).filter(Boolean),
-        ...(guardianLinks || []).map(g => g.guardian_id).filter(Boolean),
+        ...childrenRows.map((c) => c.parent_id).filter(Boolean),
+        ...(guardianLinks || []).map((g) => g.guardian_id).filter(Boolean),
       ])];
-      
+
       let parentProfiles: Record<string, { id: string; display_name: string | null }> = {};
       if (parentIds.length > 0) {
         const { data: profiles } = await supabase
@@ -307,40 +298,37 @@ export default function TeamDetailPage() {
           return acc;
         }, {} as Record<string, { id: string; display_name: string | null }>);
       }
-      
-      // Build guardian map per child
+
       const guardiansByChild: Record<string, string[]> = {};
       for (const link of (guardianLinks || [])) {
         if (!guardiansByChild[link.child_id]) guardiansByChild[link.child_id] = [];
         guardiansByChild[link.child_id].push(link.guardian_id);
       }
-      
-      // Combine the data
-      return assignments.map(assignment => {
-        const child = (childrenData || []).find(c => c.id === assignment.child_id);
-        if (!child) return { id: assignment.id, child_id: assignment.child_id, children: null };
-        
-        // Build list of all parent names (primary + guardians)
+
+      return childrenRows.map((child) => {
         const allParentNames: string[] = [];
         if (child.parent_id && parentProfiles[child.parent_id]?.display_name) {
           allParentNames.push(parentProfiles[child.parent_id].display_name!);
         }
-        for (const gId of (guardiansByChild[child.id] || [])) {
+        for (const gId of (guardiansByChild[child.child_id] || [])) {
           if (gId !== child.parent_id && parentProfiles[gId]?.display_name) {
             allParentNames.push(parentProfiles[gId].display_name!);
           }
         }
-        
+
         return {
-          id: assignment.id,
-          child_id: assignment.child_id,
+          id: child.assignment_id,
+          child_id: child.child_id,
           children: {
-            ...child,
+            id: child.child_id,
+            name: child.child_name,
+            year_of_birth: child.year_of_birth,
+            parent_id: child.parent_id,
             profiles: child.parent_id ? parentProfiles[child.parent_id] : null,
             allParentNames,
           },
         };
-      }).filter(a => a.children !== null);
+      });
     },
     enabled: !!id,
     staleTime: 0,

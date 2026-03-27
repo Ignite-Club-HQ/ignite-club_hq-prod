@@ -5974,6 +5974,16 @@ export type Database = {
           platform: string
         }[]
       }
+      get_team_children_for_pitch_board: {
+        Args: { p_team_id: string }
+        Returns: {
+          assignment_id: string
+          child_id: string
+          child_name: string
+          parent_id: string
+          year_of_birth: number
+        }[]
+      }
       get_team_invite_by_token: {
         Args: { _token: string }
         Returns: {
