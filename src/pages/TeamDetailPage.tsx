@@ -1404,27 +1404,7 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {isMember && (
-          <AccordionItem value="chat-groups" className="border rounded-lg px-4">
-            <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-primary" />
-                <span className="text-lg font-semibold">Team Chats</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-3 pt-2">
-                {isAdmin && (
-                  <div className="flex justify-end">
-                    <CreateGroupDialog teamId={id} />
-                  </div>
-                )}
-                
-                <ChatGroupsList teamId={id} canManage={isAdmin} />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-          )}
+
 
           {/* Admin Section - collapsed by default */}
           {isAdmin && (
