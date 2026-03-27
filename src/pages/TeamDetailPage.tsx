@@ -828,11 +828,12 @@ export default function TeamDetailPage() {
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {(() => {
-              const memberCount = Object.keys(members).length + teamChildren.length;
-              return memberCount > 0 ? `${memberCount} members` : "";
+              const count = Object.keys(members).length + teamChildren.length;
+              const parts: string[] = [];
+              if (count > 0) parts.push(`${count} members`);
+              if (team.description) parts.push(team.description);
+              return parts.join(" · ");
             })()}
-            {team.description ? (memberCount => memberCount ? " · " : "")(Object.keys(members).length + teamChildren.length) : ""}
-            {team.description || ""}
           </p>
         </div>
       </div>
