@@ -17,7 +17,11 @@ interface LatestPhoto {
   club_name: string | null;
 }
 
-export function LatestPhotosScroll() {
+interface LatestPhotosScrollProps {
+  showProBadge?: boolean;
+}
+
+export function LatestPhotosScroll({ showProBadge = false }: LatestPhotosScrollProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
