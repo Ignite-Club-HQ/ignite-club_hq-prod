@@ -273,7 +273,17 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         }
       }
 
-      return result.sort((a, b) => a.name.localeCompare(b.name));
+      // Sort: admin/coach teams first, then by name
+      return result.sort((a, b) => {
+        // Priority 1: canManage (admin/coach) teams first
+        if (a.canManage && !b.canManage) return -1;
+        if (!a.canManage && b.canManage) return 1;
+        // Priority 2: teams before leagues
+        if (a.type === "team" && b.type === "league") return -1;
+        if (a.type === "league" && b.type === "team") return 1;
+        // Priority 3: alphabetical
+        return a.name.localeCompare(b.name);
+      });
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
