@@ -486,13 +486,15 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
           {[...items]
             .sort((a, b) => {
-              // Admin/coach teams first
+              // Always keep teams ahead of mini leagues
+              if (a.type !== b.type) return a.type === "team" ? -1 : 1;
+              // Within the same type, admin/coach entries first
               if (a.canManage !== b.canManage) return a.canManage ? -1 : 1;
-              // Then teams with upcoming events
+              // Then items with upcoming events
               const aHasEvent = !!nextEvents[a.id];
               const bHasEvent = !!nextEvents[b.id];
               if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
-              // Then teams with photos (activity)
+              // Then items with photos (activity)
               const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
               const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
               if (aHasPhotos !== bHasPhotos) return aHasPhotos ? -1 : 1;
