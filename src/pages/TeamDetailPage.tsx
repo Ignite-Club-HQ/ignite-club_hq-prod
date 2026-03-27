@@ -1409,7 +1409,7 @@ export default function TeamDetailPage() {
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-primary" />
-                <span className="text-lg font-semibold">Chat Groups</span>
+                <span className="text-lg font-semibold">Team Chats</span>
               </div>
             </AccordionTrigger>
             <AccordionContent>
