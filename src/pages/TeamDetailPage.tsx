@@ -1528,7 +1528,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Crown className="h-5 w-5 text-yellow-500" />
-                  <span className="text-lg font-semibold">App Admin</span>
+                  <h2 className="text-lg font-semibold">App Admin</h2>
                   <Badge className="bg-yellow-500 text-yellow-950 text-xs">Admin Only</Badge>
                 </div>
               </AccordionTrigger>
@@ -1624,7 +1624,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isSubscriptionLoading && !isTeamPro && !isAppAdmin}>
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Fee Payments</span>
+                  <h2 className="text-lg font-semibold">Fee Payments</h2>
                   {/* Only show Pro lock when NOT loading AND NOT Pro AND NOT AppAdmin */}
                   {!isSubscriptionLoading && !isTeamPro && !isAppAdmin && (
                     <div className="flex items-center gap-1.5 ml-2">
@@ -1663,7 +1663,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
                   <Building2 className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Team Sponsor</span>
+                  <h2 className="text-lg font-semibold">Team Sponsor</h2>
                   {!isTeamPro && !isAppAdmin && !isSubscriptionLoading && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
@@ -1700,7 +1700,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!isTeamPro && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
                   <Flame className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Team Rewards</span>
+                  <h2 className="text-lg font-semibold">Team Rewards</h2>
                   {!isTeamPro && !isAppAdmin && !isSubscriptionLoading && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
@@ -1737,7 +1737,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline disabled:cursor-not-allowed disabled:opacity-70" disabled={!hasProFootball && !isAppAdmin && !isSubscriptionLoading}>
                 <div className="flex items-center gap-2">
                   <LayoutGrid className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Pitch Settings</span>
+                  <h2 className="text-lg font-semibold">Pitch Settings</h2>
                   {!hasProFootball && !isAppAdmin && !isSubscriptionLoading && (
                     <div className="flex items-center gap-1.5 ml-2">
                       <Lock className="h-4 w-4 text-muted-foreground" />
