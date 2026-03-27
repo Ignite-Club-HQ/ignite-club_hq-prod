@@ -1,0 +1,340 @@
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { Users, Calendar, MessageSquare, Image } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { cacheTeams } from "@/lib/clubTeamCache";
+import { format, isToday, isTomorrow, parseISO } from "date-fns";
+
+interface TeamOrLeague {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  type: "team" | "league";
+  club_name: string;
+  sport: string | null;
+  club_id: string;
+}
+
+interface NextEventInfo {
+  title: string;
+  dateLabel: string;
+  type: string;
+}
+
+function formatShortDate(dateStr: string): string {
+  const date = parseISO(dateStr);
+  if (isToday(date)) return `Today ${format(date, "h:mma").toLowerCase()}`;
+  if (isTomorrow(date)) return `Tmrw ${format(date, "h:mma").toLowerCase()}`;
+  return `${format(date, "EEE")} ${format(date, "h:mma").toLowerCase()}`;
+}
+
+function TeamCard({ item, nextEvent, photos }: { 
+  item: TeamOrLeague; 
+  nextEvent?: NextEventInfo;
+  photos: string[];
+}) {
+  const navigate = useNavigate();
+
+  const hasActivity = !!nextEvent || photos.length > 0;
+
+  return (
+    <Card
+      className="shrink-0 w-[82vw] max-w-[320px] cursor-pointer border bg-card hover:border-primary/40 transition-all shadow-sm hover:shadow-md snap-start"
+      onClick={() => {
+        if (item.type === "team") {
+          navigate(`/teams/${item.id}`);
+        } else {
+          navigate(`/mini-leagues/${item.id}`);
+        }
+      }}
+    >
+      <CardContent className="p-4 space-y-3">
+        {/* Header: logo + name + badge */}
+        <div className="flex items-center gap-3">
+          {item.logo_url ? (
+            <img
+              src={item.logo_url}
+              alt=""
+              className="h-10 w-10 rounded-full object-cover shrink-0 ring-2 ring-border"
+            />
+          ) : (
+            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0 ring-2 ring-border">
+              <Users className="h-5 w-5 text-muted-foreground" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-[15px] leading-tight truncate">{item.name}</h3>
+            <p className="text-[11px] text-muted-foreground truncate">{item.club_name}</p>
+          </div>
+          {item.type === "league" && (
+            <Badge variant="outline" className="text-[10px] shrink-0 h-5">League</Badge>
+          )}
+        </div>
+
+        {/* Status area */}
+        <div className="space-y-1.5">
+          {nextEvent ? (
+            <div className="flex items-center gap-2 text-sm">
+              <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="font-medium text-foreground truncate">
+                {nextEvent.title}
+              </span>
+              <span className="text-muted-foreground text-xs shrink-0">
+                {nextEvent.dateLabel}
+              </span>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">No events scheduled</p>
+          )}
+        </div>
+
+        {/* Photo thumbnails */}
+        {photos.length > 0 && (
+          <div className="flex gap-1.5">
+            {photos.slice(0, 2).map((url, i) => (
+              <div
+                key={i}
+                className="h-12 w-16 rounded-md overflow-hidden bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/media?team=${item.id}`);
+                }}
+              >
+                <img
+                  src={url}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function MyTeamsPremiumCarousel() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { activeClubFilter } = useClubTheme();
+
+  // Fetch teams & leagues
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["my-teams-premium", user?.id, activeClubFilter],
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("team_id, club_id, role")
+        .eq("user_id", user.id);
+
+      if (!roles) return [];
+
+      const teamIds = [...new Set(roles.filter(r => r.team_id).map(r => r.team_id))] as string[];
+      const result: TeamOrLeague[] = [];
+
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("id, name, logo_url, club_id, clubs(name, sport)")
+          .in("id", teamIds);
+
+        if (teams) {
+          cacheTeams(teams.map(t => ({
+            id: t.id, name: t.name, logo_url: t.logo_url, club_id: t.club_id, level_age: null,
+          })));
+
+          for (const team of teams) {
+            if (activeClubFilter && team.club_id !== activeClubFilter) continue;
+            result.push({
+              id: team.id, name: team.name, logo_url: team.logo_url, type: "team",
+              club_name: team.clubs?.name || "", sport: team.clubs?.sport || null,
+              club_id: team.club_id,
+            });
+          }
+        }
+      }
+
+      // Mini leagues
+      const { data: playerLeagues } = await supabase
+        .from("mini_league_players")
+        .select("mini_league_id")
+        .eq("parent_user_id", user.id);
+
+      const leagueIds = new Set(playerLeagues?.map(p => p.mini_league_id) || []);
+
+      const leagueAdminClubIds = roles
+        .filter(r => r.club_id && (r.role === "league_admin" || r.role === "club_admin"))
+        .map(r => r.club_id) as string[];
+
+      if (leagueAdminClubIds.length > 0) {
+        const { data: adminLeagues } = await supabase
+          .from("mini_leagues")
+          .select("id")
+          .in("club_id", leagueAdminClubIds);
+        adminLeagues?.forEach(l => leagueIds.add(l.id));
+      }
+
+      if (leagueIds.size > 0) {
+        const { data: leagues } = await supabase
+          .from("mini_leagues")
+          .select("id, name, club_id, clubs(name, sport)")
+          .in("id", Array.from(leagueIds));
+
+        if (leagues) {
+          for (const league of leagues) {
+            if (activeClubFilter && league.club_id !== activeClubFilter) continue;
+            result.push({
+              id: league.id, name: league.name, logo_url: null, type: "league",
+              club_name: league.clubs?.name || "", sport: league.clubs?.sport || null,
+              club_id: league.club_id,
+            });
+          }
+        }
+      }
+
+      return result.sort((a, b) => a.name.localeCompare(b.name));
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch next events
+  const teamIds = items.filter(i => i.type === "team").map(i => i.id);
+  const leagueItemIds = items.filter(i => i.type === "league").map(i => i.id);
+
+  const { data: nextEvents = {} } = useQuery({
+    queryKey: ["team-next-events-premium", teamIds, leagueItemIds],
+    queryFn: async () => {
+      const now = new Date().toISOString();
+      const map: Record<string, NextEventInfo> = {};
+
+      if (teamIds.length > 0) {
+        const { data } = await supabase
+          .from("events")
+          .select("team_id, title, type, event_date")
+          .in("team_id", teamIds)
+          .gte("event_date", now)
+          .eq("is_cancelled", false)
+          .order("event_date", { ascending: true })
+          .limit(50);
+
+        if (data) {
+          for (const event of data) {
+            if (event.team_id && !map[event.team_id]) {
+              const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : "Social";
+              map[event.team_id] = {
+                title: typeLabel,
+                dateLabel: formatShortDate(event.event_date),
+                type: event.type,
+              };
+            }
+          }
+        }
+      }
+
+      if (leagueItemIds.length > 0) {
+        const { data } = await supabase
+          .from("events")
+          .select("mini_league_id, title, type, event_date")
+          .in("mini_league_id", leagueItemIds)
+          .gte("event_date", now)
+          .eq("is_cancelled", false)
+          .order("event_date", { ascending: true })
+          .limit(50);
+
+        if (data) {
+          for (const event of data) {
+            if (event.mini_league_id && !map[event.mini_league_id]) {
+              const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : "Event";
+              map[event.mini_league_id] = {
+                title: typeLabel,
+                dateLabel: formatShortDate(event.event_date),
+                type: event.type,
+              };
+            }
+          }
+        }
+      }
+
+      return map;
+    },
+    enabled: items.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch recent photos per team
+  const { data: teamPhotos = {} } = useQuery({
+    queryKey: ["team-photos-premium", teamIds],
+    queryFn: async () => {
+      if (teamIds.length === 0) return {};
+      const map: Record<string, string[]> = {};
+
+      const { data } = await supabase
+        .from("photos")
+        .select("team_id, file_url, image_url")
+        .in("team_id", teamIds)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(teamIds.length * 2);
+
+      if (data) {
+        for (const photo of data) {
+          if (!photo.team_id) continue;
+          const url = photo.file_url || photo.image_url;
+          if (!url) continue;
+          if (!map[photo.team_id]) map[photo.team_id] = [];
+          if (map[photo.team_id].length < 2) {
+            map[photo.team_id].push(url);
+          }
+        }
+      }
+
+      return map;
+    },
+    enabled: teamIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (isLoading) {
+    return (
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">My Teams</h2>
+        <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+          {[1, 2].map(i => (
+            <div key={i} className="shrink-0 w-[82vw] max-w-[320px] h-[120px] rounded-lg bg-muted animate-pulse" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold">My Teams</h2>
+      <ScrollArea className="w-full">
+        <div className="flex gap-3 pb-3 snap-x snap-mandatory">
+          {items.map((item) => (
+            <TeamCard
+              key={`${item.type}-${item.id}`}
+              item={item}
+              nextEvent={nextEvents[item.id]}
+              photos={teamPhotos[item.id] || []}
+            />
+          ))}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+    </section>
+  );
+}
