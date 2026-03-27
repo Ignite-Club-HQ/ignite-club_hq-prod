@@ -1091,13 +1091,13 @@ export default function TeamDetailPage() {
           {/* Members Section */}
           <AccordionItem value="members" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-2 flex-1">
-                <Users className="h-5 w-5 text-primary" />
-                <div className="min-w-0">
-                  <span className="text-lg font-semibold">Team</span>
-                  <p className="text-[10px] text-muted-foreground leading-tight -mt-0.5">Players, parents & coaches</p>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <Users className="h-5 w-5 text-primary shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-base font-semibold leading-tight">Team</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">Players, parents & coaches</span>
                 </div>
-                <Badge variant="secondary" className="ml-1">
+                <Badge variant="secondary" className="shrink-0 ml-1 text-xs">
                   {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
                     ? "..."
                     : `${Object.keys(members).length + teamChildren.length + pendingInvites.reduce((count, inv) => {
@@ -1105,12 +1105,11 @@ export default function TeamDetailPage() {
                         return count + (meta?.children?.length || 0);
                       }, 0)} members`}
                 </Badge>
-                {/* Show first few avatars inline */}
-                <div className="flex -space-x-2 ml-auto mr-2">
-                  {Object.values(members).slice(0, 4).map((member, i) => (
-                    <Avatar key={i} className="h-7 w-7 border-2 border-background">
+                <div className="flex -space-x-2 ml-auto shrink-0">
+                  {Object.values(members).slice(0, 3).map((member, i) => (
+                    <Avatar key={i} className="h-6 w-6 border-2 border-background">
                       <AvatarImage src={member.profile?.avatar_url || undefined} />
-                      <AvatarFallback className="bg-primary/20 text-primary text-[10px]">
+                      <AvatarFallback className="bg-primary/20 text-primary text-[9px]">
                         {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
