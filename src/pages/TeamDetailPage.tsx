@@ -101,6 +101,7 @@ export default function TeamDetailPage() {
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
   const [showPitchBoard, setShowPitchBoard] = useState(false);
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
+  const [pitchBoardMembersOverride, setPitchBoardMembersOverride] = useState<Array<{ id: string; user_id: string; role: string; profiles: { display_name: string | null; avatar_url: string | null } | null }>>([]);
   const [isSavingPitchSettings, setIsSavingPitchSettings] = useState(false);
   
   // Handle admin invite dialog from team creation flow
@@ -1015,7 +1016,28 @@ export default function TeamDetailPage() {
             <Card 
               className="hover:border-primary/50 transition-colors cursor-pointer"
               onClick={async () => {
-                await Promise.all([refetchMembers(), refetchChildren()]);
+                const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
+                const freshMembers = membersResult.data || [];
+                const freshChildren = childrenResult.data || [];
+
+                const nextPitchBoardMembers = [
+                  ...freshMembers.map(m => ({
+                    id: m.id,
+                    user_id: m.user_id,
+                    role: m.role,
+                    profiles: m.profiles,
+                  })),
+                  ...freshChildren
+                    .filter(child => child.children)
+                    .map(child => ({
+                      id: `child-${child.children.id}`,
+                      user_id: child.children.id,
+                      role: "player" as string,
+                      profiles: { display_name: child.children.name, avatar_url: null },
+                    })),
+                ];
+
+                setPitchBoardMembersOverride(nextPitchBoardMembers);
                 const nearbyEventId = await findNearbyGameEvent(id!);
                 setLinkedEventId(nearbyEventId);
                 setShowPitchBoard(true);
@@ -1895,10 +1917,11 @@ export default function TeamDetailPage() {
             <PitchBoard
               teamId={id!}
               teamName={team.name}
-              members={pitchBoardMembers}
+              members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
               onClose={() => {
                 setShowPitchBoard(false);
                 setLinkedEventId(null);
+                setPitchBoardMembersOverride([]);
               }}
               disableAutoSubs={teamSubscription?.disable_auto_subs || false}
               initialRotationSpeed={teamSubscription?.rotation_speed || 2}
