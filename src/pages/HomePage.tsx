@@ -1756,7 +1756,8 @@ export default function HomePage() {
                             <Button 
                               variant="ghost" 
                               size="icon"
-                              className="h-7 w-7 text-warning"
+                              className="h-9 w-9 text-warning"
+                              aria-label={`Cancel ${event.title}`}
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1764,14 +1765,15 @@ export default function HomePage() {
                                 setCancelDialogOpen(true);
                               }}
                             >
-                              <XCircle className="h-3 w-3" />
+                              <XCircle className="h-3.5 w-3.5" />
                             </Button>
                           </>
                         )}
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          className="h-7 w-7 text-destructive"
+                          className="h-9 w-9 text-destructive"
+                          aria-label={`Delete ${event.title}`}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1779,7 +1781,7 @@ export default function HomePage() {
                             setDeleteDialogOpen(true);
                           }}
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     )}
@@ -2156,7 +2158,7 @@ export default function HomePage() {
             </div>
           </div>
           {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-            <div className="mt-3">
+            <div className="mt-3" role="progressbar" aria-valuenow={profile?.ignite_points || 0} aria-valuemin={0} aria-valuemax={minRewardThreshold} aria-label="Progress to next reward">
               <div className="h-1 rounded-full bg-muted overflow-hidden">
                 <div 
                   className="h-full rounded-full bg-primary/70 transition-all"
