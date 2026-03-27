@@ -852,34 +852,6 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Team Header */}
-      <div className="flex items-center gap-3 px-1">
-        <Avatar className="h-12 w-12 border-2 border-primary/20 shrink-0">
-          <AvatarImage src={team.logo_url || undefined} />
-          <AvatarFallback className="bg-primary/20 text-primary text-lg">
-            {team.name?.charAt(0)?.toUpperCase() || "T"}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            {isTeamPro && (
-              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] h-4 px-1.5">PRO</Badge>
-            )}
-            {hasProFootball && !isTeamPro && (
-              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] h-4 px-1.5">PRO FOOTBALL</Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {(() => {
-              const count = Object.keys(members).length + teamChildren.length;
-              const parts: string[] = [];
-              if (count > 0) parts.push(`${count} members`);
-              if (team.description) parts.push(team.description);
-              return parts.join(" · ");
-            })()}
-          </p>
-        </div>
-      </div>
 
       {/* Enrolment Link for Class-mode teams - hide if already enrolled */}
       {team.clubs?.class_mode_enabled && team.class_day && !isEnrolledInClass && (
