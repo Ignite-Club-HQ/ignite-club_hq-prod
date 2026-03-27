@@ -1815,7 +1815,7 @@ export default function HomePage() {
         // Join Team - always visible
         actions.push({
           key: "join",
-          icon: <UserCheck className="h-5 w-5 text-foreground" aria-hidden="true" />,
+          icon: <UserCheck className="h-6 w-6 text-foreground" aria-hidden="true" />,
           label: activeClubFilter && clubs?.find(c => c.id === activeClubFilter)?.class_mode_enabled ? "Join Class" : "Join Team",
           onClick: () => setTeamDialogOpen(true),
         });
@@ -1824,7 +1824,7 @@ export default function HomePage() {
         if (canCreateEvents) {
           actions.push({
             key: "event",
-            icon: <Plus className="h-5 w-5 text-foreground" aria-hidden="true" />,
+            icon: <Plus className="h-6 w-6 text-foreground" aria-hidden="true" />,
             label: "New Event",
             onClick: () => navigate('/events/new'),
           });
@@ -1834,7 +1834,7 @@ export default function HomePage() {
         if (canAccessVault) {
           actions.push({
             key: "vault",
-            icon: <FolderOpen className="h-5 w-5 text-foreground" aria-hidden="true" />,
+            icon: <FolderOpen className="h-6 w-6 text-foreground" aria-hidden="true" />,
             label: "File Vault",
             onClick: () => navigate("/vault"),
           });
@@ -1843,7 +1843,7 @@ export default function HomePage() {
         // Create Team - available to all users
         actions.push({
           key: "create-team",
-          icon: <UserPlus className="h-5 w-5 text-foreground" aria-hidden="true" />,
+          icon: <UserPlus className="h-6 w-6 text-foreground" aria-hidden="true" />,
           label: activeClubFilter ? "Create Team" : "Create Team or Club",
           onClick: () => {
             if (activeClubFilter) {
@@ -1867,12 +1867,12 @@ export default function HomePage() {
                 <Button
                   key={action.key}
                   variant="outline"
-                  className="w-full h-auto min-h-[4rem] py-4 flex flex-col gap-2"
+                  className="w-full h-auto min-h-[4.5rem] py-5 flex flex-col gap-2.5 border-border/80 bg-card hover:bg-accent/50 hover:border-primary/40 transition-all"
                   aria-label={action.label}
                   onClick={action.onClick}
                 >
                   {action.icon}
-                  <span className="text-sm">{action.label}</span>
+                  <span className="text-sm font-medium">{action.label}</span>
                 </Button>
               ))}
             </div>
@@ -2094,80 +2094,78 @@ export default function HomePage() {
       </ResponsiveDialog>
 
       {/* Points & Rewards - Compact Banner */}
-      <section className="space-y-1">
-        <Card className="border bg-card">
-          <CardContent className="px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-1.5 rounded-lg bg-primary/15">
-                  <Flame className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-medium text-muted-foreground">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</span>
-                    {showProBadge && (
-                      <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
-                        <Lock className="h-2.5 w-2.5 mr-0.5" />
-                        Pro
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold">{profile?.ignite_points || 0}</span>
-                    {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-                      <span className="text-xs text-muted-foreground">
-                        · {minRewardThreshold - (profile?.ignite_points || 0)} to next reward
-                      </span>
-                    )}
-                    {minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
-                      <span className="text-xs text-primary font-medium">
-                        · Rewards available!
-                      </span>
-                    )}
-                  </div>
-                </div>
+      <Card className="border bg-card">
+        <CardContent className="px-4 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2 rounded-xl bg-primary/10 shrink-0">
+                <Flame className="h-5 w-5 text-primary" />
               </div>
-              <div className="flex items-center gap-2">
-                {latestPendingRedemption ? (
-                  <Button
-                    size="sm"
-                    className="bg-amber-500 hover:bg-amber-600 text-white gap-1 h-8 text-xs"
-                    onClick={() => setClaimDialogOpen(true)}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Claim
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="gap-1 h-8 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={handleBrowseRewards}
-                  >
-                    <Gift className="h-3.5 w-3.5" />
-                    Browse
-                  </Button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
+                  </span>
+                  {showProBadge && (
+                    <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
+                      <Lock className="h-2.5 w-2.5 mr-0.5" />
+                      Pro
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-2xl font-bold leading-tight">{profile?.ignite_points || 0}</p>
+                {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {minRewardThreshold - (profile?.ignite_points || 0)} points to next reward
+                  </p>
+                )}
+                {minRewardThreshold !== null && (profile?.ignite_points || 0) >= minRewardThreshold && (
+                  <p className="text-xs text-primary font-medium mt-0.5">
+                    Rewards available!
+                  </p>
+                )}
+                {latestPendingRedemption && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
+                  </p>
                 )}
               </div>
             </div>
-            {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
-              <div className="mt-2">
-                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div 
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${Math.min(100, ((profile?.ignite_points || 0) / minRewardThreshold) * 100)}%` }}
-                  />
-                </div>
+            <div className="shrink-0">
+              {latestPendingRedemption ? (
+                <Button
+                  size="sm"
+                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 h-8 text-xs"
+                  onClick={() => setClaimDialogOpen(true)}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Claim
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={handleBrowseRewards}
+                >
+                  <Gift className="h-3.5 w-3.5" />
+                  Browse
+                </Button>
+              )}
+            </div>
+          </div>
+          {minRewardThreshold !== null && (profile?.ignite_points || 0) < minRewardThreshold && (
+            <div className="mt-3">
+              <div className="h-1 rounded-full bg-muted overflow-hidden">
+                <div 
+                  className="h-full rounded-full bg-primary/70 transition-all"
+                  style={{ width: `${Math.min(100, ((profile?.ignite_points || 0) / minRewardThreshold) * 100)}%` }}
+                />
               </div>
-            )}
-            {latestPendingRedemption && (
-              <p className="text-xs text-muted-foreground mt-1.5">
-                🎁 Ready to claim: {latestPendingRedemption.club_rewards?.name}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Reward Claim QR Dialog */}
       {latestPendingRedemption && user && (
