@@ -466,7 +466,9 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
           {[...items]
             .sort((a, b) => {
-              // Teams with upcoming events first
+              // Admin/coach teams first
+              if (a.canManage !== b.canManage) return a.canManage ? -1 : 1;
+              // Then teams with upcoming events
               const aHasEvent = !!nextEvents[a.id];
               const bHasEvent = !!nextEvents[b.id];
               if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
