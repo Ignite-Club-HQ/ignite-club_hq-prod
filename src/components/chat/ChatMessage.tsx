@@ -219,10 +219,15 @@ export const ChatMessage = memo(function ChatMessage({
     },
       
     onError: (err, variables, context) => {
+      console.error('[Reaction] Mutation error:', err);
       if (context?.previousMessages) {
         queryClient.setQueryData(queryKey, context.previousMessages);
       }
       toast.error("Failed to add reaction");
+    },
+    onSettled: () => {
+      // Refetch to ensure consistency with DB state
+      queryClient.invalidateQueries({ queryKey });
     },
   });
 
