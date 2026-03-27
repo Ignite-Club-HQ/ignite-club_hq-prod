@@ -1629,7 +1629,7 @@ export default function HomePage() {
               </p>
             </CardContent>
           </Card>
-        ) : (
+        ) : events && events.length <= 1 ? null : (
           <div className="space-y-3">
             {events?.slice(1).map((event) => {
               const typeColorMap: Record<string, string> = {
