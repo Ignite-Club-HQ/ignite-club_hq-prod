@@ -626,6 +626,7 @@ export function AppHeader() {
           }
           return;
         case "rsvp":
+        case "rsvp_updated":
           navigate(`/events/${relatedId}`);
           return;
         case "pending_sub":
