@@ -2169,6 +2169,7 @@ export default function HomePage() {
           )}
         </CardContent>
       </Card>
+      </section>
 
       {/* Reward Claim QR Dialog */}
       {latestPendingRedemption && user && (
