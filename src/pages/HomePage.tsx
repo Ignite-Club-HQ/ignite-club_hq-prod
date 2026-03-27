@@ -615,6 +615,8 @@ export default function HomePage() {
       });
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch rewards for selected club
