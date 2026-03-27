@@ -94,7 +94,15 @@ export function LatestPhotosScroll() {
   if (photos.length === 0) {
     return (
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Latest Photos</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Latest Photos</h2>
+          <button
+            onClick={() => navigate("/media")}
+            className="text-xs text-primary font-medium hover:underline"
+          >
+            View all
+          </button>
+        </div>
         <button
           onClick={() => navigate("/media")}
           className="w-full rounded-lg border border-dashed bg-card p-4 flex flex-col items-center gap-2 hover:border-primary/50 transition-colors"
