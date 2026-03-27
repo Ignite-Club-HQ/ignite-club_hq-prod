@@ -130,6 +130,15 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
     root.style.removeProperty("--accent");
     root.style.removeProperty("--accent-foreground");
     root.style.removeProperty("--ring");
+    // Also clear light-mode branded overrides
+    root.style.removeProperty("--background");
+    root.style.removeProperty("--card");
+    root.style.removeProperty("--card-foreground");
+    root.style.removeProperty("--border");
+    root.style.removeProperty("--input");
+    root.style.removeProperty("--muted");
+    root.style.removeProperty("--popover");
+    root.style.removeProperty("--popover-foreground");
     return;
   }
 
@@ -170,6 +179,34 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
     // Use a wider threshold to handle mid-range lightness values
     const fgL = accent.l >= 45 ? 15 : 90;
     root.style.setProperty("--accent-foreground", `${accent.h} 50% ${fgL}%`);
+  }
+
+  // Club-themed light mode polish: apply subtle branded tints to background, cards, borders
+  // This makes light mode feel more branded without changing layout or the default Ignite theme
+  if (!isDarkMode && primary) {
+    const h = primary.h;
+    // Soft blue-grey/cool tinted page background
+    root.style.setProperty("--background", `${h} 12% 95%`);
+    // Cards slightly whiter than page background for separation
+    root.style.setProperty("--card", `${h} 8% 99%`);
+    root.style.setProperty("--card-foreground", `${h} 10% 10%`);
+    // Subtly clearer borders
+    root.style.setProperty("--border", `${h} 14% 82%`);
+    root.style.setProperty("--input", `${h} 14% 82%`);
+    // Tinted muted backgrounds
+    root.style.setProperty("--muted", `${h} 10% 91%`);
+    root.style.setProperty("--popover", `${h} 8% 98%`);
+    root.style.setProperty("--popover-foreground", `${h} 10% 10%`);
+  } else {
+    // Dark mode or no club theme in light mode - restore defaults
+    root.style.removeProperty("--background");
+    root.style.removeProperty("--card");
+    root.style.removeProperty("--card-foreground");
+    root.style.removeProperty("--border");
+    root.style.removeProperty("--input");
+    root.style.removeProperty("--muted");
+    root.style.removeProperty("--popover");
+    root.style.removeProperty("--popover-foreground");
   }
 };
 
