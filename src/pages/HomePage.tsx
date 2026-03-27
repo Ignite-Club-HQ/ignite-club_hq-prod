@@ -365,16 +365,25 @@ export default function HomePage() {
     return userRsvps?.find(r => r.event_id === eventId)?.status || null;
   };
 
+  const getRsvpLabel = (status: string | null): string => {
+    switch (status) {
+      case "going": return "Going";
+      case "not_going": return "Not going";
+      case "maybe": return "Maybe";
+      default: return "RSVP";
+    }
+  };
+
   const getRsvpIcon = (status: string | null) => {
     switch (status) {
       case "going":
-        return <><CheckCircle2 className="h-4 w-4 mr-1 text-primary" aria-hidden="true" /><span className="sr-only">Going - </span></>;
+        return <CheckCircle2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />;
       case "not_going":
-        return <><X className="h-4 w-4 mr-1 text-destructive" aria-hidden="true" /><span className="sr-only">Not going - </span></>;
+        return <X className="h-3.5 w-3.5 text-destructive" aria-hidden="true" />;
       case "maybe":
-        return <><HelpCircle className="h-4 w-4 mr-1 text-warning" aria-hidden="true" /><span className="sr-only">Maybe - </span></>;
+        return <HelpCircle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />;
       default:
-        return <><Minus className="h-4 w-4 mr-1 text-muted-foreground" aria-hidden="true" /><span className="sr-only">No response - </span></>;
+        return <Minus className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />;
     }
   };
 
@@ -1638,17 +1647,25 @@ export default function HomePage() {
                         </Badge>
                       )}
                     </div>
-                    <button
-                      className="flex items-center justify-center text-xs font-medium hover:opacity-80 transition-opacity shrink-0 min-h-[44px] min-w-[44px]"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setQuickRsvpEvent(event);
-                      }}
-                      aria-label={`RSVP status: ${getUserRsvpStatus(event.id) || 'No response'}. Tap to change.`}
-                    >
-                      {getRsvpIcon(getUserRsvpStatus(event.id))}
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="flex items-center gap-1.5 text-xs font-medium hover:bg-accent/50 transition-colors shrink-0 rounded-full px-2.5 py-1 border border-border/60"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setQuickRsvpEvent(event);
+                          }}
+                          aria-label={`RSVP status: ${getRsvpLabel(getUserRsvpStatus(event.id))}. Tap to change.`}
+                        >
+                          {getRsvpIcon(getUserRsvpStatus(event.id))}
+                          <span className="text-foreground">{getRsvpLabel(getUserRsvpStatus(event.id))}</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="text-xs">
+                        Tap to change RSVP
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                   {/* Line 2: Date + Location + Admin actions */}
                   <div className="flex items-center justify-between gap-2 mt-1">
