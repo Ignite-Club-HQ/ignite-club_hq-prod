@@ -63,11 +63,20 @@ function TeamCard({ item, nextEvent, photos }: {
           ? `border-l-[3px] ${accentBorder} shadow-md hover:shadow-lg` 
           : "hover:border-primary/40 shadow-sm hover:shadow-md opacity-80"
       }`}
+      role="button"
+      tabIndex={0}
+      aria-label={`${item.name} — ${item.club_name}`}
       onClick={() => {
         if (item.type === "team") {
           navigate(`/teams/${item.id}`);
         } else {
           navigate(`/mini-leagues/${item.id}`);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
         }
       }}
     >
@@ -107,7 +116,7 @@ function TeamCard({ item, nextEvent, photos }: {
         <div className="space-y-1.5">
           {nextEvent ? (
             <div className="flex items-center gap-2 text-sm">
-              <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
+              <Calendar className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
               <span className="font-medium text-foreground truncate">
                 {nextEvent.title}
               </span>
@@ -149,9 +158,10 @@ function TeamCard({ item, nextEvent, photos }: {
         {photos.length > 0 && (
           <div className="flex gap-1.5">
             {photos.slice(0, 2).map((url, i) => (
-              <div
+              <button
                 key={i}
                 className="h-12 w-16 rounded-md overflow-hidden bg-muted"
+                aria-label="View team photos"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigate(`/media?team=${item.id}`);
@@ -163,7 +173,7 @@ function TeamCard({ item, nextEvent, photos }: {
                   className="h-full w-full object-cover"
                   loading="lazy"
                 />
-              </div>
+              </button>
             ))}
           </div>
         )}
