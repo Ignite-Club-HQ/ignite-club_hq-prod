@@ -1835,7 +1835,7 @@ export default function HomePage() {
       </section>
 
       {/* Latest Photos */}
-      <LatestPhotosScroll />
+      <LatestPhotosScroll showProBadge={showProBadge} />
 
       {/* My Teams & Leagues */}
       <MyTeamsScroll />
