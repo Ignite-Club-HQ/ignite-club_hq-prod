@@ -1434,7 +1434,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
                   <ClipboardCheck className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Attendance</span>
+                  <h2 className="text-lg font-semibold">Attendance</h2>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
@@ -1453,7 +1453,7 @@ export default function TeamDetailPage() {
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Settings className="h-5 w-5 text-primary" />
-                  <span className="text-lg font-semibold">Admin</span>
+                  <h2 className="text-lg font-semibold">Admin</h2>
                 </div>
               </AccordionTrigger>
               <AccordionContent>
