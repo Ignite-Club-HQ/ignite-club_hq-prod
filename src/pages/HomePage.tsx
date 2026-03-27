@@ -1530,9 +1530,6 @@ export default function HomePage() {
         </p>
       </div>
 
-      {/* Next Up Carousel - unified event section */}
-      <NextUpCarousel events={events || []} />
-
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
       {/* Only coaches/team_admins of that team can edit, others view read-only */}
@@ -1586,6 +1583,9 @@ export default function HomePage() {
           />
         );
       })()}
+
+      {/* Next Up Carousel - unified event section */}
+      <NextUpCarousel events={events || []} />
 
       {/* Mini League Live Matches Widget */}
       <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />
