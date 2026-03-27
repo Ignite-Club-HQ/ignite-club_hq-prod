@@ -127,7 +127,7 @@ function HeroCard({ event }: { event: EventItem }) {
 
   return (
     <Card
-      className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl min-w-[300px] w-[85vw] max-w-[360px] shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`border-2 ${typeBorderColors[event.type] || "border-primary/60"} shadow-lg ${typeGlowColors[event.type] || "shadow-primary/10"} cursor-pointer transition-all hover:shadow-xl min-w-[280px] w-[calc(100vw-3rem)] max-w-[400px] shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
       onClick={() => navigate(`/events/${event.id}`)}
     >
       <CardContent className="p-3.5 space-y-2.5">
