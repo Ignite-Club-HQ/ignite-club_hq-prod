@@ -1590,10 +1590,10 @@ export default function HomePage() {
       {/* Native App Download Banner - for mobile browser users */}
       <NativeAppDownloadBanner />
 
-      {/* Upcoming Schedule - #1 use case */}
+      {/* More Upcoming */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Upcoming Schedule</h2>
+          <h2 className="text-lg font-semibold">More Upcoming</h2>
           <Link to="/events" className="text-sm text-primary hover:underline">
             View all
           </Link>
@@ -1630,8 +1630,8 @@ export default function HomePage() {
             </CardContent>
           </Card>
         ) : events && events.length <= 1 ? null : (
-          <div className="space-y-3">
-            {events?.slice(1).map((event) => {
+          <div className="space-y-2">
+            {events?.slice(1, 5).map((event) => {
               const typeColorMap: Record<string, string> = {
                 game: 'border-l-destructive',
                 training: 'border-l-primary',
@@ -1648,40 +1648,17 @@ export default function HomePage() {
                 onClick={() => navigate(`/events/${event.id}`)}
               >
                 <CardContent className="p-3 pl-3.5">
-                  {/* Row 1: Title + RSVP */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? 'line-through' : ''}`}>
-                        {event.title}{event.opponent ? ` vs ${event.opponent}` : ''}
-                      </h3>
-                      <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0 font-normal text-muted-foreground">
-                        {event.teams?.name || event.clubs?.name}
-                      </Badge>
-                      {event.is_cancelled && (
-                        <Badge variant="destructive" className="text-[11px] h-5 shrink-0">Cancelled</Badge>
-                      )}
-                    </div>
-                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            className="flex items-center gap-1 text-xs font-medium hover:bg-accent/50 transition-colors rounded-full px-2 py-0.5 border border-border/60"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setQuickRsvpEvent(event);
-                            }}
-                            aria-label={`RSVP status: ${getRsvpLabel(getUserRsvpStatus(event.id))}. Tap to change.`}
-                          >
-                            {getRsvpIcon(getUserRsvpStatus(event.id))}
-                            <span className="text-foreground">{getRsvpLabel(getUserRsvpStatus(event.id))}</span>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="left" className="text-xs">
-                          Tap to change RSVP
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
+                  {/* Row 1: Title + Badge */}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? 'line-through' : ''}`}>
+                      {event.title}{event.opponent ? ` vs ${event.opponent}` : ''}
+                    </h3>
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0 font-normal text-muted-foreground">
+                      {event.teams?.name || event.clubs?.name}
+                    </Badge>
+                    {event.is_cancelled && (
+                      <Badge variant="destructive" className="text-[11px] h-5 shrink-0">Cancelled</Badge>
+                    )}
                   </div>
                   {/* Row 2: Date + Location + Admin actions */}
                   <div className="flex items-center justify-between mt-0.5">
