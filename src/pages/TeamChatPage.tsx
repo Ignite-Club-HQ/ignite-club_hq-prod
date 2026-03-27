@@ -283,6 +283,8 @@ export default function TeamChatPage() {
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
+    refetchOnMount: "always",
+    refetchOnReconnect: true,
     refetchOnWindowFocus: false,
   });
 
@@ -325,6 +327,7 @@ export default function TeamChatPage() {
   
   const handleRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    await queryClient.refetchQueries({ queryKey: ["team-messages", teamId], type: "active" });
   }, [queryClient, teamId]);
 
   const handleManualRefresh = useCallback(async () => {

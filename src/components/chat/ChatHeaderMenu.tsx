@@ -200,7 +200,7 @@ export function ChatHeaderMenu({
             </>
           )}
 
-          {isNativePlatform && onRefresh && (
+          {onRefresh && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem
