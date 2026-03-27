@@ -50,25 +50,21 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
       if (!user?.id) return 0;
 
       // Get last read timestamp
-      const readResult = await supabase
+      const readQuery = supabase
         .from("message_reads")
         .select("read_at")
         .eq("user_id", user.id)
-        .eq("team_id", teamId)
-        .order("read_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq("team_id", teamId);
+      const readResult = await (readQuery as any).order("read_at", { ascending: false }).limit(1).maybeSingle();
 
       const lastRead = readResult.data?.read_at || "1970-01-01T00:00:00Z";
 
-      const countQuery = supabase
+      const msgQuery = supabase
         .from("team_messages")
         .select("id", { count: "exact", head: true })
         .eq("team_id", teamId)
-        .is("deleted_at", null)
-        .gt("created_at", lastRead);
-      
-      const { count } = await (countQuery as any).neq("author_id", user.id);
+        .is("deleted_at", null);
+      const { count } = await (msgQuery as any).gt("created_at", lastRead).neq("author_id", user.id);
 
       return (count as number) || 0;
     },
