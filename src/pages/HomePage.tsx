@@ -68,6 +68,7 @@ import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
 import { MyTeamsScroll } from "@/components/MyTeamsScroll";
 import { LatestPhotosScroll } from "@/components/LatestPhotosScroll";
+import { NextUpHero } from "@/components/NextUpHero";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -1516,18 +1517,10 @@ export default function HomePage() {
 
   return (
     <div className="py-6 space-y-5">
-      {/* Welcome Section */}
-      <section className="space-y-1">
-        <h1 className="text-2xl font-bold">
-          Welcome, {profile?.display_name?.split(" ")[0]}! 👋
-        </h1>
-        <p className="text-muted-foreground">
-          {activeThemeData 
-            ? `Here's what's coming up @ ${activeThemeData.clubName}`
-            : "Here's what's coming up"
-          }
-        </p>
-      </section>
+      {/* Next Up Hero - first upcoming event */}
+      {events && events.length > 0 && (
+        <NextUpHero event={events[0]} />
+      )}
 
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
