@@ -6,6 +6,7 @@ import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy, ChevronRight } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
+import { TeamChatPreview } from "@/components/team/TeamChatPreview";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -981,30 +982,27 @@ export default function TeamDetailPage() {
 
       {/* Primary Actions - Chat & Schedule */}
       {isMember && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
           <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
-            <Card className="hover:border-primary/50 transition-colors h-full" role="button">
+            <Card className="border-primary/20 bg-primary/[0.04] hover:border-primary/50 transition-colors" role="button">
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-primary/10">
+                <div className="p-2.5 rounded-xl bg-primary/10">
                   <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-semibold">Team Chat</span>
-                  <p className="text-[11px] text-muted-foreground">Messages</p>
-                </div>
+                <TeamChatPreview teamId={team.id} />
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
             </Card>
           </Link>
           <Link to={`/events?team=${team.id}`} aria-label="View team schedule" className="block">
-            <Card className="hover:border-primary/50 transition-colors h-full" role="button">
+            <Card className="hover:border-primary/50 transition-colors" role="button">
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-primary/10">
+                <div className="p-2.5 rounded-xl bg-primary/10">
                   <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-semibold">Schedule</span>
-                  <p className="text-[11px] text-muted-foreground">Events</p>
+                  <p className="text-[11px] text-muted-foreground">Events & fixtures</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
@@ -1095,7 +1093,10 @@ export default function TeamDetailPage() {
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2 flex-1">
                 <Users className="h-5 w-5 text-primary" />
-                <span className="text-lg font-semibold">Team</span>
+                <div className="min-w-0">
+                  <span className="text-lg font-semibold">Team</span>
+                  <p className="text-[10px] text-muted-foreground leading-tight -mt-0.5">Players, parents & coaches</p>
+                </div>
                 <Badge variant="secondary" className="ml-1">
                   {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
                     ? "..."
@@ -1106,8 +1107,8 @@ export default function TeamDetailPage() {
                 </Badge>
                 {/* Show first few avatars inline */}
                 <div className="flex -space-x-2 ml-auto mr-2">
-                  {Object.values(members).slice(0, 3).map((member, i) => (
-                    <Avatar key={i} className="h-6 w-6 border-2 border-background">
+                  {Object.values(members).slice(0, 4).map((member, i) => (
+                    <Avatar key={i} className="h-7 w-7 border-2 border-background">
                       <AvatarImage src={member.profile?.avatar_url || undefined} />
                       <AvatarFallback className="bg-primary/20 text-primary text-[10px]">
                         {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
@@ -1404,7 +1405,7 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
-          {isAdmin && (
+          {isMember && (
           <AccordionItem value="chat-groups" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-2">
@@ -1414,9 +1415,11 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-3 pt-2">
-                <div className="flex justify-end">
-                  <CreateGroupDialog teamId={id} />
-                </div>
+                {isAdmin && (
+                  <div className="flex justify-end">
+                    <CreateGroupDialog teamId={id} />
+                  </div>
+                )}
                 
                 <ChatGroupsList teamId={id} canManage={isAdmin} />
               </div>
