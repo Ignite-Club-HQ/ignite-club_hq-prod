@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Camera } from "lucide-react";
+import { Users } from "lucide-react";
 import { getCachedTeam, cacheTeams } from "@/lib/clubTeamCache";
 
 interface TeamOrLeague {
