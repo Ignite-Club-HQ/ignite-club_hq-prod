@@ -132,7 +132,13 @@ serve(async (req: Request): Promise<Response> => {
         case 'game_finished':
         case 'pitch_board':
         case 'substitution':
-          return '/notifications';
+          return '/';
+        case 'member_joined':
+          return relatedId ? `/teams/${relatedId}` : '/notifications';
+        case 'invite_accepted':
+        case 'team_join':
+        case 'club_join':
+          return relatedId ? `/messages/${relatedId}` : '/notifications';
         default:
           return '/notifications';
       }
