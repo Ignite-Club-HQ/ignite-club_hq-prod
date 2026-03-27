@@ -40,23 +40,7 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
   }
 
   if (!nextEvent) {
-    return (
-      <Card
-        className="border-dashed border-muted-foreground/20 hover:border-primary/40 transition-colors cursor-pointer"
-        onClick={() => navigate(`/events?team=${teamId}`)}
-      >
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-muted">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">No upcoming events</p>
-            <p className="text-xs text-primary font-medium mt-0.5">View full schedule →</p>
-          </div>
-          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   const typeLabel = getEventTypeLabel(nextEvent.type, { miniLeagueId: nextEvent.mini_league_id });

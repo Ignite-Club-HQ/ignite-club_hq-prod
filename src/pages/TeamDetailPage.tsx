@@ -644,9 +644,9 @@ export default function TeamDetailPage() {
 
   return (
     <div className="py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => {
+      {/* Header with integrated team identity */}
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="shrink-0" onClick={() => {
           if (window.history.length > 1) {
             navigate(-1);
           } else {
@@ -655,7 +655,50 @@ export default function TeamDetailPage() {
         }}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-2xl font-bold flex-1 truncate">{team.name}</h1>
+        <Avatar className="h-9 w-9 border-2 border-primary/20 shrink-0">
+          <AvatarImage src={team.logo_url || undefined} />
+          <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
+            {team.name?.charAt(0)?.toUpperCase() || "T"}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-bold truncate">{team.name}</h1>
+            {isTeamPro && (
+              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+            )}
+            {hasProFootball && !isTeamPro && (
+              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] h-4 px-1.5 shrink-0">PRO</Badge>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-tight">
+            {(() => {
+              const coaches = Object.values(members).filter(m => m.roles.some(r => r.role === 'coach'));
+              const coachName = coaches.length > 0 ? coaches[0].profile?.display_name : null;
+              if (coachName) return `Coach: ${coachName}`;
+              if (team.description) return team.description;
+              return null;
+            })()}
+          </p>
+        </div>
+        {/* Stacked member avatars */}
+        <div className="flex -space-x-1.5 shrink-0 mr-1">
+          {Object.values(members).slice(0, 3).map((member, i) => (
+            <Avatar key={i} className="h-6 w-6 border-2 border-background">
+              <AvatarImage src={member.profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-primary/20 text-primary text-[8px]">
+                {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+          ))}
+          {Object.keys(members).length + teamChildren.length > 3 && (
+            <Avatar className="h-6 w-6 border-2 border-background">
+              <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
+                +{Object.keys(members).length + teamChildren.length - 3}
+              </AvatarFallback>
+            </Avatar>
+          )}
+        </div>
           {isAdmin && isClassMode && (
             <Button variant="ghost" size="icon" onClick={() => navigate(`/teams/${id}/edit`)}>
               <Pencil className="h-4 w-4" />
@@ -809,34 +852,6 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Team Header */}
-      <div className="flex items-center gap-3 px-1">
-        <Avatar className="h-12 w-12 border-2 border-primary/20 shrink-0">
-          <AvatarImage src={team.logo_url || undefined} />
-          <AvatarFallback className="bg-primary/20 text-primary text-lg">
-            {team.name?.charAt(0)?.toUpperCase() || "T"}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            {isTeamPro && (
-              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] h-4 px-1.5">PRO</Badge>
-            )}
-            {hasProFootball && !isTeamPro && (
-              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] h-4 px-1.5">PRO FOOTBALL</Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {(() => {
-              const count = Object.keys(members).length + teamChildren.length;
-              const parts: string[] = [];
-              if (count > 0) parts.push(`${count} members`);
-              if (team.description) parts.push(team.description);
-              return parts.join(" · ");
-            })()}
-          </p>
-        </div>
-      </div>
 
       {/* Enrolment Link for Class-mode teams - hide if already enrolled */}
       {team.clubs?.class_mode_enabled && team.class_day && !isEnrolledInClass && (
@@ -968,17 +983,14 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Next Event Card */}
+      {/* Next Event Card - no label, card speaks for itself */}
       {isMember && (
-        <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Next Up</h3>
-          <TeamNextEventCard teamId={id!} clubId={team.club_id} />
-        </div>
+        <TeamNextEventCard teamId={id!} clubId={team.club_id} />
       )}
 
       {/* Primary Actions - Chat & Schedule */}
       {isMember && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
             <Card className="border-primary/20 bg-primary/[0.04] hover:border-primary/50 transition-colors" role="button">
               <CardContent className="p-4 flex items-center gap-3">
@@ -1093,23 +1105,22 @@ export default function TeamDetailPage() {
                   <span className="text-base font-semibold leading-tight">Team</span>
                   <span className="text-[10px] text-muted-foreground leading-tight">Players, parents & coaches</span>
                 </div>
-                <Badge variant="secondary" className="shrink-0 ml-1 text-xs">
-                  {((isMembersLoading || isMembersFetching) && Object.keys(members).length === 0) || ((isChildrenLoading || isChildrenFetching) && teamChildren.length === 0)
-                    ? "..."
-                    : `${Object.keys(members).length + teamChildren.length + pendingInvites.reduce((count, inv) => {
-                        const meta = inv.metadata as { children?: { name: string }[] } | null;
-                        return count + (meta?.children?.length || 0);
-                      }, 0)} members`}
-                </Badge>
                 <div className="flex -space-x-2 ml-auto shrink-0">
-                  {Object.values(members).slice(0, 3).map((member, i) => (
-                    <Avatar key={i} className="h-6 w-6 border-2 border-background">
+                  {Object.values(members).slice(0, 5).map((member, i) => (
+                    <Avatar key={i} className="h-7 w-7 border-2 border-background">
                       <AvatarImage src={member.profile?.avatar_url || undefined} />
                       <AvatarFallback className="bg-primary/20 text-primary text-[9px]">
                         {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
                   ))}
+                  {Object.keys(members).length + teamChildren.length > 5 && (
+                    <Avatar className="h-7 w-7 border-2 border-background">
+                      <AvatarFallback className="bg-muted text-muted-foreground text-[9px]">
+                        +{Object.keys(members).length + teamChildren.length - 5}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                 </div>
                 <Button
                   variant="ghost"

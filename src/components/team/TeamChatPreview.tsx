@@ -88,7 +88,7 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
               : latestMessage.text}
           </p>
         ) : (
-          <p className="text-[11px] text-muted-foreground">Start a conversation</p>
+          <p className="text-[11px] text-muted-foreground">No messages yet — say hello! 👋</p>
         )}
       </div>
       {unreadCount > 0 && (
