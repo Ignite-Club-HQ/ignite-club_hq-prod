@@ -1086,8 +1086,9 @@ export default function ClubDetailPage() {
           const filteredTeams = activeTeams.filter((team) => {
             // Filter by type
             const teamType = (team as any).team_type?.toLowerCase() || "";
+            const isSeniorOrMixed = teamType === "senior" || teamType === "mixed";
             if (teamFilter === "junior" && teamType !== "junior") return false;
-            if (teamFilter === "senior" && teamType !== "senior") return false;
+            if (teamFilter === "senior" && !isSeniorOrMixed) return false;
             if (teamFilter === "my" && !userTeamIds.includes(team.id)) return false;
             
             // Search filter
@@ -1106,11 +1107,11 @@ export default function ClubDetailPage() {
           const showGrouped = teamFilter === "all" && !teamSearchQuery.trim();
           
           const juniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "junior") : [];
-          const seniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "senior") : [];
+          const seniorTeams = showGrouped ? filteredTeams.filter(t => { const tt = (t as any).team_type?.toLowerCase(); return tt === "senior" || tt === "mixed"; }) : [];
           const otherTeams = showGrouped 
             ? filteredTeams.filter(t => {
                 const tt = (t as any).team_type?.toLowerCase();
-                return tt !== "junior" && tt !== "senior";
+                return tt !== "junior" && tt !== "senior" && tt !== "mixed";
               })
             : filteredTeams;
 
