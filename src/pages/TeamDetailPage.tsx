@@ -1879,12 +1879,20 @@ export default function TeamDetailPage() {
           <PitchBoard
             teamId={id!}
             teamName={team.name}
-            members={rawMembers.map(m => ({
-              id: m.id,
-              user_id: m.user_id,
-              role: m.role,
-              profiles: m.profiles
-            }))}
+            members={[
+              ...rawMembers.map(m => ({
+                id: m.id,
+                user_id: m.user_id,
+                role: m.role,
+                profiles: m.profiles
+              })),
+              ...teamChildren.map(child => ({
+                id: `child-${child.children.id}`,
+                user_id: child.children.id,
+                role: "player" as string,
+                profiles: { display_name: child.children.name, avatar_url: null },
+              })),
+            ]}
             onClose={() => {
               setShowPitchBoard(false);
               setLinkedEventId(null);
