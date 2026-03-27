@@ -91,7 +91,20 @@ export function LatestPhotosScroll() {
     );
   }
 
-  if (photos.length === 0) return null;
+  if (photos.length === 0) {
+    return (
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold">Latest Photos</h2>
+        <button
+          onClick={() => navigate("/media")}
+          className="w-full rounded-lg border border-dashed bg-card p-4 flex flex-col items-center gap-2 hover:border-primary/50 transition-colors"
+        >
+          <Image className="h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">No photos yet — upload your first!</p>
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-2">

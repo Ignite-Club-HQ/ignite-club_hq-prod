@@ -1834,11 +1834,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* My Teams & Leagues */}
-      <MyTeamsScroll />
-
       {/* Latest Photos */}
       <LatestPhotosScroll />
+
+      {/* My Teams & Leagues */}
+      <MyTeamsScroll />
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <UpcomingClassesWidget />
