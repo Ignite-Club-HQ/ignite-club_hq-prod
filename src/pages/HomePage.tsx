@@ -1837,6 +1837,9 @@ export default function HomePage() {
       {/* My Teams & Leagues */}
       <MyTeamsScroll />
 
+      {/* Latest Photos */}
+      <LatestPhotosScroll />
+
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <UpcomingClassesWidget />
 
