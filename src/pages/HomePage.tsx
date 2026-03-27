@@ -67,6 +67,7 @@ import { MultiClubSponsorCarousel } from "@/components/MultiClubSponsorCarousel"
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
 import { MyTeamsScroll } from "@/components/MyTeamsScroll";
+import { LatestPhotosScroll } from "@/components/LatestPhotosScroll";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
