@@ -632,7 +632,7 @@ export function AppHeader() {
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg">
+            <button className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : 'ignite'}>
               {shouldShowClubTheming ? (
                 <>
                   {showClubLogo ? (
