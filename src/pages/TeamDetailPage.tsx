@@ -809,38 +809,33 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Team Info */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-2 border-primary/20">
-              <AvatarImage src={team.logo_url || undefined} />
-              <AvatarFallback className="bg-primary/20 text-primary text-xl">
-                {team.name?.charAt(0)?.toUpperCase() || "T"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xl">{getSportEmoji(team.clubs?.sport)}</span>
-                <span className="font-semibold text-lg">{team.name}</span>
-                {isTeamPro && (
-                  <Badge className="bg-yellow-500 text-yellow-950">PRO</Badge>
-                )}
-                {hasProFootball && (
-                  <Badge className="bg-emerald-500 text-emerald-950">PRO FOOTBALL</Badge>
-                )}
-              </div>
-              <p className="text-muted-foreground text-sm">{team.clubs?.name}</p>
-              {team.level_age && (
-                <Badge variant="outline" className="mt-1">{team.level_age}</Badge>
-              )}
-            </div>
+      {/* Team Header */}
+      <div className="flex items-center gap-3 px-1">
+        <Avatar className="h-12 w-12 border-2 border-primary/20 shrink-0">
+          <AvatarImage src={team.logo_url || undefined} />
+          <AvatarFallback className="bg-primary/20 text-primary text-lg">
+            {team.name?.charAt(0)?.toUpperCase() || "T"}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {isTeamPro && (
+              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] h-4 px-1.5">PRO</Badge>
+            )}
+            {hasProFootball && !isTeamPro && (
+              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] h-4 px-1.5">PRO FOOTBALL</Badge>
+            )}
           </div>
-          {team.description && (
-            <p className="text-muted-foreground text-sm mt-3">{team.description}</p>
-          )}
-        </CardContent>
-      </Card>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {(() => {
+              const memberCount = Object.keys(members).length + teamChildren.length;
+              return memberCount > 0 ? `${memberCount} members` : "";
+            })()}
+            {team.description ? (memberCount => memberCount ? " · " : "")(Object.keys(members).length + teamChildren.length) : ""}
+            {team.description || ""}
+          </p>
+        </div>
+      </div>
 
       {/* Enrolment Link for Class-mode teams - hide if already enrolled */}
       {team.clubs?.class_mode_enabled && team.class_day && !isEnrolledInClass && (
