@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, MessageSquare, Image } from "lucide-react";
+import { Users, Calendar, Trophy } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -33,6 +33,18 @@ function formatShortDate(dateStr: string): string {
   return `${format(date, "EEE")} ${format(date, "h:mma").toLowerCase()}`;
 }
 
+const eventAccentColors: Record<string, string> = {
+  game: "border-l-destructive",
+  training: "border-l-primary",
+  social: "border-l-warning",
+};
+
+const eventDotColors: Record<string, string> = {
+  game: "bg-destructive",
+  training: "bg-primary",
+  social: "bg-warning",
+};
+
 function TeamCard({ item, nextEvent, photos }: { 
   item: TeamOrLeague; 
   nextEvent?: NextEventInfo;
@@ -41,10 +53,15 @@ function TeamCard({ item, nextEvent, photos }: {
   const navigate = useNavigate();
 
   const hasActivity = !!nextEvent || photos.length > 0;
+  const accentBorder = nextEvent ? (eventAccentColors[nextEvent.type] || "border-l-primary") : "";
 
   return (
     <Card
-      className="shrink-0 w-[82vw] max-w-[320px] cursor-pointer border bg-card hover:border-primary/40 transition-all shadow-sm hover:shadow-md snap-start"
+      className={`shrink-0 w-[82vw] max-w-[320px] cursor-pointer border bg-card transition-all snap-start overflow-hidden ${
+        hasActivity 
+          ? `border-l-[3px] ${accentBorder} shadow-md hover:shadow-lg` 
+          : "hover:border-primary/40 shadow-sm hover:shadow-md opacity-80"
+      }`}
       onClick={() => {
         if (item.type === "team") {
           navigate(`/teams/${item.id}`);
@@ -54,25 +71,34 @@ function TeamCard({ item, nextEvent, photos }: {
       }}
     >
       <CardContent className="p-4 space-y-3">
-        {/* Header: logo + name + badge */}
+        {/* Header: avatar + name */}
         <div className="flex items-center gap-3">
           {item.logo_url ? (
             <img
               src={item.logo_url}
               alt=""
-              className="h-10 w-10 rounded-full object-cover shrink-0 ring-2 ring-border"
+              className="h-10 w-10 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
             />
           ) : (
-            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0 ring-2 ring-border">
-              <Users className="h-5 w-5 text-muted-foreground" />
+            <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
+              item.type === "league" 
+                ? "bg-accent/60 ring-2 ring-accent" 
+                : "bg-primary/10 ring-2 ring-primary/20"
+            }`}>
+              {item.type === "league" ? (
+                <Trophy className="h-5 w-5 text-accent-foreground" />
+              ) : (
+                <Users className="h-5 w-5 text-primary" />
+              )}
             </div>
           )}
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-[15px] leading-tight truncate">{item.name}</h3>
             <p className="text-[11px] text-muted-foreground truncate">{item.club_name}</p>
           </div>
-          {item.type === "league" && (
-            <Badge variant="outline" className="text-[10px] shrink-0 h-5">League</Badge>
+          {/* Activity indicator dot */}
+          {hasActivity && nextEvent && (
+            <div className={`h-2 w-2 rounded-full shrink-0 ${eventDotColors[nextEvent.type] || "bg-primary"}`} />
           )}
         </div>
 
@@ -89,7 +115,7 @@ function TeamCard({ item, nextEvent, photos }: {
               </span>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">No events scheduled</p>
+            <p className="text-xs text-muted-foreground italic">No upcoming events</p>
           )}
         </div>
 
