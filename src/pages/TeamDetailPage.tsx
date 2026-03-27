@@ -968,17 +968,14 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Next Event Card */}
+      {/* Next Event Card - no label, card speaks for itself */}
       {isMember && (
-        <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Next Up</h3>
-          <TeamNextEventCard teamId={id!} clubId={team.club_id} />
-        </div>
+        <TeamNextEventCard teamId={id!} clubId={team.club_id} />
       )}
 
       {/* Primary Actions - Chat & Schedule */}
       {isMember && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
             <Card className="border-primary/20 bg-primary/[0.04] hover:border-primary/50 transition-colors" role="button">
               <CardContent className="p-4 flex items-center gap-3">
