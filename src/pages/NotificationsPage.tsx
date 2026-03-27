@@ -625,12 +625,18 @@ export default function NotificationsPage() {
         break;
       }
       case "role_assigned":
-      case "member_joined":
       case "invite_accepted":
       case "team_join": {
-        // related_id is the team_id — navigate to team page
+        // related_id is the team_id — navigate to team chat
         if (relatedId) {
           navigate(`/messages/${relatedId}`);
+        }
+        break;
+      }
+      case "member_joined": {
+        // related_id is the team_id — navigate to team page (not chat)
+        if (relatedId) {
+          navigate(`/teams/${relatedId}`);
         }
         break;
       }
