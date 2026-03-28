@@ -145,6 +145,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
   });
 
   const currentRsvpStatus = myRsvp?.status as RsvpStatus | null;
+  const canSendReminders = hasPro === true;
 
   const deleteEventMutation = useMutation({
     mutationFn: async (deleteType: "single" | "series") => {
