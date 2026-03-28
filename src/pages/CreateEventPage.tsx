@@ -225,6 +225,20 @@ export default function CreateEventPage() {
     enabled: !!clubId && !!user,
   });
 
+  // Check if user is committee-only for the selected club (no admin/coach/team roles)
+  const isCommitteeOnlyForClub = useMemo(() => {
+    if (!clubId || !user) return false;
+    // If they are a club admin, they have full access
+    if (isClubAdminForSelectedClub) return false;
+    // If they have team roles (coach/team_admin), they can create team events
+    if (userTeamIds && userTeamIds.length > 0) {
+      // Check if any of those teams belong to this club
+      const hasTeamInClub = teams && teams.length > 0;
+      if (hasTeamInClub) return false;
+    }
+    return true;
+  }, [clubId, user, isClubAdminForSelectedClub, userTeamIds, teams]);
+
   // Check if club has Pro Football access - use placeholderData to prevent flash
   const { data: hasProFootball, isLoading: isLoadingProFootball } = useQuery({
     queryKey: ["club-pro-football", clubId],
