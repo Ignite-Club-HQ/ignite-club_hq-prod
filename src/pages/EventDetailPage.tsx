@@ -625,30 +625,51 @@ export default function EventDetailPage() {
   const { data: childrenOnTeam } = useQuery({
     queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, user?.id],
     queryFn: async () => {
-      if (event?.team_id) {
-        // Team event: get children assigned to this team
-        const { data, error } = await supabase
-          .from("children")
-          .select(`
-            id,
-            name,
-            child_team_assignments!inner (team_id)
-          `)
-          .eq("parent_id", user!.id)
-          .eq("child_team_assignments.team_id", event.team_id);
+      // Get children where user is parent OR guardian
+      const [ownChildren, guardianLinks] = await Promise.all([
+        // Direct children (parent_id)
+        event?.team_id
+          ? supabase
+              .from("children")
+              .select("id, name, child_team_assignments!inner (team_id)")
+              .eq("parent_id", user!.id)
+              .eq("child_team_assignments.team_id", event.team_id)
+          : supabase
+              .from("children")
+              .select("id, name")
+              .eq("parent_id", user!.id),
+        // Guardian-linked children
+        supabase
+          .from("child_guardians")
+          .select("child_id, children!inner (id, name)")
+          .eq("guardian_id", user!.id),
+      ]);
 
-        if (error) throw error;
-        return data || [];
-      } else {
-        // Club-wide event (social, etc.): get all user's children
-        const { data, error } = await supabase
-          .from("children")
-          .select("id, name")
-          .eq("parent_id", user!.id);
+      const directChildren = ownChildren.data || [];
+      const guardianChildren = (guardianLinks.data || []).map((g: any) => g.children).filter(Boolean);
 
-        if (error) throw error;
-        return data || [];
+      // If team event, filter guardian children to those on the team
+      let filteredGuardianChildren = guardianChildren;
+      if (event?.team_id && guardianChildren.length > 0) {
+        const guardianChildIds = guardianChildren.map((c: any) => c.id);
+        const { data: assignments } = await supabase
+          .from("child_team_assignments")
+          .select("child_id")
+          .eq("team_id", event.team_id)
+          .in("child_id", guardianChildIds);
+        const assignedIds = new Set((assignments || []).map((a: any) => a.child_id));
+        filteredGuardianChildren = guardianChildren.filter((c: any) => assignedIds.has(c.id));
       }
+
+      // Deduplicate by child id
+      const seen = new Set<string>();
+      const all = [...directChildren, ...filteredGuardianChildren].filter((c: any) => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
+
+      return all;
     },
     enabled: !!user && !!(event?.team_id || event?.club_id),
   });
