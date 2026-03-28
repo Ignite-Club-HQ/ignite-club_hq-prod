@@ -636,9 +636,18 @@ export default function NotificationsPage() {
         break;
       }
       case "member_joined": {
-        // related_id is the team_id — navigate to team page (not chat)
+        // related_id could be team_id or club_id — check which one
         if (relatedId) {
-          navigate(`/teams/${relatedId}`);
+          const { data: clubCheckMJ } = await supabase
+            .from("clubs")
+            .select("id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (clubCheckMJ) {
+            navigate(`/clubs/${relatedId}`);
+          } else {
+            navigate(`/teams/${relatedId}`);
+          }
         }
         break;
       }
