@@ -1215,7 +1215,14 @@ export default function TeamDetailPage() {
                     )}
                     {Object.entries(members).filter(([_, member]) => 
                       memberRoleFilter === "all" || memberRoleFilter === "child" ? memberRoleFilter === "all" : member.roles?.some(r => r.role === memberRoleFilter)
-                    ).map(([userId, member]) => (
+                    ).sort(([, a], [, b]) => {
+                      const rolePriority: Record<string, number> = { player: 0, parent: 1, coach: 2, team_admin: 3, club_admin: 4, app_admin: 5, basic_user: 6 };
+                      const getPriority = (member: typeof a) => {
+                        const roles = member.roles || [];
+                        return Math.min(...roles.map(r => rolePriority[r.role] ?? 99), 99);
+                      };
+                      return getPriority(a) - getPriority(b);
+                    }).map(([userId, member]) => (
                       <Card key={userId}>
                         <CardContent className="p-3 flex items-center gap-3">
                           <Avatar className="h-8 w-8">
