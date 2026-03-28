@@ -94,7 +94,7 @@ function DroppableGroup({ rating, children, isOver }: { rating: number; children
   return (
     <div
       ref={setNodeRef}
-      className={`space-y-1.5 rounded-lg p-1.5 -m-1.5 transition-colors ${active ? "bg-primary/10 ring-2 ring-primary/30" : ""}`}
+      className={`space-y-1.5 rounded-lg p-2 -m-2 min-h-[48px] transition-colors ${active ? "bg-primary/10 ring-2 ring-primary/30" : ""}`}
     >
       {children}
     </div>
