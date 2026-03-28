@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Calendar, MapPin, CheckCircle2, HelpCircle, X, Loader2, Clock } from "lucide-react";
+import { Calendar, MapPin, CheckCircle2, HelpCircle, X, Loader2, Clock, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +53,53 @@ const typeGlowColors: Record<string, string> = {
   social: "shadow-warning/10",
 };
 
+function useChildRsvps(eventId: string, userId: string | undefined) {
+  return useQuery({
+    queryKey: ["child-rsvps-card", eventId, userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("id, status, child_id, children:child_id(name)")
+        .eq("event_id", eventId)
+        .eq("user_id", userId!)
+        .not("child_id", "is", null);
+      if (error) throw error;
+      return (data || []) as Array<{
+        id: string;
+        status: string;
+        child_id: string;
+        children: { name: string } | null;
+      }>;
+    },
+    enabled: !!userId,
+  });
+}
+
+function ChildRsvpIndicators({ eventId, userId }: { eventId: string; userId: string | undefined }) {
+  const { data: childRsvps } = useChildRsvps(eventId, userId);
+  
+  if (!childRsvps || childRsvps.length === 0) return null;
+
+  const statusIcon = (status: string) => {
+    switch (status) {
+      case "going": return <CheckCircle2 className="h-3 w-3 text-primary" />;
+      case "maybe": return <HelpCircle className="h-3 w-3 text-warning" />;
+      case "not_going": return <X className="h-3 w-3 text-destructive" />;
+      default: return null;
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {childRsvps.map((rsvp) => (
+        <Badge key={rsvp.id} variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal">
+          {statusIcon(rsvp.status)}
+          <span className="truncate max-w-[60px]">{rsvp.children?.name?.split(' ')[0] || "Child"}</span>
+        </Badge>
+      ))}
+    </div>
+  );
+}
 
 function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean }) {
   const { user } = useAuth();
@@ -108,6 +155,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hero-rsvp", event.id] });
       queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+      queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
     },
     onError: () => {
       toast({ title: "Failed to update RSVP", variant: "destructive" });
@@ -162,26 +210,29 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         </div>
 
         {!event.is_cancelled && (
-          <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-            {rsvpButtons.map(({ status, label, icon, activeClass }) => {
-              const isActive = currentStatus === status;
-              return (
-                <Button
-                  key={status}
-                  variant={isActive ? "default" : "outline"}
-                  size="sm"
-                  aria-pressed={isActive}
-                  aria-label={`RSVP ${label}`}
-                  className={`flex-1 gap-1 text-[11px] font-medium h-8 ${isActive ? activeClass : ""}`}
-                  disabled={rsvpMutation.isPending}
-                  onClick={() => rsvpMutation.mutate(status)}
-                >
-                  {rsvpMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : icon}
-                  {label}
-                </Button>
-              );
-            })}
-          </div>
+          <>
+            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+              {rsvpButtons.map(({ status, label, icon, activeClass }) => {
+                const isActive = currentStatus === status;
+                return (
+                  <Button
+                    key={status}
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    aria-pressed={isActive}
+                    aria-label={`RSVP ${label}`}
+                    className={`flex-1 gap-1 text-[11px] font-medium h-8 ${isActive ? activeClass : ""}`}
+                    disabled={rsvpMutation.isPending}
+                    onClick={() => rsvpMutation.mutate(status)}
+                  >
+                    {rsvpMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : icon}
+                    {label}
+                  </Button>
+                );
+              })}
+            </div>
+            <ChildRsvpIndicators eventId={event.id} userId={user?.id} />
+          </>
         )}
       </CardContent>
     </Card>
@@ -189,9 +240,28 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 }
 
 function CompactCard({ event }: { event: EventItem }) {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { label: dateLabel, time: dateTime } = formatDate(event.event_date);
   const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
+
+  const { data: myRsvp } = useQuery({
+    queryKey: ["hero-rsvp", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("id, status")
+        .eq("event_id", event.id)
+        .eq("user_id", user!.id)
+        .is("child_id", null)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const currentStatus = myRsvp?.status as RsvpStatus | null;
 
   const typeBadgeStyles: Record<string, string> = {
     game: "bg-destructive/15 text-destructive border-destructive/20",
@@ -199,6 +269,14 @@ function CompactCard({ event }: { event: EventItem }) {
     social: "bg-warning/15 text-warning border-warning/20",
   };
   const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
+
+  const rsvpIndicator = currentStatus ? (
+    <div className="flex items-center gap-1 text-[11px]">
+      {currentStatus === "going" && <><CheckCircle2 className="h-3 w-3 text-primary" /><span className="text-primary font-medium">Going</span></>}
+      {currentStatus === "maybe" && <><HelpCircle className="h-3 w-3 text-warning" /><span className="text-warning font-medium">Maybe</span></>}
+      {currentStatus === "not_going" && <><X className="h-3 w-3 text-destructive" /><span className="text-destructive font-medium">Can't go</span></>}
+    </div>
+  ) : null;
 
   return (
     <Card
@@ -239,6 +317,12 @@ function CompactCard({ event }: { event: EventItem }) {
             </div>
           )}
         </div>
+        {!event.is_cancelled && (rsvpIndicator || true) && (
+          <div className="space-y-1.5">
+            {rsvpIndicator}
+            <ChildRsvpIndicators eventId={event.id} userId={user?.id} />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
