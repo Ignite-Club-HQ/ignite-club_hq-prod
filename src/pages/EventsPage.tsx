@@ -631,8 +631,6 @@ export default function EventsPage() {
     </div>
   );
 }
-
-function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin: boolean; hasViewed?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
