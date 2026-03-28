@@ -75,6 +75,49 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     league.bib_colors || ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"]
   );
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [mockPlayerCount, setMockPlayerCount] = useState(20);
+
+  const MOCK_FIRST_NAMES = [
+    "Oliver", "Jack", "Sophie", "Charlie", "Emily", "Noah", "Amelia", "George", "Isla", "Harry",
+    "Mia", "Leo", "Ava", "Oscar", "Lily", "Freddie", "Ella", "Alfie", "Grace", "Archie",
+    "Ruby", "Max", "Chloe", "Ethan", "Zoe", "Liam", "Hannah", "Lucas", "Daisy", "James",
+    "Poppy", "Finn", "Lucy", "Sebastian", "Millie", "Henry", "Eva", "Thomas", "Willow", "Arthur",
+    "Phoebe", "Daniel", "Ivy", "Samuel", "Ellie", "Theo", "Sienna", "Alexander", "Maisie", "William",
+    "Scarlett", "Benjamin", "Jessica", "Jake", "Layla", "Edward", "Rosie", "Isaac", "Bella", "Ryan",
+  ];
+  const MOCK_LAST_NAMES = [
+    "Smith", "Williams", "Taylor", "Brown", "Davies", "Wilson", "Evans", "Thomas", "Johnson", "Roberts",
+    "Walker", "White", "Harris", "Clark", "Lewis", "Young", "Hall", "King", "Wright", "Green",
+    "Hill", "Scott", "Adams", "Mitchell", "Phillips", "Campbell", "Parker", "Morris", "Cook", "Murphy",
+  ];
+
+  const generateMockPlayersMutation = useMutation({
+    mutationFn: async () => {
+      const players = [];
+      const usedNames = new Set<string>();
+      for (let i = 0; i < mockPlayerCount; i++) {
+        let name: string;
+        do {
+          const first = MOCK_FIRST_NAMES[Math.floor(Math.random() * MOCK_FIRST_NAMES.length)];
+          const last = MOCK_LAST_NAMES[Math.floor(Math.random() * MOCK_LAST_NAMES.length)];
+          name = `${first} ${last}`;
+        } while (usedNames.has(name));
+        usedNames.add(name);
+        players.push({
+          mini_league_id: league.id,
+          name,
+          ability_rating: Math.floor(Math.random() * 5) + 1,
+        });
+      }
+      const { error } = await supabase.from("mini_league_players").insert(players);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-players", league.id] });
+      toast.success(`${mockPlayerCount} mock players generated`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   // Sync state when league prop changes (dialog reopens)
   const handleOpenChange = (o: boolean) => {
