@@ -1476,6 +1476,14 @@ export default function TeamDetailPage() {
                                 </CardContent>
                               </Card>
                               ))}
+                              {/* Pending invites at bottom of each role group */}
+                              {rolePending.length > 0 && (memberRoleFilter === "all" || memberRoleFilter === role) && (
+                                <PendingInvitesList
+                                  invites={rolePending}
+                                  teamId={id}
+                                  isAdmin={isAdmin || isClubAdmin}
+                                />
+                              )}
                             </div>
                           </div>
                         );
