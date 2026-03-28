@@ -180,6 +180,27 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
     enabled: !!user && !event.is_cancelled,
   });
 
+  // Fetch total event attendance counts
+  const { data: attendanceCounts } = useQuery({
+    queryKey: ["card-attendance-counts", event.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("status")
+        .eq("event_id", event.id)
+        .is("child_id", null);
+      if (error) throw error;
+      const counts = { going: 0, maybe: 0, not_going: 0 };
+      (data || []).forEach((r) => {
+        if (r.status === "going") counts.going++;
+        else if (r.status === "maybe") counts.maybe++;
+        else if (r.status === "not_going") counts.not_going++;
+      });
+      return counts;
+    },
+    enabled: !event.is_cancelled,
+  });
+
   const currentRsvpStatus = myRsvp?.status as RsvpStatus | null;
   const canSendReminders = hasPro === true;
 
@@ -397,62 +418,103 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           )}
         </div>
 
-        {/* Row 3: Family RSVP Summary */}
+        {/* Row 3: RSVP Section - Personal + Global */}
         {!event.is_cancelled && (() => {
           const { goingNames, maybeNames, notGoingNames } = buildFamilyRsvpSummary(
             currentRsvpStatus, undefined, childRsvps
           );
-          const hasAnyRsvp = goingNames.length > 0 || maybeNames.length > 0 || notGoingNames.length > 0;
-          if (!hasAnyRsvp) return null;
+          const hasPersonalRsvp = goingNames.length > 0 || maybeNames.length > 0 || notGoingNames.length > 0;
+          const totalGoing = attendanceCounts?.going || 0;
+          const totalMaybe = attendanceCounts?.maybe || 0;
+
+          if (!hasPersonalRsvp) {
+            return (
+              <div className="pt-2 border-t border-border/40 space-y-1.5">
+                {/* Global attendance even without personal RSVP */}
+                {totalGoing > 0 && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Users className="h-3 w-3 shrink-0" />
+                    <span>{totalGoing} going{totalMaybe > 0 ? ` · ${totalMaybe} maybe` : ""}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-muted-foreground/70 font-medium">Tap to RSVP</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                </div>
+              </div>
+            );
+          }
+
+          // Build personal status line
+          const personalStatusIcon = goingNames.length > 0
+            ? <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+            : maybeNames.length > 0
+            ? <HelpCircle className="h-3.5 w-3.5 text-warning shrink-0" />
+            : <X className="h-3.5 w-3.5 text-destructive shrink-0" />;
+
+          const personalStatusColor = goingNames.length > 0
+            ? "text-primary"
+            : maybeNames.length > 0
+            ? "text-warning"
+            : "text-destructive";
+
+          // Build household display: "You, Archie, Teddy" for going, etc.
+          const householdParts: string[] = [];
+          if (goingNames.length > 0) {
+            householdParts.push(goingNames.join(", "));
+          }
+          if (maybeNames.length > 0) {
+            const maybeLabel = maybeNames.join(", ") + " (maybe)";
+            householdParts.push(maybeLabel);
+          }
+          if (notGoingNames.length > 0) {
+            const notGoingLabel = notGoingNames.join(", ") + " (not going)";
+            householdParts.push(notGoingLabel);
+          }
+
+          // Primary status word
+          const primaryStatus = goingNames.length > 0
+            ? "Going"
+            : maybeNames.length > 0
+            ? "Maybe"
+            : "Not going";
+
+          // Count of additional household members
+          const totalHousehold = goingNames.length + maybeNames.length + notGoingNames.length;
+          const childCount = totalHousehold - (currentRsvpStatus ? 1 : 0);
 
           return (
-            <div className="pt-1.5 border-t border-border/40">
+            <div className="pt-2 border-t border-border/40 space-y-1">
+              {/* Line 1: Personal / household RSVP */}
               <div className="flex items-center justify-between">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  {goingNames.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-[12px]">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="text-primary font-medium">
-                        {goingNames.length <= 3
-                          ? goingNames.join(", ")
-                          : `${goingNames.slice(0, 2).join(", ")} +${goingNames.length - 2}`}
+                <div className="flex items-center gap-1.5">
+                  {personalStatusIcon}
+                  <span className={`text-[12px] font-semibold ${personalStatusColor}`}>
+                    You: {primaryStatus}
+                    {childCount > 0 && (
+                      <span className="font-normal text-foreground/70">
+                        {" · "}
+                        {childCount === 1
+                          ? `${(goingNames.concat(maybeNames, notGoingNames).filter(n => n !== "You"))[0]}`
+                          : `${childCount} children`
+                        }
                       </span>
-                    </div>
-                  )}
-                  {maybeNames.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-[12px]">
-                      <HelpCircle className="h-3.5 w-3.5 text-warning shrink-0" />
-                      <span className="text-warning font-medium">
-                        {maybeNames.length <= 2
-                          ? maybeNames.join(", ")
-                          : `${maybeNames[0]} +${maybeNames.length - 1}`}
-                      </span>
-                    </div>
-                  )}
-                  {notGoingNames.length > 0 && (
-                    <div className="flex items-center gap-1.5 text-[12px]">
-                      <X className="h-3.5 w-3.5 text-destructive shrink-0" />
-                      <span className="text-destructive font-medium">
-                        {notGoingNames.length <= 2
-                          ? notGoingNames.join(", ")
-                          : `${notGoingNames[0]} +${notGoingNames.length - 1}`}
-                      </span>
-                    </div>
-                  )}
+                    )}
+                  </span>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
               </div>
+
+              {/* Line 2: Global attendance */}
+              {totalGoing > 0 && (
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <Users className="h-3 w-3 shrink-0" />
+                  <span>{totalGoing} going{totalMaybe > 0 ? ` · ${totalMaybe} maybe` : ""}</span>
+                </div>
+              )}
             </div>
           );
         })()}
-
-        {/* No RSVP yet - show subtle prompt */}
-        {!event.is_cancelled && !currentRsvpStatus && (!childRsvps || childRsvps.length === 0) && (
-          <div className="pt-1.5 border-t border-border/40 flex items-center justify-between">
-            <span className="text-[12px] text-muted-foreground/70">Tap to RSVP</span>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
-          </div>
-        )}
       </CardContent>
 
       {/* Admin menu triggered by long-press */}
