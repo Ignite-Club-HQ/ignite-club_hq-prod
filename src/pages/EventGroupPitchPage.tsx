@@ -283,10 +283,24 @@ export default function EventGroupPitchPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  if (groupLoading) {
+  if (groupLoading || proLoading) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (hasProFootball === false) {
+    return (
+      <div className="container max-w-4xl py-6 text-center space-y-4">
+        <h2 className="text-xl font-semibold">Pro Football Required</h2>
+        <p className="text-muted-foreground">
+          Mini League match days require an active Pro Football subscription.
+        </p>
+        <Button variant="outline" onClick={() => navigate(-1)}>
+          Go Back
+        </Button>
       </div>
     );
   }
