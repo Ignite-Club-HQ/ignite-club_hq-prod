@@ -360,6 +360,27 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             </div>
           )}
         </div>
+
+        {/* Row 3: RSVP Status */}
+        {!event.is_cancelled && (currentRsvpStatus || (childRsvps && childRsvps.length > 0)) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {currentRsvpStatus && (
+              <div className="flex items-center gap-1 text-[11px]">
+                {currentRsvpStatus === "going" && <><CheckCircle2 className="h-3 w-3 text-primary" /><span className="text-primary font-medium">Going</span></>}
+                {currentRsvpStatus === "maybe" && <><HelpCircle className="h-3 w-3 text-warning" /><span className="text-warning font-medium">Maybe</span></>}
+                {currentRsvpStatus === "not_going" && <><X className="h-3 w-3 text-destructive" /><span className="text-destructive font-medium">Can't go</span></>}
+              </div>
+            )}
+            {childRsvps?.map((rsvp) => (
+              <Badge key={rsvp.id} variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal">
+                {rsvp.status === "going" && <CheckCircle2 className="h-3 w-3 text-primary" />}
+                {rsvp.status === "maybe" && <HelpCircle className="h-3 w-3 text-warning" />}
+                {rsvp.status === "not_going" && <X className="h-3 w-3 text-destructive" />}
+                <span className="truncate max-w-[60px]">{rsvp.children?.name?.split(' ')[0] || "Child"}</span>
+              </Badge>
+            ))}
+          </div>
+        )}
       </CardContent>
 
       {/* Admin menu triggered by long-press */}
