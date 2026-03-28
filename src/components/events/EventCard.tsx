@@ -383,7 +383,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
-      onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setAdminMenuOpen(true); } }}
+      onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
       <CardContent className="p-4 pb-3 space-y-2.5">
         {/* Row 1: Title + Type badge */}
