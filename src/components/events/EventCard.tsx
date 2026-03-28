@@ -63,6 +63,7 @@ const typeBadgeStyles: Record<string, string> = {
 };
 
 export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) {
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
