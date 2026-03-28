@@ -612,7 +612,7 @@ export default function NotificationsPage() {
           if (inviteData.status === 'accepted' || inviteData.status === 'auto_accepted') {
             // Already accepted — go straight to team/club page
             if (inviteData.team_id) {
-              navigate(`/messages/${inviteData.team_id}`);
+              navigate(`/teams/${inviteData.team_id}`);
             } else if (inviteData.club_id) {
               navigate(`/clubs/${inviteData.club_id}`);
             }
@@ -629,9 +629,9 @@ export default function NotificationsPage() {
       case "role_assigned":
       case "invite_accepted":
       case "team_join": {
-        // related_id is the team_id — navigate to team chat
+        // related_id is the team_id — navigate to team page
         if (relatedId) {
-          navigate(`/messages/${relatedId}`);
+          navigate(`/teams/${relatedId}`);
         }
         break;
       }

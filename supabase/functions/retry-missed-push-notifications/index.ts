@@ -134,11 +134,11 @@ serve(async (req: Request): Promise<Response> => {
         case 'substitution':
           return '/';
         case 'member_joined':
-          return relatedId ? `/teams/${relatedId}` : '/notifications';
         case 'invite_accepted':
         case 'team_join':
+          return relatedId ? `/teams/${relatedId}` : '/notifications';
         case 'club_join':
-          return relatedId ? `/messages/${relatedId}` : '/notifications';
+          return '/notifications';
         default:
           return '/notifications';
       }
