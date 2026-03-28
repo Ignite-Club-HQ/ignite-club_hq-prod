@@ -94,7 +94,7 @@ function DroppableGroup({ rating, children, isOver }: { rating: number; children
   return (
     <div
       ref={setNodeRef}
-      className={`space-y-1.5 rounded-lg p-1.5 -m-1.5 transition-colors ${active ? "bg-primary/10 ring-2 ring-primary/30" : ""}`}
+      className={`space-y-1.5 rounded-lg p-2 -m-2 min-h-[48px] transition-colors ${active ? "bg-primary/10 ring-2 ring-primary/30" : ""}`}
     >
       {children}
     </div>
@@ -121,12 +121,12 @@ function DraggablePlayerCard({ player, children, canDrag }: { player: MiniLeague
         <div
           {...listeners}
           {...attributes}
-          className="absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center cursor-grab active:cursor-grabbing z-10 touch-none"
+          className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-grab active:cursor-grabbing z-10 touch-none"
         >
-          <GripVertical className="h-4 w-4 text-muted-foreground/40" />
+          <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40" />
         </div>
       )}
-      <div className={canDrag ? "pl-6" : ""}>
+      <div className={canDrag ? "pl-5" : ""}>
         {children}
       </div>
     </div>
@@ -434,7 +434,7 @@ export function ManagePlayersDialog({
         className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? "ring-2 ring-primary" : ""} ${isDragOverlay ? "shadow-lg ring-2 ring-primary" : ""}`}
         onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
       >
-        <CardContent className="py-2.5 px-3">
+        <CardContent className="py-2 px-2.5">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {selectionMode && (
@@ -688,7 +688,7 @@ export function ManagePlayersDialog({
                           </DraggablePlayerCard>
                         ))}
                         {!abilityPlayers?.length && activePlayer && (
-                          <div className="border-2 border-dashed border-muted-foreground/20 rounded-lg p-4 text-center text-xs text-muted-foreground">
+                          <div className="border-2 border-dashed border-primary/30 rounded-lg py-6 text-center text-xs text-muted-foreground bg-primary/5">
                             Drop here to move to {getAbilityLabel(rating)}
                           </div>
                         )}
