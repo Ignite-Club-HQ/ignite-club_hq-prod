@@ -236,13 +236,45 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
     setRemindDialogOpen(true);
   };
 
+  // Long-press to open admin menu
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+
+  const handlePointerDown = useCallback(() => {
+    if (!isAdmin) return;
+    longPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      setAdminMenuOpen(true);
+    }, 500);
+  }, [isAdmin]);
+
+  const handlePointerUp = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handleCardClick = useCallback(() => {
+    if (longPressTriggered.current) {
+      longPressTriggered.current = false;
+      return; // Suppress navigation after long-press
+    }
+    navigate(`/events/${event.id}`);
+  }, [navigate, event.id]);
+
   return (
     <Card
-      className={`group transition-all cursor-pointer border-border/60 hover:border-primary/40 hover:shadow-md ${event.is_cancelled ? "opacity-50" : ""}`}
-      onClick={() => navigate(`/events/${event.id}`)}
+      className={`group transition-all cursor-pointer border-border/60 hover:border-primary/40 hover:shadow-md ${event.is_cancelled ? "opacity-50" : ""} select-none`}
+      onClick={handleCardClick}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setAdminMenuOpen(true); } }}
     >
       <CardContent className="p-4 space-y-3">
-        {/* Row 1: Title + Type badge + Admin menu */}
+        {/* Row 1: Title + Type badge */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-1">
             <h3 className={`font-semibold text-[15px] leading-snug ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
@@ -267,42 +299,6 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
                 {typeLabel}
               </Badge>
             )}
-            {isAdmin && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
-                      <MoreVertical className="h-3.5 w-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    {!event.is_cancelled && (
-                      <>
-                        <DropdownMenuItem onClick={() => navigate(`/events/${event.id}/edit`)}>
-                          <Pencil className="h-3.5 w-3.5 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        {canSendReminders && (
-                          <DropdownMenuItem onClick={handleRemindClick}>
-                            <Bell className="h-3.5 w-3.5 mr-2" />
-                            Send Reminders
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setCancelDialogOpen(true)} className="text-warning focus:text-warning">
-                          <XCircle className="h-3.5 w-3.5 mr-2" />
-                          Cancel Event
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                    <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive focus:text-destructive">
-                      <Trash2 className="h-3.5 w-3.5 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
           </div>
         </div>
 
@@ -321,6 +317,37 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
         </div>
       </CardContent>
 
+      {/* Admin menu triggered by long-press */}
+      {isAdmin && (
+        <DropdownMenu open={adminMenuOpen} onOpenChange={setAdminMenuOpen}>
+          <DropdownMenuTrigger className="sr-only" />
+          <DropdownMenuContent align="end" className="w-48">
+            {!event.is_cancelled && (
+              <>
+                <DropdownMenuItem onClick={() => navigate(`/events/${event.id}/edit`)}>
+                  <Pencil className="h-3.5 w-3.5 mr-2" />
+                  Edit
+                </DropdownMenuItem>
+                {canSendReminders && (
+                  <DropdownMenuItem onClick={handleRemindClick}>
+                    <Bell className="h-3.5 w-3.5 mr-2" />
+                    Send Reminders
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setCancelDialogOpen(true)} className="text-warning focus:text-warning">
+                  <XCircle className="h-3.5 w-3.5 mr-2" />
+                  Cancel Event
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive focus:text-destructive">
+              <Trash2 className="h-3.5 w-3.5 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
       {/* Dialogs */}
       <div onClick={(e) => e.stopPropagation()}>
         {isRecurring ? (
