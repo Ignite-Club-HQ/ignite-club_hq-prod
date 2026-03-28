@@ -58,6 +58,7 @@ export interface ChatMessageProps {
   isLastMessage?: boolean;
   isPending?: boolean;
   isSystemMessage?: boolean;
+  contextId?: string;
 }
 
 export const ChatMessage = memo(function ChatMessage({
@@ -83,12 +84,14 @@ export const ChatMessage = memo(function ChatMessage({
   isLastMessage = false,
   isPending = false,
   isSystemMessage = false,
+  contextId,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showReadReceipts, setShowReadReceipts] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
