@@ -450,7 +450,82 @@ export default function MiniLeagueDetailPage() {
         )}
       </div>
 
-      {/* Parent-facing next match day highlight */}
+      {/* Members Section (Parents & Staff) */}
+      {leagueMembers && (leagueMembers.staff.length > 0 || leagueMembers.parents.length > 0) && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">People</h2>
+          </div>
+
+          {/* Staff (Admins & Coaches) */}
+          {leagueMembers.staff.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground px-1 flex items-center gap-1.5">
+                <Shield className="h-3 w-3" />
+                Staff
+              </p>
+              <div className="space-y-1">
+                {leagueMembers.staff.slice(0, 5).map((member: any) => {
+                  const roleLabels: Record<string, string> = {
+                    club_admin: "Club Admin",
+                    league_admin: "League Admin",
+                    coach: "Coach",
+                    committee_member: "Committee",
+                  };
+                  return (
+                    <div key={member.id} className="flex items-center gap-3 px-1 py-1.5">
+                      <Avatar className="h-8 w-8">
+                        {member.avatar_url && <AvatarImage src={member.avatar_url} />}
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                          {(member.display_name || "?").slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px] shrink-0">
+                        {roleLabels[member.role] || member.role}
+                      </Badge>
+                    </div>
+                  );
+                })}
+                {leagueMembers.staff.length > 5 && (
+                  <p className="text-xs text-muted-foreground px-1 py-1">+{leagueMembers.staff.length - 5} more</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Parents */}
+          {leagueMembers.parents.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground px-1 flex items-center gap-1.5">
+                <UserRound className="h-3 w-3" />
+                Parents ({leagueMembers.parents.length})
+              </p>
+              <div className="space-y-1">
+                {leagueMembers.parents.slice(0, 5).map((member: any) => (
+                  <div key={member.id} className="flex items-center gap-3 px-1 py-1.5">
+                    <Avatar className="h-8 w-8">
+                      {member.avatar_url && <AvatarImage src={member.avatar_url} />}
+                      <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">
+                        {(member.display_name || "?").slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
+                    </div>
+                  </div>
+                ))}
+                {leagueMembers.parents.length > 5 && (
+                  <p className="text-xs text-muted-foreground px-1 py-1">+{leagueMembers.parents.length - 5} more</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {!canManageLeague && upcomingEvents.length > 0 && userPlayerIds && userPlayerIds.length > 0 && (
         <Card className="border-primary/30 bg-primary/5 rounded-xl">
           <CardContent className="py-4 px-4 space-y-2">
