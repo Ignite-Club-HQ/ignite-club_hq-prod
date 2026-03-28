@@ -156,10 +156,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             <span className="font-medium text-foreground">{dateLabel}</span>
             <span>at {dateTime}</span>
           </div>
-          {(event.location_name || event.suburb) && (
+          {(event.location_name || event.suburb || event.address) && (
             <div className="flex items-center gap-2">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-foreground/70" aria-hidden="true" />
-              <span className="truncate">{event.location_name || event.suburb}</span>
+              <span className="truncate">{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
             </div>
           )}
         </div>
@@ -222,10 +222,10 @@ function CompactCard({ event }: { event: EventItem }) {
           <span className="font-medium text-foreground">{dateLabel}</span>
           <span>at {dateTime}</span>
         </div>
-        {(event.location_name || event.suburb) && (
+        {(event.location_name || event.suburb || event.address) && (
           <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
             <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-            <span className="truncate">{event.location_name || event.suburb}</span>
+            <span className="truncate">{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
           </div>
         )}
       </CardContent>
