@@ -10,13 +10,23 @@ import { Check, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 
+type MessageType = "team" | "club" | "broadcast" | "group" | "dm";
+
+const MESSAGE_ID_FIELDS: Record<MessageType, string> = {
+  team: "team_message_id",
+  club: "club_message_id",
+  group: "group_message_id",
+  broadcast: "broadcast_message_id",
+  dm: "direct_message_id",
+};
+
 interface ReadReceiptSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   readers: ReaderInfo[];
   messageId: string;
-  messageType: "team" | "club" | "broadcast" | "group" | "dm";
-  contextId: string; // teamId, clubId, groupId, conversationId
+  messageType: MessageType;
+  contextId: string;
   currentUserId?: string;
 }
 
@@ -29,113 +39,142 @@ interface MemberInfo {
 export const ReadReceiptSheet = memo(function ReadReceiptSheet({
   open,
   onOpenChange,
-  readers,
+  readers: propReaders,
   messageId,
   messageType,
   contextId,
   currentUserId,
 }: ReadReceiptSheetProps) {
   const [allMembers, setAllMembers] = useState<MemberInfo[]>([]);
+  const [fetchedReaders, setFetchedReaders] = useState<ReaderInfo[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!open || !contextId || messageType === "dm") return;
+  // Use prop readers if available, otherwise use fetched readers
+  const readers = propReaders.length > 0 ? propReaders : fetchedReaders;
 
-    const fetchMembers = async () => {
+  useEffect(() => {
+    if (!open || !messageId) return;
+
+    const fetchData = async () => {
       setLoading(true);
       try {
-        let userIds: string[] = [];
+        // 1. Always fetch actual readers for this message
+        const field = MESSAGE_ID_FIELDS[messageType];
+        const { data: readData } = await supabase
+          .from("message_reads")
+          .select(`${field}, user_id`)
+          .eq(field, messageId);
 
-        if (messageType === "team") {
-          const { data } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("team_id", contextId);
-          userIds = [...new Set((data || []).map((r) => r.user_id))];
-        } else if (messageType === "club") {
-          const { data } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("club_id", contextId);
-          userIds = [...new Set((data || []).map((r) => r.user_id))];
-        } else if (messageType === "group") {
-          // Group members from group_members table + role-based members
-          const { data: gmData } = await supabase
-            .from("group_members")
-            .select("user_id")
-            .eq("group_id", contextId);
-          
-          // Also get chat_group info for role-based members
-          const { data: groupInfo } = await supabase
-            .from("chat_groups")
-            .select("club_id, team_id, allowed_roles")
-            .eq("id", contextId)
-            .maybeSingle();
-
-          const memberIds = new Set((gmData || []).map((r) => r.user_id));
-
-          if (groupInfo?.club_id && groupInfo?.allowed_roles?.length) {
-            const { data: roleData } = await supabase
-              .from("user_roles")
-              .select("user_id")
-              .eq("club_id", groupInfo.club_id)
-              .in("role", groupInfo.allowed_roles);
-            for (const r of roleData || []) memberIds.add(r.user_id);
-          }
-          if (groupInfo?.team_id && groupInfo?.allowed_roles?.length) {
-            const { data: roleData } = await supabase
-              .from("user_roles")
-              .select("user_id")
-              .eq("team_id", groupInfo.team_id)
-              .in("role", groupInfo.allowed_roles);
-            for (const r of roleData || []) memberIds.add(r.user_id);
-          }
-
-          userIds = [...memberIds];
-        } else if (messageType === "broadcast") {
-          // For broadcast, just show readers (too many potential members)
-          setAllMembers([]);
-          setLoading(false);
-          return;
+        const readerUserIds = new Set<string>();
+        for (const row of readData || []) {
+          const userId = (row as any).user_id as string;
+          if (userId !== currentUserId) readerUserIds.add(userId);
         }
 
-        // Remove current user from the list
-        userIds = userIds.filter((id) => id !== currentUserId);
-
-        if (userIds.length > 0) {
+        // Fetch reader profiles
+        if (readerUserIds.size > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
             .select("id, display_name, avatar_url")
-            .in("id", userIds);
-
-          setAllMembers(
+            .in("id", Array.from(readerUserIds));
+          setFetchedReaders(
             (profiles || []).map((p) => ({
               user_id: p.id,
               display_name: p.display_name,
               avatar_url: p.avatar_url,
             }))
           );
+        } else {
+          setFetchedReaders([]);
+        }
+
+        // 2. Fetch all members for non-DM contexts (to show "not yet read")
+        if (messageType !== "dm" && messageType !== "broadcast" && contextId) {
+          let userIds: string[] = [];
+
+          if (messageType === "team") {
+            const { data } = await supabase
+              .from("user_roles")
+              .select("user_id")
+              .eq("team_id", contextId);
+            userIds = [...new Set((data || []).map((r) => r.user_id))];
+          } else if (messageType === "club") {
+            const { data } = await supabase
+              .from("user_roles")
+              .select("user_id")
+              .eq("club_id", contextId);
+            userIds = [...new Set((data || []).map((r) => r.user_id))];
+          } else if (messageType === "group") {
+            const memberIds = new Set<string>();
+            const { data: gmData } = await supabase
+              .from("group_members")
+              .select("user_id")
+              .eq("group_id", contextId);
+            for (const r of gmData || []) memberIds.add(r.user_id);
+
+            const { data: groupInfo } = await supabase
+              .from("chat_groups")
+              .select("club_id, team_id, allowed_roles")
+              .eq("id", contextId)
+              .maybeSingle();
+
+            if (groupInfo?.club_id && groupInfo?.allowed_roles?.length) {
+              const { data: roleData } = await supabase
+                .from("user_roles")
+                .select("user_id")
+                .eq("club_id", groupInfo.club_id)
+                .in("role", groupInfo.allowed_roles);
+              for (const r of roleData || []) memberIds.add(r.user_id);
+            }
+            if (groupInfo?.team_id && groupInfo?.allowed_roles?.length) {
+              const { data: roleData } = await supabase
+                .from("user_roles")
+                .select("user_id")
+                .eq("team_id", groupInfo.team_id)
+                .in("role", groupInfo.allowed_roles);
+              for (const r of roleData || []) memberIds.add(r.user_id);
+            }
+            userIds = [...memberIds];
+          }
+
+          userIds = userIds.filter((id) => id !== currentUserId);
+
+          if (userIds.length > 0) {
+            const { data: profiles } = await supabase
+              .from("profiles")
+              .select("id, display_name, avatar_url")
+              .in("id", userIds);
+            setAllMembers(
+              (profiles || []).map((p) => ({
+                user_id: p.id,
+                display_name: p.display_name,
+                avatar_url: p.avatar_url,
+              }))
+            );
+          } else {
+            setAllMembers([]);
+          }
         }
       } catch (err) {
-        console.error("Error fetching members for read receipts:", err);
+        console.error("Error fetching read receipt data:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMembers();
-  }, [open, contextId, messageType, currentUserId]);
+    fetchData();
+  }, [open, messageId, contextId, messageType, currentUserId]);
 
   const readerIds = new Set(readers.map((r) => r.user_id));
-  
-  // For DMs, just show the readers
   const isDm = messageType === "dm";
-  
+
   const readMembers = isDm
     ? readers
-    : allMembers.filter((m) => readerIds.has(m.user_id));
-  
-  const unreadMembers = isDm
+    : allMembers.length > 0
+      ? allMembers.filter((m) => readerIds.has(m.user_id))
+      : readers;
+
+  const unreadMembers = isDm || allMembers.length === 0
     ? []
     : allMembers.filter((m) => !readerIds.has(m.user_id));
 
@@ -147,50 +186,54 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
         </SheetHeader>
 
         <div className="overflow-y-auto max-h-[55vh] space-y-4">
-          {/* Read section */}
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
-              <Eye className="h-3.5 w-3.5" />
-              <span>Read ({readMembers.length})</span>
-            </div>
-            {readMembers.length === 0 ? (
-              <p className="text-xs text-muted-foreground pl-5">No one has read this yet</p>
-            ) : (
-              <div className="space-y-1.5">
-                {readMembers.map((member) => (
-                  <MemberRow
-                    key={member.user_id}
-                    name={member.display_name}
-                    avatarUrl={member.avatar_url}
-                    isRead
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Unread section */}
-          {!isDm && unreadMembers.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
-                <EyeOff className="h-3.5 w-3.5" />
-                <span>Not yet read ({unreadMembers.length})</span>
-              </div>
-              <div className="space-y-1.5">
-                {unreadMembers.map((member) => (
-                  <MemberRow
-                    key={member.user_id}
-                    name={member.display_name}
-                    avatarUrl={member.avatar_url}
-                    isRead={false}
-                  />
-                ))}
-              </div>
-            </div>
+          {loading && (
+            <p className="text-xs text-muted-foreground text-center py-4">Loading...</p>
           )}
 
-          {loading && (
-            <p className="text-xs text-muted-foreground text-center py-2">Loading...</p>
+          {!loading && (
+            <>
+              {/* Read section */}
+              <div>
+                <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Read ({readMembers.length})</span>
+                </div>
+                {readMembers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground pl-5">No one has read this yet</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {readMembers.map((member) => (
+                      <MemberRow
+                        key={member.user_id}
+                        name={member.display_name}
+                        avatarUrl={member.avatar_url}
+                        isRead
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Unread section */}
+              {unreadMembers.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                    <EyeOff className="h-3.5 w-3.5" />
+                    <span>Not yet read ({unreadMembers.length})</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {unreadMembers.map((member) => (
+                      <MemberRow
+                        key={member.user_id}
+                        name={member.display_name}
+                        avatarUrl={member.avatar_url}
+                        isRead={false}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </SheetContent>
