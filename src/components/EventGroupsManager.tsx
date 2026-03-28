@@ -58,11 +58,23 @@ const DEFAULT_BIB_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316
 
 // Get a pair of contrasting colors for a match from available colors
 const getMatchColors = (index: number, availableColors: string[]): { teamA: string; teamB: string } => {
-  const colors = availableColors.length >= 2 ? availableColors : DEFAULT_BIB_COLORS;
+  // Filter out invalid/empty/white colors
+  const validColors = availableColors.filter(c => c && c.trim() !== '' && c.toLowerCase() !== '#ffffff' && c.toLowerCase() !== '#fff' && c !== 'transparent');
+  const colors = validColors.length >= 2 ? validColors : DEFAULT_BIB_COLORS;
   const colorIndex = (index * 2) % colors.length;
   const teamAColor = colors[colorIndex];
   const teamBColor = colors[(colorIndex + 1) % colors.length];
   return { teamA: teamAColor, teamB: teamBColor };
+};
+
+// Determine if a hex color is light (needs dark text)
+const isLightColor = (hex: string): boolean => {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6;
 };
 
 interface EventGroupsManagerProps {
