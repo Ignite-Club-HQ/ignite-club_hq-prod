@@ -178,6 +178,46 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const pendingInviteToken = pendingInviteData?.invite_token;
   const inviteMetadata = pendingInviteData?.metadata as { children?: { name: string }[]; customMessage?: string } | null;
 
+  const inviteLink = pendingInviteToken ? `https://igniteclubhq.app/join/p/${pendingInviteToken}` : null;
+
+  const handleCopyLink = async () => {
+    if (!inviteLink) {
+      toast({ title: "No invite link available", variant: "destructive" });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      toast({ title: "Invite link copied!" });
+    } catch {
+      toast({ title: "Failed to copy link", variant: "destructive" });
+    }
+  };
+
+  const handleShareInvite = async () => {
+    if (!inviteLink) {
+      toast({ title: "No invite link available", variant: "destructive" });
+      return;
+    }
+    const clubName = teamData?.clubs?.name || clubData?.name || "the club";
+    const message = `You've been invited to join ${clubName}! Tap the link to get started: ${inviteLink}`;
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await Share.share({
+          title: `Join ${clubName}`,
+          text: message,
+          url: inviteLink,
+        });
+        return;
+      } catch {
+        // User cancelled or share failed, fall through to WhatsApp
+      }
+    }
+
+    // Fallback: open WhatsApp
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, "_blank");
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
