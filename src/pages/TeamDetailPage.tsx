@@ -1301,16 +1301,18 @@ export default function TeamDetailPage() {
                         const [, member] = entry;
                         const roles = member.roles || [];
                         let primaryRole = "basic_user";
-                        let bestIdx: number = roleOrder.length;
+                        let bestPriority = Infinity;
+                        const allRoles = ["player", "parent", "coach", "team_admin", "club_admin", "app_admin", "basic_user"];
                         for (const r of roles) {
-                          const idx = roleOrder.indexOf(r.role as any);
-                          if (idx !== -1 && idx < bestIdx) {
-                            bestIdx = idx;
+                          const idx = allRoles.indexOf(r.role as any);
+                          if (idx !== -1 && idx < bestPriority) {
+                            bestPriority = idx;
                             primaryRole = r.role;
                           }
                         }
-                        if (!grouped[primaryRole]) grouped[primaryRole] = [];
-                        grouped[primaryRole].push(entry);
+                        const mappedRole = roleGroupMap[primaryRole] || "basic_user";
+                        if (!grouped[mappedRole]) grouped[mappedRole] = [];
+                        grouped[mappedRole].push(entry);
                       }
 
                       // Group pending invites by role
