@@ -702,7 +702,18 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   return (
     <>
-      <Card className={`relative ${firstSub?.isDue ? "border-warning/50 bg-warning/5" : "border-primary/30 bg-primary/5"}`}>
+      <Card 
+        ref={cardRef}
+        className={`relative ${firstSub?.isDue ? "border-warning/50 bg-warning/5" : "border-primary/30 bg-primary/5"} touch-pan-y`}
+        style={{
+          transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined,
+          opacity: swipeOffset ? Math.max(0.3, 1 - Math.abs(swipeOffset) / 300) : 1,
+          transition: swipeRef.current.swiping ? 'none' : 'transform 0.2s ease-out, opacity 0.2s ease-out',
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <CardContent className="p-3">
           {/* Main row: Timer + Score + Controls */}
           <div className="flex items-center gap-3">
