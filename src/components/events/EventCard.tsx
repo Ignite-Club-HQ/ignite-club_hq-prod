@@ -378,7 +378,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
   return (
     <Card
-      className={`group transition-all cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md shadow-sm ${event.is_cancelled ? "opacity-50" : ""} select-none`}
+      className={`group relative transition-all cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md shadow-sm ${event.is_cancelled ? "opacity-50" : ""} select-none`}
       onClick={handleCardClick}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
