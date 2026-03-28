@@ -116,17 +116,18 @@ function DraggablePlayerCard({ player, children, canDrag }: { player: MiniLeague
   } : undefined;
 
   return (
-    <div ref={setNodeRef} style={style} className="relative">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="relative"
+      {...(canDrag ? { ...listeners, ...attributes } : {})}
+    >
       {canDrag && (
-        <div
-          {...listeners}
-          {...attributes}
-          className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-grab active:cursor-grabbing z-10 touch-none"
-        >
+        <div className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center pointer-events-none">
           <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40" />
         </div>
       )}
-      <div className={canDrag ? "pl-5" : ""}>
+      <div className={canDrag ? "pl-4" : ""}>
         {children}
       </div>
     </div>
