@@ -84,13 +84,13 @@ export function QuickSetupDutyDialog({
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
             <Wand2 className="h-5 w-5 text-primary" />
-            Quick Setup
+            Generate Matches
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            {playerCount} players will be split into balanced matches.
+            {playerCount} players will be split into balanced games. Assign duties below before generating.
           </p>
 
           {/* Ability Grouping */}
