@@ -13,20 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
-import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
-import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
