@@ -281,6 +281,7 @@ export default function EventsPage() {
           event_date,
           address,
           suburb,
+          location_name,
           club_id,
           team_id,
           mini_league_id,
@@ -917,10 +918,10 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
               <Clock className="h-3 w-3 shrink-0" />
               {format(parseISO(event.event_date), "EEE, MMM d 'at' h:mm a")}
             </span>
-            {event.suburb && (
+            {(event.location_name || event.suburb) && (
               <span className="flex items-center gap-1">
                 <MapPin className="h-3 w-3 shrink-0" />
-                {event.suburb}
+                {event.location_name || event.suburb}
               </span>
             )}
           </div>
