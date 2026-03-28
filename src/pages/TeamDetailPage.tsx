@@ -1282,8 +1282,6 @@ export default function TeamDetailPage() {
                                 // Always filter out children already shown in the confirmed list (even if marked pending there)
                                 if (child.child_id && confirmedChildIds.has(child.child_id)) return false;
                                 if (child.name && confirmedChildNames.has(child.name.toLowerCase())) return false;
-                                // Also filter by pending child tracking sets
-                                if (child.name && pendingChildNames.has(child.name.toLowerCase())) return false;
                                 return true;
                               })
                               .map((child, idx) => ({
