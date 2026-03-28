@@ -45,11 +45,6 @@ interface Event {
   clubs: { name: string; sport: string | null };
 }
 
-const eventTypeColors: Record<EventType, string> = {
-  game: "bg-destructive/20 text-destructive",
-  training: "bg-primary/20 text-primary",
-  social: "bg-warning/20 text-warning",
-};
 
 export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
