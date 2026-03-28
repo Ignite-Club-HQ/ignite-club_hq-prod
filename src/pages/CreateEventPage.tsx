@@ -315,12 +315,12 @@ export default function CreateEventPage() {
     return true;
   }, [clubId, user, isClubAdminForSelectedClub, teams]);
 
-  // Auto-set social type for committee-only users
+  // Auto-set social type for committee-only users (but never override mini league)
   useEffect(() => {
-    if (isCommitteeOnlyForClub && type !== "social") {
+    if (isCommitteeOnlyForClub && type !== "social" && !isFromMiniLeague) {
       setType("social");
     }
-  }, [isCommitteeOnlyForClub, type]);
+  }, [isCommitteeOnlyForClub, type, isFromMiniLeague]);
 
   const { data: members } = useQuery({
     queryKey: ["event-members-for-duty", clubId, teamId],
