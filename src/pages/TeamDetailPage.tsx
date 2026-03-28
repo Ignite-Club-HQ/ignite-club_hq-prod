@@ -1283,7 +1283,7 @@ export default function TeamDetailPage() {
                                 if (child.child_id && confirmedChildIds.has(child.child_id)) return false;
                                 if (child.name && confirmedChildNames.has(child.name.toLowerCase())) return false;
                                 // Also filter by pending child tracking sets
-                                if (child.name && pendingChildNamesSet.has(child.name.toLowerCase())) return false;
+                                if (child.name && pendingChildNames.has(child.name.toLowerCase())) return false;
                                 return true;
                               })
                               .map((child, idx) => ({
