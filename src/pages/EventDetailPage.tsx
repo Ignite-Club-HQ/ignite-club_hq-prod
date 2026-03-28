@@ -131,7 +131,7 @@ const AttendeeCard = ({
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             {!isChildRsvp && !isMiniLeaguePlayerRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
-            <AvatarFallback className={`text-xs ${(isChildRsvp || isMiniLeaguePlayerRsvp) ? 'bg-secondary' : ''}`}>
+            <AvatarFallback className={`text-xs ${(isChildRsvp || isMiniLeaguePlayerRsvp) ? 'bg-primary text-primary-foreground' : ''}`}>
               {avatarInitial}
             </AvatarFallback>
           </Avatar>
@@ -2507,7 +2507,7 @@ export default function EventDetailPage() {
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
-                                <AvatarFallback className="text-xs bg-secondary">
+                                <AvatarFallback className="text-xs bg-primary text-primary-foreground">
                                   {child.name?.charAt(0)?.toUpperCase() || "?"}
                                 </AvatarFallback>
                               </Avatar>
