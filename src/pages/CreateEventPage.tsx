@@ -304,7 +304,14 @@ export default function CreateEventPage() {
     enabled: !!clubId && userTeamIds !== undefined,
   });
 
-  // Fetch members for duty assignment
+  // Check if user is committee-only for the selected club (no admin/coach/team roles)
+  const isCommitteeOnlyForClub = useMemo(() => {
+    if (!clubId || !user) return false;
+    if (isClubAdminForSelectedClub) return false;
+    if (teams && teams.length > 0) return false;
+    return true;
+  }, [clubId, user, isClubAdminForSelectedClub, teams]);
+
   const { data: members } = useQuery({
     queryKey: ["event-members-for-duty", clubId, teamId],
     queryFn: async () => {
