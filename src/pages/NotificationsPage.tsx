@@ -890,6 +890,14 @@ export default function NotificationsPage() {
                     variant="ghost"
                     size="icon"
                     className="shrink-0"
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      markAsRead.mutate(notification.id);
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       markAsRead.mutate(notification.id);
