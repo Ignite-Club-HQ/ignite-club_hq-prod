@@ -449,74 +449,70 @@ export default function MiniLeagueDetailPage() {
         )}
       </div>
 
-      {/* Members Section (Parents & Staff) */}
+      {/* Members Section (Parents & Staff) — Team-page style */}
       {leagueMembers && (leagueMembers.staff.length > 0 || leagueMembers.parents.length > 0) && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">People</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Team</h2>
+            <span className="text-xs text-muted-foreground">
+              {leagueMembers.staff.length + leagueMembers.parents.length} members
+            </span>
           </div>
 
           {/* Staff (Admins & Coaches) */}
           {leagueMembers.staff.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground px-1 flex items-center gap-1.5">
-                <Shield className="h-3 w-3" />
-                Staff
-              </p>
-              <div className="space-y-1">
-                {leagueMembers.staff.slice(0, 5).map((member: any) => {
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground px-1">Coaches & Admins</p>
+              <div className="space-y-2">
+                {leagueMembers.staff.map((member: any) => {
                   const roleLabels: Record<string, string> = {
                     league_admin: "League Admin",
                     coach: "Coach",
                   };
                   return (
-                    <div key={member.id} className="flex items-center gap-3 px-1 py-1.5">
-                      <Avatar className="h-8 w-8">
-                        {member.avatar_url && <AvatarImage src={member.avatar_url} />}
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                          {(member.display_name || "?").slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
-                      </div>
-                      <Badge variant="secondary" className="text-[10px] shrink-0">
-                        {roleLabels[member.role] || member.role}
-                      </Badge>
-                    </div>
+                    <Card key={member.id}>
+                      <CardContent className="p-3 flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          {member.avatar_url && <AvatarImage src={member.avatar_url} />}
+                          <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                            {(member.display_name || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{member.display_name || "Unknown"}</p>
+                        </div>
+                        <Badge variant="secondary" className="text-xs shrink-0">
+                          {roleLabels[member.role] || member.role}
+                        </Badge>
+                      </CardContent>
+                    </Card>
                   );
                 })}
-                {leagueMembers.staff.length > 5 && (
-                  <p className="text-xs text-muted-foreground px-1 py-1">+{leagueMembers.staff.length - 5} more</p>
-                )}
               </div>
             </div>
           )}
 
           {/* Parents */}
           {leagueMembers.parents.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground px-1 flex items-center gap-1.5">
-                <UserRound className="h-3 w-3" />
-                Parents ({leagueMembers.parents.length})
-              </p>
-              <div className="space-y-1">
-                {leagueMembers.parents.slice(0, 5).map((member: any) => (
-                  <div key={member.id} className="flex items-center gap-3 px-1 py-1.5">
-                    <Avatar className="h-8 w-8">
-                      {member.avatar_url && <AvatarImage src={member.avatar_url} />}
-                      <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">
-                        {(member.display_name || "?").slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{member.display_name || "Unknown"}</p>
-                    </div>
-                  </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground px-1">Parents</p>
+              <div className="space-y-2">
+                {leagueMembers.parents.map((member: any) => (
+                  <Card key={member.id}>
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        {member.avatar_url && <AvatarImage src={member.avatar_url} />}
+                        <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                          {(member.display_name || "?").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{member.display_name || "Unknown"}</p>
+                      </div>
+                      <Badge variant="outline" className="text-xs shrink-0">Parent</Badge>
+                    </CardContent>
+                  </Card>
                 ))}
-                {leagueMembers.parents.length > 5 && (
-                  <p className="text-xs text-muted-foreground px-1 py-1">+{leagueMembers.parents.length - 5} more</p>
-                )}
               </div>
             </div>
           )}
