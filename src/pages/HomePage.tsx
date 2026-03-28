@@ -1380,7 +1380,7 @@ export default function HomePage() {
   // Don't block entire page on events loading - show skeleton/loading state inline instead
   // This prevents the "double flash" issue on login where the page loads, then shows loading, then loads again
 
-  const activeClubName = clubs?.find(c => c.id === activeClubFilter)?.name;
+  const activeClubName = userClubs?.find((c: any) => c.id === activeClubFilter)?.name || clubs?.find(c => c.id === activeClubFilter)?.name;
   const firstName = profile?.display_name?.split(' ')[0] || 'there';
 
   return (
