@@ -206,141 +206,93 @@ export default function HomePage() {
   const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
-  // Get user's accessible team, club, and mini league IDs for event filtering
-  const { data: userMemberships } = useQuery({
-    queryKey: ["user-memberships-for-events", user?.id],
+  // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
+  const { data: membershipAndEvents, isLoading } = useQuery({
+    queryKey: ["user-memberships-and-events", user?.id],
     queryFn: async () => {
+      // Step 1: Fetch user roles
       const { data: roles } = await supabase
         .from("user_roles")
         .select("club_id, team_id, role")
         .eq("user_id", user!.id);
       
-      if (!roles) return { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
+      if (!roles) return { memberships: { teamIds: [] as string[], clubIds: [] as string[], clubAdminClubIds: [] as string[], leagueAdminClubIds: [] as string[], miniLeagueIds: [] as string[] }, events: [] as Event[] };
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
       const clubIds = new Set<string>();
       const clubAdminClubIds = new Set<string>();
       const leagueAdminClubIds = new Set<string>();
       
-      // Direct club roles
       roles.forEach(r => {
         if (r.club_id) {
           clubIds.add(r.club_id);
-          // Track club admin roles for team event visibility
           if (r.role === 'club_admin' || r.role === 'app_admin') {
             clubAdminClubIds.add(r.club_id);
           }
-          // Track club admin roles for league access
           if (r.role === 'club_admin' || r.role === 'league_admin' || r.role === 'app_admin') {
             leagueAdminClubIds.add(r.club_id);
           }
         }
       });
       
-      // Get club IDs from team memberships
-      if (teamIds.length > 0) {
-        const { data: teams } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        teams?.forEach(t => clubIds.add(t.club_id));
-      }
+      // Step 2: Fetch team clubs, player leagues, admin leagues, AND events in parallel
+      const now = new Date();
+      const leagueAdminArr = Array.from(leagueAdminClubIds);
       
-      // Get mini league IDs where user is a parent (has a player)
-      const { data: playerLeagues } = await supabase
-        .from("mini_league_players")
-        .select("mini_league_id")
-        .eq("parent_user_id", user!.id);
+      const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
+        teamIds.length > 0 
+          ? supabase.from("teams").select("club_id").in("id", teamIds)
+          : Promise.resolve({ data: [] as { club_id: string }[] }),
+        supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
+        leagueAdminArr.length > 0
+          ? supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr)
+          : Promise.resolve({ data: [] as { id: string }[] }),
+        supabase
+          .from("events")
+          .select(`id, title, type, event_date, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_recurring, parent_event_id, amount, opponent, teams (name), clubs (name, sport)`)
+          .gte("event_date", now.toISOString())
+          .order("event_date", { ascending: true })
+          .limit(50),
+      ]);
       
-      const miniLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
+      (teamsResult.data || []).forEach((t: any) => clubIds.add(t.club_id));
       
-      // Also get mini leagues where user is league admin via club_admin role
-      const { data: adminLeagues } = await supabase
-        .from("mini_leagues")
-        .select("id")
-        .in("club_id", Array.from(leagueAdminClubIds));
-      
-      // Add leagues where user is admin
-      adminLeagues?.forEach(l => {
-        if (!miniLeagueIds.includes(l.id)) {
-          miniLeagueIds.push(l.id);
-        }
+      const miniLeagueIds = (playerLeaguesResult.data || []).map((p: any) => p.mini_league_id);
+      (adminLeaguesResult.data || []).forEach((l: any) => {
+        if (!miniLeagueIds.includes(l.id)) miniLeagueIds.push(l.id);
       });
       
-      return { 
-        teamIds, 
-        clubIds: Array.from(clubIds), 
+      const memberships = {
+        teamIds,
+        clubIds: Array.from(clubIds),
         clubAdminClubIds: Array.from(clubAdminClubIds),
         leagueAdminClubIds: Array.from(leagueAdminClubIds),
-        miniLeagueIds 
+        miniLeagueIds,
       };
-    },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    placeholderData: (prev) => prev,
-  });
-
-  const { data: allEvents, isLoading } = useQuery({
-    queryKey: ["upcoming-events", user?.id, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
-    queryFn: async () => {
-      if (!userMemberships) return [];
       
-      const { teamIds, clubIds, miniLeagueIds } = userMemberships;
-      if (teamIds.length === 0 && clubIds.length === 0 && miniLeagueIds.length === 0) return [];
-      
-      const now = new Date();
-      
-      const { data, error } = await supabase
-        .from("events")
-        .select(`
-          id,
-          title,
-          type,
-          event_date,
-          address,
-          location_name,
-          suburb,
-          club_id,
-          team_id,
-          mini_league_id,
-          is_cancelled,
-          is_recurring,
-          parent_event_id,
-          amount,
-          opponent,
-          teams (name),
-          clubs (name, sport)
-        `)
-        .gte("event_date", now.toISOString())
-        .order("event_date", { ascending: true })
-        .limit(50);
-
-      if (error) throw error;
-      
-      // Filter to only show events user is invited to:
-      // - Team events: user must be a member of that team OR a club admin of the team's club
-      // - Mini League events: user must be a league admin or have a player in that league
-      // - Club-wide events (no team_id, no mini_league_id): user must be a member of that club
-      const { clubAdminClubIds } = userMemberships;
-      const filtered = (data as (Event & { mini_league_id: string | null })[]).filter(event => {
+      // Step 3: Filter events client-side
+      const clubAdminArr = Array.from(clubAdminClubIds);
+      const clubIdsArr = Array.from(clubIds);
+      const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         if (event.mini_league_id) {
-          // Mini League event - user must be league admin or have a player in this league
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
-          // Team event - user must be a member of this team OR a club admin of the team's club
-          return teamIds.includes(event.team_id) || clubAdminClubIds.includes(event.club_id);
+          return teamIds.includes(event.team_id) || clubAdminArr.includes(event.club_id);
         } else {
-          // Club-wide event - user must be a member of this club
-          return clubIds.includes(event.club_id);
+          return clubIdsArr.includes(event.club_id);
         }
       });
       
-      return filtered as Event[];
+      return { memberships, events: filtered as Event[] };
     },
-    enabled: !!user && !!userMemberships,
+    enabled: !!user,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+
+  // Derive memberships and events from consolidated query
+  const userMemberships = membershipAndEvents?.memberships;
+  const allEvents = membershipAndEvents?.events;
 
   // Filter events by active club theme
   const events = useMemo(() => {
