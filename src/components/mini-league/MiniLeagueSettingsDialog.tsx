@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trash2, Loader2, Camera, ImageIcon, Plus, X, Clock, Users, UsersRound, Copy, Wand2 } from "lucide-react";
+import { Trash2, Loader2, Camera, ImageIcon, Plus, Check, Clock, Users, UsersRound, Copy, Wand2, ChevronDown, Minus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -76,6 +81,7 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
   );
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [mockPlayerCount, setMockPlayerCount] = useState(20);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const MOCK_FIRST_NAMES = [
     "Oliver", "Jack", "Sophie", "Charlie", "Emily", "Noah", "Amelia", "George", "Isla", "Harry",
@@ -114,12 +120,11 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mini-league-players", league.id] });
-      toast.success(`${mockPlayerCount} mock players generated`);
+      toast.success(`${mockPlayerCount} test players added`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  // Sync state when league prop changes (dialog reopens)
   const handleOpenChange = (o: boolean) => {
     if (o) {
       setEditName(league.name);
@@ -129,6 +134,7 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
       setEditMinPlayersPerSide(league.min_players_per_side || 3);
       setEditMinutesPerHalf(league.minutes_per_half || 10);
       setEditBibColors(league.bib_colors || ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"]);
+      setAdvancedOpen(false);
     }
     onOpenChange(o);
   };
@@ -178,7 +184,7 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mini-league", league.id] });
       onOpenChange(false);
-      toast.success("Mini League updated");
+      toast.success("Settings saved");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -199,7 +205,6 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     mutationFn: async () => {
       if (!user) throw new Error("You must be logged in to duplicate a league");
 
-      // Create duplicated league with current form values
       const { data: newLeague, error: createError } = await supabase
         .from("mini_leagues")
         .insert({
@@ -217,7 +222,6 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
         .single();
       if (createError) throw createError;
 
-      // Copy players
       const { data: existingPlayers } = await supabase
         .from("mini_league_players")
         .select("name, ability_rating, notes, parent_user_id, child_id")
@@ -249,36 +253,42 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     return preset?.name || hex;
   };
 
+  const toggleBibColor = (colorValue: string) => {
+    if (editBibColors.includes(colorValue)) {
+      setEditBibColors(editBibColors.filter(c => c !== colorValue));
+    } else {
+      setEditBibColors([...editBibColors, colorValue]);
+    }
+  };
+
   return (
     <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
-      <ResponsiveDialogContent>
-        <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>Mini League Settings</ResponsiveDialogTitle>
+      <ResponsiveDialogContent className="sm:max-w-lg" fullScreen>
+        <ResponsiveDialogHeader className="pb-0">
+          <ResponsiveDialogTitle>League Settings</ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="space-y-4 py-4">
-          {/* Logo upload */}
-          <div className="space-y-2">
-            <Label>League Logo</Label>
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+          {/* League Identity */}
+          <div className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="relative cursor-pointer group" onClick={() => logoInputRef.current?.click()}>
-                <Avatar className="h-20 w-20 border-2 border-dashed border-muted-foreground/30 group-hover:border-primary transition-colors">
+              <div className="relative cursor-pointer group shrink-0" onClick={() => logoInputRef.current?.click()}>
+                <Avatar className="h-16 w-16 border-2 border-dashed border-muted-foreground/30 group-hover:border-primary transition-colors">
                   {editLogoUrl ? <AvatarImage src={editLogoUrl} alt="League logo" /> : null}
                   <AvatarFallback className="bg-muted">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
                   </AvatarFallback>
                 </Avatar>
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                   {uploadingLogo ? (
-                    <Loader2 className="h-5 w-5 text-white animate-spin" />
+                    <Loader2 className="h-4 w-4 text-white animate-spin" />
                   ) : (
-                    <Camera className="h-5 w-5 text-white" />
+                    <Camera className="h-4 w-4 text-white" />
                   )}
                 </div>
               </div>
-              <div className="text-sm text-muted-foreground">
-                <p>Click to upload a logo</p>
-                <p className="text-xs">JPG, PNG up to 5MB</p>
+              <div className="flex-1 min-w-0">
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="League name" className="text-base font-medium" />
               </div>
               <input
                 ref={logoInputRef}
@@ -289,22 +299,16 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
                 disabled={uploadingLogo}
               />
             </div>
+            <Textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Optional description" rows={2} className="text-sm" />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="league-name">Name</Label>
-            <Input id="league-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Mini League name" />
-          </div>
+          {/* Section A: Game Setup */}
+          <div className="space-y-5">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Game Setup</h3>
 
-          <div className="space-y-2">
-            <Label htmlFor="league-description">Description</Label>
-            <Textarea id="league-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Optional description" rows={3} />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Default Players Per Side</Label>
-            <div className="flex items-center gap-3">
-              <UsersRound className="h-5 w-5 text-muted-foreground" />
+            {/* Default Players Per Side */}
+            <div className="space-y-2">
+              <Label className="text-sm">Default players per team</Label>
               <div className="flex items-center gap-2">
                 {[4, 5, 6, 7, 8].map((size) => (
                   <Button
@@ -322,173 +326,194 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
                   </Button>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">Target team size for auto-generating balanced teams</p>
             </div>
-            <p className="text-xs text-muted-foreground">Target team size for auto-generating balanced teams</p>
-          </div>
 
-          <div className="space-y-2">
-            <Label>Minimum Players Per Side</Label>
-            <div className="flex items-center gap-3">
-              <Users className="h-5 w-5 text-muted-foreground" />
-              <div className="flex items-center gap-2">
-                {[2, 3, 4, 5, 6, 7, 8].filter(n => n <= editTeamSize).map((size) => (
-                  <Button
-                    key={size}
-                    type="button"
-                    variant={editMinPlayersPerSide === size ? "default" : "outline"}
-                    size="sm"
-                    className="w-10 h-10"
-                    onClick={() => setEditMinPlayersPerSide(size)}
-                  >
-                    {size}
-                  </Button>
-                ))}
+            {/* Minimum Players Per Side — stepper */}
+            <div className="space-y-2">
+              <Label className="text-sm">Minimum players per team</Label>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  disabled={editMinPlayersPerSide <= 2}
+                  onClick={() => setEditMinPlayersPerSide(Math.max(2, editMinPlayersPerSide - 1))}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="text-2xl font-semibold w-10 text-center tabular-nums">{editMinPlayersPerSide}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  disabled={editMinPlayersPerSide >= editTeamSize}
+                  onClick={() => setEditMinPlayersPerSide(Math.min(editTeamSize, editMinPlayersPerSide + 1))}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
+              <p className="text-xs text-muted-foreground">Teams cannot have fewer than this number</p>
             </div>
-            <p className="text-xs text-muted-foreground">No team can have fewer than this many players</p>
-          </div>
 
-          <div className="space-y-2">
-            <Label>Minutes Per Half</Label>
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-muted-foreground" />
+            {/* Game length */}
+            <div className="space-y-2">
+              <Label className="text-sm">Game length (minutes per half)</Label>
               <div className="flex items-center gap-2">
-                {[5, 7, 10, 12, 15, 20].map((mins) => (
+                {[5, 7, 10, 12].map((mins) => (
                   <Button
                     key={mins}
                     type="button"
                     variant={editMinutesPerHalf === mins ? "default" : "outline"}
                     size="sm"
-                    className="w-10 h-10"
+                    className="w-12 h-10"
                     onClick={() => setEditMinutesPerHalf(mins)}
                   >
                     {mins}
                   </Button>
                 ))}
               </div>
-            </div>
-            <p className="text-xs text-muted-foreground">Default game timer duration per half</p>
-          </div>
-
-          {/* Bib Colors */}
-          <div className="space-y-3">
-            <Label>Available Bib Colors</Label>
-            <p className="text-xs text-muted-foreground">Select which bib colors are available for matches</p>
-            <div className="flex flex-wrap gap-2">
-              {editBibColors.map((color) => (
-                <div key={color} className="flex items-center gap-1.5 px-2 py-1 rounded-full border" style={{ borderColor: color }}>
-                  <div className="w-4 h-4 rounded-full border border-border" style={{ backgroundColor: color }} />
-                  <span className="text-xs">{getColorName(color)}</span>
-                  <button type="button" onClick={() => setEditBibColors(editBibColors.filter(c => c !== color))} className="ml-1 text-muted-foreground hover:text-destructive">
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-              {editBibColors.length === 0 && <span className="text-xs text-muted-foreground">No colors selected</span>}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {BIB_COLOR_PRESETS.filter(p => !editBibColors.includes(p.value)).map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  onClick={() => setEditBibColors([...editBibColors, preset.value])}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-dashed hover:border-solid hover:bg-muted/50 transition-colors"
-                >
-                  <div className="w-4 h-4 rounded-full border border-border" style={{ backgroundColor: preset.value }} />
-                  <span className="text-xs text-muted-foreground">{preset.name}</span>
-                  <Plus className="h-3 w-3 text-muted-foreground" />
-                </button>
-              ))}
+              <p className="text-xs text-muted-foreground">Default game timer duration per half</p>
             </div>
           </div>
 
-          {/* Generate Mock Players */}
-          <div className="space-y-2 pt-2 border-t">
-            <Label>Developer Tools</Label>
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <p className="text-sm font-medium">Generate Mock Players</p>
-                <p className="text-xs text-muted-foreground">Add fake players for testing (no parent accounts linked)</p>
+          {/* Section B: Match Options */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Match Options</h3>
+
+            <div className="space-y-2.5">
+              <Label className="text-sm">Bib colours</Label>
+              <p className="text-xs text-muted-foreground">Select which bib colours can be used during matches</p>
+              <div className="flex flex-wrap gap-2">
+                {BIB_COLOR_PRESETS.map((preset) => {
+                  const isSelected = editBibColors.includes(preset.value);
+                  const isLight = preset.value === "#ffffff" || preset.value === "#eab308";
+                  return (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => toggleBibColor(preset.value)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs transition-all ${
+                        isSelected
+                          ? "border-2 border-primary bg-primary/5 font-medium"
+                          : "border border-dashed border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50"
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full shrink-0 flex items-center justify-center ${isLight ? "border border-border" : ""}`}
+                        style={{ backgroundColor: preset.value }}
+                      >
+                        {isSelected && (
+                          <Check className={`h-2.5 w-2.5 ${isLight ? "text-foreground" : "text-white"}`} />
+                        )}
+                      </div>
+                      {preset.name}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={5}
-                  max={60}
-                  value={mockPlayerCount}
-                  onChange={(e) => setMockPlayerCount(Math.min(60, Math.max(5, parseInt(e.target.value) || 20)))}
-                  className="w-16 h-9 text-center"
-                />
+            </div>
+          </div>
+
+          {/* Section C: Advanced */}
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Advanced</h3>
+              <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+              <div className="flex-1 border-t border-border ml-2" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 pt-3">
+              {/* Mock Players */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Add test players</p>
+                <p className="text-xs text-muted-foreground">Generate fake players for testing (no parent accounts linked)</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={5}
+                    max={60}
+                    value={mockPlayerCount}
+                    onChange={(e) => setMockPlayerCount(Math.min(60, Math.max(5, parseInt(e.target.value) || 20)))}
+                    className="w-20 h-9 text-center"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    onClick={() => generateMockPlayersMutation.mutate()}
+                    disabled={generateMockPlayersMutation.isPending}
+                  >
+                    {generateMockPlayersMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Wand2 className="h-4 w-4 mr-1.5" />
+                        Generate
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Duplicate & Delete */}
+              <div className="space-y-3 pt-2 border-t border-border">
                 <Button
-                  type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => generateMockPlayersMutation.mutate()}
-                  disabled={generateMockPlayersMutation.isPending}
+                  className="w-full justify-start"
+                  onClick={() => duplicateLeagueMutation.mutate()}
+                  disabled={duplicateLeagueMutation.isPending}
                 >
-                  {generateMockPlayersMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                  {duplicateLeagueMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
-                    <>
-                      <Wand2 className="h-4 w-4 mr-1.5" />
-                      Generate
-                    </>
+                    <Copy className="h-4 w-4 mr-2" />
                   )}
+                  Duplicate league with players
                 </Button>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete league
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Mini League?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete "{league.name}" and all its players. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteLeagueMutation.mutate()}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
-            </div>
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
-        <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
-          <div className="flex gap-2 w-full sm:w-auto">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="flex-1 sm:flex-none">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Mini League?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete "{league.name}" and all its players. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => deleteLeagueMutation.mutate()}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-
-            <Button
-              variant="outline"
-              className="flex-1 sm:flex-none"
-              onClick={() => duplicateLeagueMutation.mutate()}
-              disabled={duplicateLeagueMutation.isPending}
-            >
-              {duplicateLeagueMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Copy className="h-4 w-4 mr-2" />
-              )}
-              Duplicate
+        <ResponsiveDialogFooter className="px-4 pb-safe border-t border-border pt-3">
+          <div className="flex gap-2 w-full">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">
+              Cancel
             </Button>
-          </div>
-
-          <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">Cancel</Button>
             <Button
               onClick={() => updateLeagueMutation.mutate()}
               disabled={!editName.trim() || updateLeagueMutation.isPending}
-              className="flex-1 sm:flex-none"
+              className="flex-[2] sm:flex-1"
             >
               {updateLeagueMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
             </Button>
