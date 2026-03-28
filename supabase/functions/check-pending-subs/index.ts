@@ -346,9 +346,42 @@ async function checkGames(supabase: any): Promise<number> {
     return 0;
   }
 
+  // Deduplicate: if multiple active rows exist for the same user+team, keep
+  // only the most recently updated one and deactivate the rest.
+  // This prevents duplicate notifications from ghost rows.
+  const seen = new Map<string, typeof activeGames[0]>();
+  const duplicateIds: string[] = [];
+  for (const game of activeGames) {
+    const key = `${game.user_id}::${game.team_id || ''}`;
+    const existing = seen.get(key);
+    if (existing) {
+      // Keep the newer one
+      const existingTime = new Date(existing.updated_at).getTime();
+      const gameTime = new Date(game.updated_at).getTime();
+      if (gameTime > existingTime) {
+        duplicateIds.push(existing.id);
+        seen.set(key, game);
+      } else {
+        duplicateIds.push(game.id);
+      }
+    } else {
+      seen.set(key, game);
+    }
+  }
+  if (duplicateIds.length > 0) {
+    console.log(`[CHECK-SUBS] Deactivating ${duplicateIds.length} duplicate active_games rows`);
+    await supabase
+      .from('active_games')
+      .update({ is_active: false })
+      .in('id', duplicateIds);
+  }
+
+  // Only process deduplicated games
+  const uniqueGames = [...seen.values()];
+
   let notificationsSent = 0;
 
-  for (const game of activeGames) {
+  for (const game of uniqueGames) {
     const timerState = game.timer_state as TimerState;
     const pitchState = game.pitch_state as PitchState;
 
@@ -405,7 +438,7 @@ async function checkGames(supabase: any): Promise<number> {
     // or freeze JS timers when backgrounded, so heartbeats can be delayed significantly.
     // The server extrapolates elapsed time from lastUpdateTime, so a longer stale window
     // doesn't affect notification accuracy — it just delays cleanup of truly abandoned games.
-    const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 1_200_000 : 900_000; // 20min at breaks, 15min normally
+    const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 600_000 : 900_000; // 10min at breaks, 15min normally
     const gameUpdatedAt = new Date(game.updated_at).getTime();
     if (gameUpdatedAt > 0 && (now - gameUpdatedAt) > STALE_THRESHOLD_MS) {
       console.log(`[CHECK-SUBS] Game ${game.id} is stale (DB row last updated ${Math.floor((now - gameUpdatedAt) / 1000)}s ago), marking inactive`);
@@ -455,17 +488,34 @@ async function checkGames(supabase: any): Promise<number> {
           const teamId = game.team_id || timerState.teamId;
           const teamName = timerState.teamName || 'Your team';
           const linkedEventId = pitchState.linkedEventId;
-          const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
 
-          notificationsSent += await notifyTeamStaff(
-            supabase, staffUserIds, game.user_id, game.id,
-            teamId || undefined, teamName, linkedEventId,
-            'half_time', `⏸️ ${teamName} - Half Time!`, 'half_time',
-            `⏸️ Half Time!`, `${teamName} - Half Time`,
-            undefined, undefined, undefined, timerState.minutesPerHalf, 1
-          );
+          // Extra dedup safety: check if a half_time notification was already sent
+          // for this user in the last 30 minutes (covers race conditions across
+          // concurrent cron invocations or duplicate active_games rows)
+          const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+          const { data: recentHalfTimeNotifs } = await supabase
+            .from('notifications')
+            .select('id')
+            .eq('user_id', game.user_id)
+            .eq('type', 'half_time')
+            .gte('created_at', thirtyMinAgo)
+            .limit(1);
 
-          console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id} (team ${teamId})`);
+          if (recentHalfTimeNotifs && recentHalfTimeNotifs.length > 0) {
+            console.log(`[CHECK-SUBS] Game ${game.id}: Halftime notification already sent recently, skipping`);
+          } else {
+            const staffUserIds = await getTeamStaffUserIds(supabase, teamId, linkedEventId);
+
+            notificationsSent += await notifyTeamStaff(
+              supabase, staffUserIds, game.user_id, game.id,
+              teamId || undefined, teamName, linkedEventId,
+              'half_time', `⏸️ ${teamName} - Half Time!`, 'half_time',
+              `⏸️ Half Time!`, `${teamName} - Half Time`,
+              undefined, undefined, undefined, timerState.minutesPerHalf, 1
+            );
+
+            console.log(`[CHECK-SUBS] Half time notification sent for game ${game.id} (team ${teamId})`);
+          }
         } else if (claimResult && claimResult.length === 0) {
           console.log(`[CHECK-SUBS] Half time already claimed by another invocation for game ${game.id}`);
         }

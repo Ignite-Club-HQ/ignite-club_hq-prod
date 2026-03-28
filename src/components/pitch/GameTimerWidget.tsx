@@ -433,13 +433,53 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     }
   };
 
-  const handleDismiss = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDismiss = useCallback(() => {
     // Only hide the widget — do NOT delete timer or pitch state
     const teamId = timerState?.teamId;
     localStorage.setItem(WIDGET_DISMISSED_KEY, teamId || 'true');
     setTimerState(null);
-  };
+  }, [timerState?.teamId]);
+
+  // Swipe-to-dismiss state
+  const swipeRef = useRef<{ startX: number; startY: number; swiping: boolean }>({ startX: 0, startY: 0, swiping: false });
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    swipeRef.current = { startX: touch.clientX, startY: touch.clientY, swiping: false };
+    setSwipeOffset(0);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    const dx = touch.clientX - swipeRef.current.startX;
+    const dy = touch.clientY - swipeRef.current.startY;
+
+    // Only start swiping if horizontal movement exceeds vertical (prevent scroll hijack)
+    if (!swipeRef.current.swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      swipeRef.current.swiping = true;
+    }
+
+    if (swipeRef.current.swiping) {
+      e.preventDefault();
+      setSwipeOffset(dx);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (swipeRef.current.swiping) {
+      const threshold = cardRef.current ? cardRef.current.offsetWidth * 0.35 : 120;
+      if (Math.abs(swipeOffset) > threshold) {
+        // Animate off-screen then dismiss
+        setSwipeOffset(swipeOffset > 0 ? 500 : -500);
+        setTimeout(handleDismiss, 200);
+      } else {
+        setSwipeOffset(0);
+      }
+    }
+    swipeRef.current = { startX: 0, startY: 0, swiping: false };
+  }, [swipeOffset, handleDismiss]);
 
   const openSubDialog = (index: number) => {
     setSelectedSubIndex(index);
@@ -662,7 +702,18 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
 
   return (
     <>
-      <Card className={`relative ${firstSub?.isDue ? "border-warning/50 bg-warning/5" : "border-primary/30 bg-primary/5"}`}>
+      <Card 
+        ref={cardRef}
+        className={`relative ${firstSub?.isDue ? "border-warning/50 bg-warning/5" : "border-primary/30 bg-primary/5"} touch-pan-y`}
+        style={{
+          transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined,
+          opacity: swipeOffset ? Math.max(0.3, 1 - Math.abs(swipeOffset) / 300) : 1,
+          transition: swipeRef.current.swiping ? 'none' : 'transform 0.2s ease-out, opacity 0.2s ease-out',
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <CardContent className="p-3">
           {/* Main row: Timer + Score + Controls */}
           <div className="flex items-center gap-3">
@@ -713,17 +764,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                   <LayoutGrid className="h-5 w-5" />
                 </Button>
               )}
-              {!readOnly && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 text-muted-foreground hover:text-foreground"
-                  onClick={handleDismiss}
-                  title="Dismiss"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
+            
             </div>
           </div>
 
