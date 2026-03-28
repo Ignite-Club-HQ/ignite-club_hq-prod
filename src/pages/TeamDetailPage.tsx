@@ -1240,13 +1240,22 @@ export default function TeamDetailPage() {
                             );
                           })}
                           {pendingInvites.flatMap(inv => {
-                            const meta = inv.metadata as { children?: { name: string }[] } | null;
+                            const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
                             if (!meta?.children) return [];
-                            return meta.children.map((child, idx) => ({
-                              key: `pending-child-${inv.id}-${idx}`,
-                              name: child.name,
-                              parentLabel: inv.invited_label || inv.invited_email?.split("@")[0] || "Pending Parent",
-                            }));
+                            // Filter out children that already exist as confirmed team members
+                            const confirmedChildIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
+                            const confirmedChildNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()).filter(Boolean));
+                            return meta.children
+                              .filter(child => {
+                                if (child.child_id && confirmedChildIds.has(child.child_id)) return false;
+                                if (child.name && confirmedChildNames.has(child.name.toLowerCase())) return false;
+                                return true;
+                              })
+                              .map((child, idx) => ({
+                                key: `pending-child-${inv.id}-${idx}`,
+                                name: child.name,
+                                parentLabel: inv.invited_label || inv.invited_email?.split("@")[0] || "Pending Parent",
+                              }));
                           }).map(pendingChild => (
                             <Card key={pendingChild.key} className="opacity-70">
                               <CardContent className="p-3 flex items-center gap-3">
