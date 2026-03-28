@@ -688,7 +688,6 @@ export default function JoinTeamPage() {
         console.error("Failed to send membership confirmation email:", emailError);
       }
     }
-    }
 
     return rolesToAdd;
   };
