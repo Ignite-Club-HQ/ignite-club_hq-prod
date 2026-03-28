@@ -78,14 +78,16 @@ export default function CreateEventPage() {
   const presetType = searchParams.get("type") as EventType | null;
   const presetClubId = searchParams.get("club_id");
   const presetMiniLeagueId = searchParams.get("mini_league_id");
+  const prefillTitle = searchParams.get("prefill_title");
+  const prefillDate = searchParams.get("prefill_date");
   const isFromMiniLeague = presetType === "mini_league" && !!presetMiniLeagueId;
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(prefillTitle || "");
   const [type, setType] = useState<EventType>(presetType || "training");
   const [clubId, setClubId] = useState(presetClubId || "");
   const [teamId, setTeamId] = useState("");
   const [miniLeagueId, setMiniLeagueId] = useState(presetMiniLeagueId || "");
-  const [eventDateTime, setEventDateTime] = useState("");
+  const [eventDateTime, setEventDateTime] = useState(prefillDate || "");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
