@@ -581,7 +581,7 @@ export function ManagePlayersDialog({
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-3 py-2 px-1">
+        <div className="flex-1 overflow-y-auto space-y-3 py-2">
           <Input
             placeholder="Search players..."
             value={playerSearch}
