@@ -708,12 +708,32 @@ export const ChatMessage = memo(function ChatMessage({
             </span>
           )}
           {timestamp}
-          {!isPending && !isLastMessage && <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />}
+          {!isPending && !isLastMessage && isOwn && readCount > 0 && (
+            <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
+              <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+            </span>
+          )}
+          {!isPending && !isLastMessage && isOwn && readCount === 0 && (
+            <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
+          )}
         </p>
         {!isPending && isLastMessage && isOwn && (
           readFrontierReaders.length > 0
-            ? <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+            ? <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
+                <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
+              </div>
             : <p className={`text-[10px] text-muted-foreground mt-0.5 ${isOwn ? "text-right" : ""}`}>Sent</p>
+        )}
+        {isOwn && (
+          <ReadReceiptSheet
+            open={showReadReceipts}
+            onOpenChange={setShowReadReceipts}
+            readers={isLastMessage ? readFrontierReaders : []}
+            messageId={id}
+            messageType={messageType}
+            contextId={contextId || ""}
+            currentUserId={currentUserId}
+          />
         )}
       </div>
       {showBlockDialog && (
