@@ -150,7 +150,7 @@ export function useActiveGameSync() {
     // doesn't re-send half-time notifications when a new active_games row is created
     const isAtHalftime = syncedTimerState.currentHalf === 2 && syncedTimerState.elapsedSeconds === 0 && !syncedTimerState.isRunning;
 
-    const gameData: Record<string, unknown> = {
+    const gameData = {
       user_id: user.id,
       team_id: timerState.teamId || null,
       timer_state: syncedTimerState as unknown as Json,
