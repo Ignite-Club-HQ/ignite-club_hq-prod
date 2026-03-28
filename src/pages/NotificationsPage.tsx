@@ -642,6 +642,13 @@ export default function NotificationsPage() {
         }
         break;
       }
+      case "club_join": {
+        // related_id is the club_id — navigate to club page
+        if (relatedId) {
+          navigate(`/clubs/${relatedId}`);
+        }
+        break;
+      }
       case "join_request":
         // Just mark as read - admin can approve/deny from notification buttons
         // Don't navigate away since they can take action right here
