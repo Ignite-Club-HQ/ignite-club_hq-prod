@@ -1293,7 +1293,7 @@ export default function TeamDetailPage() {
                         const [, member] = entry;
                         const roles = member.roles || [];
                         let primaryRole = "basic_user";
-                        let bestIdx = roleOrder.length;
+                        let bestIdx: number = roleOrder.length;
                         for (const r of roles) {
                           const idx = roleOrder.indexOf(r.role as any);
                           if (idx !== -1 && idx < bestIdx) {
