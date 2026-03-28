@@ -63,7 +63,7 @@ export const ReadReceiptSheet = memo(function ReadReceiptSheet({
         const { data: readData } = await supabase
           .from("message_reads")
           .select(`${field}, user_id`)
-          .eq(field, messageId);
+          .eq(field as any, messageId);
 
         const readerUserIds = new Set<string>();
         for (const row of readData || []) {
