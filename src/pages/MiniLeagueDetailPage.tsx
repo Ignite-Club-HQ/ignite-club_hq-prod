@@ -139,6 +139,65 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id && !!user && !canManageLeague,
   });
 
+  // Fetch league members (parents from players + admins/coaches from user_roles)
+  const parentUserIds = [...new Set((players || []).map(p => p.parent_user_id).filter(Boolean) as string[])];
+  
+  const { data: leagueMembers } = useQuery({
+    queryKey: ["mini-league-members", league?.club_id, parentUserIds],
+    queryFn: async () => {
+      // Get admins/coaches for the club
+      const { data: adminRoles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .eq("club_id", league!.club_id)
+        .in("role", ["club_admin", "league_admin", "coach", "committee_member"]);
+
+      // Collect all user IDs we need profiles for
+      const allUserIds = [...new Set([
+        ...parentUserIds,
+        ...(adminRoles || []).map(r => r.user_id),
+      ])];
+
+      if (allUserIds.length === 0) return { parents: [], staff: [] };
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", allUserIds);
+
+      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+      const adminUserIds = new Set((adminRoles || []).map(r => r.user_id));
+      
+      // Build role map for staff
+      const roleMap = new Map<string, string>();
+      (adminRoles || []).forEach(r => {
+        const existing = roleMap.get(r.user_id);
+        // Priority: club_admin > league_admin > coach > committee_member
+        const priority: Record<string, number> = { club_admin: 4, league_admin: 3, coach: 2, committee_member: 1 };
+        if (!existing || (priority[r.role] || 0) > (priority[existing] || 0)) {
+          roleMap.set(r.user_id, r.role);
+        }
+      });
+
+      const parents = parentUserIds
+        .filter(uid => !adminUserIds.has(uid))
+        .map(uid => ({
+          id: uid,
+          ...profileMap.get(uid),
+          role: "parent" as string,
+        }));
+
+      const staff = [...adminUserIds].map(uid => ({
+        id: uid,
+        ...profileMap.get(uid),
+        role: roleMap.get(uid) || "coach",
+      }));
+
+      return { parents, staff };
+    },
+    enabled: !!league?.club_id && (parentUserIds.length > 0 || !!league?.club_id),
+  });
+
   const nonCancelledEvents = events?.filter(e => !e.is_cancelled) || [];
   const upcomingEvents = nonCancelledEvents.filter(e => new Date(e.event_date) >= startOfDay(new Date()));
   const pastEvents = nonCancelledEvents.filter(e => new Date(e.event_date) < startOfDay(new Date()));
