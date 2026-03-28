@@ -573,6 +573,8 @@ export default function NotificationsPage() {
       case "event_cancelled":
       case "event_reminder":
       case "duty_assigned":
+      case "rsvp":
+      case "rsvp_updated":
         navigate(`/events/${relatedId}`);
         break;
       case "photo_comment":
@@ -610,7 +612,7 @@ export default function NotificationsPage() {
           if (inviteData.status === 'accepted' || inviteData.status === 'auto_accepted') {
             // Already accepted — go straight to team/club page
             if (inviteData.team_id) {
-              navigate(`/messages/${inviteData.team_id}`);
+              navigate(`/teams/${inviteData.team_id}`);
             } else if (inviteData.club_id) {
               navigate(`/clubs/${inviteData.club_id}`);
             }
@@ -625,12 +627,34 @@ export default function NotificationsPage() {
         break;
       }
       case "role_assigned":
-      case "member_joined":
       case "invite_accepted":
       case "team_join": {
         // related_id is the team_id — navigate to team page
         if (relatedId) {
-          navigate(`/messages/${relatedId}`);
+          navigate(`/teams/${relatedId}`);
+        }
+        break;
+      }
+      case "member_joined": {
+        // related_id could be team_id or club_id — check which one
+        if (relatedId) {
+          const { data: clubCheckMJ } = await supabase
+            .from("clubs")
+            .select("id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (clubCheckMJ) {
+            navigate(`/clubs/${relatedId}`);
+          } else {
+            navigate(`/teams/${relatedId}`);
+          }
+        }
+        break;
+      }
+      case "club_join": {
+        // related_id is the club_id — navigate to club page
+        if (relatedId) {
+          navigate(`/clubs/${relatedId}`);
         }
         break;
       }

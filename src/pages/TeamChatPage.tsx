@@ -283,6 +283,8 @@ export default function TeamChatPage() {
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
+    refetchOnMount: "always",
+    refetchOnReconnect: true,
     refetchOnWindowFocus: false,
   });
 
@@ -325,6 +327,7 @@ export default function TeamChatPage() {
   
   const handleRefresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    await queryClient.refetchQueries({ queryKey: ["team-messages", teamId], type: "active" });
   }, [queryClient, teamId]);
 
   const handleManualRefresh = useCallback(async () => {
@@ -339,11 +342,60 @@ export default function TeamChatPage() {
   const isAnyRefreshing = isManualRefreshing;
 
   useEffect(() => {
-    // Always sync localMessages with messages from query cache
-    // This ensures optimistic updates (deletions, edits) are reflected immediately
-    if (messages) {
-      setLocalMessages(messages);
-    }
+    // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
+    if (!messages) return;
+
+    setLocalMessages((prev) => {
+      if (!prev) return messages;
+
+      return messages.map((message) => {
+        const previousMessage = prev.find((item) => item.id === message.id);
+        if (!previousMessage) return message;
+
+        const previousReactions = previousMessage.reactions || [];
+        const incomingReactions = message.reactions || [];
+
+        if (previousReactions.length === 0 || incomingReactions.length === 0) {
+          return {
+            ...message,
+            reactions: incomingReactions.length > 0 ? incomingReactions : previousReactions,
+          };
+        }
+
+        const reactionsByUser = new Map<string, typeof incomingReactions[number]>();
+
+        previousReactions.forEach((reaction) => {
+          reactionsByUser.set(reaction.user_id, reaction);
+        });
+
+        incomingReactions.forEach((reaction) => {
+          const previousReaction = reactionsByUser.get(reaction.user_id);
+
+          if (!previousReaction) {
+            reactionsByUser.set(reaction.user_id, reaction);
+            return;
+          }
+
+          if (previousReaction.id.startsWith("temp-") && !reaction.id.startsWith("temp-")) {
+            reactionsByUser.set(reaction.user_id, reaction);
+            return;
+          }
+
+          // If the same server reaction arrives with an older reaction_type from a stale refetch,
+          // keep the already-rendered local/realtime version.
+          if (previousReaction.id === reaction.id && previousReaction.reaction_type !== reaction.reaction_type) {
+            return;
+          }
+
+          reactionsByUser.set(reaction.user_id, reaction);
+        });
+
+        return {
+          ...message,
+          reactions: Array.from(reactionsByUser.values()),
+        };
+      });
+    });
   }, [messages]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
@@ -742,24 +794,59 @@ export default function TeamChatPage() {
           if (!reaction.team_message_id) return;
           queryClient.setQueryData(["team-messages", teamId], (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map(m => {
+            const updatedMessages = existingMessages.map((m) => {
               if (m.id !== reaction.team_message_id) return m;
-              // Check if there's already a temp reaction from this user - replace it
+
               const existingTempIdx = m.reactions.findIndex(
-                r => r.id.startsWith('temp-') && r.user_id === reaction.user_id
+                (r) => r.id.startsWith("temp-") && r.user_id === reaction.user_id
               );
-              // Check if reaction already exists with this ID
-              if (m.reactions.some(r => r.id === reaction.id)) return m;
-              
+              if (m.reactions.some((r) => r.id === reaction.id)) return m;
+
               const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
               if (existingTempIdx !== -1) {
-                // Replace temp reaction with real one
                 const newReactions = [...m.reactions];
                 newReactions[existingTempIdx] = newReaction;
                 return { ...m, reactions: newReactions };
               }
-              // Add new reaction (from another user)
-              return { ...m, reactions: [...m.reactions, newReaction] };
+
+              return {
+                ...m,
+                reactions: [...m.reactions.filter((r) => r.user_id !== reaction.user_id), newReaction],
+              };
+            });
+            return { ...(old || {}), messages: updatedMessages };
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "message_reactions",
+        },
+        (payload) => {
+          const reaction = payload.new as any;
+          if (!reaction.team_message_id) return;
+          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+            const existingMessages: Message[] = old?.messages || [];
+            const updatedMessages = existingMessages.map((m) => {
+              if (m.id !== reaction.team_message_id) return m;
+
+              const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
+              const hasExistingReaction = m.reactions.some((r) => r.id === reaction.id);
+
+              if (hasExistingReaction) {
+                return {
+                  ...m,
+                  reactions: m.reactions.map((r) => (r.id === reaction.id ? newReaction : r)),
+                };
+              }
+
+              return {
+                ...m,
+                reactions: [...m.reactions.filter((r) => r.user_id !== reaction.user_id), newReaction],
+              };
             });
             return { ...(old || {}), messages: updatedMessages };
           });
@@ -777,9 +864,9 @@ export default function TeamChatPage() {
           if (!deletedReaction.id) return;
           queryClient.setQueryData(["team-messages", teamId], (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map(m => ({
+            const updatedMessages = existingMessages.map((m) => ({
               ...m,
-              reactions: m.reactions.filter(r => r.id !== deletedReaction.id)
+              reactions: m.reactions.filter((r) => r.id !== deletedReaction.id),
             }));
             return { ...(old || {}), messages: updatedMessages };
           });

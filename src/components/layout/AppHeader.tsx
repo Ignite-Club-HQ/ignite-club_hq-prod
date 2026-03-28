@@ -587,19 +587,39 @@ export function AppHeader() {
           }
           return;
         case "join_request":
+          navigate("/notifications");
+          return;
         case "join_request_approved":
         case "join_request_denied":
         case "join_request_processed":
-          navigate("/notifications");
+          if (relatedId) {
+            const { data: clubCheckHeader } = await supabase
+              .from("clubs")
+              .select("id")
+              .eq("id", relatedId)
+              .maybeSingle();
+            if (clubCheckHeader) {
+              navigate(`/clubs/${relatedId}`);
+            } else {
+              navigate(`/teams/${relatedId}`);
+            }
+          } else {
+            navigate("/notifications");
+          }
+          return;
+        case "club_join":
+          if (relatedId) {
+            navigate(`/clubs/${relatedId}`);
+          } else {
+            navigate("/notifications");
+          }
           return;
         case "role_assigned":
-        case "member_joined":
         case "invite_accepted":
         case "team_join":
         case "team_invite":
           // Navigate to team page if related_id is available
           if (relatedId) {
-            // For team_invite, related_id is pending_invite id - look up team_id
             if (notification.type === "team_invite") {
               const { data: inviteData } = await supabase
                 .from("pending_invites")
@@ -607,20 +627,37 @@ export function AppHeader() {
                 .eq("id", relatedId)
                 .maybeSingle();
               if (inviteData?.team_id) {
-                navigate(`/messages/${inviteData.team_id}`);
+                navigate(`/teams/${inviteData.team_id}`);
               } else if (inviteData?.club_id) {
                 navigate(`/clubs/${inviteData.club_id}`);
               } else {
                 navigate("/notifications");
               }
             } else {
-              navigate(`/messages/${relatedId}`);
+              navigate(`/teams/${relatedId}`);
+            }
+          } else {
+            navigate("/notifications");
+          }
+          return;
+        case "member_joined":
+          if (relatedId) {
+            const { data: clubCheckMJ } = await supabase
+              .from("clubs")
+              .select("id")
+              .eq("id", relatedId)
+              .maybeSingle();
+            if (clubCheckMJ) {
+              navigate(`/clubs/${relatedId}`);
+            } else {
+              navigate(`/teams/${relatedId}`);
             }
           } else {
             navigate("/notifications");
           }
           return;
         case "rsvp":
+        case "rsvp_updated":
           navigate(`/events/${relatedId}`);
           return;
         case "pending_sub":
