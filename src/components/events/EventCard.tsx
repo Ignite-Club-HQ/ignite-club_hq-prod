@@ -24,7 +24,7 @@ import {
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
-import { Clock, MapPin, MoreVertical, Pencil, Bell, XCircle, Trash2, Eye } from "lucide-react";
+import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
