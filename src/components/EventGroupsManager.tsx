@@ -1054,13 +1054,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     >
                       <div 
                         className="flex items-center gap-1.5 px-2.5 py-1.5"
-                        style={{ backgroundColor: group.team_a_color }}
+                        style={{ backgroundColor: group.team_a_color || DEFAULT_BIB_COLORS[0] }}
                       >
-                        <Shirt className="h-3.5 w-3.5 text-white" />
-                        <span className="text-xs font-bold text-white">
+                        <Shirt className="h-3.5 w-3.5" style={{ color: isLightColor(group.team_a_color || DEFAULT_BIB_COLORS[0]) ? '#1f2937' : '#ffffff' }} />
+                        <span className="text-xs font-bold" style={{ color: isLightColor(group.team_a_color || DEFAULT_BIB_COLORS[0]) ? '#1f2937' : '#ffffff' }}>
                           Team A
                         </span>
-                        <span className="text-xs text-white/70">({teamAPlayers.length})</span>
+                        <span className="text-xs" style={{ color: isLightColor(group.team_a_color || DEFAULT_BIB_COLORS[0]) ? '#1f293799' : '#ffffffb3' }}>({teamAPlayers.length})</span>
                       </div>
                       <div className="p-2 border border-t-0 rounded-b-lg space-y-0.5" style={{ borderColor: `${group.team_a_color}40` }}>
                         {teamAPlayers.map((player) => (
@@ -1091,13 +1091,13 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     >
                       <div 
                         className="flex items-center gap-1.5 px-2.5 py-1.5"
-                        style={{ backgroundColor: group.team_b_color }}
+                        style={{ backgroundColor: group.team_b_color || DEFAULT_BIB_COLORS[1] }}
                       >
-                        <Shirt className="h-3.5 w-3.5 text-white" />
-                        <span className="text-xs font-bold text-white">
+                        <Shirt className="h-3.5 w-3.5" style={{ color: isLightColor(group.team_b_color || DEFAULT_BIB_COLORS[1]) ? '#1f2937' : '#ffffff' }} />
+                        <span className="text-xs font-bold" style={{ color: isLightColor(group.team_b_color || DEFAULT_BIB_COLORS[1]) ? '#1f2937' : '#ffffff' }}>
                           Team B
                         </span>
-                        <span className="text-xs text-white/70">({teamBPlayers.length})</span>
+                        <span className="text-xs" style={{ color: isLightColor(group.team_b_color || DEFAULT_BIB_COLORS[1]) ? '#1f293799' : '#ffffffb3' }}>({teamBPlayers.length})</span>
                       </div>
                       <div className="p-2 border border-t-0 rounded-b-lg space-y-0.5" style={{ borderColor: `${group.team_b_color}40` }}>
                         {teamBPlayers.map((player) => (
