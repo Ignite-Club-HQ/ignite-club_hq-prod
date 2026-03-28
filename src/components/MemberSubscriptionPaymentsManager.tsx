@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, CreditCard, X, Loader2, ExternalLink, Shirt, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,17 @@ import { Capacitor } from "@capacitor/core";
 
 type PaymentType = "subscription" | "uniform";
 
+interface PayableEntry {
+  id: string; // unique key: either user_id or `child_${child_id}`
+  displayName: string;
+  avatarUrl: string | null;
+  isChild: boolean;
+  childId?: string;
+  parentUserId?: string; // for children, the parent's user_id
+  userId?: string; // for adult players
+  label: string; // "Player" or "Child Player"
+}
+
 interface Member {
   profile: {
     id: string;
@@ -63,8 +74,12 @@ export default function MemberSubscriptionPaymentsManager({
   
   const [activeTab, setActiveTab] = useState<PaymentType>("subscription");
   const [selectedMember, setSelectedMember] = useState<{
-    userId: string;
+    id: string;
     displayName: string;
+    isChild: boolean;
+    childId?: string;
+    parentUserId?: string;
+    userId?: string;
   } | null>(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentPeriod, setPaymentPeriod] = useState(new Date().getFullYear().toString());
@@ -76,24 +91,78 @@ export default function MemberSubscriptionPaymentsManager({
   // Get current year for default period
   const currentYear = new Date().getFullYear();
 
-  // Fetch payments for all members in this context
-  const memberIds = Object.keys(members);
-  
-  const { data: payments = [], isLoading: isPaymentsLoading } = useQuery({
-    queryKey: ["member-subscription-payments", clubId, memberIds.join(","), paymentPeriod, activeTab],
+  // Fetch children assigned to this team
+  const { data: teamChildren = [] } = useQuery({
+    queryKey: ["team-children-payments", teamId],
     queryFn: async () => {
-      if (memberIds.length === 0) return [];
+      if (!teamId) return [];
+      const { data, error } = await supabase
+        .from("child_team_assignments")
+        .select("child_id, children(id, name, parent_id)")
+        .eq("team_id", teamId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!teamId,
+  });
+
+  // Build payable entries: adult players + child players
+  const payableEntries: PayableEntry[] = useMemo(() => {
+    const entries: PayableEntry[] = [];
+
+    // Adult players from user_roles
+    Object.entries(members).forEach(([userId, member]) => {
+      const roles = member.roles?.map(r => r.role) || [];
+      if (roles.includes("player")) {
+        entries.push({
+          id: userId,
+          displayName: member.profile?.display_name || "Unknown",
+          avatarUrl: member.profile?.avatar_url || null,
+          isChild: false,
+          userId,
+          label: "Player",
+        });
+      }
+    });
+
+    // Child players from team assignments
+    teamChildren.forEach((assignment: any) => {
+      const child = assignment.children;
+      if (!child) return;
+      entries.push({
+        id: `child_${child.id}`,
+        displayName: child.name,
+        avatarUrl: null,
+        isChild: true,
+        childId: child.id,
+        parentUserId: child.parent_id,
+        label: "Player",
+      });
+    });
+
+    return entries;
+  }, [members, teamChildren]);
+
+  // Collect all relevant user_ids and child_ids for payment lookup
+  const parentIds = [...new Set(payableEntries.filter(e => e.isChild && e.parentUserId).map(e => e.parentUserId!))];
+  const adultPlayerIds = payableEntries.filter(e => !e.isChild && e.userId).map(e => e.userId!);
+  const allUserIds = [...new Set([...adultPlayerIds, ...parentIds])];
+
+  const { data: payments = [], isLoading: isPaymentsLoading } = useQuery({
+    queryKey: ["member-subscription-payments", clubId, payableEntries.map(e => e.id).join(","), paymentPeriod, activeTab],
+    queryFn: async () => {
+      if (allUserIds.length === 0) return [];
       const { data, error } = await supabase
         .from("member_subscription_payments")
         .select("*")
         .eq("club_id", clubId)
         .eq("payment_period", paymentPeriod)
         .eq("payment_type", activeTab)
-        .in("user_id", memberIds);
+        .in("user_id", allUserIds);
       if (error) throw error;
       return data || [];
     },
-    enabled: memberIds.length > 0,
+    enabled: allUserIds.length > 0,
   });
 
   // Fetch club subscription for member payment settings
@@ -116,24 +185,37 @@ export default function MemberSubscriptionPaymentsManager({
     clubPaymentSettings?.member_subscription_amount && 
     clubPaymentSettings.member_subscription_amount > 0;
 
-  // Create a map of user_id -> payment record for quick lookup
-  const paymentMap = payments.reduce((acc, payment) => {
-    acc[payment.user_id] = payment;
-    return acc;
-  }, {} as Record<string, typeof payments[0]>);
+  // Create a map of entry_id -> payment record for quick lookup
+  // For children: key is `child_${child_id}`, for adults: key is user_id
+  const paymentMap = useMemo(() => {
+    const map: Record<string, typeof payments[0]> = {};
+    payments.forEach(payment => {
+      const p = payment as any;
+      if (p.child_id) {
+        map[`child_${p.child_id}`] = payment;
+      } else {
+        map[payment.user_id] = payment;
+      }
+    });
+    return map;
+  }, [payments]);
 
   const markPaidMutation = useMutation({
     mutationFn: async () => {
       if (!selectedMember) return;
-      const { error } = await supabase.from("member_subscription_payments").insert({
-        user_id: selectedMember.userId,
+      const insertData: any = {
+        user_id: selectedMember.isChild ? selectedMember.parentUserId : selectedMember.userId,
         club_id: clubId,
         payment_period: paymentPeriod,
         payment_type: activeTab,
         amount: amount ? parseFloat(amount) : null,
         notes: notes.trim() || null,
         marked_by: user!.id,
-      });
+      };
+      if (selectedMember.isChild && selectedMember.childId) {
+        insertData.child_id = selectedMember.childId;
+      }
+      const { error } = await supabase.from("member_subscription_payments").insert(insertData);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -174,12 +256,15 @@ export default function MemberSubscriptionPaymentsManager({
   // Bulk send fee payment reminder notifications
   const sendReminderMutation = useMutation({
     mutationFn: async () => {
-      // Get unpaid members
-      const unpaidMemberIds = payableMembers
-        .filter(([userId]) => !paymentMap[userId])
-        .map(([userId]) => userId);
+      // Get unpaid entries - for children, notify the parent
+      const unpaidParentIds = [...new Set(
+        payableEntries
+          .filter(entry => !paymentMap[entry.id])
+          .map(entry => entry.isChild ? entry.parentUserId! : entry.userId!)
+          .filter(Boolean)
+      )];
 
-      if (unpaidMemberIds.length === 0) {
+      if (unpaidParentIds.length === 0) {
         throw new Error("All members have already paid");
       }
 
@@ -193,8 +278,8 @@ export default function MemberSubscriptionPaymentsManager({
       const clubName = clubData?.name || "Your club";
       const feeLabel = activeTab === "subscription" ? "subscription" : "uniform";
 
-      // Insert notifications for all unpaid members
-      const notifications = unpaidMemberIds.map(userId => ({
+      // Insert notifications for all unpaid members/parents
+      const notifications = unpaidParentIds.map(userId => ({
         user_id: userId,
         type: "fee_payment_request",
         message: `${clubName} is requesting payment of ${feeLabel} fees for ${paymentPeriod}`,
@@ -204,7 +289,7 @@ export default function MemberSubscriptionPaymentsManager({
       const { error } = await supabase.from("notifications").insert(notifications);
       if (error) throw error;
 
-      return unpaidMemberIds.length;
+      return unpaidParentIds.length;
     },
     onSuccess: (count) => {
       toast({
@@ -221,14 +306,21 @@ export default function MemberSubscriptionPaymentsManager({
     },
   });
 
-  const handleMemberClick = (userId: string, displayName: string) => {
+  const handleEntryClick = (entry: PayableEntry) => {
     if (!isAdmin) return;
     
-    const existingPayment = paymentMap[userId];
+    const existingPayment = paymentMap[entry.id];
     if (existingPayment) {
       setDeletePaymentId(existingPayment.id);
     } else {
-      setSelectedMember({ userId, displayName });
+      setSelectedMember({
+        id: entry.id,
+        displayName: entry.displayName,
+        isChild: entry.isChild,
+        childId: entry.childId,
+        parentUserId: entry.parentUserId,
+        userId: entry.userId,
+      });
       setPaymentDialogOpen(true);
     }
   };
@@ -299,26 +391,20 @@ export default function MemberSubscriptionPaymentsManager({
     }
   };
 
-  // Filter to only show players
-  const payableMembers = Object.entries(members).filter(([_, member]) => {
-    const roles = member.roles?.map(r => r.role) || [];
-    return roles.some(r => r === "player");
-  });
+  const paidCount = payableEntries.filter(entry => paymentMap[entry.id]).length;
+  const unpaidCount = payableEntries.length - paidCount;
 
-  const paidCount = payableMembers.filter(([userId]) => paymentMap[userId]).length;
-  const unpaidCount = payableMembers.length - paidCount;
-
-  const isPayableMember = user && payableMembers.some(([userId]) => userId === user.id);
+  const isPayableMember = user && payableEntries.some(entry => !entry.isChild && entry.userId === user.id);
   const hasCurrentUserPaid = !!currentUserPayment;
 
   const paymentTypeLabel = activeTab === "subscription" ? "Subscription" : "Uniform";
   const PaymentTypeIcon = activeTab === "subscription" ? CreditCard : Shirt;
 
-  if (payableMembers.length === 0) {
+  if (payableEntries.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">No players or parents to track payments for</p>
+        <p className="text-sm">No players to track payments for</p>
       </div>
     );
   }
@@ -441,46 +527,35 @@ export default function MemberSubscriptionPaymentsManager({
             </div>
           ) : (
             <div className="space-y-2">
-              {payableMembers.map(([userId, member]) => {
-                const payment = paymentMap[userId];
+              {payableEntries.map((entry) => {
+                const payment = paymentMap[entry.id];
                 const isPaid = !!payment;
                 
                 return (
                   <Card 
-                    key={userId}
+                    key={entry.id}
                     className={`transition-colors ${
                       isAdmin ? "cursor-pointer hover:bg-muted/50" : ""
                     } ${
                       isPaid ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30"
                     }`}
-                    onClick={() => handleMemberClick(userId, member.profile?.display_name || "Unknown")}
+                    onClick={() => handleEntryClick(entry)}
                   >
                     <CardContent className="p-3 flex items-center gap-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={member.profile?.avatar_url || undefined} />
+                        <AvatarImage src={entry.avatarUrl || undefined} />
                         <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                          {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                          {entry.displayName?.charAt(0)?.toUpperCase() || "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate">
-                          {member.profile?.display_name || "Unknown User"}
-                          {userId === user?.id && <span className="text-muted-foreground"> (You)</span>}
+                          {entry.displayName}
+                          {!entry.isChild && entry.userId === user?.id && <span className="text-muted-foreground"> (You)</span>}
                         </p>
-                        <div className="flex flex-wrap gap-1 mt-0.5">
-                          {member.roles?.map((roleItem) => {
-                            const roleLabels: Record<string, string> = {
-                              player: "Player",
-                              parent: "Parent",
-                            };
-                            if (!["player", "parent"].includes(roleItem.role)) return null;
-                            return (
-                              <Badge key={roleItem.id} variant="secondary" className="text-xs">
-                                {roleLabels[roleItem.role] || roleItem.role}
-                              </Badge>
-                            );
-                          })}
-                        </div>
+                        <Badge variant="secondary" className="text-xs mt-0.5">
+                          {entry.label}
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-2">
                         {isPaid ? (

@@ -2846,9 +2846,11 @@ export type Database = {
       member_subscription_payments: {
         Row: {
           amount: number
+          child_id: string | null
           club_id: string
           created_at: string
           id: string
+          marked_by: string | null
           notes: string | null
           paid_at: string | null
           payment_period: string
@@ -2860,9 +2862,11 @@ export type Database = {
         }
         Insert: {
           amount: number
+          child_id?: string | null
           club_id: string
           created_at?: string
           id?: string
+          marked_by?: string | null
           notes?: string | null
           paid_at?: string | null
           payment_period: string
@@ -2874,9 +2878,11 @@ export type Database = {
         }
         Update: {
           amount?: number
+          child_id?: string | null
           club_id?: string
           created_at?: string
           id?: string
+          marked_by?: string | null
           notes?: string | null
           paid_at?: string | null
           payment_period?: string
@@ -2887,6 +2893,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "member_subscription_payments_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "member_subscription_payments_club_id_fkey"
             columns: ["club_id"]
