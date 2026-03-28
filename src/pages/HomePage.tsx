@@ -229,7 +229,7 @@ export default function HomePage() {
           if (r.role === 'club_admin' || r.role === 'app_admin') {
             clubAdminClubIds.add(r.club_id);
           }
-          if (r.role === 'club_admin' || r.role === 'league_admin' || r.role === 'app_admin') {
+          if (r.role === 'league_admin') {
             leagueAdminClubIds.add(r.club_id);
           }
         }
