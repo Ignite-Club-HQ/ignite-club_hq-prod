@@ -2288,7 +2288,7 @@ export default function EventDetailPage() {
       {/* Attendees by Status */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Responses</h2>
+          <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Player Responses" : "Responses"}</h2>
           {/* Only show filter for training and game events, not social */}
           {!isSocialEvent && (
             <div className="flex items-center gap-2">
