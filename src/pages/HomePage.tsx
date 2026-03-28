@@ -920,22 +920,18 @@ export default function HomePage() {
     },
   });
 
+  // Only fetch all clubs/teams/leagues when join dialogs are open (lazy loading)
   const { data: clubs, error: clubsError, isLoading: clubsLoading } = useQuery({
     queryKey: ["all-clubs"],
     queryFn: async () => {
-      console.log("[HomePage] Fetching all clubs...");
       const { data, error } = await supabase
         .from("clubs")
         .select("id, name, sport, class_mode_enabled")
         .order("name");
-      if (error) {
-        console.error("[HomePage] Error fetching clubs:", error);
-        throw error;
-      }
-      console.log("[HomePage] Fetched clubs:", data?.length);
+      if (error) throw error;
       return data as Club[];
     },
-    enabled: !!user,
+    enabled: !!user && (clubDialogOpen || teamDialogOpen || !!activeClubFilter),
     staleTime: 1000 * 60 * 5,
     placeholderData: (prev) => prev,
   });
@@ -943,40 +939,29 @@ export default function HomePage() {
   const { data: teams, error: teamsError, isLoading: teamsLoading } = useQuery({
     queryKey: ["all-teams"],
     queryFn: async () => {
-      console.log("[HomePage] Fetching all teams...");
       const { data, error } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs (name, sport)")
         .order("name");
-      if (error) {
-        console.error("[HomePage] Error fetching teams:", error);
-        throw error;
-      }
-      console.log("[HomePage] Fetched teams:", data?.length);
+      if (error) throw error;
       return data as Team[];
     },
-    enabled: !!user,
+    enabled: !!user && teamDialogOpen,
     staleTime: 1000 * 60 * 5,
     placeholderData: (prev) => prev,
   });
 
-  // Fetch all mini leagues for join request dropdown
   const { data: miniLeagues, error: miniLeaguesError } = useQuery({
     queryKey: ["all-mini-leagues"],
     queryFn: async () => {
-      console.log("[HomePage] Fetching all mini leagues...");
       const { data, error } = await supabase
         .from("mini_leagues")
         .select("id, name, club_id, clubs (name, sport)")
         .order("name");
-      if (error) {
-        console.error("[HomePage] Error fetching mini leagues:", error);
-        throw error;
-      }
-      console.log("[HomePage] Fetched mini leagues:", data?.length);
+      if (error) throw error;
       return data as MiniLeague[];
     },
-    enabled: !!user,
+    enabled: !!user && teamDialogOpen,
     staleTime: 1000 * 60 * 5,
     placeholderData: (prev) => prev,
   });
