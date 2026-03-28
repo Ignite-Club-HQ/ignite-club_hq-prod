@@ -290,6 +290,106 @@ export function PendingInviteWelcomeDialog() {
               continue; // Skip the standard children creation flow
             }
 
+            // Mini-league invite: child already exists, link parent as guardian
+            if (meta.child_id && meta.mini_league_id) {
+              const childId = meta.child_id;
+              const miniLeagueId = meta.mini_league_id;
+
+              console.log("[InviteAutoAccept] Mini-league invite: linking parent to existing child:", childId);
+
+              // Transfer child ownership to this parent (they are the real parent)
+              await supabase
+                .from("children")
+                .update({ parent_id: user.id })
+                .eq("id", childId);
+
+              // Ensure mini league assignment exists
+              const { data: existingLeagueAssignment } = await supabase
+                .from("child_mini_league_assignments")
+                .select("id")
+                .eq("child_id", childId)
+                .eq("mini_league_id", miniLeagueId)
+                .maybeSingle();
+
+              if (!existingLeagueAssignment) {
+                await supabase.from("child_mini_league_assignments").insert({
+                  child_id: childId,
+                  mini_league_id: miniLeagueId,
+                  ability_rating: 3,
+                });
+                console.log("[InviteAutoAccept] Created mini league assignment for child:", childId);
+              }
+
+              // Update mini_league_players to link parent_user_id
+              if (meta.player_id) {
+                await supabase
+                  .from("mini_league_players")
+                  .update({ parent_user_id: user.id })
+                  .eq("id", meta.player_id);
+              } else {
+                await supabase
+                  .from("mini_league_players")
+                  .update({ parent_user_id: user.id })
+                  .eq("child_id", childId)
+                  .eq("mini_league_id", miniLeagueId);
+              }
+
+              // Send notification
+              const playerName = meta.player_name || meta.children?.[0]?.name || "Your child";
+              await supabase.from("notifications").insert({
+                user_id: user.id,
+                type: "membership",
+                message: `${playerName} has been added to a league`,
+                related_id: miniLeagueId,
+              });
+
+              // Send child-added email
+              try {
+                const { data: leagueInfo } = await supabase
+                  .from("mini_leagues")
+                  .select("name, club_id, clubs:club_id(name, logo_url, contact_email)")
+                  .eq("id", miniLeagueId)
+                  .single();
+
+                if (leagueInfo) {
+                  const club = leagueInfo.clubs as any;
+                  const inviteLink = `${window.location.origin}/mini-leagues/${miniLeagueId}`;
+
+                  await supabase.functions.invoke("send-email", {
+                    body: {
+                      toUserId: user.id,
+                      subject: `${club?.name || 'Your club'}: ${playerName} has been added to ${leagueInfo.name} ⚽`,
+                      template: "child-added",
+                      senderName: club?.name || undefined,
+                      replyTo: club?.contact_email || undefined,
+                      templateData: {
+                        recipientName: user.user_metadata?.display_name || "there",
+                        teamName: leagueInfo.name,
+                        clubName: club?.name || "The Club",
+                        inviteLink,
+                        clubLogoUrl: club?.logo_url || undefined,
+                        childrenNames: [playerName],
+                      },
+                    },
+                  });
+                  console.log("[InviteAutoAccept] Sent child-added email for mini-league");
+                }
+              } catch (emailErr) {
+                console.error("[InviteAutoAccept] Failed to send mini-league child-added email:", emailErr);
+              }
+
+              await supabase
+                .from("pending_invites")
+                .update({
+                  status: "accepted",
+                  accepted_at: new Date().toISOString(),
+                  invited_user_id: user.id,
+                })
+                .eq("id", invite.id);
+
+              continue; // Skip standard children flow
+            }
+
             // Standard dual-parent invite flow with children metadata
             const linkedToken = meta.linked_invite_token;
             const childrenData = meta.children || [];
