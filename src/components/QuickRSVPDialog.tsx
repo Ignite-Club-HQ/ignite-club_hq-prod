@@ -69,40 +69,88 @@ export function QuickRSVPDialog({
   const [selectedChildIds, setSelectedChildIds] = useState<Set<string>>(new Set());
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
 
-  // Fetch existing RSVPs for this event
-  const { data: existingRsvps, isLoading: loadingRsvps } = useQuery({
-    queryKey: ["quick-rsvp", eventId, user?.id],
+  // Fetch children assigned to this team (including guardian-linked)
+  const { data: childrenOnTeam, isLoading: loadingChildren } = useQuery({
+    queryKey: ["quick-rsvp-children", teamId, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!teamId) return [];
+      
+      // Fetch direct children and guardian-linked children in parallel
+      const [ownChildren, guardianLinks] = await Promise.all([
+        supabase
+          .from("children")
+          .select("id, name, child_team_assignments!inner (team_id)")
+          .eq("parent_id", user!.id)
+          .eq("child_team_assignments.team_id", teamId),
+        supabase
+          .from("child_guardians")
+          .select("child_id, children!inner (id, name)")
+          .eq("guardian_id", user!.id),
+      ]);
+
+      const directChildren = ownChildren.data || [];
+      const guardianChildren = (guardianLinks.data || []).map((g: any) => g.children).filter(Boolean);
+
+      // Filter guardian children to those on this team
+      let filteredGuardianChildren: any[] = [];
+      if (guardianChildren.length > 0) {
+        const guardianChildIds = guardianChildren.map((c: any) => c.id);
+        const { data: assignments } = await supabase
+          .from("child_team_assignments")
+          .select("child_id")
+          .eq("team_id", teamId)
+          .in("child_id", guardianChildIds);
+        const assignedIds = new Set((assignments || []).map((a: any) => a.child_id));
+        filteredGuardianChildren = guardianChildren.filter((c: any) => assignedIds.has(c.id));
+      }
+
+      // Deduplicate
+      const seen = new Set<string>();
+      return [...directChildren, ...filteredGuardianChildren].filter((c: any) => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
+    },
+    enabled: open && !!user && !!teamId,
+  });
+
+  // Fetch existing RSVPs for this event (self + all children by child_id)
+  const { data: existingRsvps, isLoading: loadingRsvps } = useQuery({
+    queryKey: ["quick-rsvp", eventId, user?.id, childrenOnTeam?.map(c => c.id).join(",")],
+    queryFn: async () => {
+      // Fetch own RSVP
+      const { data: myRsvps, error } = await supabase
         .from("rsvps")
         .select("id, status, child_id")
         .eq("event_id", eventId)
         .eq("user_id", user!.id);
       if (error) throw error;
-      return data;
+
+      // Fetch child RSVPs by child_id (regardless of which parent created them)
+      const childIds = (childrenOnTeam || []).map((c: any) => c.id);
+      let childRsvpData: any[] = [];
+      if (childIds.length > 0) {
+        const { data, error: childErr } = await supabase
+          .from("rsvps")
+          .select("id, status, child_id, user_id")
+          .eq("event_id", eventId)
+          .in("child_id", childIds);
+        if (!childErr && data) childRsvpData = data;
+      }
+
+      // Merge: own non-child RSVPs + child RSVPs (deduplicated by child_id)
+      const ownNonChild = (myRsvps || []).filter(r => !r.child_id);
+      const seenChildIds = new Set<string>();
+      const deduped = childRsvpData.filter(r => {
+        if (seenChildIds.has(r.child_id)) return false;
+        seenChildIds.add(r.child_id);
+        return true;
+      });
+
+      return [...ownNonChild, ...deduped];
     },
     enabled: open && !!user,
-  });
-
-  // Fetch children assigned to this team
-  const { data: childrenOnTeam, isLoading: loadingChildren } = useQuery({
-    queryKey: ["quick-rsvp-children", teamId, user?.id],
-    queryFn: async () => {
-      if (!teamId) return [];
-      const { data, error } = await supabase
-        .from("children")
-        .select(`
-          id,
-          name,
-          child_team_assignments!inner (team_id)
-        `)
-        .eq("parent_id", user!.id)
-        .eq("child_team_assignments.team_id", teamId);
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open && !!user && !!teamId,
   });
 
   // Initialize selected children based on existing RSVPs

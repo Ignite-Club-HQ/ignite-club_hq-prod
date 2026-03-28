@@ -694,8 +694,9 @@ export default function EventDetailPage() {
     enabled: !!event?.team_id,
   });
 
-  // Get existing RSVPs for children
-  const childRsvps = rsvps?.filter((r) => r.user_id === user?.id && r.child_id) || [];
+  // Get existing RSVPs for children (any guardian's RSVP for the child counts)
+  const myChildIds = new Set((childrenOnTeam || []).map((c: any) => c.id));
+  const childRsvps = rsvps?.filter((r) => r.child_id && myChildIds.has(r.child_id)) || [];
 
   // Fetch event payments (admin only)
   const { data: payments } = useQuery({
