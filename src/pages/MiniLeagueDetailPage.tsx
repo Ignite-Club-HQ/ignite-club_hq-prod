@@ -145,12 +145,12 @@ export default function MiniLeagueDetailPage() {
   const { data: leagueMembers } = useQuery({
     queryKey: ["mini-league-members", league?.club_id, parentUserIds],
     queryFn: async () => {
-      // Get admins/coaches for the club
+      // Get league admins and coaches only (not committee members)
       const { data: adminRoles } = await supabase
         .from("user_roles")
         .select("user_id, role")
         .eq("club_id", league!.club_id)
-        .in("role", ["club_admin", "league_admin", "coach", "committee_member"]);
+        .in("role", ["league_admin", "coach"]);
 
       // Collect all user IDs we need profiles for
       const allUserIds = [...new Set([
