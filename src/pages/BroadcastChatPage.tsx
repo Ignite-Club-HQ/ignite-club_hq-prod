@@ -869,6 +869,7 @@ export default function BroadcastChatPage() {
                         readCount={readCounts[msg.id] || 0}
                         isLastMessage={index === filteredMessages.length - 1}
                         isPending={msg.id.startsWith("queued-")}
+                        contextId="broadcast"
                       />
                     </div>
                   </div>
