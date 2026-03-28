@@ -24,12 +24,14 @@ import {
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
-import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye } from "lucide-react";
+import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+
+type RsvpStatus = "going" | "maybe" | "not_going";
 
 export interface EventCardEvent {
   id: string;
@@ -100,6 +102,49 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
     },
   });
 
+  // Fetch user's own RSVP
+  const { data: myRsvp } = useQuery({
+    queryKey: ["card-rsvp", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("id, status")
+        .eq("event_id", event.id)
+        .eq("user_id", user!.id)
+        .is("child_id", null)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !event.is_cancelled,
+  });
+
+  // Fetch child RSVPs
+  const { data: childRsvps } = useQuery({
+    queryKey: ["card-child-rsvps", event.id, user?.id],
+    queryFn: async () => {
+      const [ownChildren, guardianLinks] = await Promise.all([
+        supabase.from("children").select("id").eq("parent_id", user!.id),
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
+      ]);
+      const childIds = [
+        ...(ownChildren.data || []).map(c => c.id),
+        ...(guardianLinks.data || []).map(g => g.child_id),
+      ];
+      if (childIds.length === 0) return [];
+      const uniqueChildIds = [...new Set(childIds)];
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("id, status, child_id, children:child_id(name)")
+        .eq("event_id", event.id)
+        .in("child_id", uniqueChildIds);
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; status: string; child_id: string; children: { name: string } | null }>;
+    },
+    enabled: !!user && !event.is_cancelled,
+  });
+
+  const currentRsvpStatus = myRsvp?.status as RsvpStatus | null;
   const canSendReminders = hasPro === true;
 
   const deleteEventMutation = useMutation({
@@ -315,6 +360,27 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             </div>
           )}
         </div>
+
+        {/* Row 3: RSVP Status */}
+        {!event.is_cancelled && (currentRsvpStatus || (childRsvps && childRsvps.length > 0)) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {currentRsvpStatus && (
+              <div className="flex items-center gap-1 text-[11px]">
+                {currentRsvpStatus === "going" && <><CheckCircle2 className="h-3 w-3 text-primary" /><span className="text-primary font-medium">Going</span></>}
+                {currentRsvpStatus === "maybe" && <><HelpCircle className="h-3 w-3 text-warning" /><span className="text-warning font-medium">Maybe</span></>}
+                {currentRsvpStatus === "not_going" && <><X className="h-3 w-3 text-destructive" /><span className="text-destructive font-medium">Can't go</span></>}
+              </div>
+            )}
+            {childRsvps?.map((rsvp) => (
+              <Badge key={rsvp.id} variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal">
+                {rsvp.status === "going" && <CheckCircle2 className="h-3 w-3 text-primary" />}
+                {rsvp.status === "maybe" && <HelpCircle className="h-3 w-3 text-warning" />}
+                {rsvp.status === "not_going" && <X className="h-3 w-3 text-destructive" />}
+                <span className="truncate max-w-[60px]">{rsvp.children?.name?.split(' ')[0] || "Child"}</span>
+              </Badge>
+            ))}
+          </div>
+        )}
       </CardContent>
 
       {/* Admin menu triggered by long-press */}
