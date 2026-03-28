@@ -98,7 +98,24 @@ Deno.serve(async (req) => {
       notificationType = 'event_invite';
       message = `You've been invited to: ${title}`;
 
-      if (teamId) {
+      if (miniLeagueId) {
+        // Mini-league event: notify parents with players in the league + league admins/coaches
+        const [parentResult, adminResult] = await Promise.all([
+          supabase
+            .from('mini_league_players')
+            .select('parent_user_id')
+            .eq('mini_league_id', miniLeagueId)
+            .not('parent_user_id', 'is', null),
+          supabase
+            .from('user_roles')
+            .select('user_id')
+            .in('role', ['league_admin', 'coach', 'club_admin'])
+            .eq('club_id', clubId),
+        ]);
+        const parentIds = (parentResult.data || []).map(p => p.parent_user_id);
+        const adminIds = (adminResult.data || []).map(a => a.user_id);
+        recipientUserIds = [...new Set([...parentIds, ...adminIds])].filter(id => id !== createdBy);
+      } else if (teamId) {
         // Team event - notify team members
         const { data: members } = await supabase
           .from('user_roles')

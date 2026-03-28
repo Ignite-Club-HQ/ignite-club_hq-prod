@@ -131,7 +131,7 @@ const AttendeeCard = ({
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             {!isChildRsvp && !isMiniLeaguePlayerRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
-            <AvatarFallback className={`text-xs ${(isChildRsvp || isMiniLeaguePlayerRsvp) ? 'bg-secondary' : ''}`}>
+            <AvatarFallback className="text-xs">
               {avatarInitial}
             </AvatarFallback>
           </Avatar>
@@ -621,27 +621,57 @@ export default function EventDetailPage() {
     enabled: !!event?.mini_league_id && !!id,
   });
 
-  // Fetch children assigned to this event's team (for parent RSVP)
+  // Fetch children for parent RSVP - team-assigned children for team events, all children for club-wide events
   const { data: childrenOnTeam } = useQuery({
-    queryKey: ["children-on-team", event?.team_id, user?.id],
+    queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, user?.id],
     queryFn: async () => {
-      if (!event?.team_id) return [];
-      
-      // Get user's children that are assigned to this team
-      const { data, error } = await supabase
-        .from("children")
-        .select(`
-          id,
-          name,
-          child_team_assignments!inner (team_id)
-        `)
-        .eq("parent_id", user!.id)
-        .eq("child_team_assignments.team_id", event.team_id);
+      // Get children where user is parent OR guardian
+      const [ownChildren, guardianLinks] = await Promise.all([
+        // Direct children (parent_id)
+        event?.team_id
+          ? supabase
+              .from("children")
+              .select("id, name, child_team_assignments!inner (team_id)")
+              .eq("parent_id", user!.id)
+              .eq("child_team_assignments.team_id", event.team_id)
+          : supabase
+              .from("children")
+              .select("id, name")
+              .eq("parent_id", user!.id),
+        // Guardian-linked children
+        supabase
+          .from("child_guardians")
+          .select("child_id, children!inner (id, name)")
+          .eq("guardian_id", user!.id),
+      ]);
 
-      if (error) throw error;
-      return data || [];
+      const directChildren = ownChildren.data || [];
+      const guardianChildren = (guardianLinks.data || []).map((g: any) => g.children).filter(Boolean);
+
+      // If team event, filter guardian children to those on the team
+      let filteredGuardianChildren = guardianChildren;
+      if (event?.team_id && guardianChildren.length > 0) {
+        const guardianChildIds = guardianChildren.map((c: any) => c.id);
+        const { data: assignments } = await supabase
+          .from("child_team_assignments")
+          .select("child_id")
+          .eq("team_id", event.team_id)
+          .in("child_id", guardianChildIds);
+        const assignedIds = new Set((assignments || []).map((a: any) => a.child_id));
+        filteredGuardianChildren = guardianChildren.filter((c: any) => assignedIds.has(c.id));
+      }
+
+      // Deduplicate by child id
+      const seen = new Set<string>();
+      const all = [...directChildren, ...filteredGuardianChildren].filter((c: any) => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
+
+      return all;
     },
-    enabled: !!user && !!event?.team_id,
+    enabled: !!user && !!(event?.team_id || event?.club_id),
   });
 
   // Fetch ALL children assigned to this event's team (for not responded list)
@@ -860,7 +890,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      toast({ title: "RSVP updated!" });
+      
 
       // Show post-RSVP notification nudge if user hasn't enabled push
       if (notificationNudge.hasPushEnabled === false) {
@@ -934,7 +964,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      toast({ title: "Child RSVP updated!" });
+      
     },
   });
 
@@ -1012,7 +1042,6 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      toast({ title: `${variables.playerName}'s RSVP updated!` });
     },
     onError: (error) => {
       toast({ 
@@ -1036,7 +1065,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      toast({ title: `${variables.playerName}'s RSVP updated!` });
+      
     },
     onError: (error) => {
       toast({ 
@@ -1076,7 +1105,7 @@ export default function EventDetailPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      toast({ title: `${variables.memberName}'s RSVP set to ${variables.status}!` });
+      
     },
     onError: (error) => {
       toast({ 
@@ -1116,7 +1145,7 @@ export default function EventDetailPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      toast({ title: `${variables.childName}'s RSVP set to ${variables.status}!` });
+      
     },
     onError: (error) => {
       toast({ 
@@ -1733,21 +1762,13 @@ export default function EventDetailPage() {
   }
 
   if (!event) {
-    const roastMessages = [
-      "🚫 Nice try, but you're not on the guest list. This event is more exclusive than your playlist.",
-      "🔒 Whoa there! You don't have access to this event. Maybe try making some friends first?",
-      "🙅 Access denied! This event is invitation-only, and clearly... you weren't invited.",
-      "😬 Awkward... You're trying to crash a party you weren't invited to. Bold move.",
-      "🫣 Plot twist: you need to actually be a member to see this. Wild concept, right?",
-      "🏟️ You can't just walk into any event like you own the place. Get invited first!",
-      "🚷 Hold up! This area is members-only. No ticket, no entry, no exceptions.",
-    ];
-    const roast = roastMessages[Math.floor(Math.random() * roastMessages.length)];
     return (
       <div className="py-12 text-center space-y-4 px-6">
-        <div className="text-5xl">🚫</div>
-        <h2 className="text-xl font-bold text-foreground">No Access</h2>
-        <p className="text-muted-foreground max-w-sm mx-auto">{roast}</p>
+        <div className="text-5xl">📋</div>
+        <h2 className="text-xl font-bold text-foreground">Event Not Available</h2>
+        <p className="text-muted-foreground max-w-sm mx-auto">
+          This event may have been removed, or it's for a specific team or group you're not part of. If you think this is a mistake, check with your club admin.
+        </p>
         <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
           Go Home
         </Button>
@@ -2477,7 +2498,7 @@ export default function EventDetailPage() {
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
-                                <AvatarFallback className="text-xs bg-secondary">
+                                <AvatarFallback className="text-xs bg-primary text-primary-foreground">
                                   {child.name?.charAt(0)?.toUpperCase() || "?"}
                                 </AvatarFallback>
                               </Avatar>
