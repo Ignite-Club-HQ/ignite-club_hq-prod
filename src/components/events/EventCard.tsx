@@ -319,46 +319,6 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           )}
         </div>
 
-        {/* Row 3: Admin overflow menu */}
-        {isAdmin && (
-          <div className="flex items-center justify-end -mb-1" onClick={(e) => e.stopPropagation()}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1.5">
-                  <MoreVertical className="h-3.5 w-3.5" />
-                  Manage
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                {!event.is_cancelled && (
-                  <>
-                    <DropdownMenuItem onClick={() => navigate(`/events/${event.id}/edit`)}>
-                      <Pencil className="h-3.5 w-3.5 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    {canSendReminders && (
-                      <DropdownMenuItem onClick={handleRemindClick}>
-                        <Bell className="h-3.5 w-3.5 mr-2" />
-                        Send Reminders
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setCancelDialogOpen(true)} className="text-warning focus:text-warning">
-                      <XCircle className="h-3.5 w-3.5 mr-2" />
-                      Cancel Event
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive focus:text-destructive">
-                  <Trash2 className="h-3.5 w-3.5 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
-      </CardContent>
-
       {/* Dialogs */}
       <div onClick={(e) => e.stopPropagation()}>
         {isRecurring ? (
