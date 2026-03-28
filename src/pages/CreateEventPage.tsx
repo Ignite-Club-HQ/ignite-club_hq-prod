@@ -209,12 +209,6 @@ export default function CreateEventPage() {
     }
   }, [clubId, clubs]);
 
-  // Auto-set social type for committee-only users
-  useEffect(() => {
-    if (isCommitteeOnlyForClub && type !== "social") {
-      setType("social");
-    }
-  }, [isCommitteeOnlyForClub, type]);
 
 
   const { data: isClubAdminForSelectedClub } = useQuery({
