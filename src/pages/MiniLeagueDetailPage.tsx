@@ -255,8 +255,8 @@ export default function MiniLeagueDetailPage() {
   const renderEmptyState = () => (
     <Card className="rounded-2xl overflow-hidden shadow-md bg-card border-0">
       <CardContent className="py-6 px-5 text-center space-y-4">
-        <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center mx-auto">
-          <Trophy className="h-8 w-8 text-primary" />
+        <div className="h-14 w-14 rounded-xl bg-primary/8 flex items-center justify-center mx-auto">
+          <Trophy className="h-7 w-7 text-primary" />
         </div>
         <div className="space-y-1">
           <h2 className="text-lg font-bold">Start your Mini League</h2>
@@ -266,14 +266,17 @@ export default function MiniLeagueDetailPage() {
         </div>
 
         {canManageLeague && (
-          <Button
-            size="lg"
-            onClick={() => navigate(getCreateUrl())}
-            className="shadow-sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Match Day
-          </Button>
+          <div className="space-y-1.5">
+            <Button
+              size="lg"
+              onClick={() => navigate(getCreateUrl())}
+              className="w-full shadow-sm active:scale-[0.97] transition-all duration-150"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Match Day
+            </Button>
+            <p className="text-[11px] text-muted-foreground/50">Takes less than 30 seconds</p>
+          </div>
         )}
 
         {/* How it works */}
@@ -289,7 +292,7 @@ export default function MiniLeagueDetailPage() {
                   <div className="h-9 w-9 rounded-xl bg-muted/60 flex items-center justify-center">
                     <Icon className="h-4 w-4 text-muted-foreground/70" />
                   </div>
-                  <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shadow-sm">
                     {step}
                   </span>
                 </div>
