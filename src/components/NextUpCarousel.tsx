@@ -96,21 +96,31 @@ function useRsvpSummary(eventId: string) {
   return useQuery({
     queryKey: ["rsvp-summary", eventId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: rsvps, error } = await supabase
         .from("rsvps")
-        .select("id, status, user_id, child_id, profiles:user_id(display_name, avatar_url)")
+        .select("id, status, user_id")
         .eq("event_id", eventId)
         .eq("status", "going")
         .is("child_id", null)
         .limit(10);
       if (error) throw error;
-      return (data || []) as Array<{
-        id: string;
-        status: string;
-        user_id: string;
-        child_id: string | null;
-        profiles: { display_name: string | null; avatar_url: string | null } | null;
-      }>;
+      if (!rsvps || rsvps.length === 0) return [];
+
+      const userIds = rsvps.map(r => r.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", userIds);
+
+      const profileMap = (profiles || []).reduce((acc, p) => {
+        acc[p.id] = p;
+        return acc;
+      }, {} as Record<string, { id: string; display_name: string | null; avatar_url: string | null }>);
+
+      return rsvps.map(r => ({
+        ...r,
+        profile: profileMap[r.user_id] || null,
+      }));
     },
   });
 }
