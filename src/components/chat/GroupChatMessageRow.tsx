@@ -38,6 +38,7 @@ interface GroupChatMessageRowProps {
   deleteMessageMutation: { mutate: (id: string) => void };
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   REACTION_EMOJIS: string[];
+  groupId?: string;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
@@ -56,9 +57,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   deleteMessageMutation,
   toggleReactionMutation,
   REACTION_EMOJIS,
+  groupId,
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showReadReceipts, setShowReadReceipts] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
