@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trash2, Loader2, Camera, ImageIcon, Plus, X, Clock, Users, UsersRound, Copy } from "lucide-react";
+import { Trash2, Loader2, Camera, ImageIcon, Plus, X, Clock, Users, UsersRound, Copy, Wand2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,49 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
     league.bib_colors || ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"]
   );
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [mockPlayerCount, setMockPlayerCount] = useState(20);
+
+  const MOCK_FIRST_NAMES = [
+    "Oliver", "Jack", "Sophie", "Charlie", "Emily", "Noah", "Amelia", "George", "Isla", "Harry",
+    "Mia", "Leo", "Ava", "Oscar", "Lily", "Freddie", "Ella", "Alfie", "Grace", "Archie",
+    "Ruby", "Max", "Chloe", "Ethan", "Zoe", "Liam", "Hannah", "Lucas", "Daisy", "James",
+    "Poppy", "Finn", "Lucy", "Sebastian", "Millie", "Henry", "Eva", "Thomas", "Willow", "Arthur",
+    "Phoebe", "Daniel", "Ivy", "Samuel", "Ellie", "Theo", "Sienna", "Alexander", "Maisie", "William",
+    "Scarlett", "Benjamin", "Jessica", "Jake", "Layla", "Edward", "Rosie", "Isaac", "Bella", "Ryan",
+  ];
+  const MOCK_LAST_NAMES = [
+    "Smith", "Williams", "Taylor", "Brown", "Davies", "Wilson", "Evans", "Thomas", "Johnson", "Roberts",
+    "Walker", "White", "Harris", "Clark", "Lewis", "Young", "Hall", "King", "Wright", "Green",
+    "Hill", "Scott", "Adams", "Mitchell", "Phillips", "Campbell", "Parker", "Morris", "Cook", "Murphy",
+  ];
+
+  const generateMockPlayersMutation = useMutation({
+    mutationFn: async () => {
+      const players = [];
+      const usedNames = new Set<string>();
+      for (let i = 0; i < mockPlayerCount; i++) {
+        let name: string;
+        do {
+          const first = MOCK_FIRST_NAMES[Math.floor(Math.random() * MOCK_FIRST_NAMES.length)];
+          const last = MOCK_LAST_NAMES[Math.floor(Math.random() * MOCK_LAST_NAMES.length)];
+          name = `${first} ${last}`;
+        } while (usedNames.has(name));
+        usedNames.add(name);
+        players.push({
+          mini_league_id: league.id,
+          name,
+          ability_rating: Math.floor(Math.random() * 5) + 1,
+        });
+      }
+      const { error } = await supabase.from("mini_league_players").insert(players);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mini-league-players", league.id] });
+      toast.success(`${mockPlayerCount} mock players generated`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   // Sync state when league prop changes (dialog reopens)
   const handleOpenChange = (o: boolean) => {
@@ -356,6 +399,43 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
                   <Plus className="h-3 w-3 text-muted-foreground" />
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Generate Mock Players */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label>Developer Tools</Label>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Generate Mock Players</p>
+                <p className="text-xs text-muted-foreground">Add fake players for testing (no parent accounts linked)</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={5}
+                  max={60}
+                  value={mockPlayerCount}
+                  onChange={(e) => setMockPlayerCount(Math.min(60, Math.max(5, parseInt(e.target.value) || 20)))}
+                  className="w-16 h-9 text-center"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateMockPlayersMutation.mutate()}
+                  disabled={generateMockPlayersMutation.isPending}
+                >
+                  {generateMockPlayersMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4 mr-1.5" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
