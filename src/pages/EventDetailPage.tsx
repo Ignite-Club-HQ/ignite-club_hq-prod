@@ -539,7 +539,7 @@ export default function EventDetailPage() {
   const isSocialEvent = event?.type === "social";
   const effectiveShowAll = isSocialEvent ? true : showAllRoles;
   const isMiniLeagueEvent = !!event?.mini_league_id;
-  const eventTypeLabel = isMiniLeagueEvent ? "Session" : getEventTypeLabel(event?.type);
+  const eventTypeLabel = isMiniLeagueEvent ? "Match Day" : getEventTypeLabel(event?.type);
 
   // Filter members based on showAllRoles toggle
   const members = membersWithRoles;
@@ -2092,6 +2092,21 @@ export default function EventDetailPage() {
         />
       )}
 
+      {/* Mini League Matches — PRIMARY section for league events, placed at top */}
+      {isMiniLeagueEvent && event.mini_league_id && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <EventGroupsManager
+              eventId={id!}
+              miniLeagueId={event.mini_league_id}
+              isAdmin={isAdmin || isAppAdmin || false}
+              playerOverrides={playerOverrides}
+            />
+          </section>
+        </>
+      )}
+
       {/* Event Sponsors (Pro only) */}
       <EventSponsorsSection eventId={id!} clubId={event.club_id} />
 
@@ -2265,20 +2280,8 @@ export default function EventDetailPage() {
         </section>
       )}
 
-      {/* Mini League Breakout Groups (only for mini league events) - above responses for easy access */}
-      {event.mini_league_id && (
-        <>
-          <Separator />
-          <section className="space-y-3">
-            <EventGroupsManager
-              eventId={id!}
-              miniLeagueId={event.mini_league_id}
-              isAdmin={isAdmin || isAppAdmin || false}
-              playerOverrides={playerOverrides}
-            />
-          </section>
-        </>
-      )}
+      {/* Mini League Matches - rendered earlier for mini league events (moved above Responses) */}
+      {!isMiniLeagueEvent && event.mini_league_id && null}
 
       <Separator />
 
