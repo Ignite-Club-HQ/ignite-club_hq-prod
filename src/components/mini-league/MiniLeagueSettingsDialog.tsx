@@ -358,6 +358,43 @@ export function MiniLeagueSettingsDialog({ open, onOpenChange, league }: MiniLea
               ))}
             </div>
           </div>
+
+          {/* Generate Mock Players */}
+          <div className="space-y-2 pt-2 border-t">
+            <Label>Developer Tools</Label>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Generate Mock Players</p>
+                <p className="text-xs text-muted-foreground">Add fake players for testing (no parent accounts linked)</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={5}
+                  max={60}
+                  value={mockPlayerCount}
+                  onChange={(e) => setMockPlayerCount(Math.min(60, Math.max(5, parseInt(e.target.value) || 20)))}
+                  className="w-16 h-9 text-center"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateMockPlayersMutation.mutate()}
+                  disabled={generateMockPlayersMutation.isPending}
+                >
+                  {generateMockPlayersMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4 mr-1.5" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <ResponsiveDialogFooter className="flex-col gap-2 sm:flex-row">
