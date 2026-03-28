@@ -150,8 +150,8 @@ function ChildRsvpIndicators({ eventId, userId }: { eventId: string; userId: str
   );
 }
 
-function AttendeeAvatars({ eventId }: { eventId: string }) {
-  const { data: goingRsvps } = useRsvpSummary(eventId);
+function AttendeeAvatars({ eventId, eventType }: { eventId: string; eventType?: string }) {
+  const { data: goingRsvps } = useRsvpSummary(eventId, eventType);
 
   if (!goingRsvps || goingRsvps.length === 0) return null;
 
