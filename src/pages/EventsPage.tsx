@@ -46,6 +46,7 @@ interface Event {
   event_date: string;
   address: string | null;
   suburb: string | null;
+  location_name: string | null;
   club_id: string;
   team_id: string | null;
   mini_league_id: string | null;
