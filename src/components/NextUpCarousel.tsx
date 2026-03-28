@@ -92,17 +92,23 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
   });
 }
 
-function useRsvpSummary(eventId: string) {
+function useRsvpSummary(eventId: string, eventType?: string) {
+  const isSocial = eventType === "social";
   return useQuery({
-    queryKey: ["rsvp-summary", eventId],
+    queryKey: ["rsvp-summary", eventId, eventType],
     queryFn: async () => {
-      const { data: rsvps, error } = await supabase
+      let query = supabase
         .from("rsvps")
         .select("id, status, user_id")
         .eq("event_id", eventId)
-        .eq("status", "going")
-        .is("child_id", null)
-        .limit(10);
+        .eq("status", "going");
+      
+      if (!isSocial) {
+        // For games/training, only count players (child RSVPs)
+        query = query.not("child_id", "is", null);
+      }
+      
+      const { data: rsvps, error } = await query.limit(10);
       if (error) throw error;
       if (!rsvps || rsvps.length === 0) return [];
 

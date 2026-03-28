@@ -181,14 +181,23 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
   });
 
   // Fetch total event attendance counts
+  // Social events: count everyone (parents + children)
+  // Games/Training: count only players (child RSVPs)
+  const isSocialEvent = event.type === "social";
   const { data: attendanceCounts } = useQuery({
-    queryKey: ["card-attendance-counts", event.id],
+    queryKey: ["card-attendance-counts", event.id, event.type],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("rsvps")
         .select("status")
-        .eq("event_id", event.id)
-        .is("child_id", null);
+        .eq("event_id", event.id);
+      
+      if (!isSocialEvent) {
+        // For games/training, only count child (player) RSVPs
+        query = query.not("child_id", "is", null);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       const counts = { going: 0, maybe: 0, not_going: 0 };
       (data || []).forEach((r) => {
