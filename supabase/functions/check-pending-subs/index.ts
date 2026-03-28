@@ -346,6 +346,39 @@ async function checkGames(supabase: any): Promise<number> {
     return 0;
   }
 
+  // Deduplicate: if multiple active rows exist for the same user+team, keep
+  // only the most recently updated one and deactivate the rest.
+  // This prevents duplicate notifications from ghost rows.
+  const seen = new Map<string, typeof activeGames[0]>();
+  const duplicateIds: string[] = [];
+  for (const game of activeGames) {
+    const key = `${game.user_id}::${game.team_id || ''}`;
+    const existing = seen.get(key);
+    if (existing) {
+      // Keep the newer one
+      const existingTime = new Date(existing.updated_at).getTime();
+      const gameTime = new Date(game.updated_at).getTime();
+      if (gameTime > existingTime) {
+        duplicateIds.push(existing.id);
+        seen.set(key, game);
+      } else {
+        duplicateIds.push(game.id);
+      }
+    } else {
+      seen.set(key, game);
+    }
+  }
+  if (duplicateIds.length > 0) {
+    console.log(`[CHECK-SUBS] Deactivating ${duplicateIds.length} duplicate active_games rows`);
+    await supabase
+      .from('active_games')
+      .update({ is_active: false })
+      .in('id', duplicateIds);
+  }
+
+  // Only process deduplicated games
+  const uniqueGames = [...seen.values()];
+
   let notificationsSent = 0;
 
   for (const game of activeGames) {
