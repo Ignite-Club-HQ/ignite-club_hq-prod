@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, isToday, parseISO, startOfDay, isSameDay } from "date-fns";
+import { format, isToday, parseISO, startOfDay, isSameDay, nextSaturday } from "date-fns";
 import {
   ArrowLeft, Users, Calendar as CalendarIcon, Plus, MoreVertical, Loader2,
-  ChevronRight, Clock, MapPin, Shirt, Settings, List, CalendarDays
+  ChevronRight, Clock, MapPin, Shirt, Settings, Trophy, Target, ClipboardList
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -18,8 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar } from "@/components/ui/calendar";
 import { ManagePlayersDialog } from "@/components/mini-league/ManagePlayersDialog";
 import { MiniLeagueSettingsDialog } from "@/components/mini-league/MiniLeagueSettingsDialog";
 import { AddMiniLeagueMemberSheet } from "@/components/AddMiniLeagueMemberSheet";
@@ -44,8 +42,6 @@ export default function MiniLeagueDetailPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playersOpen, setPlayersOpen] = useState(false);
   const [addPlayersOpen, setAddPlayersOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   // Fetch mini league details
   const { data: league, isLoading: leagueLoading } = useQuery({
@@ -153,11 +149,20 @@ export default function MiniLeagueDetailPage() {
   const upcomingEvents = nonCancelledEvents.filter(e => new Date(e.event_date) >= startOfDay(new Date()));
   const pastEvents = nonCancelledEvents.filter(e => new Date(e.event_date) < startOfDay(new Date()));
 
-  // Calendar data
-  const eventDates = nonCancelledEvents.map(e => parseISO(e.event_date));
-  const selectedDateEvents = selectedDate
-    ? nonCancelledEvents.filter(e => isSameDay(parseISO(e.event_date), selectedDate))
-    : [];
+  // Compute league status label
+  const leagueStatus = events?.length === 0
+    ? "Not started"
+    : upcomingEvents.length > 0
+      ? `${upcomingEvents.length} upcoming`
+      : "Completed";
+
+  // Build create URL with pre-filled Round name
+  const getCreateUrl = () => {
+    const roundNumber = (events?.length || 0) + 1;
+    const nextSat = nextSaturday(new Date());
+    const dateStr = format(nextSat, "yyyy-MM-dd'T'10:00");
+    return `/events/new?type=mini_league&mini_league_id=${id}&club_id=${league?.club_id}&prefill_title=Round ${roundNumber}&prefill_date=${dateStr}`;
+  };
 
   if (leagueLoading) {
     return (
@@ -178,50 +183,10 @@ export default function MiniLeagueDetailPage() {
     );
   }
 
-  const renderSessionCard = (event: MiniLeagueEvent, compact = false) => {
+  const renderMatchDayCard = (event: MiniLeagueEvent, compact = false) => {
     const hasScore = event.final_score_home != null && event.final_score_away != null;
     const isPast = new Date(event.event_date) < startOfDay(new Date());
-
-    if (compact || isPast) {
-      return (
-        <Card
-          key={event.id}
-          className="cursor-pointer hover:bg-accent/50 transition-colors rounded-xl"
-          onClick={() => navigate(`/events/${event.id}`)}
-        >
-          <CardContent className="py-2.5 px-4">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0">
-                <span className="text-[9px] font-medium text-muted-foreground uppercase leading-none">
-                  {format(parseISO(event.event_date), "MMM")}
-                </span>
-                <span className="text-sm font-semibold text-muted-foreground leading-tight">
-                  {format(parseISO(event.event_date), "d")}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-sm truncate block">{event.title || format(parseISO(event.event_date), "EEEE")}</span>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  {event.start_time && <span>{event.start_time.slice(0, 5)}</span>}
-                  {(event._allocatedPlayers || 0) > 0 && (
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {event._allocatedPlayers}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {hasScore && (
-                <Badge variant="outline" className="font-mono text-xs shrink-0">
-                  {event.final_score_home} – {event.final_score_away}
-                </Badge>
-              )}
-              <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
+    const isUpcoming = !isPast;
 
     return (
       <Card
@@ -229,33 +194,39 @@ export default function MiniLeagueDetailPage() {
         className="cursor-pointer hover:bg-accent/50 active:scale-[0.99] transition-all rounded-xl"
         onClick={() => navigate(`/events/${event.id}`)}
       >
-        <CardContent className="py-3.5 px-4">
+        <CardContent className={compact ? "py-2.5 px-4" : "py-3.5 px-4"}>
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0">
-              <span className="text-[10px] font-semibold text-primary uppercase leading-none">
+            <div className={`${compact ? "h-9 w-9 rounded-lg" : "h-12 w-12 rounded-xl"} ${isUpcoming ? "bg-primary/10" : "bg-muted"} flex flex-col items-center justify-center shrink-0`}>
+              <span className={`${compact ? "text-[9px]" : "text-[10px]"} font-semibold ${isUpcoming ? "text-primary" : "text-muted-foreground"} uppercase leading-none`}>
                 {format(parseISO(event.event_date), "MMM")}
               </span>
-              <span className="text-lg font-bold text-primary leading-tight">
+              <span className={`${compact ? "text-sm" : "text-lg"} font-bold ${isUpcoming ? "text-primary" : "text-muted-foreground"} leading-tight`}>
                 {format(parseISO(event.event_date), "d")}
               </span>
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm truncate">
+                <span className={`${compact ? "text-sm" : "font-semibold text-sm"} truncate`}>
                   {event.title || format(parseISO(event.event_date), "EEEE")}
                 </span>
                 {isToday(parseISO(event.event_date)) && (
                   <Badge variant="default" className="text-[10px] px-1.5 py-0 shrink-0">Today</Badge>
                 )}
+                {isPast && !hasScore && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-muted-foreground">Completed</Badge>
+                )}
+                {isUpcoming && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Upcoming</Badge>
+                )}
               </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                 {event.start_time && (
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     {event.start_time.slice(0, 5)}
                   </span>
                 )}
-                {event.location_name && (
+                {!compact && event.location_name && (
                   <span className="flex items-center gap-1 truncate">
                     <MapPin className="h-3 w-3 shrink-0" />
                     <span className="truncate">{event.location_name}</span>
@@ -269,10 +240,103 @@ export default function MiniLeagueDetailPage() {
                 )}
               </div>
             </div>
-            <ChevronRight className="h-5 w-5 text-muted-foreground/50 shrink-0" />
+            {hasScore && (
+              <Badge variant="outline" className="font-mono text-xs shrink-0">
+                {event.final_score_home} – {event.final_score_away}
+              </Badge>
+            )}
+            <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
           </div>
         </CardContent>
       </Card>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <div className="space-y-6">
+      {/* Hero empty state */}
+      <Card className="border-dashed border-2 rounded-2xl overflow-hidden">
+        <CardContent className="py-10 px-6 text-center space-y-4">
+          <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+            <Trophy className="h-8 w-8 text-primary" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-lg font-bold">Start your Mini League</h2>
+            <p className="text-sm text-muted-foreground">
+              Create match days, schedule games, and track results
+            </p>
+          </div>
+
+          {canManageLeague && (
+            <Button
+              className="mt-2"
+              onClick={() => navigate(getCreateUrl())}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Match Day
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 3-step guide */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { icon: CalendarIcon, label: "Create Match Day", step: "1" },
+          { icon: Users, label: "Add Games", step: "2" },
+          { icon: Target, label: "Track Scores", step: "3" },
+        ].map(({ icon: Icon, label, step }) => (
+          <div key={step} className="flex flex-col items-center gap-2 text-center">
+            <div className="relative">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Icon className="h-5 w-5 text-primary" />
+              </div>
+              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                {step}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-muted-foreground leading-tight">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderTimeline = () => {
+    // Show upcoming first, then past — a single unified timeline
+    const sortedEvents = [...upcomingEvents.reverse(), ...pastEvents];
+    
+    return (
+      <div className="space-y-5">
+        {/* Upcoming section */}
+        {upcomingEvents.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              Upcoming
+            </h2>
+            {[...upcomingEvents].reverse().map(event => renderMatchDayCard(event))}
+          </div>
+        )}
+
+        {/* Recent Results section */}
+        {pastEvents.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              Recent Results
+            </h2>
+            {pastEvents.map(event => renderMatchDayCard(event, true))}
+          </div>
+        )}
+
+        {/* Both empty but events exist (all cancelled) */}
+        {upcomingEvents.length === 0 && pastEvents.length === 0 && (
+          <Card className="border-dashed">
+            <CardContent className="p-8 text-center">
+              <p className="text-sm text-muted-foreground">No match days to show</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     );
   };
 
@@ -292,9 +356,6 @@ export default function MiniLeagueDetailPage() {
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold leading-tight">{league.name}</h1>
           <p className="text-xs text-muted-foreground truncate">{league.club?.name}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {players?.length || 0} Players · {events?.length || 0} Sessions
-          </p>
         </div>
         {canManageLeague && (
           <DropdownMenu>
@@ -321,13 +382,47 @@ export default function MiniLeagueDetailPage() {
         <p className="text-sm text-muted-foreground leading-relaxed">{league.description}</p>
       )}
 
-      {/* Parent-facing next session highlight */}
+      {/* League Overview Card */}
+      <Card className="rounded-xl">
+        <CardContent className="py-3 px-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => canManageLeague ? setPlayersOpen(true) : undefined}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              >
+                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Users className="h-4 w-4 text-primary" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold leading-tight">{players?.length || 0}</p>
+                  <p className="text-[10px] text-muted-foreground">Players</p>
+                </div>
+              </button>
+              <div className="w-px h-8 bg-border" />
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-accent flex items-center justify-center">
+                  <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold leading-tight">{leagueStatus}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {events?.length || 0} Match {(events?.length || 0) === 1 ? "Day" : "Days"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Parent-facing next match day highlight */}
       {!canManageLeague && upcomingEvents.length > 0 && userPlayerIds && userPlayerIds.length > 0 && (
         <Card className="border-primary/30 bg-primary/5 rounded-xl">
           <CardContent className="py-4 px-4 space-y-2">
             <div className="flex items-center gap-2">
               <Shirt className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold text-primary">Next Session</span>
+              <span className="text-sm font-semibold text-primary">Next Match Day</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0">
@@ -373,172 +468,26 @@ export default function MiniLeagueDetailPage() {
         </Card>
       )}
 
-      {/* View Toggle */}
-      <div className="flex rounded-lg bg-muted p-1 gap-1">
-        <button
-          onClick={() => setViewMode("list")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
-            viewMode === "list"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <List className="h-4 w-4" />
-          List
-        </button>
-        <button
-          onClick={() => setViewMode("calendar")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
-            viewMode === "calendar"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <CalendarDays className="h-4 w-4" />
-          Calendar
-        </button>
-      </div>
-
-      {/* Sessions Content */}
+      {/* Match Days Content */}
       {eventsLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : events?.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-10 text-center space-y-2">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-              <CalendarIcon className="h-6 w-6 text-primary/60" />
-            </div>
-            <p className="text-sm font-medium text-muted-foreground">No sessions yet</p>
-            {canManageLeague ? (
-              <Button
-                variant="link"
-                size="sm"
-                className="text-primary"
-                onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
-              >
-                Create your first session
-              </Button>
-            ) : (
-              <p className="text-xs text-muted-foreground">Ask an admin or coach to create a session</p>
-            )}
-          </CardContent>
-        </Card>
-      ) : viewMode === "calendar" ? (
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="p-4">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                modifiers={{
-                  hasEvent: eventDates,
-                }}
-                components={{
-                  DayContent: ({ date }) => {
-                    const dayEvents = nonCancelledEvents.filter(e => isSameDay(parseISO(e.event_date), date));
-                    const totalCount = dayEvents.length;
-
-                    return (
-                      <div className="relative flex items-center justify-center w-full h-full">
-                        <span>{date.getDate()}</span>
-                        {totalCount > 0 && (
-                          <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
-                            {dayEvents.slice(0, 3).map((_, i) => (
-                              <div key={i} className="w-1 h-1 rounded-full bg-primary" />
-                            ))}
-                            {totalCount > 3 && (
-                              <span className="text-[6px] text-muted-foreground font-bold leading-none">+</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  },
-                }}
-                className="rounded-md w-full"
-              />
-            </CardContent>
-          </Card>
-
-          {selectedDate && (
-            <div className="space-y-3">
-              <h2 className="font-semibold text-sm">
-                Sessions on {format(selectedDate, "EEEE, MMMM d")}
-              </h2>
-              {selectedDateEvents.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-sm text-muted-foreground">No sessions on this date</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-2">
-                  {selectedDateEvents.map(event => renderSessionCard(event))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        renderEmptyState()
       ) : (
-        <Tabs defaultValue="upcoming" className="w-full">
-          <TabsList className="w-full">
-            <TabsTrigger value="upcoming" className="flex-1">
-              Upcoming {upcomingEvents.length > 0 && `(${upcomingEvents.length})`}
-            </TabsTrigger>
-            <TabsTrigger value="past" className="flex-1">
-              Past {pastEvents.length > 0 && `(${pastEvents.length})`}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="upcoming" className="mt-4 space-y-2">
-            {upcomingEvents.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="p-8 text-center">
-                  <CalendarIcon className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
-                  <p className="text-sm text-muted-foreground">No upcoming sessions</p>
-                  {canManageLeague && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="text-primary mt-1"
-                      onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
-                    >
-                      Create a session
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              upcomingEvents.map(event => renderSessionCard(event))
-            )}
-          </TabsContent>
-
-          <TabsContent value="past" className="mt-4 space-y-1.5">
-            {pastEvents.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="p-8 text-center">
-                  <p className="text-sm text-muted-foreground">No past sessions</p>
-                </CardContent>
-              </Card>
-            ) : (
-              pastEvents.map(event => renderSessionCard(event, true))
-            )}
-          </TabsContent>
-        </Tabs>
+        renderTimeline()
       )}
 
       {/* Floating Action Button */}
       {canManageLeague && (
         <Button
-          size="icon"
-          className="fixed bottom-24 right-4 h-12 w-12 rounded-full shadow-md z-40 sm:bottom-6 sm:right-6"
-          onClick={() => navigate(`/events/new?type=mini_league&mini_league_id=${id}&club_id=${league.club_id}`)}
-          aria-label="New Session"
+          className="fixed bottom-24 right-4 h-auto rounded-full shadow-lg z-40 sm:bottom-6 sm:right-6 px-5 py-3 gap-2"
+          onClick={() => navigate(getCreateUrl())}
+          aria-label="Create Match Day"
         >
           <Plus className="h-5 w-5" />
+          <span className="text-sm font-semibold">Match Day</span>
         </Button>
       )}
 

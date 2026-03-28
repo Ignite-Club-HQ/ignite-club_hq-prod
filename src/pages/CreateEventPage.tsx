@@ -78,14 +78,16 @@ export default function CreateEventPage() {
   const presetType = searchParams.get("type") as EventType | null;
   const presetClubId = searchParams.get("club_id");
   const presetMiniLeagueId = searchParams.get("mini_league_id");
+  const prefillTitle = searchParams.get("prefill_title");
+  const prefillDate = searchParams.get("prefill_date");
   const isFromMiniLeague = presetType === "mini_league" && !!presetMiniLeagueId;
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(prefillTitle || "");
   const [type, setType] = useState<EventType>(presetType || "training");
   const [clubId, setClubId] = useState(presetClubId || "");
   const [teamId, setTeamId] = useState("");
   const [miniLeagueId, setMiniLeagueId] = useState(presetMiniLeagueId || "");
-  const [eventDateTime, setEventDateTime] = useState("");
+  const [eventDateTime, setEventDateTime] = useState(prefillDate || "");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -799,7 +801,7 @@ export default function CreateEventPage() {
         <Button variant="ghost" size="icon" onClick={() => isFromMiniLeague ? navigate(-1) : navigate("/events")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-bold">{isFromMiniLeague ? "New Session" : "New Event"}</h1>
+        <h1 className="text-xl font-bold">{isFromMiniLeague ? "New Match Day" : "New Event"}</h1>
       </div>
 
       {/* Event Type Selection - hidden when coming from mini league */}
