@@ -391,26 +391,20 @@ export default function MemberSubscriptionPaymentsManager({
     }
   };
 
-  // Filter to only show players
-  const payableMembers = Object.entries(members).filter(([_, member]) => {
-    const roles = member.roles?.map(r => r.role) || [];
-    return roles.some(r => r === "player");
-  });
+  const paidCount = payableEntries.filter(entry => paymentMap[entry.id]).length;
+  const unpaidCount = payableEntries.length - paidCount;
 
-  const paidCount = payableMembers.filter(([userId]) => paymentMap[userId]).length;
-  const unpaidCount = payableMembers.length - paidCount;
-
-  const isPayableMember = user && payableMembers.some(([userId]) => userId === user.id);
+  const isPayableMember = user && payableEntries.some(entry => !entry.isChild && entry.userId === user.id);
   const hasCurrentUserPaid = !!currentUserPayment;
 
   const paymentTypeLabel = activeTab === "subscription" ? "Subscription" : "Uniform";
   const PaymentTypeIcon = activeTab === "subscription" ? CreditCard : Shirt;
 
-  if (payableMembers.length === 0) {
+  if (payableEntries.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">No players or parents to track payments for</p>
+        <p className="text-sm">No players to track payments for</p>
       </div>
     );
   }
