@@ -1213,32 +1213,64 @@ export default function TeamDetailPage() {
                       <div className="mb-4 pb-4 border-b">
                         <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
                         <div className="space-y-2">
-                          {teamChildren.map((assignment: any) => {
-                            const child = assignment.children;
-                            if (!child) return null;
-                            return (
-                              <Card key={assignment.id}>
-                                <CardContent className="p-3 flex items-center gap-3">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="bg-pink-500/20 text-pink-500 text-sm">
-                                      {child.name?.charAt(0)?.toUpperCase() || "?"}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1">
-                                    <p className="font-medium text-sm">{child.name}</p>
-                                    {child.allParentNames && child.allParentNames.length > 0 && (
-                                      <p className="text-xs text-muted-foreground">
-                                        {child.allParentNames.length === 1 ? "Parent" : "Parents"}: {child.allParentNames.join(" & ")}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <Badge variant="outline" className="text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30">
-                                    Child
-                                  </Badge>
-                                </CardContent>
-                              </Card>
-                            );
-                          })}
+                          {(() => {
+                            // Build set of child IDs from pending invites to mark as pending
+                            const pendingChildIds = new Set<string>();
+                            const pendingChildNames = new Set<string>();
+                            const pendingParentLabels = new Map<string, string>();
+                            for (const inv of pendingInvites) {
+                              const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
+                              if (!meta?.children) continue;
+                              const parentLabel = inv.invited_label || inv.invited_email?.split("@")[0] || "Pending Parent";
+                              for (const child of meta.children) {
+                                if (child.child_id) {
+                                  pendingChildIds.add(child.child_id);
+                                  pendingParentLabels.set(child.child_id, parentLabel);
+                                }
+                                if (child.name) {
+                                  pendingChildNames.add(child.name.toLowerCase());
+                                  pendingParentLabels.set(child.name.toLowerCase(), parentLabel);
+                                }
+                              }
+                            }
+
+                            return teamChildren.map((assignment: any) => {
+                              const child = assignment.children;
+                              if (!child) return null;
+                              const isPending = pendingChildIds.has(child.id) || 
+                                (child.name && pendingChildNames.has(child.name.toLowerCase()) && (!child.allParentNames || child.allParentNames.length === 0));
+                              const parentLabel = pendingParentLabels.get(child.id) || pendingParentLabels.get(child.name?.toLowerCase());
+                              return (
+                                <Card key={assignment.id} className={isPending ? "opacity-70" : ""}>
+                                  <CardContent className="p-3 flex items-center gap-3">
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarFallback className={isPending ? "bg-orange-500/20 text-orange-500 text-sm" : "bg-pink-500/20 text-pink-500 text-sm"}>
+                                        {child.name?.charAt(0)?.toUpperCase() || "?"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm">{child.name}</p>
+                                      {isPending && parentLabel ? (
+                                        <p className="text-xs text-muted-foreground">
+                                          Parent: {parentLabel}
+                                        </p>
+                                      ) : child.allParentNames && child.allParentNames.length > 0 ? (
+                                        <p className="text-xs text-muted-foreground">
+                                          {child.allParentNames.length === 1 ? "Parent" : "Parents"}: {child.allParentNames.join(" & ")}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                    <Badge variant="outline" className={isPending 
+                                      ? "text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30"
+                                      : "text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30"
+                                    }>
+                                      {isPending ? "Pending" : "Child"}
+                                    </Badge>
+                                  </CardContent>
+                                </Card>
+                              );
+                            });
+                          })()}
                           {pendingInvites.flatMap(inv => {
                             const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
                             if (!meta?.children) return [];
