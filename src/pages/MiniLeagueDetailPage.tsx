@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, isToday, parseISO, startOfDay, isSameDay, nextSaturday } from "date-fns";
+import { format, isToday, parseISO, startOfDay, nextSaturday } from "date-fns";
 import {
   ArrowLeft, Users, Calendar as CalendarIcon, Plus, MoreVertical, Loader2,
-  ChevronRight, Clock, MapPin, Shirt, Settings, Trophy, Target, ClipboardList
+  ChevronRight, Clock, MapPin, Shirt, Settings, Trophy, Target,
+  UserPlus, CalendarDays
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -43,7 +44,6 @@ export default function MiniLeagueDetailPage() {
   const [playersOpen, setPlayersOpen] = useState(false);
   const [addPlayersOpen, setAddPlayersOpen] = useState(false);
 
-  // Fetch mini league details
   const { data: league, isLoading: leagueLoading } = useQuery({
     queryKey: ["mini-league", id],
     queryFn: async () => {
@@ -58,7 +58,6 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
-  // Check if user can manage this league (admin/coach roles)
   const { data: canManageLeague } = useQuery({
     queryKey: ["can-manage-league", league?.club_id, user?.id],
     queryFn: async () => {
@@ -67,7 +66,6 @@ export default function MiniLeagueDetailPage() {
         .select("role")
         .eq("user_id", user!.id)
         .or(`club_id.eq.${league!.club_id},role.eq.app_admin`);
-
       return data?.some(r =>
         ['club_admin', 'league_admin', 'coach', 'committee_member', 'app_admin'].includes(r.role)
       ) ?? false;
@@ -75,7 +73,6 @@ export default function MiniLeagueDetailPage() {
     enabled: !!league?.club_id && !!user,
   });
 
-  // Fetch players count (for header display)
   const { data: players } = useQuery({
     queryKey: ["mini-league-players", id],
     queryFn: async () => {
@@ -90,7 +87,6 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
-  // Fetch events linked to mini league (with scores and player counts)
   const { data: events, isLoading: eventsLoading } = useQuery({
     queryKey: ["mini-league-events", id],
     queryFn: async () => {
@@ -130,7 +126,6 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
-  // Find the user's children in this league (for parent-facing next session)
   const { data: userPlayerIds } = useQuery({
     queryKey: ["mini-league-user-players", id, user?.id],
     queryFn: async () => {
@@ -144,19 +139,10 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id && !!user && !canManageLeague,
   });
 
-  // Separate upcoming and past events
   const nonCancelledEvents = events?.filter(e => !e.is_cancelled) || [];
   const upcomingEvents = nonCancelledEvents.filter(e => new Date(e.event_date) >= startOfDay(new Date()));
   const pastEvents = nonCancelledEvents.filter(e => new Date(e.event_date) < startOfDay(new Date()));
 
-  // Compute league status label
-  const leagueStatus = events?.length === 0
-    ? "Not started"
-    : upcomingEvents.length > 0
-      ? `${upcomingEvents.length} upcoming`
-      : "Completed";
-
-  // Build create URL with pre-filled Round name
   const getCreateUrl = () => {
     const roundNumber = (events?.length || 0) + 1;
     const nextSat = nextSaturday(new Date());
@@ -183,6 +169,10 @@ export default function MiniLeagueDetailPage() {
     );
   }
 
+  const playerCount = players?.length || 0;
+  const displayPlayers = players?.slice(0, 12) || [];
+  const remainingPlayers = playerCount - displayPlayers.length;
+
   const renderMatchDayCard = (event: MiniLeagueEvent, compact = false) => {
     const hasScore = event.final_score_home != null && event.final_score_away != null;
     const isPast = new Date(event.event_date) < startOfDay(new Date());
@@ -196,11 +186,11 @@ export default function MiniLeagueDetailPage() {
       >
         <CardContent className={compact ? "py-2.5 px-4" : "py-3.5 px-4"}>
           <div className="flex items-center gap-3">
-            <div className={`${compact ? "h-9 w-9 rounded-lg" : "h-12 w-12 rounded-xl"} ${isUpcoming ? "bg-primary/10" : "bg-muted"} flex flex-col items-center justify-center shrink-0`}>
+            <div className={`${compact ? "h-9 w-9 rounded-lg" : "h-11 w-11 rounded-xl"} ${isUpcoming ? "bg-primary/10" : "bg-muted"} flex flex-col items-center justify-center shrink-0`}>
               <span className={`${compact ? "text-[9px]" : "text-[10px]"} font-semibold ${isUpcoming ? "text-primary" : "text-muted-foreground"} uppercase leading-none`}>
                 {format(parseISO(event.event_date), "MMM")}
               </span>
-              <span className={`${compact ? "text-sm" : "text-lg"} font-bold ${isUpcoming ? "text-primary" : "text-muted-foreground"} leading-tight`}>
+              <span className={`${compact ? "text-sm" : "text-base"} font-bold ${isUpcoming ? "text-primary" : "text-muted-foreground"} leading-tight`}>
                 {format(parseISO(event.event_date), "d")}
               </span>
             </div>
@@ -211,12 +201,6 @@ export default function MiniLeagueDetailPage() {
                 </span>
                 {isToday(parseISO(event.event_date)) && (
                   <Badge variant="default" className="text-[10px] px-1.5 py-0 shrink-0">Today</Badge>
-                )}
-                {isPast && !hasScore && (
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-muted-foreground">Completed</Badge>
-                )}
-                {isUpcoming && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Upcoming</Badge>
                 )}
               </div>
               <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
@@ -235,7 +219,7 @@ export default function MiniLeagueDetailPage() {
                 {(event._allocatedPlayers || 0) > 0 && (
                   <span className="flex items-center gap-1">
                     <Users className="h-3 w-3" />
-                    {event._allocatedPlayers}
+                    {event._allocatedPlayers} players
                   </span>
                 )}
               </div>
@@ -252,105 +236,16 @@ export default function MiniLeagueDetailPage() {
     );
   };
 
-  const renderEmptyState = () => (
-    <Card className="rounded-2xl overflow-hidden shadow-md bg-card border-0">
-      <CardContent className="py-6 px-5 text-center space-y-4">
-        <div className="h-14 w-14 rounded-xl bg-primary/8 flex items-center justify-center mx-auto">
-          <Trophy className="h-7 w-7 text-primary" />
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-lg font-bold">Start your Mini League</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Create match days, schedule games, and track results for your league
-          </p>
-        </div>
-
-        {canManageLeague && (
-          <div className="space-y-1.5">
-            <Button
-              size="lg"
-              onClick={() => navigate(getCreateUrl())}
-              className="w-full shadow-sm active:scale-[0.97] transition-all duration-150"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Match Day
-            </Button>
-            <p className="text-[11px] text-muted-foreground/50">Takes less than 30 seconds</p>
-          </div>
-        )}
-
-        {/* How it works */}
-        <div className="pt-1 space-y-2.5">
-          <div className="flex items-start justify-center gap-5">
-            {[
-              { icon: CalendarIcon, label: "Create Match Day", step: "1" },
-              { icon: Shirt, label: "Add Games", step: "2" },
-              { icon: Target, label: "Track Scores", step: "3" },
-            ].map(({ icon: Icon, label, step }) => (
-              <div key={step} className="flex flex-col items-center gap-1.5 text-center w-20">
-                <div className="relative h-9 w-9">
-                  <div className="h-9 w-9 rounded-xl bg-muted/60 flex items-center justify-center">
-                    <Icon className="h-4 w-4 text-muted-foreground/70" />
-                  </div>
-                  <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shadow-sm">
-                    {step}
-                  </span>
-                </div>
-                <span className="text-[10px] text-muted-foreground/70 leading-tight">{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  const renderTimeline = () => {
-    // Show upcoming first, then past — a single unified timeline
-    const sortedEvents = [...upcomingEvents.reverse(), ...pastEvents];
-    
-    return (
-      <div className="space-y-5">
-        {/* Upcoming section */}
-        {upcomingEvents.length > 0 && (
-          <div className="space-y-2">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-              Upcoming
-            </h2>
-            {[...upcomingEvents].reverse().map(event => renderMatchDayCard(event))}
-          </div>
-        )}
-
-        {/* Recent Results section */}
-        {pastEvents.length > 0 && (
-          <div className="space-y-2">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-              Recent Results
-            </h2>
-            {pastEvents.map(event => renderMatchDayCard(event, true))}
-          </div>
-        )}
-
-        {/* Both empty but events exist (all cancelled) */}
-        {upcomingEvents.length === 0 && pastEvents.length === 0 && (
-          <Card className="border-dashed">
-            <CardContent className="p-8 text-center">
-              <p className="text-sm text-muted-foreground">No match days to show</p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    );
-  };
+  const hasEvents = (events?.length || 0) > 0;
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-4 pb-24">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 space-y-5 pb-24">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" onClick={() => navigate(league.club_id ? `/mini-leagues?clubId=${league.club_id}` : "/mini-leagues")}>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10" onClick={() => navigate(league.club_id ? `/mini-leagues?clubId=${league.club_id}` : "/mini-leagues")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <Avatar className="h-12 w-12 shrink-0">
+        <Avatar className="h-11 w-11 shrink-0">
           {league.logo_url ? <AvatarImage src={league.logo_url} alt={league.name} /> : null}
           <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">
             {league.name.slice(0, 2).toUpperCase()}
@@ -363,15 +258,11 @@ export default function MiniLeagueDetailPage() {
         {canManageLeague && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11">
+              <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10">
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-popover">
-              <DropdownMenuItem onClick={() => setPlayersOpen(true)}>
-                <Users className="h-4 w-4 mr-2" />
-                Manage Players
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                 <Settings className="h-4 w-4 mr-2" />
                 Edit Settings
@@ -381,45 +272,124 @@ export default function MiniLeagueDetailPage() {
         )}
       </div>
 
+      {/* Team Description */}
       {league.description && (
-        <p className="text-sm text-muted-foreground leading-relaxed">{league.description}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed px-1">{league.description}</p>
       )}
 
-      {/* League Overview Card */}
+      {/* Team Overview Stats */}
       <Card className="rounded-xl">
         <CardContent className="py-3 px-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => canManageLeague ? setPlayersOpen(true) : undefined}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-              >
-                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Users className="h-4 w-4 text-primary" />
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-semibold leading-tight">{players?.length || 0}</p>
-                  <p className="text-[10px] text-muted-foreground">Players</p>
-                </div>
-              </button>
-              <div className="w-px h-8 bg-border" />
-              <div className="flex items-center gap-2">
-                <div className="text-left">
-                  <Badge
-                    variant={leagueStatus === "Not started" ? "secondary" : "default"}
-                    className={`text-[11px] px-2 py-0.5 font-semibold ${leagueStatus === "Not started" ? "bg-muted text-muted-foreground" : ""}`}
-                  >
-                    {leagueStatus}
-                  </Badge>
-                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                    {events?.length || 0} Match {(events?.length || 0) === 1 ? "Day" : "Days"}
-                  </p>
-                </div>
+          <div className="flex items-center gap-5">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Users className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-bold leading-tight">{playerCount}</p>
+                <p className="text-[10px] text-muted-foreground">Players</p>
+              </div>
+            </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-lg bg-accent/50 flex items-center justify-center">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-bold leading-tight">{upcomingEvents.length}</p>
+                <p className="text-[10px] text-muted-foreground">Upcoming</p>
+              </div>
+            </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-lg bg-accent/50 flex items-center justify-center">
+                <Trophy className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-bold leading-tight">{events?.length || 0}</p>
+                <p className="text-[10px] text-muted-foreground">Total</p>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Players Section */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Players</h2>
+          {canManageLeague && playerCount > 0 && (
+            <button
+              onClick={() => setPlayersOpen(true)}
+              className="text-xs text-primary font-medium hover:underline"
+            >
+              View all
+            </button>
+          )}
+        </div>
+
+        {playerCount === 0 ? (
+          <Card className="rounded-xl">
+            <CardContent className="py-5 text-center space-y-2">
+              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
+                <Users className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">No players added yet</p>
+              {canManageLeague && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddPlayersOpen(true)}
+                >
+                  <UserPlus className="h-4 w-4 mr-1.5" />
+                  Add Players
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 scrollbar-hide">
+            {displayPlayers.map((player) => (
+              <button
+                key={player.id}
+                onClick={() => canManageLeague ? setPlayersOpen(true) : undefined}
+                className="flex flex-col items-center gap-1 min-w-[56px] max-w-[56px] group"
+              >
+                <Avatar className="h-11 w-11 border-2 border-background shadow-sm group-hover:border-primary/30 transition-colors">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                    {player.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-[10px] text-muted-foreground truncate w-full text-center leading-tight">
+                  {player.name.split(' ')[0]}
+                </span>
+              </button>
+            ))}
+            {remainingPlayers > 0 && (
+              <button
+                onClick={() => setPlayersOpen(true)}
+                className="flex flex-col items-center gap-1 min-w-[56px] max-w-[56px]"
+              >
+                <div className="h-11 w-11 rounded-full bg-muted flex items-center justify-center border-2 border-background shadow-sm">
+                  <span className="text-xs font-semibold text-muted-foreground">+{remainingPlayers}</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground leading-tight">more</span>
+              </button>
+            )}
+            {canManageLeague && (
+              <button
+                onClick={() => setAddPlayersOpen(true)}
+                className="flex flex-col items-center gap-1 min-w-[56px] max-w-[56px]"
+              >
+                <div className="h-11 w-11 rounded-full border-2 border-dashed border-primary/30 flex items-center justify-center hover:border-primary/60 transition-colors">
+                  <Plus className="h-4 w-4 text-primary/60" />
+                </div>
+                <span className="text-[10px] text-primary/60 leading-tight">Add</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Parent-facing next match day highlight */}
       {!canManageLeague && upcomingEvents.length > 0 && userPlayerIds && userPlayerIds.length > 0 && (
@@ -430,11 +400,11 @@ export default function MiniLeagueDetailPage() {
               <span className="text-sm font-semibold text-primary">Next Match Day</span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 flex flex-col items-center justify-center shrink-0">
                 <span className="text-[10px] font-semibold text-primary uppercase leading-none">
                   {format(parseISO(upcomingEvents[0].event_date), "MMM")}
                 </span>
-                <span className="text-lg font-bold text-primary leading-tight">
+                <span className="text-base font-bold text-primary leading-tight">
                   {format(parseISO(upcomingEvents[0].event_date), "d")}
                 </span>
               </div>
@@ -473,19 +443,72 @@ export default function MiniLeagueDetailPage() {
         </Card>
       )}
 
-      {/* Match Days Content */}
-      {eventsLoading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      {/* Match Days Section */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Match Days</h2>
+          {canManageLeague && hasEvents && (
+            <button
+              onClick={() => navigate(getCreateUrl())}
+              className="text-xs text-primary font-medium hover:underline flex items-center gap-1"
+            >
+              <Plus className="h-3 w-3" />
+              Create Match Day
+            </button>
+          )}
         </div>
-      ) : events?.length === 0 ? (
-        renderEmptyState()
-      ) : (
-        renderTimeline()
-      )}
 
-      {/* Floating Action Button — only shown when match days exist */}
-      {canManageLeague && (events?.length || 0) > 0 && (
+        {eventsLoading ? (
+          <div className="flex justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : !hasEvents ? (
+          /* Empty state for first match day */
+          <Card className="rounded-xl shadow-sm">
+            <CardContent className="py-6 px-5 text-center space-y-3">
+              <div className="h-12 w-12 rounded-xl bg-primary/8 flex items-center justify-center mx-auto">
+                <CalendarDays className="h-6 w-6 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold">No match days yet</h3>
+                <p className="text-sm text-muted-foreground">
+                  Create your first match day to start scheduling games
+                </p>
+              </div>
+              {canManageLeague && (
+                <div className="space-y-1 pt-1">
+                  <Button
+                    size="lg"
+                    onClick={() => navigate(getCreateUrl())}
+                    className="w-full active:scale-[0.97] transition-all duration-150"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Match Day
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground/50">Takes less than 30 seconds</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {upcomingEvents.length > 0 && (
+              <div className="space-y-2">
+                {[...upcomingEvents].reverse().map(event => renderMatchDayCard(event))}
+              </div>
+            )}
+            {pastEvents.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider px-1">Results</p>
+                {pastEvents.map(event => renderMatchDayCard(event, true))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Floating Action Button — only when match days exist */}
+      {canManageLeague && hasEvents && (
         <Button
           className="fixed bottom-24 right-4 h-auto rounded-full shadow-lg z-40 sm:bottom-6 sm:right-6 px-5 py-3 gap-2"
           onClick={() => navigate(getCreateUrl())}
@@ -496,7 +519,7 @@ export default function MiniLeagueDetailPage() {
         </Button>
       )}
 
-      {/* Extracted Dialogs */}
+      {/* Dialogs */}
       <ManagePlayersDialog
         open={playersOpen}
         onOpenChange={setPlayersOpen}
@@ -513,7 +536,6 @@ export default function MiniLeagueDetailPage() {
         league={league}
       />
 
-      {/* Add Players Sheet - rendered at page level to avoid nested overlay issues */}
       {canManageLeague && (
         <AddMiniLeagueMemberSheet
           miniLeagueId={id!}
