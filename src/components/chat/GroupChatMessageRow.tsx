@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { MessageContent } from "./MessageContent";
 import { MessageReadAvatars } from "./MessageReadAvatars";
+import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 
 interface GroupMessage {
@@ -37,6 +38,7 @@ interface GroupChatMessageRowProps {
   deleteMessageMutation: { mutate: (id: string) => void };
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   REACTION_EMOJIS: string[];
+  groupId?: string;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
@@ -55,9 +57,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   deleteMessageMutation,
   toggleReactionMutation,
   REACTION_EMOJIS,
+  groupId,
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showReadReceipts, setShowReadReceipts] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -184,14 +188,30 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
           {/* Read indicator */}
           {isOwnMessage && frontierReaders.length > 0 ? (
-            <MessageReadAvatars readers={frontierReaders} isOwn={true} />
+            <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
+              <MessageReadAvatars readers={frontierReaders} isOwn={true} />
+            </div>
           ) : isOwnMessage ? (
             <div className="mt-0.5">
-              <span className="text-[10px] text-muted-foreground">
+              <span
+                className={`text-[10px] text-muted-foreground ${(readCounts[msg.id] || 0) > 0 ? "cursor-pointer underline" : ""}`}
+                onClick={(readCounts[msg.id] || 0) > 0 ? () => setShowReadReceipts(true) : undefined}
+              >
                 {(readCounts[msg.id] || 0) > 0 ? `Read by ${readCounts[msg.id]}` : "Sent"}
               </span>
             </div>
           ) : null}
+          {isOwnMessage && (
+            <ReadReceiptSheet
+              open={showReadReceipts}
+              onOpenChange={setShowReadReceipts}
+              readers={frontierReaders}
+              messageId={msg.id}
+              messageType="group"
+              contextId={groupId || msg.group_id}
+              currentUserId={userId}
+            />
+          )}
 
           {/* Always-visible reaction badges */}
           {messageReactions.length > 0 && (

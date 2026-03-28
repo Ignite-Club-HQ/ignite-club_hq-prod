@@ -1173,6 +1173,7 @@ export default function TeamChatPage() {
                         readCount={readCounts[msg.id] || 0}
                         isLastMessage={index === filteredMessages.length - 1}
                         isPending={msg.id.startsWith("queued-")}
+                        contextId={teamId || ""}
                       />
                     </div>
                   </div>
