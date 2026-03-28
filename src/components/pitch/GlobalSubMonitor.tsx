@@ -305,13 +305,19 @@ export default function GlobalSubMonitor() {
       return;
     }
 
-    const gameData = {
+    // If already at halftime boundary, pre-set last_sub_check_time so the cron
+    // doesn't re-send half-time notifications when a new active_games row is created
+    const halfDurationSecs = timerState.minutesPerHalf * 60;
+    const isAtHalftime = timerState.currentHalf === 2 && timerState.elapsedSeconds === 0 && !timerState.isRunning;
+
+    const gameData: Record<string, unknown> = {
       user_id: user.id,
       team_id: teamId,
       timer_state: syncedTimerState as unknown as Json,
       pitch_state: pitchState as unknown as Json,
       is_active: true,
       updated_at: new Date().toISOString(),
+      ...(isAtHalftime ? { last_sub_check_time: halfDurationSecs } : {}),
     };
 
     setSyncStatus({ status: "syncing", lastSyncTime: null });

@@ -146,13 +146,18 @@ export function useActiveGameSync() {
       lastUpdateTime: nowMs,
     };
 
-    const gameData = {
+    // If already at halftime boundary, pre-set last_sub_check_time so the cron
+    // doesn't re-send half-time notifications when a new active_games row is created
+    const isAtHalftime = syncedTimerState.currentHalf === 2 && syncedTimerState.elapsedSeconds === 0 && !syncedTimerState.isRunning;
+
+    const gameData: Record<string, unknown> = {
       user_id: user.id,
       team_id: timerState.teamId || null,
       timer_state: syncedTimerState as unknown as Json,
       pitch_state: pitchState as unknown as Json,
       is_active: true,
       updated_at: new Date().toISOString(),
+      ...(isAtHalftime ? { last_sub_check_time: halfDurationSeconds } : {}),
     };
 
     try {
