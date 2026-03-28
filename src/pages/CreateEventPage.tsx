@@ -810,8 +810,10 @@ export default function CreateEventPage() {
           // Hide pro football items if user doesn't have access (or no club selected yet)
           const isProFeature = eventType.proFootballOnly;
           const showItem = !isProFeature || (clubId && hasProFootball);
-          
+          // Committee-only users can only create social events
+          if (isCommitteeOnlyForClub && eventType.value !== "social") return null;
           if (!showItem) return null;
+
           
           return (
             <button
