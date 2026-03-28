@@ -120,7 +120,14 @@ export function useActiveGameSync() {
     // BUT keep active during halftime break (half 2, elapsed 0, paused) so server
     // can detect and send halftime push notifications.
     const isHalftimeBreak = !timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0 && pitchState.autoSubActive;
-    if (isFinishedByState || (!timerState.isRunning && !isHalftimeBreak) || !pitchState.autoSubActive) {
+    
+    // Don't keep syncing at halftime forever — if the coach hasn't started the
+    // second half within 20 minutes, treat the game as abandoned.
+    const MAX_HALFTIME_SYNC_MS = 20 * 60 * 1000; // 20 minutes
+    const halftimeTooLong = isHalftimeBreak && timerState.lastUpdateTime
+      && (Date.now() - timerState.lastUpdateTime) > MAX_HALFTIME_SYNC_MS;
+    
+    if (isFinishedByState || (!timerState.isRunning && !isHalftimeBreak) || halftimeTooLong || !pitchState.autoSubActive) {
       await deactivateActiveGame();
       return;
     }
