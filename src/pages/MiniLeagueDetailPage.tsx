@@ -58,6 +58,33 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
+  // Check Pro Football subscription for the league's club
+  const { data: hasProFootball, isLoading: proLoading } = useQuery({
+    queryKey: ["club-pro-football", league?.club_id],
+    queryFn: async () => {
+      // Check if user is app_admin (bypasses subscription)
+      const { data: appAdminRole } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      if (appAdminRole) return true;
+
+      const { data } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro_football, admin_pro_football_override, expires_at")
+        .eq("club_id", league!.club_id)
+        .maybeSingle();
+      if (!data) return false;
+      const expired = data.expires_at && new Date(data.expires_at) < new Date();
+      return !expired && (data.is_pro_football || data.admin_pro_football_override);
+    },
+    enabled: !!league?.club_id && !!user,
+    staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
+  });
+
   const { data: canManageLeague } = useQuery({
     queryKey: ["can-manage-league", league?.club_id, user?.id],
     queryFn: async () => {
@@ -208,7 +235,7 @@ export default function MiniLeagueDetailPage() {
     return `/events/new?type=mini_league&mini_league_id=${id}&club_id=${league?.club_id}&prefill_title=Round ${roundNumber}&prefill_date=${dateStr}`;
   };
 
-  if (leagueLoading) {
+  if (leagueLoading || proLoading) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -223,6 +250,28 @@ export default function MiniLeagueDetailPage() {
         <Button variant="link" onClick={() => navigate("/mini-leagues")}>
           Back to Mini Leagues
         </Button>
+      </div>
+    );
+  }
+
+  if (hasProFootball === false) {
+    return (
+      <div className="container max-w-4xl py-6 text-center space-y-4">
+        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto">
+          <Trophy className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h2 className="text-xl font-semibold">Pro Football Required</h2>
+        <p className="text-muted-foreground max-w-md mx-auto">
+          Mini Leagues require an active Pro Football subscription. Upgrade to access match days, player management, and more.
+        </p>
+        <div className="flex gap-2 justify-center">
+          <Button variant="outline" onClick={() => navigate(-1)}>
+            Go Back
+          </Button>
+          <Button onClick={() => navigate(`/upgrade?teamId=${league.club_id}`)}>
+            Upgrade to Pro Football
+          </Button>
+        </div>
       </div>
     );
   }
