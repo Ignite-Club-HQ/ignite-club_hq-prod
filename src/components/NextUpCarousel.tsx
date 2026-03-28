@@ -57,12 +57,23 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
   return useQuery({
     queryKey: ["child-rsvps-card", eventId, userId],
     queryFn: async () => {
+      // Get all children linked to this user (direct + guardian)
+      const [ownChildren, guardianLinks] = await Promise.all([
+        supabase.from("children").select("id").eq("parent_id", userId!),
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", userId!),
+      ]);
+      const childIds = [
+        ...(ownChildren.data || []).map(c => c.id),
+        ...(guardianLinks.data || []).map(g => g.child_id),
+      ];
+      if (childIds.length === 0) return [];
+
+      const uniqueChildIds = [...new Set(childIds)];
       const { data, error } = await supabase
         .from("rsvps")
         .select("id, status, child_id, children:child_id(name)")
         .eq("event_id", eventId)
-        .eq("user_id", userId!)
-        .not("child_id", "is", null);
+        .in("child_id", uniqueChildIds);
       if (error) throw error;
       return (data || []) as Array<{
         id: string;
