@@ -438,7 +438,7 @@ async function checkGames(supabase: any): Promise<number> {
     // or freeze JS timers when backgrounded, so heartbeats can be delayed significantly.
     // The server extrapolates elapsed time from lastUpdateTime, so a longer stale window
     // doesn't affect notification accuracy — it just delays cleanup of truly abandoned games.
-    const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 1_200_000 : 900_000; // 20min at breaks, 15min normally
+    const STALE_THRESHOLD_MS = (isAtHalfTimeBoundary || isAtFullTimeBoundary) ? 600_000 : 900_000; // 10min at breaks, 15min normally
     const gameUpdatedAt = new Date(game.updated_at).getTime();
     if (gameUpdatedAt > 0 && (now - gameUpdatedAt) > STALE_THRESHOLD_MS) {
       console.log(`[CHECK-SUBS] Game ${game.id} is stale (DB row last updated ${Math.floor((now - gameUpdatedAt) / 1000)}s ago), marking inactive`);
