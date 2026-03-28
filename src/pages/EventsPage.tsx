@@ -896,9 +896,11 @@ function EventCard({ event, isAdmin, hasViewed = true }: { event: Event; isAdmin
             <h3 className={`font-semibold text-[15px] leading-snug truncate ${event.is_cancelled ? "line-through" : ""}`}>
               {event.title}
             </h3>
-            <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0 font-normal text-muted-foreground">
-              {event.teams?.name || event.clubs?.name}
-            </Badge>
+            {event.teams?.name && (
+              <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0 font-normal text-muted-foreground">
+                {event.teams.name}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
