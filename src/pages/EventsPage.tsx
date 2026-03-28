@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, MapPin, Clock, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -18,7 +18,7 @@ import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, startOfDay, isSameDay, subHours } from "date-fns";
+import { format, parseISO, startOfDay, isSameDay } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
