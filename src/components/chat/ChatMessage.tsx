@@ -18,6 +18,7 @@ import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReact
 import { ReplyIndicator } from "./ReplyPreview";
 import { MessageReadAvatars } from "./MessageReadAvatars";
 import { MessageReadIndicator } from "./MessageReadIndicator";
+import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { toast } from "sonner";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
