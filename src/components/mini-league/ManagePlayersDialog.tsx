@@ -121,12 +121,12 @@ function DraggablePlayerCard({ player, children, canDrag }: { player: MiniLeague
         <div
           {...listeners}
           {...attributes}
-          className="absolute left-0 top-0 bottom-0 w-8 flex items-center justify-center cursor-grab active:cursor-grabbing z-10 touch-none"
+          className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-grab active:cursor-grabbing z-10 touch-none"
         >
-          <GripVertical className="h-4 w-4 text-muted-foreground/40" />
+          <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40" />
         </div>
       )}
-      <div className={canDrag ? "pl-6" : ""}>
+      <div className={canDrag ? "pl-5" : ""}>
         {children}
       </div>
     </div>
