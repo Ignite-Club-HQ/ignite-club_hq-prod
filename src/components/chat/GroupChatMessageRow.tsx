@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { MessageContent } from "./MessageContent";
 import { MessageReadAvatars } from "./MessageReadAvatars";
+import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 
 interface GroupMessage {
