@@ -783,7 +783,6 @@ export default function JoinTeamPage() {
         setJoined(true);
         return;
       }
-      }
       
       // Set the role before joining
       if (selectedRoles.length === 0) {
@@ -1025,6 +1024,7 @@ export default function JoinTeamPage() {
             <Button onClick={() => navigate(inviteDestination)} className="w-full" size="lg">
               View {inviteEntityLabel}
             </Button>
+          </CardContent>
         </Card>
       </div>
     );

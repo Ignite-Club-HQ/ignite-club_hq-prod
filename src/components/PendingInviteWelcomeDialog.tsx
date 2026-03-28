@@ -173,12 +173,6 @@ export function PendingInviteWelcomeDialog() {
           } else {
             console.log("[InviteAutoAccept] Role already exists, continuing with parent-link sync:", invite.id);
           }
-              .eq("id", invite.id);
-            console.log("[InviteAutoAccept] Invite already fulfilled, marked accepted:", invite.id);
-            continue;
-          } else {
-            console.log("[InviteAutoAccept] Role already exists, continuing with parent-link sync:", invite.id);
-          }
 
           const entityName =
             (invite.teams as any)?.name ||
