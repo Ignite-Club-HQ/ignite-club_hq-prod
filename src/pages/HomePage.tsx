@@ -419,71 +419,35 @@ export default function HomePage() {
     placeholderData: (prev) => prev,
   });
 
-  // Check if user has Pro access (via club or team subscription)
-  // Logic: Club Pro → all teams inherit; Free club → check team subscription
+  // Check if user has Pro access - uses memberships data to avoid re-fetching user_roles
   const { data: hasProAccess, isLoading: isLoadingProAccess } = useQuery({
-    queryKey: ["user-has-pro-access", user?.id, userRoles?.map(r => r.club_id).filter(Boolean).join(","), userRoles?.map(r => r.team_id).filter(Boolean).join(",")],
+    queryKey: ["user-has-pro-access", user?.id, userMemberships?.clubIds, userMemberships?.teamIds],
     queryFn: async () => {
-      if (!userRoles || userRoles.length === 0) return false;
-      
-      const clubIds = [...new Set(userRoles.filter(r => r.club_id).map(r => r.club_id))] as string[];
-      const teamIds = [...new Set(userRoles.filter(r => r.team_id).map(r => r.team_id))] as string[];
-      
-      // Get club IDs from team memberships
-      if (teamIds.length > 0) {
-        const { data: teamsData } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        
-        teamsData?.forEach(t => {
-          if (t.club_id && !clubIds.includes(t.club_id)) {
-            clubIds.push(t.club_id);
-          }
-        });
-      }
-
+      if (!userMemberships) return false;
+      const { clubIds, teamIds } = userMemberships;
       if (clubIds.length === 0 && teamIds.length === 0) return false;
 
-      // First check club subscriptions
-      if (clubIds.length > 0) {
-        const { data: clubSubs } = await supabase
-          .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("club_id", clubIds);
+      // Check club and team subscriptions in parallel
+      const [clubSubsResult, teamSubsResult] = await Promise.all([
+        clubIds.length > 0
+          ? supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds)
+          : Promise.resolve({ data: [] }),
+        teamIds.length > 0
+          ? supabase.from("team_subscriptions").select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("team_id", teamIds)
+          : Promise.resolve({ data: [] }),
+      ]);
 
-        const hasClubPro = clubSubs?.some(s => 
-          s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override
-        );
-        
-        if (hasClubPro) return true;
-      }
-      
-      // If no club Pro, check team-level subscriptions (for teams in free clubs)
-      if (teamIds.length > 0) {
-        const { data: teamSubs } = await supabase
-          .from("team_subscriptions")
-          .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("team_id", teamIds);
-        
-        const hasTeamPro = teamSubs?.some(s => 
-          s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override
-        );
-        
-        if (hasTeamPro) return true;
-      }
+      const hasClubPro = (clubSubsResult.data || []).some((s: any) => s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override);
+      if (hasClubPro) return true;
 
-      return false;
+      const hasTeamPro = (teamSubsResult.data || []).some((s: any) => s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override);
+      return hasTeamPro;
     },
-    enabled: !!user && !!userRoles,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes to prevent flash on re-renders
-    placeholderData: (prev) => prev, // Keep previous data during key changes to prevent flash
+    enabled: !!user && !!userMemberships,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
   
-  // Show PRO badge only after we've confirmed they don't have Pro access
-  // Must wait for both userRoles AND hasProAccess queries to complete to prevent flash
-  // Also require userRoles to be defined — when user is briefly undefined on app resume,
-  // disabled queries have isLoading=false AND data=undefined, which would cause a false flash
   const showProBadge = !!userRoles && !isLoadingUserRoles && !isLoadingProAccess && !hasProAccess && !isAppAdmin;
 
   // Fetch clubs for rewards with Pro status
