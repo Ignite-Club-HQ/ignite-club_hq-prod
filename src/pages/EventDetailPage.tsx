@@ -131,7 +131,7 @@ const AttendeeCard = ({
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             {!isChildRsvp && !isMiniLeaguePlayerRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
-            <AvatarFallback className={`text-xs ${(isChildRsvp || isMiniLeaguePlayerRsvp) ? 'bg-primary text-primary-foreground' : ''}`}>
+            <AvatarFallback className="text-xs">
               {avatarInitial}
             </AvatarFallback>
           </Avatar>
