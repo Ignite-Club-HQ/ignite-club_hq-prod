@@ -890,7 +890,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      toast({ title: "RSVP updated!" });
+      
 
       // Show post-RSVP notification nudge if user hasn't enabled push
       if (notificationNudge.hasPushEnabled === false) {
@@ -964,7 +964,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      toast({ title: "Child RSVP updated!" });
+      
     },
   });
 
@@ -1042,7 +1042,6 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      toast({ title: `${variables.playerName}'s RSVP updated!` });
     },
     onError: (error) => {
       toast({ 
@@ -1066,7 +1065,7 @@ export default function EventDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
       queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      toast({ title: `${variables.playerName}'s RSVP updated!` });
+      
     },
     onError: (error) => {
       toast({ 
@@ -1106,7 +1105,7 @@ export default function EventDetailPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      toast({ title: `${variables.memberName}'s RSVP set to ${variables.status}!` });
+      
     },
     onError: (error) => {
       toast({ 
@@ -1146,7 +1145,7 @@ export default function EventDetailPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      toast({ title: `${variables.childName}'s RSVP set to ${variables.status}!` });
+      
     },
     onError: (error) => {
       toast({ 
