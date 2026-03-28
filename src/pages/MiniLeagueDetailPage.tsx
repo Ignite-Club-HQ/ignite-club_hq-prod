@@ -58,6 +58,33 @@ export default function MiniLeagueDetailPage() {
     enabled: !!id,
   });
 
+  // Check Pro Football subscription for the league's club
+  const { data: hasProFootball, isLoading: proLoading } = useQuery({
+    queryKey: ["club-pro-football", league?.club_id],
+    queryFn: async () => {
+      // Check if user is app_admin (bypasses subscription)
+      const { data: appAdminRole } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      if (appAdminRole) return true;
+
+      const { data } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro_football, admin_pro_football_override, expires_at")
+        .eq("club_id", league!.club_id)
+        .maybeSingle();
+      if (!data) return false;
+      const expired = data.expires_at && new Date(data.expires_at) < new Date();
+      return !expired && (data.is_pro_football || data.admin_pro_football_override);
+    },
+    enabled: !!league?.club_id && !!user,
+    staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
+  });
+
   const { data: canManageLeague } = useQuery({
     queryKey: ["can-manage-league", league?.club_id, user?.id],
     queryFn: async () => {
