@@ -1276,15 +1276,23 @@ export default function TeamDetailPage() {
                       const filteredMembers = Object.entries(members).filter(([_, member]) =>
                         memberRoleFilter === "all" || memberRoleFilter === "child" ? memberRoleFilter === "all" : member.roles?.some(r => r.role === memberRoleFilter)
                       );
-                      const roleOrder = ["player", "parent", "coach", "team_admin", "club_admin", "app_admin", "basic_user"] as const;
+                      const roleOrder = ["player", "parent", "team_admin", "club_admin", "app_admin", "basic_user"] as const;
                       const roleGroupLabels: Record<string, string> = {
                         player: "Players",
-                        parent: "Parents",
-                        coach: "Coaches",
+                        parent: "Parents & Coaches",
                         team_admin: "Team Admins",
                         club_admin: "Club Admins",
                         app_admin: "App Admins",
                         basic_user: "Members",
+                      };
+                      const roleGroupMap: Record<string, string> = {
+                        player: "player",
+                        parent: "parent",
+                        coach: "parent",
+                        team_admin: "team_admin",
+                        club_admin: "club_admin",
+                        app_admin: "app_admin",
+                        basic_user: "basic_user",
                       };
 
                       // Group members by their primary (highest-priority) role
