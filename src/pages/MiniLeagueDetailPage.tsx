@@ -253,53 +253,52 @@ export default function MiniLeagueDetailPage() {
   };
 
   const renderEmptyState = () => (
-    <div className="space-y-6">
-      {/* Hero empty state */}
-      <Card className="border-dashed border-2 rounded-2xl overflow-hidden">
-        <CardContent className="py-10 px-6 text-center space-y-4">
-          <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-            <Trophy className="h-8 w-8 text-primary" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-lg font-bold">Start your Mini League</h2>
-            <p className="text-sm text-muted-foreground">
-              Create match days, schedule games, and track results
-            </p>
-          </div>
+    <Card className="border-dashed border-2 rounded-2xl overflow-hidden">
+      <CardContent className="py-8 px-6 text-center space-y-5">
+        <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+          <Trophy className="h-7 w-7 text-primary" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-lg font-bold">Start your Mini League</h2>
+          <p className="text-sm text-muted-foreground">
+            Create match days, schedule games, and track results for your league
+          </p>
+        </div>
 
-          {canManageLeague && (
-            <Button
-              className="mt-2"
-              onClick={() => navigate(getCreateUrl())}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Match Day
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+        {canManageLeague && (
+          <Button
+            onClick={() => navigate(getCreateUrl())}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Match Day
+          </Button>
+        )}
 
-      {/* 3-step guide */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { icon: CalendarIcon, label: "Create Match Day", step: "1" },
-          { icon: Users, label: "Add Games", step: "2" },
-          { icon: Target, label: "Track Scores", step: "3" },
-        ].map(({ icon: Icon, label, step }) => (
-          <div key={step} className="flex flex-col items-center gap-2 text-center">
-            <div className="relative">
-              <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Icon className="h-5 w-5 text-primary" />
+        {/* How it works */}
+        <div className="pt-2 space-y-2">
+          <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">How it works</p>
+          <div className="flex items-center justify-center gap-4">
+            {[
+              { icon: CalendarIcon, label: "Create Match Day", step: "1" },
+              { icon: Users, label: "Add Games", step: "2" },
+              { icon: Target, label: "Track Scores", step: "3" },
+            ].map(({ icon: Icon, label, step }) => (
+              <div key={step} className="flex flex-col items-center gap-1.5 text-center w-20">
+                <div className="relative">
+                  <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
+                    {step}
+                  </span>
+                </div>
+                <span className="text-[10px] text-muted-foreground leading-tight">{label}</span>
               </div>
-              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-                {step}
-              </span>
-            </div>
-            <span className="text-xs font-medium text-muted-foreground leading-tight">{label}</span>
+            ))}
           </div>
-        ))}
-      </div>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 
   const renderTimeline = () => {
@@ -405,8 +404,10 @@ export default function MiniLeagueDetailPage() {
                   <ClipboardList className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="text-left">
-                  <p className="text-sm font-semibold leading-tight">{leagueStatus}</p>
-                  <p className="text-[10px] text-muted-foreground">
+                  <Badge variant={leagueStatus === "Not started" ? "secondary" : "default"} className="text-[10px] px-1.5 py-0">
+                    {leagueStatus}
+                  </Badge>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
                     {events?.length || 0} Match {(events?.length || 0) === 1 ? "Day" : "Days"}
                   </p>
                 </div>
@@ -479,15 +480,15 @@ export default function MiniLeagueDetailPage() {
         renderTimeline()
       )}
 
-      {/* Floating Action Button */}
-      {canManageLeague && (
+      {/* Floating Action Button — only shown when match days exist */}
+      {canManageLeague && (events?.length || 0) > 0 && (
         <Button
           className="fixed bottom-24 right-4 h-auto rounded-full shadow-lg z-40 sm:bottom-6 sm:right-6 px-5 py-3 gap-2"
           onClick={() => navigate(getCreateUrl())}
           aria-label="Create Match Day"
         >
           <Plus className="h-5 w-5" />
-          <span className="text-sm font-semibold">Match Day</span>
+          <span className="text-sm font-semibold">Create Match Day</span>
         </Button>
       )}
 
