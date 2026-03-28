@@ -915,11 +915,32 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
   const unallocatedPlayers = availablePlayers.filter(p => !allocatedPlayerIds.has(p.id));
   const hasUnallocatedPlayers = unallocatedPlayers.length > 0;
 
+  // Determine round progression status
+  const roundStatus = (() => {
+    if (!hasGroups) {
+      return { label: "Round not set up", color: "bg-muted text-muted-foreground" };
+    }
+    // Check if any group has a timer state indicating in-progress
+    const hasTimerRunning = groups?.some(g => {
+      const ts = g as any;
+      return ts.timer_state && typeof ts.timer_state === 'object';
+    });
+    if (hasTimerRunning) {
+      return { label: "Games in progress", color: "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30" };
+    }
+    return { label: "Matches generated", color: "bg-primary/15 text-primary border-primary/30" };
+  })();
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Matches</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold">Matches</h3>
+          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 ${roundStatus.color}`}>
+            {roundStatus.label}
+          </Badge>
+        </div>
         {isAdmin && hasGroups && (
           <div className="flex gap-2">
             {/* Swap mode indicator */}
@@ -1151,22 +1172,22 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           </div>
         </div>
       ) : (
-        /* Empty State - Hero Quick Setup */
+        /* Empty State - Generate Matches */
         <Card className="border-dashed">
-          <CardContent className="py-10 text-center space-y-4">
-            <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-              <Wand2 className="h-7 w-7 text-primary" />
+          <CardContent className="py-8 text-center space-y-3">
+            <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Shirt className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h4 className="font-semibold text-lg">Ready to set up matches?</h4>
+              <h4 className="font-semibold text-base">Generate this round's games</h4>
               <p className="text-sm text-muted-foreground mt-1">
                 {availablePlayers.length > 0 
-                  ? `${availablePlayers.length} players available — auto-generate balanced matches in one tap`
-                  : "Mark players as attending first, then generate matches"}
+                  ? `${availablePlayers.length} player${availablePlayers.length === 1 ? '' : 's'} ready — generate matches`
+                  : "Select players as attending first to generate matches"}
               </p>
             </div>
             {isAdmin && (
-              <div className="space-y-2">
+              <div className="space-y-2 pt-1">
                 <Button 
                   className="w-full h-12 text-base font-semibold"
                   onClick={() => setIsQuickSetupOpen(true)}
@@ -1177,37 +1198,11 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                   ) : (
                     <Wand2 className="h-5 w-5 mr-2" />
                   )}
-                  Quick Setup
+                  Generate Matches
                 </Button>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="shrink-0"
-                    onClick={() => { refetchRsvps(); setIsAutoGenOpen(true); }}
-                  >
-                    <Wand2 className="h-4 w-4 mr-1" />
-                    Customize
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="shrink-0"
-                    onClick={() => setIsCopyPreviousOpen(true)}
-                  >
-                    <Copy className="h-4 w-4 mr-1" />
-                    Copy Previous
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="shrink-0"
-                    onClick={() => setIsCreateOpen(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Manual
-                  </Button>
-                </div>
+                <p className="text-[11px] text-muted-foreground/60">
+                  Automatically create balanced games based on who is playing
+                </p>
               </div>
             )}
           </CardContent>
