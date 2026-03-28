@@ -156,9 +156,11 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                 <Badge variant="destructive" className="shrink-0">Cancelled</Badge>
               )}
             </div>
-            <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
-              {event.teams?.name || event.clubs?.name}
-            </Badge>
+            {event.teams?.name && (
+              <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
+                {event.teams.name}
+              </Badge>
+            )}
           </div>
 
           {/* Date + Location */}
@@ -168,10 +170,10 @@ export function NextUpHero({ event }: NextUpHeroProps) {
               <span className="font-medium text-foreground">{dateLabel}</span>
               <span>at {dateTime}</span>
             </div>
-            {(event.location_name || event.suburb) && (
+            {(event.location_name || event.suburb || event.address) && (
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 shrink-0 text-foreground/70" />
-                <span>{event.location_name || event.suburb}</span>
+                <span>{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
               </div>
             )}
           </div>

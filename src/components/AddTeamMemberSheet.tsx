@@ -459,6 +459,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   teamName,
                   clubName: clubBranding?.name || "The Club",
                   clubLogoUrl: clubBranding?.logo_url || undefined,
+                  inviteLink: `${window.location.origin}/teams/${teamId}`,
                 },
               },
             });
@@ -488,6 +489,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   teamName,
                   clubName: clubBranding?.name || "The Club",
                   clubLogoUrl: clubBranding?.logo_url || undefined,
+                  inviteLink: `${window.location.origin}/teams/${teamId}`,
                 },
               },
             });
@@ -819,6 +821,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 clubName: clubBranding?.name || "The Club",
                 clubLogoUrl: clubBranding?.logo_url || undefined,
                 customMessage: customMessage.trim() || undefined,
+                inviteLink: `${window.location.origin}/teams/${teamId}`,
               },
             },
           });

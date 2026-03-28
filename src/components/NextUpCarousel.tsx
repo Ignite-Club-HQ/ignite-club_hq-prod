@@ -53,11 +53,6 @@ const typeGlowColors: Record<string, string> = {
   social: "shadow-warning/10",
 };
 
-const typeLeftBorder: Record<string, string> = {
-  game: "border-l-destructive",
-  training: "border-l-primary",
-  social: "border-l-warning",
-};
 
 function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean }) {
   const { user } = useAuth();
@@ -145,9 +140,11 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               <Badge variant="destructive" className="shrink-0 text-[10px]">Cancelled</Badge>
             )}
           </div>
-          <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-            {event.teams?.name || event.clubs?.name}
-          </Badge>
+          {event.teams?.name && (
+            <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+              {event.teams.name}
+            </Badge>
+          )}
         </div>
 
         <div className="flex flex-col gap-1 text-sm text-muted-foreground">
@@ -156,10 +153,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             <span className="font-medium text-foreground">{dateLabel}</span>
             <span>at {dateTime}</span>
           </div>
-          {(event.location_name || event.suburb) && (
+          {(event.location_name || event.suburb || event.address) && (
             <div className="flex items-center gap-2">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-foreground/70" aria-hidden="true" />
-              <span className="truncate">{event.location_name || event.suburb}</span>
+              <span className="truncate">{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
             </div>
           )}
         </div>
@@ -194,40 +191,54 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 function CompactCard({ event }: { event: EventItem }) {
   const navigate = useNavigate();
   const { label: dateLabel, time: dateTime } = formatDate(event.event_date);
-  const borderClass = typeLeftBorder[event.type] || "border-l-primary";
+  const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
+
+  const typeBadgeStyles: Record<string, string> = {
+    game: "bg-destructive/15 text-destructive border-destructive/20",
+    training: "bg-primary/15 text-primary border-primary/20",
+    social: "bg-warning/15 text-warning border-warning/20",
+  };
+  const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
 
   return (
     <Card
-      className={`border-l-[3px] ${borderClass} cursor-pointer hover:border-primary/50 transition-colors min-w-[220px] w-[65vw] max-w-[280px] shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`cursor-pointer border-border/60 hover:border-primary/40 hover:shadow-md transition-all min-w-[220px] w-[65vw] max-w-[280px] shrink-0 ${event.is_cancelled ? "opacity-50" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
-      <CardContent className="p-3 pl-3.5 space-y-1.5">
-        <div className="flex items-center gap-2 min-w-0">
-          <h3 className={`font-semibold text-[14px] leading-snug truncate ${event.is_cancelled ? "line-through" : ""}`}>
-            {event.title}{event.opponent ? ` vs ${event.opponent}` : ""}
-          </h3>
-          {event.is_cancelled && (
-            <Badge variant="destructive" className="text-[10px] h-4 shrink-0">Cancelled</Badge>
+      <CardContent className="p-3.5 space-y-2.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <h3 className={`font-semibold text-[14px] leading-snug truncate ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
+              {event.title}{event.opponent ? ` vs ${event.opponent}` : ""}
+            </h3>
+            {subtitle && (
+              <p className="text-[11px] text-muted-foreground truncate">{subtitle}</p>
+            )}
+          </div>
+          {event.is_cancelled ? (
+            <Badge variant="destructive" className="text-[10px] h-5 shrink-0">Cancelled</Badge>
+          ) : (
+            <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-medium border shrink-0 ${typeBadgeStyles[event.type] || ""}`}>
+              {typeLabel}
+            </Badge>
           )}
         </div>
-        <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal text-muted-foreground">
-          {event.teams?.name || event.clubs?.name}
-        </Badge>
-        <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-          <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span className="font-medium text-foreground">{dateLabel}</span>
-          <span>at {dateTime}</span>
-        </div>
-        {(event.location_name || event.suburb) && (
+        <div className="space-y-1">
           <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-            <span className="truncate">{event.location_name || event.suburb}</span>
+            <Clock className="h-3 w-3 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+            <span>{dateLabel} · {dateTime}</span>
           </div>
-        )}
+          {(event.location_name || event.suburb || event.address) && (
+            <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+              <span className="truncate">{event.location_name || event.suburb || event.address?.split(',')[0]}</span>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

@@ -259,7 +259,7 @@ export function PendingInviteWelcomeDialog() {
 
                   if (teamInfo) {
                     const club = teamInfo.clubs as any;
-                    const inviteLink = `${window.location.origin}/team/${firstTeamId}`;
+                    const inviteLink = `${window.location.origin}/teams/${firstTeamId}`;
 
                     await supabase.functions.invoke("send-email", {
                       body: {
@@ -490,6 +490,7 @@ export function PendingInviteWelcomeDialog() {
                             teamName: teamInfo.name,
                             clubName: club?.name || "The Club",
                             clubLogoUrl: club?.logo_url || undefined,
+                            inviteLink: `${window.location.origin}/teams/${firstTeamId}`,
                           },
                         },
                       });
