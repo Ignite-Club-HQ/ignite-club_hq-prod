@@ -1126,6 +1126,7 @@ export default function ClubChatPage() {
                         readCount={readCounts[msg.id] || 0}
                         isLastMessage={index === filteredMessages.length - 1}
                         isPending={msg.id.startsWith("queued-")}
+                        contextId={clubId || ""}
                       />
                     </div>
                   </div>

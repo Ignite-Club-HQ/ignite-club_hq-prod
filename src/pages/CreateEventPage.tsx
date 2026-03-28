@@ -209,7 +209,8 @@ export default function CreateEventPage() {
     }
   }, [clubId, clubs]);
 
-  // Check if user is a club admin for the selected club
+
+
   const { data: isClubAdminForSelectedClub } = useQuery({
     queryKey: ["is-club-admin-for-event", clubId, user?.id],
     queryFn: async () => {
@@ -304,7 +305,21 @@ export default function CreateEventPage() {
     enabled: !!clubId && userTeamIds !== undefined,
   });
 
-  // Fetch members for duty assignment
+  // Check if user is committee-only for the selected club (no admin/coach/team roles)
+  const isCommitteeOnlyForClub = useMemo(() => {
+    if (!clubId || !user) return false;
+    if (isClubAdminForSelectedClub) return false;
+    if (teams && teams.length > 0) return false;
+    return true;
+  }, [clubId, user, isClubAdminForSelectedClub, teams]);
+
+  // Auto-set social type for committee-only users
+  useEffect(() => {
+    if (isCommitteeOnlyForClub && type !== "social") {
+      setType("social");
+    }
+  }, [isCommitteeOnlyForClub, type]);
+
   const { data: members } = useQuery({
     queryKey: ["event-members-for-duty", clubId, teamId],
     queryFn: async () => {
@@ -798,13 +813,15 @@ export default function CreateEventPage() {
           ))}
         </div>
       ) : (
-      <div className={cn("grid gap-2", (clubId && hasProFootball) ? "grid-cols-4" : "grid-cols-3")}>
+      <div className={cn("grid gap-2", isCommitteeOnlyForClub ? "grid-cols-1 max-w-[120px]" : (clubId && hasProFootball) ? "grid-cols-4" : "grid-cols-3")}>
         {EVENT_TYPES.map((eventType) => {
           // Hide pro football items if user doesn't have access (or no club selected yet)
           const isProFeature = eventType.proFootballOnly;
           const showItem = !isProFeature || (clubId && hasProFootball);
-          
+          // Committee-only users can only create social events
+          if (isCommitteeOnlyForClub && eventType.value !== "social") return null;
           if (!showItem) return null;
+
           
           return (
             <button

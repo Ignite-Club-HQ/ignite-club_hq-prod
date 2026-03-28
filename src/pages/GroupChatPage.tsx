@@ -1353,6 +1353,7 @@ export default function GroupChatPage() {
                   deleteMessageMutation={deleteMessageMutation}
                   toggleReactionMutation={toggleReactionMutation}
                   REACTION_EMOJIS={REACTION_EMOJIS}
+                  groupId={groupId || ""}
                 />
               </div>
             );
