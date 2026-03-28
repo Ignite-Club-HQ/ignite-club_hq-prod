@@ -157,9 +157,9 @@ function AttendeeAvatars({ eventId }: { eventId: string }) {
       <div className="flex -space-x-1.5">
         {visible.map((rsvp) => (
           <Avatar key={rsvp.id} className="h-6 w-6 border-2 border-background">
-            <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />
+            <AvatarImage src={rsvp.profile?.avatar_url || undefined} />
             <AvatarFallback className="bg-primary/15 text-primary text-[9px] font-medium">
-              {rsvp.profiles?.display_name?.charAt(0)?.toUpperCase() || "?"}
+              {rsvp.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
         ))}
