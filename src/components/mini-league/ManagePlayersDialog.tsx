@@ -688,7 +688,7 @@ export function ManagePlayersDialog({
                           </DraggablePlayerCard>
                         ))}
                         {!abilityPlayers?.length && activePlayer && (
-                          <div className="border-2 border-dashed border-muted-foreground/20 rounded-lg p-4 text-center text-xs text-muted-foreground">
+                          <div className="border-2 border-dashed border-primary/30 rounded-lg py-6 text-center text-xs text-muted-foreground bg-primary/5">
                             Drop here to move to {getAbilityLabel(rating)}
                           </div>
                         )}
