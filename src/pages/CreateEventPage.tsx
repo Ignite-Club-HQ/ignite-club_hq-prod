@@ -861,7 +861,7 @@ export default function CreateEventPage() {
         <Collapsible open={openSections.details}>
           <SectionHeader 
             icon={FileText} 
-            title="Event Details" 
+            title={isFromMiniLeague ? "Match Day Details" : "Event Details"} 
             isOpen={openSections.details}
             onClick={() => toggleSection('details')}
             badge="Required"
@@ -871,7 +871,7 @@ export default function CreateEventPage() {
               {/* Title */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="title">Event Title</Label>
+                  <Label htmlFor="title">{isFromMiniLeague ? "Match Day Title" : "Event Title"}</Label>
                   <div className="flex items-center gap-1">
                     {favoriteTitles && favoriteTitles.length > 0 && (
                       <DropdownMenu>
@@ -927,7 +927,7 @@ export default function CreateEventPage() {
                 <div className="relative">
                   <Input
                     id="title"
-                    placeholder="e.g., Saturday Training"
+                    placeholder={isFromMiniLeague ? "e.g., Round 1" : "e.g., Saturday Training"}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     maxLength={100}
@@ -1100,7 +1100,8 @@ export default function CreateEventPage() {
                 />
               </div>
 
-              {/* Recurring Toggle */}
+              {/* Recurring Toggle - hidden for mini league match days */}
+              {!isFromMiniLeague && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
                   <Repeat className="h-4 w-4 text-muted-foreground" />
@@ -1111,6 +1112,7 @@ export default function CreateEventPage() {
                   onCheckedChange={setIsRecurring}
                 />
               </div>
+              )}
 
               {isRecurring && (
                 <div className="space-y-4 p-3 rounded-lg border border-dashed">
@@ -1398,7 +1400,7 @@ export default function CreateEventPage() {
           {saving ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
-            "Create Event"
+            isFromMiniLeague ? "Create Match Day" : "Create Event"
           )}
         </Button>
       </div>
