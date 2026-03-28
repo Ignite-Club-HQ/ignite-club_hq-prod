@@ -129,7 +129,7 @@ function TeamCard({ item, nextEvent, photos }: {
                   View schedule
                 </DropdownMenuItem>
                 {item.canManage && (
-                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/events/new?miniLeagueId=${item.id}` : "/events/new")}>
+                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new")}>
                     <Plus className="h-4 w-4 mr-2" />
                     {item.type === "league" ? "Add match" : "Add event"}
                   </DropdownMenuItem>
