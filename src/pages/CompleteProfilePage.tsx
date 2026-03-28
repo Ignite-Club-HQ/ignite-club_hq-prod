@@ -405,9 +405,63 @@ export default function CompleteProfilePage() {
                 const entityName = invite.team_name || invite.club_name || "organization";
                 console.log("[CompleteProfile] Invite accepted for:", entityName);
                 
-                // Create children from invite metadata (if parent role with children)
-                if (invite.metadata?.children && invite.metadata.children.length > 0 && invite.role === "parent") {
-                  console.log("[CompleteProfile] Creating children from invite metadata:", invite.metadata.children);
+                // Handle mini-league invite where child already exists
+                if (invite.role === "parent" && invite.metadata?.child_id && invite.metadata?.mini_league_id) {
+                  const existingChildId = invite.metadata.child_id;
+                  const miniLeagueId = invite.metadata.mini_league_id;
+                  console.log("[CompleteProfile] Mini-league invite: linking existing child to parent:", existingChildId);
+                  
+                  // Transfer child ownership to this parent
+                  await supabase
+                    .from("children")
+                    .update({ parent_id: user.id })
+                    .eq("id", existingChildId);
+                  
+                  // Ensure mini league assignment exists
+                  const { data: existingLeagueAssignment } = await supabase
+                    .from("child_mini_league_assignments")
+                    .select("id")
+                    .eq("child_id", existingChildId)
+                    .eq("mini_league_id", miniLeagueId)
+                    .maybeSingle();
+                  
+                  if (!existingLeagueAssignment) {
+                    await supabase.from("child_mini_league_assignments").insert({
+                      child_id: existingChildId,
+                      mini_league_id: miniLeagueId,
+                      ability_rating: 3,
+                    });
+                  }
+                  
+                  // Update legacy mini_league_players record
+                  if (invite.metadata.player_id) {
+                    await supabase
+                      .from("mini_league_players")
+                      .update({ parent_user_id: user.id })
+                      .eq("id", invite.metadata.player_id);
+                  } else {
+                    await supabase
+                      .from("mini_league_players")
+                      .update({ parent_user_id: user.id })
+                      .eq("child_id", existingChildId)
+                      .eq("mini_league_id", miniLeagueId);
+                  }
+                } else if (invite.role === "parent" && invite.metadata?.child_id) {
+                  // Non-league invite with existing child_id — just link
+                  console.log("[CompleteProfile] Linking existing child to parent:", invite.metadata.child_id);
+                  await supabase
+                    .from("children")
+                    .update({ parent_id: user.id })
+                    .eq("id", invite.metadata.child_id);
+                  
+                  if (invite.metadata.player_id) {
+                    await supabase
+                      .from("mini_league_players")
+                      .update({ parent_user_id: user.id })
+                      .eq("id", invite.metadata.player_id);
+                  }
+                } else if (invite.metadata?.children && invite.metadata.children.length > 0 && invite.role === "parent") {
+                  // Create children from invite metadata (standard team invite flow)
                   console.log("[CompleteProfile] Creating children from invite metadata:", invite.metadata.children);
                   for (const childData of invite.metadata.children) {
                     console.log("[CompleteProfile] Creating child:", childData.name, "YoB:", childData.yearOfBirth);
@@ -454,16 +508,13 @@ export default function CompleteProfilePage() {
                         .insert({
                           child_id: newChild.id,
                           mini_league_id: invite.metadata.mini_league_id,
-                          ability_rating: 3, // Default rating, can be updated by admin
+                          ability_rating: 3,
                         });
                       
                       if (leagueAssignError) {
                         console.error("[CompleteProfile] Failed to assign child to league:", leagueAssignError.message);
-                      } else {
-                        console.log("[CompleteProfile] Child assigned to mini league:", childData.name);
                       }
                       
-                      // Also update the legacy mini_league_players record if it exists
                       if (invite.metadata.player_id) {
                         await supabase
                           .from("mini_league_players")
@@ -474,21 +525,6 @@ export default function CompleteProfilePage() {
                           .eq("id", invite.metadata.player_id);
                       }
                     }
-                  }
-                } else if (invite.role === "parent" && invite.metadata?.child_id) {
-                  // If there's already a child_id in metadata, just link the existing child to this parent
-                  console.log("[CompleteProfile] Linking existing child to parent:", invite.metadata.child_id);
-                  await supabase
-                    .from("children")
-                    .update({ parent_id: user.id })
-                    .eq("id", invite.metadata.child_id);
-                  
-                  // Update the legacy mini_league_players record
-                  if (invite.metadata.player_id) {
-                    await supabase
-                      .from("mini_league_players")
-                      .update({ parent_user_id: user.id })
-                      .eq("id", invite.metadata.player_id);
                   }
                 }
               }
@@ -505,8 +541,52 @@ export default function CompleteProfilePage() {
               })
               .eq("id", invite.id);
             
-            // Still create/link children if this is a parent role, even if role already exists
-            if (invite.role === "parent" && invite.metadata?.children && invite.metadata.children.length > 0) {
+            // Handle mini-league invite where child already exists (role already exists path)
+            if (invite.role === "parent" && invite.metadata?.child_id && invite.metadata?.mini_league_id) {
+              const existingChildId = invite.metadata.child_id;
+              const miniLeagueId = invite.metadata.mini_league_id;
+              console.log("[CompleteProfile] Role exists, mini-league invite: linking existing child:", existingChildId);
+              
+              await supabase
+                .from("children")
+                .update({ parent_id: user.id })
+                .eq("id", existingChildId);
+              
+              const { data: existingLeagueAssignment } = await supabase
+                .from("child_mini_league_assignments")
+                .select("id")
+                .eq("child_id", existingChildId)
+                .eq("mini_league_id", miniLeagueId)
+                .maybeSingle();
+              
+              if (!existingLeagueAssignment) {
+                await supabase.from("child_mini_league_assignments").insert({
+                  child_id: existingChildId,
+                  mini_league_id: miniLeagueId,
+                  ability_rating: 3,
+                });
+              }
+              
+              if (invite.metadata.player_id) {
+                await supabase
+                  .from("mini_league_players")
+                  .update({ parent_user_id: user.id })
+                  .eq("id", invite.metadata.player_id);
+              }
+            } else if (invite.role === "parent" && invite.metadata?.child_id) {
+              // Link existing child to this parent
+              await supabase
+                .from("children")
+                .update({ parent_id: user.id })
+                .eq("id", invite.metadata.child_id);
+              
+              if (invite.metadata.player_id) {
+                await supabase
+                  .from("mini_league_players")
+                  .update({ parent_user_id: user.id })
+                  .eq("id", invite.metadata.player_id);
+              }
+            } else if (invite.role === "parent" && invite.metadata?.children && invite.metadata.children.length > 0) {
               console.log("[CompleteProfile] Role exists but creating children from metadata:", invite.metadata.children);
               for (const childData of invite.metadata.children) {
                 // Check if child already exists for this parent with same name
@@ -519,7 +599,6 @@ export default function CompleteProfilePage() {
                 
                 if (existingChild) {
                   console.log("[CompleteProfile] Child already exists:", childData.name);
-                  // Still assign to team/league if not already assigned
                   if (invite.team_id) {
                     await supabase
                       .from("child_team_assignments")
@@ -581,19 +660,6 @@ export default function CompleteProfilePage() {
                   }
                   console.log("[CompleteProfile] Child created and assigned to mini league:", childData.name);
                 }
-              }
-            } else if (invite.role === "parent" && invite.metadata?.child_id) {
-              // Link existing child to this parent
-              await supabase
-                .from("children")
-                .update({ parent_id: user.id })
-                .eq("id", invite.metadata.child_id);
-              
-              if (invite.metadata.player_id) {
-                await supabase
-                  .from("mini_league_players")
-                  .update({ parent_user_id: user.id })
-                  .eq("id", invite.metadata.player_id);
               }
             }
           }
