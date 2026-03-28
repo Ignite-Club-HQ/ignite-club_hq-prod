@@ -163,33 +163,55 @@ export default function JoinTeamPage() {
 
   const isLoading = isPendingInvite ? pendingInviteLoading : teamInviteLoading;
   const inviteError = isPendingInvite ? pendingInviteError : teamInviteError;
+  const pendingInviteMeta = (pendingInviteData?.metadata as { mini_league_id?: string } | null) ?? null;
+  const inviteMiniLeagueId = isPendingInvite ? pendingInviteMeta?.mini_league_id ?? null : null;
+  const inviteClubId = invite?.teams?.club_id || pendingInviteData?.club_id || null;
 
-  // Loading timeout - if loading takes more than 10 seconds, show error
-  useEffect(() => {
-    if (isLoading) {
-      console.log("[JoinTeam] Loading started, isPendingInvite:", isPendingInvite, "token:", token);
-      const timeout = setTimeout(() => {
-        console.log("[JoinTeam] Loading timeout reached");
-        setLoadingTimeout(true);
-      }, 10000);
-      return () => clearTimeout(timeout);
-    } else {
-      setLoadingTimeout(false);
-    }
-  }, [isLoading, isPendingInvite, token]);
-
-  // Fetch user's existing roles in this team
-  const { data: existingRoles } = useQuery({
-    queryKey: ["user-team-roles", invite?.team_id, user?.id],
+  const { data: inviteMiniLeague } = useQuery({
+    queryKey: ["invite-mini-league", inviteMiniLeagueId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
+        .from("mini_leagues")
+        .select("id, name")
+        .eq("id", inviteMiniLeagueId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!inviteMiniLeagueId,
+  });
+
+  const inviteEntityName = inviteMiniLeague?.name || invite?.teams?.name || invite?.teams?.clubs?.name || "organization";
+  const inviteDestination = inviteMiniLeagueId
+    ? `/mini-leagues/${inviteMiniLeagueId}?from=invite`
+    : invite?.team_id
+      ? `/teams/${invite.team_id}?from=invite`
+      : inviteClubId
+        ? `/clubs/${inviteClubId}?from=invite`
+        : "/";
+  const inviteEntityLabel = inviteMiniLeagueId ? "League" : invite?.team_id ? "Team" : "Club";
+
+  // Fetch user's existing roles for the invite destination
+  const { data: existingRoles = [] } = useQuery({
+    queryKey: ["user-invite-roles", invite?.team_id, inviteClubId, user?.id],
+    queryFn: async () => {
+      let query = supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user!.id)
-        .eq("team_id", invite!.team_id);
+        .eq("user_id", user!.id);
+
+      if (invite?.team_id) {
+        query = query.eq("team_id", invite.team_id);
+      } else if (inviteClubId) {
+        query = query.eq("club_id", inviteClubId).is("team_id", null);
+      } else {
+        return [];
+      }
+
+      const { data } = await query;
       return data?.map(r => r.role as AppRole) || [];
     },
-    enabled: !!invite?.team_id && !!user,
+    enabled: !!invite && !!user,
   });
 
   // Fetch user's profile for name validation and profile completion check
@@ -328,7 +350,48 @@ export default function JoinTeamPage() {
         linked_invite_token?: string;
       } | null;
       
-      if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
+      // Handle mini-league invite where child already exists (skip children creation)
+      if (metadata?.child_id && metadata?.mini_league_id && pendingInviteData.role === "parent") {
+        const existingChildId = metadata.child_id;
+        const miniLeagueId = metadata.mini_league_id;
+        console.log("[JoinTeam] Mini-league invite: linking existing child to parent:", existingChildId);
+        
+        // Transfer child ownership to this parent
+        await supabase
+          .from("children")
+          .update({ parent_id: user.id })
+          .eq("id", existingChildId);
+        
+        // Ensure mini league assignment exists
+        const { data: existingLeagueAssignment } = await supabase
+          .from("child_mini_league_assignments")
+          .select("id")
+          .eq("child_id", existingChildId)
+          .eq("mini_league_id", miniLeagueId)
+          .maybeSingle();
+        
+        if (!existingLeagueAssignment) {
+          await supabase.from("child_mini_league_assignments").insert({
+            child_id: existingChildId,
+            mini_league_id: miniLeagueId,
+            ability_rating: 3,
+          });
+        }
+        
+        // Update legacy mini_league_players record
+        if (metadata.player_id) {
+          await supabase
+            .from("mini_league_players")
+            .update({ parent_user_id: user.id })
+            .eq("id", metadata.player_id);
+        } else {
+          await supabase
+            .from("mini_league_players")
+            .update({ parent_user_id: user.id })
+            .eq("child_id", existingChildId)
+            .eq("mini_league_id", miniLeagueId);
+        }
+      } else if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
         console.log("[JoinTeam] Creating children from invite metadata:", metadata.children.length);
         
         // Fetch existing children to avoid duplicates
@@ -571,11 +634,12 @@ export default function JoinTeamPage() {
 
     // Send notification to the new member
     const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
+    const membershipRelatedId = inviteMiniLeagueId || invite.team_id || invite?.teams?.club_id;
     await supabase.from("notifications").insert({
       user_id: user.id,
       type: "membership",
-      message: `You've joined ${invite.teams?.name} as ${roleNames}`,
-      related_id: invite.team_id,
+      message: `You've joined ${inviteEntityName} as ${roleNames}`,
+      related_id: membershipRelatedId,
     });
 
     // Send membership confirmation email if user has an email
@@ -599,18 +663,18 @@ export default function JoinTeamPage() {
           }
         }
 
-        const teamLink = `${window.location.origin}/team/${invite.team_id}`;
+        const teamLink = `${window.location.origin}${inviteDestination}`;
         
-        console.log("Sending membership email with:", { clubName, clubLogoUrl, teamName: invite.teams?.name });
+        console.log("Sending membership email with:", { clubName, clubLogoUrl, teamName: inviteEntityName });
         
         await supabase.functions.invoke("send-email", {
           body: {
             to: user.email,
-            subject: `Welcome to ${invite.teams?.name}!`,
+            subject: `Welcome to ${inviteEntityName}!`,
             template: "membership-confirmation",
             templateData: {
               recipientName: userProfile?.display_name || pendingInviteData?.invited_label || user.email.split("@")[0],
-              teamName: invite.teams?.name || "the team",
+              teamName: inviteEntityName,
               clubName,
               roleName: roleNames,
               teamLink,
@@ -623,6 +687,7 @@ export default function JoinTeamPage() {
         // Don't fail the join if email fails
         console.error("Failed to send membership confirmation email:", emailError);
       }
+    }
     }
 
     return rolesToAdd;
@@ -711,10 +776,10 @@ export default function JoinTeamPage() {
       const hasInviteRole = existingRoles?.includes(inviteRole);
       
       if (hasInviteRole) {
-        // User already has this role - just navigate to team
+        // User already has this role - just navigate to the relevant destination
         autoJoinAttempted.current = true;
         sessionStorage.removeItem("autoJoinAfterAuth");
-        toast({ title: `You're already a member of ${invite.teams?.name}!` });
+        toast({ title: `You're already a member of ${inviteEntityName}!` });
         setJoined(true);
         return;
       }
@@ -910,8 +975,10 @@ export default function JoinTeamPage() {
   }
 
   // Check if user already has all selectable roles
-  const availableRoles = selectableRoles.filter(role => !existingRoles?.includes(role));
-  const allRolesAssigned = availableRoles.length === 0;
+  const availableRoles = selectableRoles.filter(role => !existingRoles.includes(role));
+  const allRolesAssigned = isFixedRoleInvite
+    ? !!invite?.role && existingRoles.includes(invite.role as AppRole)
+    : availableRoles.length === 0;
 
   if (allRolesAssigned) {
     return (
@@ -921,9 +988,9 @@ export default function JoinTeamPage() {
             <CheckCircle className="h-12 w-12 text-primary mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Already a Full Member</h2>
             <p className="text-muted-foreground mb-4">
-              You already have all available roles in {invite.teams?.name}.
+              You already have all available roles in {inviteEntityName}.
             </p>
-            <Button onClick={() => navigate(`/teams/${invite.team_id}?from=invite`)}>View Team</Button>
+            <Button onClick={() => navigate(inviteDestination)}>View {inviteEntityLabel}</Button>
           </CardContent>
         </Card>
       </div>
@@ -941,9 +1008,9 @@ export default function JoinTeamPage() {
             {/* Success message */}
             <div className="text-center">
               <CheckCircle className="h-12 w-12 text-primary mx-auto mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Welcome to the Team!</h2>
+              <h2 className="text-xl font-semibold mb-2">Welcome to the {inviteEntityLabel}!</h2>
               <p className="text-muted-foreground">
-                You've successfully joined {invite.teams?.name}.
+                You've successfully joined {inviteEntityName}.
               </p>
             </div>
 
@@ -954,8 +1021,8 @@ export default function JoinTeamPage() {
               </div>
             )}
 
-            <Button onClick={() => navigate(`/teams/${invite.team_id}?from=invite`)} className="w-full" size="lg">
-              View Team
+            <Button onClick={() => navigate(inviteDestination)} className="w-full" size="lg">
+              View {inviteEntityLabel}
             </Button>
           </CardContent>
         </Card>
@@ -994,8 +1061,8 @@ export default function JoinTeamPage() {
               </AvatarFallback>
             </Avatar>
           </div>
-          <CardTitle>Join {invite.teams?.name || invite.teams?.clubs?.name}</CardTitle>
-          {invite.teams?.clubs?.name && invite.teams?.name && (
+          <CardTitle>Join {inviteEntityName}</CardTitle>
+          {invite.teams?.clubs?.name && inviteEntityName !== invite.teams.clubs.name && (
             <p className="text-muted-foreground text-sm">{invite.teams.clubs.name}</p>
           )}
           {isPendingInvite && pendingInviteData?.invited_label && (

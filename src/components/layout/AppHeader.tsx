@@ -623,10 +623,13 @@ export function AppHeader() {
             if (notification.type === "team_invite") {
               const { data: inviteData } = await supabase
                 .from("pending_invites")
-                .select("team_id, club_id, status")
+                .select("team_id, club_id, status, metadata")
                 .eq("id", relatedId)
                 .maybeSingle();
-              if (inviteData?.team_id) {
+              const inviteMeta = inviteData?.metadata as any;
+              if (inviteMeta?.mini_league_id) {
+                navigate(`/mini-leagues/${inviteMeta.mini_league_id}`);
+              } else if (inviteData?.team_id) {
                 navigate(`/teams/${inviteData.team_id}`);
               } else if (inviteData?.club_id) {
                 navigate(`/clubs/${inviteData.club_id}`);
@@ -642,15 +645,24 @@ export function AppHeader() {
           return;
         case "member_joined":
           if (relatedId) {
-            const { data: clubCheckMJ } = await supabase
-              .from("clubs")
+            const { data: miniLeagueCheckMJ } = await supabase
+              .from("mini_leagues")
               .select("id")
               .eq("id", relatedId)
               .maybeSingle();
-            if (clubCheckMJ) {
-              navigate(`/clubs/${relatedId}`);
+            if (miniLeagueCheckMJ) {
+              navigate(`/mini-leagues/${relatedId}`);
             } else {
-              navigate(`/teams/${relatedId}`);
+              const { data: clubCheckMJ } = await supabase
+                .from("clubs")
+                .select("id")
+                .eq("id", relatedId)
+                .maybeSingle();
+              if (clubCheckMJ) {
+                navigate(`/clubs/${relatedId}`);
+              } else {
+                navigate(`/teams/${relatedId}`);
+              }
             }
           } else {
             navigate("/notifications");

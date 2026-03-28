@@ -605,13 +605,16 @@ export default function NotificationsPage() {
         // related_id is the pending_invite id — look up status and team
         const { data: inviteData } = await supabase
           .from("pending_invites")
-          .select("invite_token, team_id, club_id, status")
+          .select("invite_token, team_id, club_id, status, metadata")
           .eq("id", relatedId)
           .maybeSingle();
         if (inviteData) {
+          const inviteMeta = inviteData.metadata as any;
           if (inviteData.status === 'accepted' || inviteData.status === 'auto_accepted') {
-            // Already accepted — go straight to team/club page
-            if (inviteData.team_id) {
+            // Already accepted — navigate to the right page
+            if (inviteMeta?.mini_league_id) {
+              navigate(`/mini-leagues/${inviteMeta.mini_league_id}`);
+            } else if (inviteData.team_id) {
               navigate(`/teams/${inviteData.team_id}`);
             } else if (inviteData.club_id) {
               navigate(`/clubs/${inviteData.club_id}`);
@@ -620,7 +623,7 @@ export default function NotificationsPage() {
             if (inviteData.team_id) {
               navigate(`/join/${inviteData.invite_token}`);
             } else {
-              navigate(`/join-club/${inviteData.invite_token}`);
+              navigate(`/join/p/${inviteData.invite_token}`);
             }
           }
         }
@@ -636,17 +639,26 @@ export default function NotificationsPage() {
         break;
       }
       case "member_joined": {
-        // related_id could be team_id or club_id — check which one
+        // related_id could be mini_league_id, team_id, or club_id — check which one
         if (relatedId) {
-          const { data: clubCheckMJ } = await supabase
-            .from("clubs")
+          const { data: miniLeagueCheck } = await supabase
+            .from("mini_leagues")
             .select("id")
             .eq("id", relatedId)
             .maybeSingle();
-          if (clubCheckMJ) {
-            navigate(`/clubs/${relatedId}`);
+          if (miniLeagueCheck) {
+            navigate(`/mini-leagues/${relatedId}`);
           } else {
-            navigate(`/teams/${relatedId}`);
+            const { data: clubCheckMJ } = await supabase
+              .from("clubs")
+              .select("id")
+              .eq("id", relatedId)
+              .maybeSingle();
+            if (clubCheckMJ) {
+              navigate(`/clubs/${relatedId}`);
+            } else {
+              navigate(`/teams/${relatedId}`);
+            }
           }
         }
         break;

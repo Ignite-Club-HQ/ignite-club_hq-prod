@@ -124,18 +124,18 @@ function TeamCard({ item, nextEvent, photos }: {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem onClick={() => navigate("/events")}>
+                <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/mini-leagues/${item.id}` : "/events")}>
                   <Calendar className="h-4 w-4 mr-2" />
                   View schedule
                 </DropdownMenuItem>
                 {item.canManage && (
-                  <DropdownMenuItem onClick={() => navigate("/events/new")}>
+                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new")}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add event
+                    {item.type === "league" ? "Add match" : "Add event"}
                   </DropdownMenuItem>
                 )}
                 {photos.length > 0 && (
-                  <DropdownMenuItem onClick={() => navigate(`/media?team=${item.id}`)}>
+                  <DropdownMenuItem onClick={() => navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`)}>
                     <Image className="h-4 w-4 mr-2" />
                     View photos
                   </DropdownMenuItem>
