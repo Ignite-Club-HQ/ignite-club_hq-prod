@@ -381,7 +381,7 @@ async function checkGames(supabase: any): Promise<number> {
 
   let notificationsSent = 0;
 
-  for (const game of activeGames) {
+  for (const game of uniqueGames) {
     const timerState = game.timer_state as TimerState;
     const pitchState = game.pitch_state as PitchState;
 
