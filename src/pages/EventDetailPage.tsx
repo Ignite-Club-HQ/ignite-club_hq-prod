@@ -621,27 +621,36 @@ export default function EventDetailPage() {
     enabled: !!event?.mini_league_id && !!id,
   });
 
-  // Fetch children assigned to this event's team (for parent RSVP)
+  // Fetch children for parent RSVP - team-assigned children for team events, all children for club-wide events
   const { data: childrenOnTeam } = useQuery({
-    queryKey: ["children-on-team", event?.team_id, user?.id],
+    queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, user?.id],
     queryFn: async () => {
-      if (!event?.team_id) return [];
-      
-      // Get user's children that are assigned to this team
-      const { data, error } = await supabase
-        .from("children")
-        .select(`
-          id,
-          name,
-          child_team_assignments!inner (team_id)
-        `)
-        .eq("parent_id", user!.id)
-        .eq("child_team_assignments.team_id", event.team_id);
+      if (event?.team_id) {
+        // Team event: get children assigned to this team
+        const { data, error } = await supabase
+          .from("children")
+          .select(`
+            id,
+            name,
+            child_team_assignments!inner (team_id)
+          `)
+          .eq("parent_id", user!.id)
+          .eq("child_team_assignments.team_id", event.team_id);
 
-      if (error) throw error;
-      return data || [];
+        if (error) throw error;
+        return data || [];
+      } else {
+        // Club-wide event (social, etc.): get all user's children
+        const { data, error } = await supabase
+          .from("children")
+          .select("id, name")
+          .eq("parent_id", user!.id);
+
+        if (error) throw error;
+        return data || [];
+      }
     },
-    enabled: !!user && !!event?.team_id,
+    enabled: !!user && !!(event?.team_id || event?.club_id),
   });
 
   // Fetch ALL children assigned to this event's team (for not responded list)
