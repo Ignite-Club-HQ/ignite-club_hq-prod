@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, RotateCw, Copy, Share2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Capacitor } from "@capacitor/core";
+import { APP_STORE_URL, PLAY_STORE_URL } from "@/components/AppStoreDownloadGuide";
 import { Share } from "@capacitor/share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -207,38 +208,38 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
 
     // Admin/Coach invite to a team
     if (isAdminRole && teamName) {
-      return `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}. Tap here to get started: ${inviteLink}${emailNote}`;
+      return `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}. Tap here to get started: ${inviteLink}${appDownload}${emailNote}`;
     }
 
     // Admin invite to a club (no team)
     if (isAdminRole && clubName) {
-      return `You've been invited to help run ${clubName} as ${roleName}. Tap here to get started: ${inviteLink}${emailNote}`;
+      return `You've been invited to help run ${clubName} as ${roleName}. Tap here to get started: ${inviteLink}${appDownload}${emailNote}`;
     }
 
     // Parent invite with children
     if (invite.role === "parent" && childrenNames.length === 1) {
-      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! Tap to see their team: ${inviteLink}${emailNote}`;
+      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}`;
     }
     if (invite.role === "parent" && childrenNames.length > 1) {
-      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! Tap to see their teams: ${inviteLink}${emailNote}`;
+      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}`;
     }
 
     // Parent invite without children names
     if (invite.role === "parent" && teamName) {
-      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap to see their team: ${inviteLink}${emailNote}`;
+      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}`;
     }
 
     // Generic team invite
     if (teamName) {
-      return `You've been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here to join: ${inviteLink}${emailNote}`;
+      return `You've been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here to join: ${inviteLink}${appDownload}${emailNote}`;
     }
 
     // Generic club invite
     if (clubName) {
-      return `You've been invited to join ${clubName}! Tap here to get started: ${inviteLink}${emailNote}`;
+      return `You've been invited to join ${clubName}! Tap here to get started: ${inviteLink}${appDownload}${emailNote}`;
     }
 
-    return `You've been invited to join the team! Tap here to get started: ${inviteLink}${emailNote}`;
+    return `You've been invited to join the team! Tap here to get started: ${inviteLink}${appDownload}${emailNote}`;
   };
 
   const handleShareInvite = async () => {
