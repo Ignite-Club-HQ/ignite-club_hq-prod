@@ -117,6 +117,32 @@ export default function EventGroupPitchPage() {
     enabled: !!group?.event?.mini_league_id,
   });
 
+  // Check Pro Football subscription for the league's club
+  const { data: hasProFootball, isLoading: proLoading } = useQuery({
+    queryKey: ["club-pro-football", leagueSettings?.club_id],
+    queryFn: async () => {
+      const { data: appAdminRole } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("role", "app_admin")
+        .maybeSingle();
+      if (appAdminRole) return true;
+
+      const { data } = await supabase
+        .from("club_subscriptions")
+        .select("is_pro_football, admin_pro_football_override, expires_at")
+        .eq("club_id", leagueSettings!.club_id)
+        .maybeSingle();
+      if (!data) return false;
+      const expired = data.expires_at && new Date(data.expires_at) < new Date();
+      return !expired && (data.is_pro_football || data.admin_pro_football_override);
+    },
+    enabled: !!leagueSettings?.club_id && !!user,
+    staleTime: 1000 * 60 * 5,
+    placeholderData: (prev) => prev,
+  });
+
   // Check if user can edit pitch board (club_admin, league_admin, coach, app_admin, or Subs Manager duty)
   const { data: editPermission } = useQuery({
     queryKey: ["mini-league-edit-permission", user?.id, leagueSettings?.club_id, groupId],
@@ -257,10 +283,24 @@ export default function EventGroupPitchPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  if (groupLoading) {
+  if (groupLoading || proLoading) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (hasProFootball === false) {
+    return (
+      <div className="container max-w-4xl py-6 text-center space-y-4">
+        <h2 className="text-xl font-semibold">Pro Football Required</h2>
+        <p className="text-muted-foreground">
+          Mini League match days require an active Pro Football subscription.
+        </p>
+        <Button variant="outline" onClick={() => navigate(-1)}>
+          Go Back
+        </Button>
       </div>
     );
   }
