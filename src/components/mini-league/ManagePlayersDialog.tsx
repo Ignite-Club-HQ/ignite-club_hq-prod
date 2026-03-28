@@ -94,7 +94,7 @@ function DroppableGroup({ rating, children, isOver }: { rating: number; children
   return (
     <div
       ref={setNodeRef}
-      className={`space-y-1.5 rounded-lg p-2 -m-2 min-h-[48px] transition-colors ${active ? "bg-primary/10 ring-2 ring-primary/30" : ""}`}
+      className={`space-y-2 rounded-lg p-2 -mx-2 min-h-[48px] transition-colors ${active ? "bg-primary/10 ring-2 ring-primary/30" : ""}`}
     >
       {children}
     </div>
@@ -119,15 +119,15 @@ function DraggablePlayerCard({ player, children, canDrag }: { player: MiniLeague
     <div
       ref={setNodeRef}
       style={style}
-      className="relative"
+      className="relative flex items-center"
       {...(canDrag ? { ...listeners, ...attributes } : {})}
     >
       {canDrag && (
-        <div className="absolute left-0 top-0 bottom-0 w-4 flex items-center justify-center pointer-events-none">
-          <GripVertical className="h-3 w-3 text-muted-foreground/35" />
+        <div className="w-5 shrink-0 flex items-center justify-center pointer-events-none opacity-30">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
       )}
-      <div className={canDrag ? "pl-2.5" : ""}>
+      <div className="flex-1 min-w-0">
         {children}
       </div>
     </div>
@@ -435,99 +435,102 @@ export function ManagePlayersDialog({
         className={`overflow-hidden ${selectionMode && selectedPlayerIds.has(player.id) ? "ring-2 ring-primary" : ""} ${isDragOverlay ? "shadow-lg ring-2 ring-primary" : ""}`}
         onClick={selectionMode ? () => togglePlayerSelection(player.id) : undefined}
       >
-        <CardContent className="py-2 px-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              {selectionMode && (
-                <Checkbox
-                  checked={selectedPlayerIds.has(player.id)}
-                  onCheckedChange={() => togglePlayerSelection(player.id)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              )}
-              <div className="flex items-center gap-0 shrink-0">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    disabled={!canManage || selectionMode}
-                    className={`p-1 ${canManage && !selectionMode ? "cursor-pointer hover:scale-125 transition-transform" : ""}`}
-                    onClick={
-                      canManage && !selectionMode
-                        ? (e) => {
-                            e.stopPropagation();
-                            const newRating = i + 1;
-                            if (newRating !== player.ability_rating) {
-                              updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
-                            }
+        <CardContent className="py-2.5 px-3">
+          <div className="flex items-center gap-2">
+            {/* Left: checkbox in selection mode */}
+            {selectionMode && (
+              <Checkbox
+                checked={selectedPlayerIds.has(player.id)}
+                onCheckedChange={() => togglePlayerSelection(player.id)}
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0"
+              />
+            )}
+            {/* Stars */}
+            <div className="flex items-center shrink-0">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  disabled={!canManage || selectionMode}
+                  className={`p-0.5 ${canManage && !selectionMode ? "cursor-pointer hover:scale-125 transition-transform" : ""}`}
+                  onClick={
+                    canManage && !selectionMode
+                      ? (e) => {
+                          e.stopPropagation();
+                          const newRating = i + 1;
+                          if (newRating !== player.ability_rating) {
+                            updateAbilityMutation.mutate({ playerId: player.id, childId: player.child_id, newRating });
                           }
-                        : undefined
-                    }
-                  >
-                    <Star
-                      className={`h-4 w-4 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/30"}`}
-                    />
-                  </button>
-                ))}
-              </div>
-              <div className="min-w-0 flex-1">
-                {isEditing ? (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      ref={editInputRef}
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveEditingName(player);
-                        if (e.key === "Escape") setEditingPlayerId(null);
-                      }}
-                      className="h-7 text-sm py-0 px-1"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <button
-                      type="button"
-                      className="p-1 text-primary hover:text-primary/80"
-                      onClick={(e) => { e.stopPropagation(); saveEditingName(player); }}
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      className="p-1 text-muted-foreground hover:text-foreground"
-                      onClick={(e) => { e.stopPropagation(); setEditingPlayerId(null); }}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm font-medium truncate">{player.name}</span>
-                    {canManage && !selectionMode && (
-                      <button
-                        type="button"
-                        className="p-1 text-muted-foreground/50 hover:text-muted-foreground shrink-0"
-                        onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                )}
-                {parentName && (
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                    <span className="text-xs text-muted-foreground truncate">{parentName}</span>
-                  </div>
-                )}
-              </div>
+                        }
+                      : undefined
+                  }
+                >
+                  <Star
+                    className={`h-3.5 w-3.5 ${i < player.ability_rating ? "fill-primary text-primary" : "text-muted-foreground/25"}`}
+                  />
+                </button>
+              ))}
             </div>
+            {/* Name + parent */}
+            <div className="min-w-0 flex-1">
+              {isEditing ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    ref={editInputRef}
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveEditingName(player);
+                      if (e.key === "Escape") setEditingPlayerId(null);
+                    }}
+                    className="h-7 text-sm py-0 px-1.5"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    type="button"
+                    className="p-1 text-primary hover:text-primary/80"
+                    onClick={(e) => { e.stopPropagation(); saveEditingName(player); }}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="p-1 text-muted-foreground hover:text-foreground"
+                    onClick={(e) => { e.stopPropagation(); setEditingPlayerId(null); }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-medium truncate">{player.name}</span>
+                  {canManage && !selectionMode && (
+                    <button
+                      type="button"
+                      className="p-0.5 text-muted-foreground/40 hover:text-muted-foreground shrink-0"
+                      onClick={(e) => { e.stopPropagation(); startEditingName(player); }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+              {parentName && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <UserRound className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                  <span className="text-xs text-muted-foreground truncate">{parentName}</span>
+                </div>
+              )}
+            </div>
+            {/* Right: delete action */}
             {!selectionMode && canManage && !isEditing && !isDragOverlay && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 shrink-0"
+                    className="h-8 w-8 shrink-0"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -554,7 +557,7 @@ export function ManagePlayersDialog({
             )}
           </div>
           {player.notes && !isEditing && (
-            <p className={`text-xs text-muted-foreground mt-1 truncate ${selectionMode ? "pl-[66px]" : "pl-[42px]"}`}>
+            <p className="text-xs text-muted-foreground mt-1 truncate pl-[calc(5*1.25rem+0.5rem)]">
               {player.notes}
             </p>
           )}
@@ -574,62 +577,57 @@ export function ManagePlayersDialog({
       onOpenChange(o);
     }}>
       <ResponsiveDialogContent className="sm:max-w-lg" fullScreen>
-        <ResponsiveDialogHeader>
+        <ResponsiveDialogHeader className="pb-0">
           <ResponsiveDialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
             Manage Players
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-3 py-2">
-          <Input
-            placeholder="Search players..."
-            value={playerSearch}
-            onChange={(e) => setPlayerSearch(e.target.value)}
-            className="h-9 text-sm"
-          />
-
-          <div className="flex justify-between items-center gap-2">
-            <h2 className="text-base font-semibold">
-              Player Pool{playerSearch.trim() && ` (${filteredPlayers.length}/${players?.length || 0})`}
-            </h2>
-            <div className="flex items-center gap-2">
-              {canManage && (
-                <>
-                  {selectionMode ? (
-                    <>
-                      <Button variant="ghost" size="sm" onClick={exitSelectionMode}>Cancel</Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={selectedPlayerIds.size === 0}
-                        onClick={() => setBulkDeleteOpen(true)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1.5" />
-                        Delete ({selectedPlayerIds.size})
+        <div className="flex-1 overflow-y-auto space-y-3 px-4 py-2">
+          {/* Toolbar row: search + actions on one line */}
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Search players..."
+              value={playerSearch}
+              onChange={(e) => setPlayerSearch(e.target.value)}
+              className="h-9 text-sm flex-1"
+            />
+            {canManage && (
+              <>
+                {selectionMode ? (
+                  <>
+                    <Button variant="ghost" size="sm" className="h-9 shrink-0" onClick={exitSelectionMode}>Cancel</Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-9 shrink-0"
+                      disabled={selectedPlayerIds.size === 0}
+                      onClick={() => setBulkDeleteOpen(true)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      ({selectedPlayerIds.size})
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {(players?.length || 0) > 0 && (
+                      <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => setSelectionMode(true)}>
+                        <CheckSquare className="h-4 w-4" />
                       </Button>
-                    </>
-                  ) : (
-                    <>
-                      {(players?.length || 0) > 0 && (
-                        <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>
-                          <CheckSquare className="h-4 w-4 mr-1.5" />
-                          Select
-                        </Button>
-                      )}
-                      <Button size="sm" onClick={handleAddPlayersClick}>
-                        <Users className="h-4 w-4 mr-1.5" />
-                        Add Players
-                      </Button>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
+                    )}
+                    <Button size="sm" className="h-9 shrink-0" onClick={handleAddPlayersClick}>
+                      <Users className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
           </div>
 
           {selectionMode && players && players.length > 0 && (
-            <div className="flex items-center gap-2 py-2 px-1 border-b">
+            <div className="flex items-center gap-2 py-2 border-b border-border">
               <Checkbox checked={selectedPlayerIds.size === players.length} onCheckedChange={toggleSelectAll} />
               <span className="text-sm text-muted-foreground">Select all ({players.length} players)</span>
             </div>
@@ -638,7 +636,7 @@ export function ManagePlayersDialog({
           {canDrag && players && players.length > 0 && (
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <GripVertical className="h-3.5 w-3.5" />
-              Hold and drag players to move between groups
+              Hold and drag players between groups
             </p>
           )}
 
@@ -665,16 +663,15 @@ export function ManagePlayersDialog({
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
-              <div className="space-y-4" data-vaul-no-drag>
+              <div className="space-y-5" data-vaul-no-drag>
                 {[5, 4, 3, 2, 1].map((rating) => {
                   const abilityPlayers = playersByAbility[rating];
-                  // Always show group as drop target when dragging, even if empty
                   const showGroup = abilityPlayers?.length || activePlayer;
                   if (!showGroup) return null;
 
                   return (
-                    <div key={rating} className="space-y-2">
-                      <div className="flex items-center gap-2">
+                    <div key={rating}>
+                      <div className="flex items-baseline gap-2 mb-2">
                         <Badge className={`text-xs ${getAbilityColor(rating)}`}>
                           {getAbilityLabel(rating)}
                         </Badge>
@@ -734,8 +731,8 @@ export function ManagePlayersDialog({
           </AlertDialog>
         </div>
 
-        <ResponsiveDialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+        <ResponsiveDialogFooter className="px-4 pb-safe">
+          <Button onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
             Done
           </Button>
         </ResponsiveDialogFooter>
