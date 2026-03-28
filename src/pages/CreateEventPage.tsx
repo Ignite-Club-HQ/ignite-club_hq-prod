@@ -320,6 +320,7 @@ export default function CreateEventPage() {
     }
   }, [isCommitteeOnlyForClub, type]);
 
+  const { data: members } = useQuery({
     queryKey: ["event-members-for-duty", clubId, teamId],
     queryFn: async () => {
       // Get members from team if selected, otherwise from club
