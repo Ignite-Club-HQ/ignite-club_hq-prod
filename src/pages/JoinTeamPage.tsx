@@ -1025,6 +1025,7 @@ export default function JoinTeamPage() {
             <Button onClick={() => navigate(inviteDestination)} className="w-full" size="lg">
               View {inviteEntityLabel}
             </Button>
+          </CardContent>
         </Card>
       </div>
     );
