@@ -806,7 +806,12 @@ export default function CreateEventPage() {
         <Button variant="ghost" size="icon" onClick={() => isFromMiniLeague ? navigate(-1) : navigate("/events")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-bold">{isFromMiniLeague ? "New Match Day" : "New Event"}</h1>
+        <div>
+          <h1 className="text-xl font-bold">{isFromMiniLeague ? "New Match Day" : "New Event"}</h1>
+          {isFromMiniLeague && miniLeagueName && (
+            <p className="text-sm text-muted-foreground">{miniLeagueName}</p>
+          )}
+        </div>
       </div>
 
       {/* Event Type Selection - hidden when coming from mini league */}
