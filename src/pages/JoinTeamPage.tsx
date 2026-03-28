@@ -783,7 +783,6 @@ export default function JoinTeamPage() {
         setJoined(true);
         return;
       }
-      }
       
       // Set the role before joining
       if (selectedRoles.length === 0) {
