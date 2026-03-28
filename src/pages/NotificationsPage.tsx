@@ -636,17 +636,26 @@ export default function NotificationsPage() {
         break;
       }
       case "member_joined": {
-        // related_id could be team_id or club_id — check which one
+        // related_id could be mini_league_id, team_id, or club_id — check which one
         if (relatedId) {
-          const { data: clubCheckMJ } = await supabase
-            .from("clubs")
+          const { data: miniLeagueCheck } = await supabase
+            .from("mini_leagues")
             .select("id")
             .eq("id", relatedId)
             .maybeSingle();
-          if (clubCheckMJ) {
-            navigate(`/clubs/${relatedId}`);
+          if (miniLeagueCheck) {
+            navigate(`/mini-leagues/${relatedId}`);
           } else {
-            navigate(`/teams/${relatedId}`);
+            const { data: clubCheckMJ } = await supabase
+              .from("clubs")
+              .select("id")
+              .eq("id", relatedId)
+              .maybeSingle();
+            if (clubCheckMJ) {
+              navigate(`/clubs/${relatedId}`);
+            } else {
+              navigate(`/teams/${relatedId}`);
+            }
           }
         }
         break;
