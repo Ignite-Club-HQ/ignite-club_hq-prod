@@ -605,14 +605,14 @@ export function AppHeader() {
                 .eq("id", relatedId)
                 .maybeSingle();
               if (inviteData?.team_id) {
-                navigate(`/messages/${inviteData.team_id}`);
+                navigate(`/teams/${inviteData.team_id}`);
               } else if (inviteData?.club_id) {
                 navigate(`/clubs/${inviteData.club_id}`);
               } else {
                 navigate("/notifications");
               }
             } else {
-              navigate(`/messages/${relatedId}`);
+              navigate(`/teams/${relatedId}`);
             }
           } else {
             navigate("/notifications");
