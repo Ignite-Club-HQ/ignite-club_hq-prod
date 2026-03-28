@@ -2135,7 +2135,7 @@ export default function EventDetailPage() {
 
       {/* RSVP Section */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Your RSVP</h2>
+        <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Attendance" : "Your RSVP"}</h2>
         <div className="grid grid-cols-3 gap-2">
           {rsvpOptions.map(({ value, label, icon }) => (
             <Button
