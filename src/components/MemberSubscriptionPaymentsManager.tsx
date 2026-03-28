@@ -299,10 +299,10 @@ export default function MemberSubscriptionPaymentsManager({
     }
   };
 
-  // Filter to only show players and parents
+  // Filter to only show players
   const payableMembers = Object.entries(members).filter(([_, member]) => {
     const roles = member.roles?.map(r => r.role) || [];
-    return roles.some(r => ["player", "parent"].includes(r));
+    return roles.some(r => r === "player");
   });
 
   const paidCount = payableMembers.filter(([userId]) => paymentMap[userId]).length;
