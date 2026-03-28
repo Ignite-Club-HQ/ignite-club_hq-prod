@@ -102,7 +102,49 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
     },
   });
 
-  const canSendReminders = hasPro === true;
+  // Fetch user's own RSVP
+  const { data: myRsvp } = useQuery({
+    queryKey: ["card-rsvp", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("id, status")
+        .eq("event_id", event.id)
+        .eq("user_id", user!.id)
+        .is("child_id", null)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !event.is_cancelled,
+  });
+
+  // Fetch child RSVPs
+  const { data: childRsvps } = useQuery({
+    queryKey: ["card-child-rsvps", event.id, user?.id],
+    queryFn: async () => {
+      const [ownChildren, guardianLinks] = await Promise.all([
+        supabase.from("children").select("id").eq("parent_id", user!.id),
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
+      ]);
+      const childIds = [
+        ...(ownChildren.data || []).map(c => c.id),
+        ...(guardianLinks.data || []).map(g => g.child_id),
+      ];
+      if (childIds.length === 0) return [];
+      const uniqueChildIds = [...new Set(childIds)];
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("id, status, child_id, children:child_id(name)")
+        .eq("event_id", event.id)
+        .in("child_id", uniqueChildIds);
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; status: string; child_id: string; children: { name: string } | null }>;
+    },
+    enabled: !!user && !event.is_cancelled,
+  });
+
+  const currentRsvpStatus = myRsvp?.status as RsvpStatus | null;
 
   const deleteEventMutation = useMutation({
     mutationFn: async (deleteType: "single" | "series") => {
