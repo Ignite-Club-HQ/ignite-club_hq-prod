@@ -587,10 +587,32 @@ export function AppHeader() {
           }
           return;
         case "join_request":
+          navigate("/notifications");
+          return;
         case "join_request_approved":
         case "join_request_denied":
         case "join_request_processed":
-          navigate("/notifications");
+          if (relatedId) {
+            const { data: clubCheckHeader } = await supabase
+              .from("clubs")
+              .select("id")
+              .eq("id", relatedId)
+              .maybeSingle();
+            if (clubCheckHeader) {
+              navigate(`/clubs/${relatedId}`);
+            } else {
+              navigate(`/teams/${relatedId}`);
+            }
+          } else {
+            navigate("/notifications");
+          }
+          return;
+        case "club_join":
+          if (relatedId) {
+            navigate(`/clubs/${relatedId}`);
+          } else {
+            navigate("/notifications");
+          }
           return;
         case "role_assigned":
         case "invite_accepted":

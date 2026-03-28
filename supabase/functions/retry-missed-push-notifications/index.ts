@@ -138,7 +138,7 @@ serve(async (req: Request): Promise<Response> => {
         case 'team_join':
           return relatedId ? `/teams/${relatedId}` : '/notifications';
         case 'club_join':
-          return '/notifications';
+          return relatedId ? `/clubs/${relatedId}` : '/notifications';
         default:
           return '/notifications';
       }
