@@ -1212,8 +1212,75 @@ export default function TeamDetailPage() {
                         teamId={id}
                         isAdmin={isAdmin || isClubAdmin}
                       />
+                     )}
+                    {/* Children/Players Section - shown first */}
+                    {(teamChildren.length > 0 || pendingInvites.some(inv => {
+                      const meta = inv.metadata as { children?: { name: string }[] } | null;
+                      return meta?.children && meta.children.length > 0;
+                    })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
+                      <div className="mb-4 pb-4 border-b">
+                        <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
+                        <div className="space-y-2">
+                          {teamChildren.map((assignment: any) => {
+                            const child = assignment.children;
+                            if (!child) return null;
+                            const parent = child.profiles;
+                            return (
+                              <Card key={assignment.id}>
+                                <CardContent className="p-3 flex items-center gap-3">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarFallback className="bg-pink-500/20 text-pink-500 text-sm">
+                                      {child.name?.charAt(0)?.toUpperCase() || "?"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{child.name}</p>
+                                    {child.allParentNames && child.allParentNames.length > 0 && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {child.allParentNames.length === 1 ? "Parent" : "Parents"}: {child.allParentNames.join(" & ")}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <Badge variant="outline" className="text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30">
+                                    Child
+                                  </Badge>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                          {/* Pending Children from unaccepted invites */}
+                          {pendingInvites.flatMap(inv => {
+                            const meta = inv.metadata as { children?: { name: string }[] } | null;
+                            if (!meta?.children) return [];
+                            return meta.children.map((child, idx) => ({
+                              key: `pending-child-${inv.id}-${idx}`,
+                              name: child.name,
+                              parentLabel: inv.invited_label || inv.invited_email?.split("@")[0] || "Pending Parent",
+                            }));
+                          }).map(pendingChild => (
+                            <Card key={pendingChild.key} className="opacity-70">
+                              <CardContent className="p-3 flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm">
+                                    {pendingChild.name?.charAt(0)?.toUpperCase() || "?"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">{pendingChild.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Parent: {pendingChild.parentLabel}
+                                  </p>
+                                </div>
+                                <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
+                                  Pending
+                                </Badge>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                    {Object.entries(members).filter(([_, member]) => 
+                     {Object.entries(members).filter(([_, member]) => 
                       memberRoleFilter === "all" || memberRoleFilter === "child" ? memberRoleFilter === "all" : member.roles?.some(r => r.role === memberRoleFilter)
                     ).sort(([, a], [, b]) => {
                       const rolePriority: Record<string, number> = { player: 0, parent: 1, coach: 2, team_admin: 3, club_admin: 4, app_admin: 5, basic_user: 6 };
@@ -1361,74 +1428,6 @@ export default function TeamDetailPage() {
                         </CardContent>
                       </Card>
                     ))}
-                    
-                    {/* Children Section */}
-                    {(teamChildren.length > 0 || pendingInvites.some(inv => {
-                      const meta = inv.metadata as { children?: { name: string }[] } | null;
-                      return meta?.children && meta.children.length > 0;
-                    })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
-                      <div className="mt-4 pt-4 border-t">
-                        <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
-                        <div className="space-y-2">
-                          {teamChildren.map((assignment: any) => {
-                            const child = assignment.children;
-                            if (!child) return null;
-                            const parent = child.profiles;
-                            return (
-                              <Card key={assignment.id}>
-                                <CardContent className="p-3 flex items-center gap-3">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="bg-pink-500/20 text-pink-500 text-sm">
-                                      {child.name?.charAt(0)?.toUpperCase() || "?"}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1">
-                                    <p className="font-medium text-sm">{child.name}</p>
-                                    {child.allParentNames && child.allParentNames.length > 0 && (
-                                      <p className="text-xs text-muted-foreground">
-                                        {child.allParentNames.length === 1 ? "Parent" : "Parents"}: {child.allParentNames.join(" & ")}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <Badge variant="outline" className="text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30">
-                                    Child
-                                  </Badge>
-                                </CardContent>
-                              </Card>
-                            );
-                          })}
-                          {/* Pending Children from unaccepted invites */}
-                          {pendingInvites.flatMap(inv => {
-                            const meta = inv.metadata as { children?: { name: string }[] } | null;
-                            if (!meta?.children) return [];
-                            return meta.children.map((child, idx) => ({
-                              key: `pending-child-${inv.id}-${idx}`,
-                              name: child.name,
-                              parentLabel: inv.invited_label || inv.invited_email?.split("@")[0] || "Pending Parent",
-                            }));
-                          }).map(pendingChild => (
-                            <Card key={pendingChild.key} className="opacity-70">
-                              <CardContent className="p-3 flex items-center gap-3">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm">
-                                    {pendingChild.name?.charAt(0)?.toUpperCase() || "?"}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1">
-                                  <p className="font-medium text-sm">{pendingChild.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Parent: {pendingChild.parentLabel}
-                                  </p>
-                                </div>
-                                <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
-                                  Pending
-                                </Badge>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
