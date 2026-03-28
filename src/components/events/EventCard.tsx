@@ -575,7 +575,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
+          </DropdownMenu>
+        </div>
       )}
       {/* Dialogs */}
       <div onClick={(e) => e.stopPropagation()}>
