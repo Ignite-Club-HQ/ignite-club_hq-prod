@@ -53,11 +53,6 @@ const typeGlowColors: Record<string, string> = {
   social: "shadow-warning/10",
 };
 
-const typeLeftBorder: Record<string, string> = {
-  game: "border-l-destructive",
-  training: "border-l-primary",
-  social: "border-l-warning",
-};
 
 function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean }) {
   const { user } = useAuth();
