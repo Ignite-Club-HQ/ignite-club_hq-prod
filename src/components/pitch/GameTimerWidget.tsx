@@ -764,17 +764,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
                   <LayoutGrid className="h-5 w-5" />
                 </Button>
               )}
-              {!readOnly && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 text-muted-foreground hover:text-foreground"
-                  onClick={handleDismiss}
-                  title="Dismiss"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
+            
             </div>
           </div>
 
