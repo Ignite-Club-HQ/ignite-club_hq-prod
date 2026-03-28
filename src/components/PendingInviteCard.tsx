@@ -200,7 +200,9 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(invite.role);
     const roleName = roleLabels[invite.role] || invite.role.replace("_", " ");
     const email = invite.invited_email;
-    const emailNote = email ? `\n\nPlease sign up using ${email} so your account links automatically.` : "";
+    const emailNote = email
+      ? `\n\nTap the link to create your free account — sign up with ${email} so everything links automatically.`
+      : `\n\nTap the link to create your free account and get started.`;
 
     // Admin/Coach invite to a team
     if (isAdminRole && teamName) {
