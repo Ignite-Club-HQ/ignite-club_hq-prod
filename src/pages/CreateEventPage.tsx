@@ -313,7 +313,13 @@ export default function CreateEventPage() {
     return true;
   }, [clubId, user, isClubAdminForSelectedClub, teams]);
 
-  const { data: members } = useQuery({
+  // Auto-set social type for committee-only users
+  useEffect(() => {
+    if (isCommitteeOnlyForClub && type !== "social") {
+      setType("social");
+    }
+  }, [isCommitteeOnlyForClub, type]);
+
     queryKey: ["event-members-for-duty", clubId, teamId],
     queryFn: async () => {
       // Get members from team if selected, otherwise from club
