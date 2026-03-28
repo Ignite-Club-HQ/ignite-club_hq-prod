@@ -185,24 +185,37 @@ export default function MemberSubscriptionPaymentsManager({
     clubPaymentSettings?.member_subscription_amount && 
     clubPaymentSettings.member_subscription_amount > 0;
 
-  // Create a map of user_id -> payment record for quick lookup
-  const paymentMap = payments.reduce((acc, payment) => {
-    acc[payment.user_id] = payment;
-    return acc;
-  }, {} as Record<string, typeof payments[0]>);
+  // Create a map of entry_id -> payment record for quick lookup
+  // For children: key is `child_${child_id}`, for adults: key is user_id
+  const paymentMap = useMemo(() => {
+    const map: Record<string, typeof payments[0]> = {};
+    payments.forEach(payment => {
+      const p = payment as any;
+      if (p.child_id) {
+        map[`child_${p.child_id}`] = payment;
+      } else {
+        map[payment.user_id] = payment;
+      }
+    });
+    return map;
+  }, [payments]);
 
   const markPaidMutation = useMutation({
     mutationFn: async () => {
       if (!selectedMember) return;
-      const { error } = await supabase.from("member_subscription_payments").insert({
-        user_id: selectedMember.userId,
+      const insertData: any = {
+        user_id: selectedMember.isChild ? selectedMember.parentUserId : selectedMember.userId,
         club_id: clubId,
         payment_period: paymentPeriod,
         payment_type: activeTab,
         amount: amount ? parseFloat(amount) : null,
         notes: notes.trim() || null,
         marked_by: user!.id,
-      });
+      };
+      if (selectedMember.isChild && selectedMember.childId) {
+        insertData.child_id = selectedMember.childId;
+      }
+      const { error } = await supabase.from("member_subscription_payments").insert(insertData);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -243,12 +256,15 @@ export default function MemberSubscriptionPaymentsManager({
   // Bulk send fee payment reminder notifications
   const sendReminderMutation = useMutation({
     mutationFn: async () => {
-      // Get unpaid members
-      const unpaidMemberIds = payableMembers
-        .filter(([userId]) => !paymentMap[userId])
-        .map(([userId]) => userId);
+      // Get unpaid entries - for children, notify the parent
+      const unpaidParentIds = [...new Set(
+        payableEntries
+          .filter(entry => !paymentMap[entry.id])
+          .map(entry => entry.isChild ? entry.parentUserId! : entry.userId!)
+          .filter(Boolean)
+      )];
 
-      if (unpaidMemberIds.length === 0) {
+      if (unpaidParentIds.length === 0) {
         throw new Error("All members have already paid");
       }
 
@@ -262,8 +278,8 @@ export default function MemberSubscriptionPaymentsManager({
       const clubName = clubData?.name || "Your club";
       const feeLabel = activeTab === "subscription" ? "subscription" : "uniform";
 
-      // Insert notifications for all unpaid members
-      const notifications = unpaidMemberIds.map(userId => ({
+      // Insert notifications for all unpaid members/parents
+      const notifications = unpaidParentIds.map(userId => ({
         user_id: userId,
         type: "fee_payment_request",
         message: `${clubName} is requesting payment of ${feeLabel} fees for ${paymentPeriod}`,
@@ -273,7 +289,7 @@ export default function MemberSubscriptionPaymentsManager({
       const { error } = await supabase.from("notifications").insert(notifications);
       if (error) throw error;
 
-      return unpaidMemberIds.length;
+      return unpaidParentIds.length;
     },
     onSuccess: (count) => {
       toast({
@@ -290,14 +306,21 @@ export default function MemberSubscriptionPaymentsManager({
     },
   });
 
-  const handleMemberClick = (userId: string, displayName: string) => {
+  const handleEntryClick = (entry: PayableEntry) => {
     if (!isAdmin) return;
     
-    const existingPayment = paymentMap[userId];
+    const existingPayment = paymentMap[entry.id];
     if (existingPayment) {
       setDeletePaymentId(existingPayment.id);
     } else {
-      setSelectedMember({ userId, displayName });
+      setSelectedMember({
+        id: entry.id,
+        displayName: entry.displayName,
+        isChild: entry.isChild,
+        childId: entry.childId,
+        parentUserId: entry.parentUserId,
+        userId: entry.userId,
+      });
       setPaymentDialogOpen(true);
     }
   };
