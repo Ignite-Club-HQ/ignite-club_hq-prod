@@ -241,7 +241,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
       onClick={() => navigate(`/events/${event.id}`)}
     >
       <CardContent className="p-4 space-y-3">
-        {/* Row 1: Title + Type badge */}
+        {/* Row 1: Title + Type badge + Admin menu */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1 space-y-1">
             <h3 className={`font-semibold text-[15px] leading-snug ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
@@ -252,7 +252,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
               <p className="text-xs text-muted-foreground">{subtitle}</p>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
               <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
                 <Eye className="h-3 w-3" />
@@ -265,6 +265,42 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
               <Badge variant="outline" className={`text-[10px] h-5 px-2 font-medium border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
                 {typeLabel}
               </Badge>
+            )}
+            {isAdmin && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
+                      <MoreVertical className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    {!event.is_cancelled && (
+                      <>
+                        <DropdownMenuItem onClick={() => navigate(`/events/${event.id}/edit`)}>
+                          <Pencil className="h-3.5 w-3.5 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        {canSendReminders && (
+                          <DropdownMenuItem onClick={handleRemindClick}>
+                            <Bell className="h-3.5 w-3.5 mr-2" />
+                            Send Reminders
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setCancelDialogOpen(true)} className="text-warning focus:text-warning">
+                          <XCircle className="h-3.5 w-3.5 mr-2" />
+                          Cancel Event
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive focus:text-destructive">
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )}
           </div>
         </div>
@@ -282,45 +318,6 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             </div>
           )}
         </div>
-
-        {/* Row 3: Admin overflow menu */}
-        {isAdmin && (
-          <div className="flex items-center justify-end -mb-1" onClick={(e) => e.stopPropagation()}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground gap-1.5">
-                  <MoreVertical className="h-3.5 w-3.5" />
-                  Manage
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                {!event.is_cancelled && (
-                  <>
-                    <DropdownMenuItem onClick={() => navigate(`/events/${event.id}/edit`)}>
-                      <Pencil className="h-3.5 w-3.5 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    {canSendReminders && (
-                      <DropdownMenuItem onClick={handleRemindClick}>
-                        <Bell className="h-3.5 w-3.5 mr-2" />
-                        Send Reminders
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setCancelDialogOpen(true)} className="text-warning focus:text-warning">
-                      <XCircle className="h-3.5 w-3.5 mr-2" />
-                      Cancel Event
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive focus:text-destructive">
-                  <Trash2 className="h-3.5 w-3.5 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
       </CardContent>
 
       {/* Dialogs */}
