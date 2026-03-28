@@ -122,7 +122,7 @@ export default function MiniLeaguesPage() {
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user!.id)
-        .in("role", ["club_admin", "league_admin", "app_admin"])
+        .in("role", ["league_admin", "app_admin"])
         .not("club_id", "is", null);
       
       const adminClubIds = adminRoles?.map(r => r.club_id) as string[] || [];
