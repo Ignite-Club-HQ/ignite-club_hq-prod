@@ -24,8 +24,8 @@ import {
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
-import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users } from "lucide-react";
+import { format, parseISO, isToday, isTomorrow, differenceInCalendarDays } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,10 +59,46 @@ interface EventCardProps {
 }
 
 const typeBadgeStyles: Record<string, string> = {
-  game: "bg-destructive/15 text-destructive border-destructive/20",
-  training: "bg-primary/15 text-primary border-primary/20",
-  social: "bg-warning/15 text-warning border-warning/20",
+  game: "bg-destructive/10 text-destructive border-destructive/20",
+  training: "bg-primary/10 text-primary border-primary/20",
+  social: "bg-warning/10 text-warning border-warning/20",
 };
+
+function formatContextualDate(dateStr: string) {
+  const date = parseISO(dateStr);
+  const now = new Date();
+  const time = format(date, "h:mm a");
+  if (isToday(date)) return `Today · ${time}`;
+  if (isTomorrow(date)) return `Tomorrow · ${time}`;
+  const daysAway = differenceInCalendarDays(date, now);
+  if (daysAway <= 6) return `This ${format(date, "EEEE")} · ${time}`;
+  if (daysAway <= 13) return `Next ${format(date, "EEEE")} · ${time}`;
+  return `${format(date, "EEE d MMM")} · ${time}`;
+}
+
+function buildFamilyRsvpSummary(
+  parentStatus: RsvpStatus | null,
+  parentName: string | undefined,
+  childRsvps: Array<{ id: string; status: string; child_id: string; children: { name: string } | null }> | undefined
+) {
+  // Build a family line like "You + Archie, Teddy" or "Archie going, Teddy maybe"
+  const goingNames: string[] = [];
+  const maybeNames: string[] = [];
+  const notGoingNames: string[] = [];
+
+  if (parentStatus === "going") goingNames.push("You");
+  else if (parentStatus === "maybe") maybeNames.push("You");
+  else if (parentStatus === "not_going") notGoingNames.push("You");
+
+  childRsvps?.forEach((rsvp) => {
+    const name = rsvp.children?.name?.split(" ")[0] || "Child";
+    if (rsvp.status === "going") goingNames.push(name);
+    else if (rsvp.status === "maybe") maybeNames.push(name);
+    else if (rsvp.status === "not_going") notGoingNames.push(name);
+  });
+
+  return { goingNames, maybeNames, notGoingNames };
+}
 
 export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) {
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
@@ -311,26 +347,26 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
   return (
     <Card
-      className={`group transition-all cursor-pointer border-border/60 hover:border-primary/40 hover:shadow-md ${event.is_cancelled ? "opacity-50" : ""} select-none`}
+      className={`group transition-all cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md shadow-sm ${event.is_cancelled ? "opacity-50" : ""} select-none`}
       onClick={handleCardClick}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setAdminMenuOpen(true); } }}
     >
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-4 pb-3 space-y-2.5">
         {/* Row 1: Title + Type badge */}
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-1">
-            <h3 className={`font-semibold text-[15px] leading-snug ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
+          <div className="min-w-0 flex-1">
+            <h3 className={`font-bold text-base leading-snug tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
               {event.title}
-              {event.opponent && <span className="font-normal text-muted-foreground"> vs {event.opponent}</span>}
+              {event.opponent && <span className="font-semibold text-muted-foreground"> vs {event.opponent}</span>}
             </h3>
             {subtitle && (
-              <p className="text-xs text-muted-foreground">{subtitle}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
               <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
                 <Eye className="h-3 w-3" />
@@ -340,45 +376,81 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             {event.is_cancelled ? (
               <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
             ) : (
-              <Badge variant="outline" className={`text-[10px] h-5 px-2 font-medium border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
+              <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
                 {typeLabel}
               </Badge>
             )}
           </div>
         </div>
 
-        {/* Row 2: Metadata */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-            <span>{format(parseISO(event.event_date), "EEE d MMM")} · {format(parseISO(event.event_date), "h:mm a")}</span>
+        {/* Row 2: Date/time + Location */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-[13px]">
+            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            <span className="text-foreground/80">{formatContextualDate(event.event_date)}</span>
           </div>
           {locationDisplay && (
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
         </div>
 
-        {/* Row 3: RSVP Status */}
-        {!event.is_cancelled && (currentRsvpStatus || (childRsvps && childRsvps.length > 0)) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {currentRsvpStatus && (
-              <div className="flex items-center gap-1 text-[11px]">
-                {currentRsvpStatus === "going" && <><CheckCircle2 className="h-3 w-3 text-primary" /><span className="text-primary font-medium">Going</span></>}
-                {currentRsvpStatus === "maybe" && <><HelpCircle className="h-3 w-3 text-warning" /><span className="text-warning font-medium">Maybe</span></>}
-                {currentRsvpStatus === "not_going" && <><X className="h-3 w-3 text-destructive" /><span className="text-destructive font-medium">Can't go</span></>}
+        {/* Row 3: Family RSVP Summary */}
+        {!event.is_cancelled && (() => {
+          const { goingNames, maybeNames, notGoingNames } = buildFamilyRsvpSummary(
+            currentRsvpStatus, undefined, childRsvps
+          );
+          const hasAnyRsvp = goingNames.length > 0 || maybeNames.length > 0 || notGoingNames.length > 0;
+          if (!hasAnyRsvp) return null;
+
+          return (
+            <div className="pt-1.5 border-t border-border/40">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {goingNames.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[12px]">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="text-primary font-medium">
+                        {goingNames.length <= 3
+                          ? goingNames.join(", ")
+                          : `${goingNames.slice(0, 2).join(", ")} +${goingNames.length - 2}`}
+                      </span>
+                    </div>
+                  )}
+                  {maybeNames.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[12px]">
+                      <HelpCircle className="h-3.5 w-3.5 text-warning shrink-0" />
+                      <span className="text-warning font-medium">
+                        {maybeNames.length <= 2
+                          ? maybeNames.join(", ")
+                          : `${maybeNames[0]} +${maybeNames.length - 1}`}
+                      </span>
+                    </div>
+                  )}
+                  {notGoingNames.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-[12px]">
+                      <X className="h-3.5 w-3.5 text-destructive shrink-0" />
+                      <span className="text-destructive font-medium">
+                        {notGoingNames.length <= 2
+                          ? notGoingNames.join(", ")
+                          : `${notGoingNames[0]} +${notGoingNames.length - 1}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
               </div>
-            )}
-            {childRsvps?.map((rsvp) => (
-              <Badge key={rsvp.id} variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal">
-                {rsvp.status === "going" && <CheckCircle2 className="h-3 w-3 text-primary" />}
-                {rsvp.status === "maybe" && <HelpCircle className="h-3 w-3 text-warning" />}
-                {rsvp.status === "not_going" && <X className="h-3 w-3 text-destructive" />}
-                <span className="truncate max-w-[60px]">{rsvp.children?.name?.split(' ')[0] || "Child"}</span>
-              </Badge>
-            ))}
+            </div>
+          );
+        })()}
+
+        {/* No RSVP yet - show subtle prompt */}
+        {!event.is_cancelled && !currentRsvpStatus && (!childRsvps || childRsvps.length === 0) && (
+          <div className="pt-1.5 border-t border-border/40 flex items-center justify-between">
+            <span className="text-[12px] text-muted-foreground/70">Tap to RSVP</span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
           </div>
         )}
       </CardContent>
