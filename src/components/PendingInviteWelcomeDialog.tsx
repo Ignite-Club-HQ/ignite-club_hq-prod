@@ -140,14 +140,15 @@ export function PendingInviteWelcomeDialog() {
           }
 
           const { data: existingRole } = await roleQuery.maybeSingle();
-          const meta = invite.metadata as any;
+          const parentInviteMeta = invite.metadata as any;
           const needsParentLinking = invite.role === "parent" && (
-            !!meta?.guardian_child_id ||
-            !!meta?.child_id ||
-            Array.isArray(meta?.children)
+            !!parentInviteMeta?.guardian_child_id ||
+            !!parentInviteMeta?.child_id ||
+            Array.isArray(parentInviteMeta?.children)
           );
 
           if (!existingRole) {
+            // Insert the role
             const { error: roleError } = await supabase
               .from("user_roles")
               .insert({
@@ -162,9 +163,16 @@ export function PendingInviteWelcomeDialog() {
               continue;
             }
           } else if (!needsParentLinking) {
+            // Already a member and nothing else to sync — just mark invite as accepted
             await supabase
               .from("pending_invites")
               .update({ status: "accepted", accepted_at: new Date().toISOString() })
+              .eq("id", invite.id);
+            console.log("[InviteAutoAccept] Invite already fulfilled, marked accepted:", invite.id);
+            continue;
+          } else {
+            console.log("[InviteAutoAccept] Role already exists, continuing with parent-link sync:", invite.id);
+          }
               .eq("id", invite.id);
             console.log("[InviteAutoAccept] Invite already fulfilled, marked accepted:", invite.id);
             continue;
