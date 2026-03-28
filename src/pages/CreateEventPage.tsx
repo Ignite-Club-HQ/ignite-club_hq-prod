@@ -263,6 +263,11 @@ export default function CreateEventPage() {
     enabled: !!clubId && !!hasProFootball,
   });
 
+  // Fetch the specific mini league name when coming from a mini league
+  const miniLeagueName = isFromMiniLeague 
+    ? miniLeagues?.find(ml => ml.id === presetMiniLeagueId)?.name 
+    : undefined;
+
   // Get teams user has direct membership in (team_admin, coach, or any team role)
   const { data: userTeamIds } = useQuery({
     queryKey: ["user-team-memberships", clubId, user?.id],
