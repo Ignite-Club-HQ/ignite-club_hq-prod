@@ -64,7 +64,8 @@ const EVENT_TYPES = [
   { value: "training", label: "Training", icon: "🏃" },
   { value: "game", label: "Game", icon: "⚽" },
   { value: "social", label: "Social", icon: "🎉" },
-  { value: "mini_league", label: "Mini League", icon: "🏆", proFootballOnly: true },
+  // Mini League tab removed — matches are created from the mini league profile.
+  // The mini_league type still works when pre-filled via query params (isFromMiniLeague).
 ];
 
 export default function CreateEventPage() {
