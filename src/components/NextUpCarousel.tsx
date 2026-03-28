@@ -336,7 +336,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             {/* Children RSVP + Attendees */}
             <div className="flex items-center justify-between">
               <ChildRsvpIndicators eventId={event.id} userId={user?.id} />
-              <AttendeeAvatars eventId={event.id} />
+              <AttendeeAvatars eventId={event.id} eventType={event.type} />
             </div>
           </div>
         )}
