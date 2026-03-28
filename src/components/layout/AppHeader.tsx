@@ -642,7 +642,16 @@ export function AppHeader() {
           return;
         case "member_joined":
           if (relatedId) {
-            navigate(`/teams/${relatedId}`);
+            const { data: clubCheckMJ } = await supabase
+              .from("clubs")
+              .select("id")
+              .eq("id", relatedId)
+              .maybeSingle();
+            if (clubCheckMJ) {
+              navigate(`/clubs/${relatedId}`);
+            } else {
+              navigate(`/teams/${relatedId}`);
+            }
           } else {
             navigate("/notifications");
           }
