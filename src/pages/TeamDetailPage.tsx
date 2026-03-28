@@ -1205,14 +1205,6 @@ export default function TeamDetailPage() {
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     )}
-                    {/* Pending Invites Section */}
-                    {pendingInvites.length > 0 && (memberRoleFilter === "all" || pendingInvites.some(inv => inv.role === memberRoleFilter)) && (
-                      <PendingInvitesList
-                        invites={memberRoleFilter === "all" ? pendingInvites : pendingInvites.filter(inv => inv.role === memberRoleFilter)}
-                        teamId={id}
-                        isAdmin={isAdmin || isClubAdmin}
-                      />
-                     )}
                     {/* Children/Players Section - shown first */}
                     {(teamChildren.length > 0 || pendingInvites.some(inv => {
                       const meta = inv.metadata as { children?: { name: string }[] } | null;
@@ -1224,7 +1216,6 @@ export default function TeamDetailPage() {
                           {teamChildren.map((assignment: any) => {
                             const child = assignment.children;
                             if (!child) return null;
-                            const parent = child.profiles;
                             return (
                               <Card key={assignment.id}>
                                 <CardContent className="p-3 flex items-center gap-3">
@@ -1248,7 +1239,6 @@ export default function TeamDetailPage() {
                               </Card>
                             );
                           })}
-                          {/* Pending Children from unaccepted invites */}
                           {pendingInvites.flatMap(inv => {
                             const meta = inv.metadata as { children?: { name: string }[] } | null;
                             if (!meta?.children) return [];
@@ -1280,154 +1270,214 @@ export default function TeamDetailPage() {
                         </div>
                       </div>
                     )}
-                     {Object.entries(members).filter(([_, member]) => 
-                      memberRoleFilter === "all" || memberRoleFilter === "child" ? memberRoleFilter === "all" : member.roles?.some(r => r.role === memberRoleFilter)
-                    ).sort(([, a], [, b]) => {
-                      const rolePriority: Record<string, number> = { player: 0, parent: 1, coach: 2, team_admin: 3, club_admin: 4, app_admin: 5, basic_user: 6 };
-                      const getPriority = (member: typeof a) => {
-                        const roles = member.roles || [];
-                        return Math.min(...roles.map(r => rolePriority[r.role] ?? 99), 99);
+
+                    {/* Role-grouped members with headers */}
+                    {(() => {
+                      const filteredMembers = Object.entries(members).filter(([_, member]) =>
+                        memberRoleFilter === "all" || memberRoleFilter === "child" ? memberRoleFilter === "all" : member.roles?.some(r => r.role === memberRoleFilter)
+                      );
+                      const roleOrder = ["player", "parent", "coach", "team_admin", "club_admin", "app_admin", "basic_user"] as const;
+                      const roleGroupLabels: Record<string, string> = {
+                        player: "Players",
+                        parent: "Parents",
+                        coach: "Coaches",
+                        team_admin: "Team Admins",
+                        club_admin: "Club Admins",
+                        app_admin: "App Admins",
+                        basic_user: "Members",
                       };
-                      return getPriority(a) - getPriority(b);
-                    }).map(([userId, member]) => (
-                      <Card key={userId}>
-                        <CardContent className="p-3 flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={member.profile?.avatar_url || undefined} />
-                            <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                              {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {member.roles?.map((roleItem) => {
-                              const roleLabels: Record<string, string> = {
-                                app_admin: "App Admin",
-                                club_admin: "Club Admin",
-                                team_admin: "Team Admin",
-                                coach: "Coach",
-                                player: "Player",
-                                parent: "Parent",
-                                basic_user: "Member",
-                              };
-                              const roleColors: Record<string, string> = {
-                                app_admin: "bg-red-500/20 text-red-400 border-red-500/30",
-                                club_admin: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-                                team_admin: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-                                coach: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-                                player: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-                                parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
-                                basic_user: "bg-muted text-muted-foreground border-border",
-                              };
-                              const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
-                              const label = roleLabels[roleItem.role] || "Member";
-                              const canRemoveRole = isAdmin && userId !== user?.id && (member.roles?.length || 0) > 1;
-                              return (
-                                <AlertDialog key={roleItem.id}>
-                                  <Badge variant="outline" className={`text-xs border ${colorClass} flex items-center gap-1`}>
-                                    {label}
-                                    {canRemoveRole && (
+
+                      // Group members by their primary (highest-priority) role
+                      const grouped: Record<string, [string, typeof members[string]][]> = {};
+                      for (const entry of filteredMembers) {
+                        const [, member] = entry;
+                        const roles = member.roles || [];
+                        let primaryRole = "basic_user";
+                        let bestIdx: number = roleOrder.length;
+                        for (const r of roles) {
+                          const idx = roleOrder.indexOf(r.role as any);
+                          if (idx !== -1 && idx < bestIdx) {
+                            bestIdx = idx;
+                            primaryRole = r.role;
+                          }
+                        }
+                        if (!grouped[primaryRole]) grouped[primaryRole] = [];
+                        grouped[primaryRole].push(entry);
+                      }
+
+                      // Group pending invites by role
+                      const pendingByRole: Record<string, typeof pendingInvites> = {};
+                      for (const inv of pendingInvites) {
+                        if (memberRoleFilter !== "all" && inv.role !== memberRoleFilter) continue;
+                        const role = inv.role || "basic_user";
+                        if (!pendingByRole[role]) pendingByRole[role] = [];
+                        pendingByRole[role].push(inv);
+                      }
+
+                      // Collect all roles that have members or pending invites
+                      const allRoles = new Set([...Object.keys(grouped), ...Object.keys(pendingByRole)]);
+
+                      return roleOrder.filter(role => allRoles.has(role)).map(role => {
+                        const roleMembers = grouped[role] || [];
+                        const rolePending = pendingByRole[role] || [];
+                        if (roleMembers.length === 0 && rolePending.length === 0) return null;
+
+                        return (
+                          <div key={role} className="mb-4 pb-4 border-b last:border-b-0 last:mb-0 last:pb-0">
+                            <p className="text-sm font-medium text-muted-foreground mb-2">{roleGroupLabels[role] || role}</p>
+                            <div className="space-y-2">
+                              {/* Pending invites for this role */}
+                              {rolePending.length > 0 && (memberRoleFilter === "all" || memberRoleFilter === role) && (
+                                <PendingInvitesList
+                                  invites={rolePending}
+                                  teamId={id}
+                                  isAdmin={isAdmin || isClubAdmin}
+                                />
+                              )}
+                              {roleMembers.map(([userId, member]) => (
+                              <Card key={userId}>
+                                <CardContent className="p-3 flex items-center gap-3">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={member.profile?.avatar_url || undefined} />
+                                    <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                                      {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {member.roles?.map((roleItem) => {
+                                      const roleLabels: Record<string, string> = {
+                                        app_admin: "App Admin",
+                                        club_admin: "Club Admin",
+                                        team_admin: "Team Admin",
+                                        coach: "Coach",
+                                        player: "Player",
+                                        parent: "Parent",
+                                        basic_user: "Member",
+                                      };
+                                      const roleColors: Record<string, string> = {
+                                        app_admin: "bg-red-500/20 text-red-400 border-red-500/30",
+                                        club_admin: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+                                        team_admin: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+                                        coach: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+                                        player: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+                                        parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
+                                        basic_user: "bg-muted text-muted-foreground border-border",
+                                      };
+                                      const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
+                                      const label = roleLabels[roleItem.role] || "Member";
+                                      const canRemoveRole = isAdmin && userId !== user?.id && (member.roles?.length || 0) > 1;
+                                      return (
+                                        <AlertDialog key={roleItem.id}>
+                                          <Badge variant="outline" className={`text-xs border ${colorClass} flex items-center gap-1`}>
+                                            {label}
+                                            {canRemoveRole && (
+                                              <AlertDialogTrigger asChild>
+                                                <button
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  aria-label={`Remove ${label} role`}
+                                                  className="ml-0.5 hover:bg-destructive/20 rounded-full p-1.5 -mr-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
+                                                >
+                                                  <X className="h-3 w-3" aria-hidden="true" />
+                                                </button>
+                                              </AlertDialogTrigger>
+                                            )}
+                                          </Badge>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Remove {label} Role?</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                This will remove the {label} role from {member.profile?.display_name || "this user"}.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={async () => {
+                                                  const { error } = await supabase
+                                                    .from("user_roles")
+                                                    .delete()
+                                                    .eq("id", roleItem.id);
+                                                  if (error) {
+                                                    toast({ title: "Failed to remove role", variant: "destructive" });
+                                                  } else {
+                                                    toast({ title: `Removed ${label} role` });
+                                                    queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                                                  }
+                                                }}
+                                              >
+                                                Remove
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      );
+                                    })}
+                                  </div>
+                                  {isAdmin && (
+                                    <AddRoleToMemberDialog
+                                      userId={userId}
+                                      userName={member.profile?.display_name || "User"}
+                                      teamId={id!}
+                                      teamName={team.name}
+                                      clubId={team.club_id}
+                                      existingRoles={member.roles?.map(r => r.role) || []}
+                                    />
+                                  )}
+                                  {isAdmin && userId !== user?.id && (
+                                    <AlertDialog>
                                       <AlertDialogTrigger asChild>
-                                        <button
-                                          onClick={(e) => e.stopPropagation()}
-                                          aria-label={`Remove ${label} role`}
-                                          className="ml-0.5 hover:bg-destructive/20 rounded-full p-1.5 -mr-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
-                                        >
-                                          <X className="h-3 w-3" aria-hidden="true" />
-                                        </button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
                                       </AlertDialogTrigger>
-                                    )}
-                                  </Badge>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Remove {label} Role?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This will remove the {label} role from {member.profile?.display_name || "this user"}.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={async () => {
-                                          const { error } = await supabase
-                                            .from("user_roles")
-                                            .delete()
-                                            .eq("id", roleItem.id);
-                                          if (error) {
-                                            toast({ title: "Failed to remove role", variant: "destructive" });
-                                          } else {
-                                            toast({ title: `Removed ${label} role` });
-                                            queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                                          }
-                                        }}
-                                      >
-                                        Remove
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              );
-                            })}
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Remove Member?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            This will remove {member.profile?.display_name} from the team. They can request to join again.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={async () => {
+                                              const { error } = await supabase
+                                                .from("user_roles")
+                                                .delete()
+                                                .eq("user_id", userId)
+                                                .eq("team_id", id!);
+                                              if (error) {
+                                                toast({ title: "Failed to remove member", variant: "destructive" });
+                                              } else {
+                                                await supabase.from("notifications").insert({
+                                                  user_id: userId,
+                                                  type: "membership",
+                                                  message: `You have been removed from ${team?.name || "the team"}`,
+                                                  related_id: id,
+                                                });
+                                                queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                                                toast({ title: "Member removed" });
+                                              }
+                                            }}
+                                            className="bg-destructive text-destructive-foreground"
+                                          >
+                                            Remove
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  )}
+                                </CardContent>
+                              </Card>
+                              ))}
+                            </div>
                           </div>
-                          {isAdmin && (
-                            <AddRoleToMemberDialog
-                              userId={userId}
-                              userName={member.profile?.display_name || "User"}
-                              teamId={id!}
-                              teamName={team.name}
-                              clubId={team.club_id}
-                              existingRoles={member.roles?.map(r => r.role) || []}
-                            />
-                          )}
-                          {isAdmin && userId !== user?.id && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Remove Member?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will remove {member.profile?.display_name} from the team. They can request to join again.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={async () => {
-                                      const { error } = await supabase
-                                        .from("user_roles")
-                                        .delete()
-                                        .eq("user_id", userId)
-                                        .eq("team_id", id!);
-                                      if (error) {
-                                        toast({ title: "Failed to remove member", variant: "destructive" });
-                                      } else {
-                                        await supabase.from("notifications").insert({
-                                          user_id: userId,
-                                          type: "membership",
-                                          message: `You have been removed from ${team?.name || "the team"}`,
-                                          related_id: id,
-                                        });
-                                        queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                                        toast({ title: "Member removed" });
-                                      }
-                                    }}
-                                    className="bg-destructive text-destructive-foreground"
-                                  >
-                                    Remove
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+                        );
+                      });
+                    })()}
                   </div>
                 )}
               </div>
