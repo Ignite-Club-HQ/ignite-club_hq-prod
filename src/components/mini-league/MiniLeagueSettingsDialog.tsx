@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trash2, Loader2, Camera, ImageIcon, Plus, Check, Clock, Users, UsersRound, Copy, Wand2, ChevronDown, Minus } from "lucide-react";
+import { Trash2, Loader2, Camera, ImageIcon, Plus, Check, Copy, Wand2, ChevronDown, Minus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
