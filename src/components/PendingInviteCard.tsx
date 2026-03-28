@@ -193,13 +193,56 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     }
   };
 
+  const buildShareMessage = () => {
+    const clubName = teamData?.clubs?.name || clubData?.name || "";
+    const teamName = teamData?.name || "";
+    const childrenNames = inviteMetadata?.children?.map(c => c.name) || [];
+    const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(invite.role);
+    const roleName = roleLabels[invite.role] || invite.role.replace("_", " ");
+
+    // Admin/Coach invite to a team
+    if (isAdminRole && teamName) {
+      return `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}. Tap here to get started: ${inviteLink}`;
+    }
+
+    // Admin invite to a club (no team)
+    if (isAdminRole && clubName) {
+      return `You've been invited to help run ${clubName} as ${roleName}. Tap here to get started: ${inviteLink}`;
+    }
+
+    // Parent invite with children
+    if (invite.role === "parent" && childrenNames.length === 1) {
+      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! Tap to see their team: ${inviteLink}`;
+    }
+    if (invite.role === "parent" && childrenNames.length > 1) {
+      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! Tap to see their teams: ${inviteLink}`;
+    }
+
+    // Parent invite without children names
+    if (invite.role === "parent" && teamName) {
+      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap to see their team: ${inviteLink}`;
+    }
+
+    // Generic team invite
+    if (teamName) {
+      return `You've been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here to join: ${inviteLink}`;
+    }
+
+    // Generic club invite
+    if (clubName) {
+      return `You've been invited to join ${clubName}! Tap here to get started: ${inviteLink}`;
+    }
+
+    return `You've been invited to join the team! Tap here to get started: ${inviteLink}`;
+  };
+
   const handleShareInvite = async () => {
     if (!inviteLink) {
       toast({ title: "No invite link available", variant: "destructive" });
       return;
     }
     const clubName = teamData?.clubs?.name || clubData?.name || "the club";
-    const message = `You've been invited to join ${clubName}! Tap the link to get started: ${inviteLink}`;
+    const message = buildShareMessage();
 
     if (Capacitor.isNativePlatform()) {
       try {
