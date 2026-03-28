@@ -145,9 +145,11 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               <Badge variant="destructive" className="shrink-0 text-[10px]">Cancelled</Badge>
             )}
           </div>
-          <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-            {event.teams?.name || event.clubs?.name}
-          </Badge>
+          {event.teams?.name && (
+            <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+              {event.teams.name}
+            </Badge>
+          )}
         </div>
 
         <div className="flex flex-col gap-1 text-sm text-muted-foreground">
@@ -214,9 +216,11 @@ function CompactCard({ event }: { event: EventItem }) {
             <Badge variant="destructive" className="text-[10px] h-4 shrink-0">Cancelled</Badge>
           )}
         </div>
-        <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal text-muted-foreground">
-          {event.teams?.name || event.clubs?.name}
-        </Badge>
+        {event.teams?.name && (
+          <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal text-muted-foreground">
+            {event.teams.name}
+          </Badge>
+        )}
         <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
           <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
           <span className="font-medium text-foreground">{dateLabel}</span>
