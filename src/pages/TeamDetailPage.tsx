@@ -1277,8 +1277,9 @@ export default function TeamDetailPage() {
                             // Filter out children that already exist as confirmed team members
                             const confirmedChildIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
                             const confirmedChildNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()).filter(Boolean));
-                            return meta.children
+                             return meta.children
                               .filter(child => {
+                                // Always filter out children already shown in the confirmed list (even if marked pending there)
                                 if (child.child_id && confirmedChildIds.has(child.child_id)) return false;
                                 if (child.name && confirmedChildNames.has(child.name.toLowerCase())) return false;
                                 return true;
