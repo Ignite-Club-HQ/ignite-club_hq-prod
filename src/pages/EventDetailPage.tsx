@@ -2592,7 +2592,7 @@ export default function EventDetailPage() {
         </>
       )}
 
-      {/* Duties Section (only for non-mini-league games — mini league duties are auto-created via Quick Setup) */}
+      {/* Duties Section (only for non-mini-league games — mini league duties are auto-created via Generate Matches) */}
       {event.type === "game" && !isMiniLeagueEvent && (
         <>
           <section className="space-y-3">
