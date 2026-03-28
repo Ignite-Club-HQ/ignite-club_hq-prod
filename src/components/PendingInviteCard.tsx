@@ -1,7 +1,9 @@
 import { useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, RotateCw } from "lucide-react";
+import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, RotateCw, Copy, Share2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -176,6 +178,46 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const pendingInviteToken = pendingInviteData?.invite_token;
   const inviteMetadata = pendingInviteData?.metadata as { children?: { name: string }[]; customMessage?: string } | null;
 
+  const inviteLink = pendingInviteToken ? `https://igniteclubhq.app/join/p/${pendingInviteToken}` : null;
+
+  const handleCopyLink = async () => {
+    if (!inviteLink) {
+      toast({ title: "No invite link available", variant: "destructive" });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      toast({ title: "Invite link copied!" });
+    } catch {
+      toast({ title: "Failed to copy link", variant: "destructive" });
+    }
+  };
+
+  const handleShareInvite = async () => {
+    if (!inviteLink) {
+      toast({ title: "No invite link available", variant: "destructive" });
+      return;
+    }
+    const clubName = teamData?.clubs?.name || clubData?.name || "the club";
+    const message = `You've been invited to join ${clubName}! Tap the link to get started: ${inviteLink}`;
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await Share.share({
+          title: `Join ${clubName}`,
+          text: message,
+          url: inviteLink,
+        });
+        return;
+      } catch {
+        // User cancelled or share failed, fall through to WhatsApp
+      }
+    }
+
+    // Fallback: open WhatsApp
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, "_blank");
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -486,6 +528,19 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {inviteLink && (
+                    <>
+                      <DropdownMenuItem onClick={handleCopyLink}>
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy invite link
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleShareInvite}>
+                        <Share2 className="h-4 w-4 mr-2" />
+                        Share invite link
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   <DropdownMenuItem onClick={handleOpenEdit}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit name/role
