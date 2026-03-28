@@ -94,7 +94,7 @@ function DroppableGroup({ rating, children, isOver }: { rating: number; children
   return (
     <div
       ref={setNodeRef}
-      className={`space-y-1.5 rounded-lg p-2 -m-2 min-h-[48px] transition-colors ${active ? "bg-primary/10 ring-2 ring-primary/30" : ""}`}
+      className={`space-y-2 rounded-lg p-2 -mx-2 min-h-[48px] transition-colors ${active ? "bg-primary/10 ring-2 ring-primary/30" : ""}`}
     >
       {children}
     </div>
@@ -119,15 +119,15 @@ function DraggablePlayerCard({ player, children, canDrag }: { player: MiniLeague
     <div
       ref={setNodeRef}
       style={style}
-      className="relative"
+      className="relative flex items-center"
       {...(canDrag ? { ...listeners, ...attributes } : {})}
     >
       {canDrag && (
-        <div className="absolute left-0 top-0 bottom-0 w-4 flex items-center justify-center pointer-events-none">
-          <GripVertical className="h-3 w-3 text-muted-foreground/35" />
+        <div className="w-5 shrink-0 flex items-center justify-center pointer-events-none opacity-30">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
       )}
-      <div className={canDrag ? "pl-2.5" : ""}>
+      <div className="flex-1 min-w-0">
         {children}
       </div>
     </div>
@@ -663,16 +663,15 @@ export function ManagePlayersDialog({
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
-              <div className="space-y-4" data-vaul-no-drag>
+              <div className="space-y-5" data-vaul-no-drag>
                 {[5, 4, 3, 2, 1].map((rating) => {
                   const abilityPlayers = playersByAbility[rating];
-                  // Always show group as drop target when dragging, even if empty
                   const showGroup = abilityPlayers?.length || activePlayer;
                   if (!showGroup) return null;
 
                   return (
-                    <div key={rating} className="space-y-2">
-                      <div className="flex items-center gap-2">
+                    <div key={rating}>
+                      <div className="flex items-baseline gap-2 mb-2">
                         <Badge className={`text-xs ${getAbilityColor(rating)}`}>
                           {getAbilityLabel(rating)}
                         </Badge>
@@ -732,8 +731,8 @@ export function ManagePlayersDialog({
           </AlertDialog>
         </div>
 
-        <ResponsiveDialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+        <ResponsiveDialogFooter className="px-4 pb-safe">
+          <Button onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
             Done
           </Button>
         </ResponsiveDialogFooter>
