@@ -253,21 +253,23 @@ export default function MiniLeagueDetailPage() {
   };
 
   const renderEmptyState = () => (
-    <Card className="border-dashed border-2 rounded-2xl overflow-hidden">
-      <CardContent className="py-8 px-6 text-center space-y-5">
-        <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-          <Trophy className="h-7 w-7 text-primary" />
+    <Card className="rounded-2xl overflow-hidden shadow-md bg-card border-0">
+      <CardContent className="py-6 px-5 text-center space-y-4">
+        <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center mx-auto">
+          <Trophy className="h-8 w-8 text-primary" />
         </div>
         <div className="space-y-1">
           <h2 className="text-lg font-bold">Start your Mini League</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground leading-relaxed">
             Create match days, schedule games, and track results for your league
           </p>
         </div>
 
         {canManageLeague && (
           <Button
+            size="lg"
             onClick={() => navigate(getCreateUrl())}
+            className="shadow-sm"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Match Day
@@ -275,24 +277,23 @@ export default function MiniLeagueDetailPage() {
         )}
 
         {/* How it works */}
-        <div className="pt-2 space-y-2">
-          <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">How it works</p>
-          <div className="flex items-center justify-center gap-4">
+        <div className="pt-1 space-y-2.5">
+          <div className="flex items-center justify-center gap-5">
             {[
               { icon: CalendarIcon, label: "Create Match Day", step: "1" },
-              { icon: Users, label: "Add Games", step: "2" },
+              { icon: Shirt, label: "Add Games", step: "2" },
               { icon: Target, label: "Track Scores", step: "3" },
             ].map(({ icon: Icon, label, step }) => (
               <div key={step} className="flex flex-col items-center gap-1.5 text-center w-20">
                 <div className="relative">
-                  <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  <div className="h-9 w-9 rounded-xl bg-muted/60 flex items-center justify-center">
+                    <Icon className="h-4 w-4 text-muted-foreground/70" />
                   </div>
                   <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
                     {step}
                   </span>
                 </div>
-                <span className="text-[10px] text-muted-foreground leading-tight">{label}</span>
+                <span className="text-[10px] text-muted-foreground/70 leading-tight">{label}</span>
               </div>
             ))}
           </div>
@@ -400,14 +401,14 @@ export default function MiniLeagueDetailPage() {
               </button>
               <div className="w-px h-8 bg-border" />
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-accent flex items-center justify-center">
-                  <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                </div>
                 <div className="text-left">
-                  <Badge variant={leagueStatus === "Not started" ? "secondary" : "default"} className="text-[10px] px-1.5 py-0">
+                  <Badge
+                    variant={leagueStatus === "Not started" ? "secondary" : "default"}
+                    className={`text-[11px] px-2 py-0.5 font-semibold ${leagueStatus === "Not started" ? "bg-muted text-muted-foreground" : ""}`}
+                  >
                     {leagueStatus}
                   </Badge>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                     {events?.length || 0} Match {(events?.length || 0) === 1 ? "Day" : "Days"}
                   </p>
                 </div>
