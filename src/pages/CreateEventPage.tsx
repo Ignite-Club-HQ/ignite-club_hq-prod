@@ -209,7 +209,14 @@ export default function CreateEventPage() {
     }
   }, [clubId, clubs]);
 
-  // Check if user is a club admin for the selected club
+  // Auto-set social type for committee-only users
+  useEffect(() => {
+    if (isCommitteeOnlyForClub && type !== "social") {
+      setType("social");
+    }
+  }, [isCommitteeOnlyForClub, type]);
+
+
   const { data: isClubAdminForSelectedClub } = useQuery({
     queryKey: ["is-club-admin-for-event", clubId, user?.id],
     queryFn: async () => {
