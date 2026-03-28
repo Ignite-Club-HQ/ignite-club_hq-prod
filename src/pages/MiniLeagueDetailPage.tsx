@@ -172,8 +172,7 @@ export default function MiniLeagueDetailPage() {
       const roleMap = new Map<string, string>();
       (adminRoles || []).forEach(r => {
         const existing = roleMap.get(r.user_id);
-        // Priority: club_admin > league_admin > coach > committee_member
-        const priority: Record<string, number> = { club_admin: 4, league_admin: 3, coach: 2, committee_member: 1 };
+        const priority: Record<string, number> = { league_admin: 3, coach: 2 };
         if (!existing || (priority[r.role] || 0) > (priority[existing] || 0)) {
           roleMap.set(r.user_id, r.role);
         }
@@ -467,10 +466,8 @@ export default function MiniLeagueDetailPage() {
               <div className="space-y-1">
                 {leagueMembers.staff.slice(0, 5).map((member: any) => {
                   const roleLabels: Record<string, string> = {
-                    club_admin: "Club Admin",
                     league_admin: "League Admin",
                     coach: "Coach",
-                    committee_member: "Committee",
                   };
                   return (
                     <div key={member.id} className="flex items-center gap-3 px-1 py-1.5">
