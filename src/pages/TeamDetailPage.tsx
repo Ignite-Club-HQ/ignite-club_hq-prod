@@ -1276,15 +1276,23 @@ export default function TeamDetailPage() {
                       const filteredMembers = Object.entries(members).filter(([_, member]) =>
                         memberRoleFilter === "all" || memberRoleFilter === "child" ? memberRoleFilter === "all" : member.roles?.some(r => r.role === memberRoleFilter)
                       );
-                      const roleOrder = ["player", "parent", "coach", "team_admin", "club_admin", "app_admin", "basic_user"] as const;
+                      const roleOrder = ["player", "parent", "team_admin", "club_admin", "app_admin", "basic_user"] as const;
                       const roleGroupLabels: Record<string, string> = {
                         player: "Players",
-                        parent: "Parents",
-                        coach: "Coaches",
+                        parent: "Parents & Coaches",
                         team_admin: "Team Admins",
                         club_admin: "Club Admins",
                         app_admin: "App Admins",
                         basic_user: "Members",
+                      };
+                      const roleGroupMap: Record<string, string> = {
+                        player: "player",
+                        parent: "parent",
+                        coach: "parent",
+                        team_admin: "team_admin",
+                        club_admin: "club_admin",
+                        app_admin: "app_admin",
+                        basic_user: "basic_user",
                       };
 
                       // Group members by their primary (highest-priority) role
@@ -1293,16 +1301,18 @@ export default function TeamDetailPage() {
                         const [, member] = entry;
                         const roles = member.roles || [];
                         let primaryRole = "basic_user";
-                        let bestIdx: number = roleOrder.length;
+                        let bestPriority = Infinity;
+                        const allRoles = ["player", "parent", "coach", "team_admin", "club_admin", "app_admin", "basic_user"];
                         for (const r of roles) {
-                          const idx = roleOrder.indexOf(r.role as any);
-                          if (idx !== -1 && idx < bestIdx) {
-                            bestIdx = idx;
+                          const idx = allRoles.indexOf(r.role as any);
+                          if (idx !== -1 && idx < bestPriority) {
+                            bestPriority = idx;
                             primaryRole = r.role;
                           }
                         }
-                        if (!grouped[primaryRole]) grouped[primaryRole] = [];
-                        grouped[primaryRole].push(entry);
+                        const mappedRole = roleGroupMap[primaryRole] || "basic_user";
+                        if (!grouped[mappedRole]) grouped[mappedRole] = [];
+                        grouped[mappedRole].push(entry);
                       }
 
                       // Group pending invites by role
@@ -1310,8 +1320,9 @@ export default function TeamDetailPage() {
                       for (const inv of pendingInvites) {
                         if (memberRoleFilter !== "all" && inv.role !== memberRoleFilter) continue;
                         const role = inv.role || "basic_user";
-                        if (!pendingByRole[role]) pendingByRole[role] = [];
-                        pendingByRole[role].push(inv);
+                        const mappedInvRole = roleGroupMap[role] || "basic_user";
+                        if (!pendingByRole[mappedInvRole]) pendingByRole[mappedInvRole] = [];
+                        pendingByRole[mappedInvRole].push(inv);
                       }
 
                       // Collect all roles that have members or pending invites
