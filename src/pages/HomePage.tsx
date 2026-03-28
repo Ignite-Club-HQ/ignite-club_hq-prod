@@ -206,141 +206,93 @@ export default function HomePage() {
   const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
 
-  // Get user's accessible team, club, and mini league IDs for event filtering
-  const { data: userMemberships } = useQuery({
-    queryKey: ["user-memberships-for-events", user?.id],
+  // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
+  const { data: membershipAndEvents, isLoading } = useQuery({
+    queryKey: ["user-memberships-and-events", user?.id],
     queryFn: async () => {
+      // Step 1: Fetch user roles
       const { data: roles } = await supabase
         .from("user_roles")
         .select("club_id, team_id, role")
         .eq("user_id", user!.id);
       
-      if (!roles) return { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [] };
+      if (!roles) return { memberships: { teamIds: [] as string[], clubIds: [] as string[], clubAdminClubIds: [] as string[], leagueAdminClubIds: [] as string[], miniLeagueIds: [] as string[] }, events: [] as Event[] };
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
       const clubIds = new Set<string>();
       const clubAdminClubIds = new Set<string>();
       const leagueAdminClubIds = new Set<string>();
       
-      // Direct club roles
       roles.forEach(r => {
         if (r.club_id) {
           clubIds.add(r.club_id);
-          // Track club admin roles for team event visibility
           if (r.role === 'club_admin' || r.role === 'app_admin') {
             clubAdminClubIds.add(r.club_id);
           }
-          // Track club admin roles for league access
           if (r.role === 'club_admin' || r.role === 'league_admin' || r.role === 'app_admin') {
             leagueAdminClubIds.add(r.club_id);
           }
         }
       });
       
-      // Get club IDs from team memberships
-      if (teamIds.length > 0) {
-        const { data: teams } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        teams?.forEach(t => clubIds.add(t.club_id));
-      }
+      // Step 2: Fetch team clubs, player leagues, admin leagues, AND events in parallel
+      const now = new Date();
+      const leagueAdminArr = Array.from(leagueAdminClubIds);
       
-      // Get mini league IDs where user is a parent (has a player)
-      const { data: playerLeagues } = await supabase
-        .from("mini_league_players")
-        .select("mini_league_id")
-        .eq("parent_user_id", user!.id);
+      const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult] = await Promise.all([
+        teamIds.length > 0 
+          ? supabase.from("teams").select("club_id").in("id", teamIds)
+          : Promise.resolve({ data: [] as { club_id: string }[] }),
+        supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
+        leagueAdminArr.length > 0
+          ? supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr)
+          : Promise.resolve({ data: [] as { id: string }[] }),
+        supabase
+          .from("events")
+          .select(`id, title, type, event_date, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_recurring, parent_event_id, amount, opponent, teams (name), clubs (name, sport)`)
+          .gte("event_date", now.toISOString())
+          .order("event_date", { ascending: true })
+          .limit(50),
+      ]);
       
-      const miniLeagueIds = playerLeagues?.map(p => p.mini_league_id) || [];
+      (teamsResult.data || []).forEach((t: any) => clubIds.add(t.club_id));
       
-      // Also get mini leagues where user is league admin via club_admin role
-      const { data: adminLeagues } = await supabase
-        .from("mini_leagues")
-        .select("id")
-        .in("club_id", Array.from(leagueAdminClubIds));
-      
-      // Add leagues where user is admin
-      adminLeagues?.forEach(l => {
-        if (!miniLeagueIds.includes(l.id)) {
-          miniLeagueIds.push(l.id);
-        }
+      const miniLeagueIds = (playerLeaguesResult.data || []).map((p: any) => p.mini_league_id);
+      (adminLeaguesResult.data || []).forEach((l: any) => {
+        if (!miniLeagueIds.includes(l.id)) miniLeagueIds.push(l.id);
       });
       
-      return { 
-        teamIds, 
-        clubIds: Array.from(clubIds), 
+      const memberships = {
+        teamIds,
+        clubIds: Array.from(clubIds),
         clubAdminClubIds: Array.from(clubAdminClubIds),
         leagueAdminClubIds: Array.from(leagueAdminClubIds),
-        miniLeagueIds 
+        miniLeagueIds,
       };
-    },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    placeholderData: (prev) => prev,
-  });
-
-  const { data: allEvents, isLoading } = useQuery({
-    queryKey: ["upcoming-events", user?.id, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
-    queryFn: async () => {
-      if (!userMemberships) return [];
       
-      const { teamIds, clubIds, miniLeagueIds } = userMemberships;
-      if (teamIds.length === 0 && clubIds.length === 0 && miniLeagueIds.length === 0) return [];
-      
-      const now = new Date();
-      
-      const { data, error } = await supabase
-        .from("events")
-        .select(`
-          id,
-          title,
-          type,
-          event_date,
-          address,
-          location_name,
-          suburb,
-          club_id,
-          team_id,
-          mini_league_id,
-          is_cancelled,
-          is_recurring,
-          parent_event_id,
-          amount,
-          opponent,
-          teams (name),
-          clubs (name, sport)
-        `)
-        .gte("event_date", now.toISOString())
-        .order("event_date", { ascending: true })
-        .limit(50);
-
-      if (error) throw error;
-      
-      // Filter to only show events user is invited to:
-      // - Team events: user must be a member of that team OR a club admin of the team's club
-      // - Mini League events: user must be a league admin or have a player in that league
-      // - Club-wide events (no team_id, no mini_league_id): user must be a member of that club
-      const { clubAdminClubIds } = userMemberships;
-      const filtered = (data as (Event & { mini_league_id: string | null })[]).filter(event => {
+      // Step 3: Filter events client-side
+      const clubAdminArr = Array.from(clubAdminClubIds);
+      const clubIdsArr = Array.from(clubIds);
+      const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         if (event.mini_league_id) {
-          // Mini League event - user must be league admin or have a player in this league
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
-          // Team event - user must be a member of this team OR a club admin of the team's club
-          return teamIds.includes(event.team_id) || clubAdminClubIds.includes(event.club_id);
+          return teamIds.includes(event.team_id) || clubAdminArr.includes(event.club_id);
         } else {
-          // Club-wide event - user must be a member of this club
-          return clubIds.includes(event.club_id);
+          return clubIdsArr.includes(event.club_id);
         }
       });
       
-      return filtered as Event[];
+      return { memberships, events: filtered as Event[] };
     },
-    enabled: !!user && !!userMemberships,
+    enabled: !!user,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+
+  // Derive memberships and events from consolidated query
+  const userMemberships = membershipAndEvents?.memberships;
+  const allEvents = membershipAndEvents?.events;
 
   // Filter events by active club theme
   const events = useMemo(() => {
@@ -447,32 +399,13 @@ export default function HomePage() {
 
   const isAppAdmin = userRoles?.some(r => r.role === "app_admin");
 
-  // Get user's clubs (for upgrade selection)
+  // Get user's clubs (for upgrade selection) - uses memberships data to avoid extra user_roles fetch
   const { data: userClubs = [] } = useQuery({
-    queryKey: ["user-clubs-for-upgrade", user?.id, userRoles],
+    queryKey: ["user-clubs-for-upgrade", user?.id, userMemberships?.clubIds],
     queryFn: async () => {
-      // Get user's club IDs through their roles
-      const clubIds = userRoles?.filter(r => r.club_id).map(r => r.club_id) as string[] || [];
-      
-      // Also get club IDs from team memberships
-      const teamIds = userRoles?.filter(r => r.team_id).map(r => r.team_id) as string[] || [];
-      
-      if (teamIds.length > 0) {
-        const { data: teamsData } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        
-        teamsData?.forEach(t => {
-          if (t.club_id && !clubIds.includes(t.club_id)) {
-            clubIds.push(t.club_id);
-          }
-        });
-      }
-
+      const clubIds = userMemberships?.clubIds || [];
       if (clubIds.length === 0) return [];
 
-      // Fetch club details
       const { data: clubs } = await supabase
         .from("clubs")
         .select("id, name, sport, points_display_name, points_icon_url")
@@ -481,140 +414,71 @@ export default function HomePage() {
 
       return clubs || [];
     },
-    enabled: !!user && !!userRoles,
+    enabled: !!user && !!userMemberships && (userMemberships?.clubIds?.length ?? 0) > 0,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
 
-  // Check if user has Pro access (via club or team subscription)
-  // Logic: Club Pro → all teams inherit; Free club → check team subscription
+  // Check if user has Pro access - uses memberships data to avoid re-fetching user_roles
   const { data: hasProAccess, isLoading: isLoadingProAccess } = useQuery({
-    queryKey: ["user-has-pro-access", user?.id, userRoles?.map(r => r.club_id).filter(Boolean).join(","), userRoles?.map(r => r.team_id).filter(Boolean).join(",")],
+    queryKey: ["user-has-pro-access", user?.id, userMemberships?.clubIds, userMemberships?.teamIds],
     queryFn: async () => {
-      if (!userRoles || userRoles.length === 0) return false;
-      
-      const clubIds = [...new Set(userRoles.filter(r => r.club_id).map(r => r.club_id))] as string[];
-      const teamIds = [...new Set(userRoles.filter(r => r.team_id).map(r => r.team_id))] as string[];
-      
-      // Get club IDs from team memberships
-      if (teamIds.length > 0) {
-        const { data: teamsData } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        
-        teamsData?.forEach(t => {
-          if (t.club_id && !clubIds.includes(t.club_id)) {
-            clubIds.push(t.club_id);
-          }
-        });
-      }
-
+      if (!userMemberships) return false;
+      const { clubIds, teamIds } = userMemberships;
       if (clubIds.length === 0 && teamIds.length === 0) return false;
 
-      // First check club subscriptions
-      if (clubIds.length > 0) {
-        const { data: clubSubs } = await supabase
-          .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("club_id", clubIds);
+      // Check club and team subscriptions in parallel
+      const [clubSubsResult, teamSubsResult] = await Promise.all([
+        clubIds.length > 0
+          ? supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds)
+          : Promise.resolve({ data: [] }),
+        teamIds.length > 0
+          ? supabase.from("team_subscriptions").select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("team_id", teamIds)
+          : Promise.resolve({ data: [] }),
+      ]);
 
-        const hasClubPro = clubSubs?.some(s => 
-          s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override
-        );
-        
-        if (hasClubPro) return true;
-      }
-      
-      // If no club Pro, check team-level subscriptions (for teams in free clubs)
-      if (teamIds.length > 0) {
-        const { data: teamSubs } = await supabase
-          .from("team_subscriptions")
-          .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("team_id", teamIds);
-        
-        const hasTeamPro = teamSubs?.some(s => 
-          s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override
-        );
-        
-        if (hasTeamPro) return true;
-      }
+      const hasClubPro = (clubSubsResult.data || []).some((s: any) => s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override);
+      if (hasClubPro) return true;
 
-      return false;
+      const hasTeamPro = (teamSubsResult.data || []).some((s: any) => s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override);
+      return hasTeamPro;
     },
-    enabled: !!user && !!userRoles,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes to prevent flash on re-renders
-    placeholderData: (prev) => prev, // Keep previous data during key changes to prevent flash
+    enabled: !!user && !!userMemberships,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
   
-  // Show PRO badge only after we've confirmed they don't have Pro access
-  // Must wait for both userRoles AND hasProAccess queries to complete to prevent flash
-  // Also require userRoles to be defined — when user is briefly undefined on app resume,
-  // disabled queries have isLoading=false AND data=undefined, which would cause a false flash
   const showProBadge = !!userRoles && !isLoadingUserRoles && !isLoadingProAccess && !hasProAccess && !isAppAdmin;
 
-  // Fetch clubs for rewards with Pro status
+  // Fetch clubs for rewards with Pro status - uses memberships data
   const { data: rewardClubs = [] } = useQuery({
-    queryKey: ["reward-clubs-home", user?.id, activeClubFilter],
+    queryKey: ["reward-clubs-home", user?.id, activeClubFilter, userMemberships?.clubIds],
     queryFn: async () => {
-      // If active club filter, only return that club
       if (activeClubFilter) {
-        const { data: club } = await supabase
-          .from("clubs")
-          .select("id, name, logo_url")
-          .eq("id", activeClubFilter)
-          .single();
-
-        if (!club) return [];
-
-        const { data: subscription } = await supabase
-          .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .eq("club_id", activeClubFilter)
-          .maybeSingle();
-
-        const hasPro = subscription?.is_pro || subscription?.is_pro_football || 
-                       subscription?.admin_pro_override || subscription?.admin_pro_football_override;
-        return [{ ...club, hasPro: !!hasPro }];
+        const [clubResult, subResult] = await Promise.all([
+          supabase.from("clubs").select("id, name, logo_url").eq("id", activeClubFilter).single(),
+          supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").eq("club_id", activeClubFilter).maybeSingle(),
+        ]);
+        if (!clubResult.data) return [];
+        const hasPro = subResult.data?.is_pro || subResult.data?.is_pro_football || subResult.data?.admin_pro_override || subResult.data?.admin_pro_football_override;
+        return [{ ...clubResult.data, hasPro: !!hasPro }];
       }
 
-      // Get all user's clubs
-      if (!userRoles) return [];
-      const clubIds = new Set<string>();
-      userRoles.forEach(role => {
-        if (role.club_id) clubIds.add(role.club_id);
-      });
+      const clubIds = userMemberships?.clubIds || [];
+      if (clubIds.length === 0) return [];
 
-      const teamIds = userRoles.filter(r => r.team_id).map(r => r.team_id) as string[];
-      if (teamIds.length > 0) {
-        const { data: teamsData } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        teamsData?.forEach(t => {
-          if (t.club_id) clubIds.add(t.club_id);
-        });
-      }
+      const [clubsResult, subsResult] = await Promise.all([
+        supabase.from("clubs").select("id, name, logo_url").in("id", clubIds),
+        supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds),
+      ]);
 
-      if (clubIds.size === 0) return [];
-
-      const { data: clubs } = await supabase
-        .from("clubs")
-        .select("id, name, logo_url")
-        .in("id", Array.from(clubIds));
-
-      const { data: subscriptions } = await supabase
-        .from("club_subscriptions")
-        .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-        .in("club_id", Array.from(clubIds));
-
-      return (clubs || []).map(club => {
-        const sub = subscriptions?.find(s => s.club_id === club.id);
+      return (clubsResult.data || []).map(club => {
+        const sub = (subsResult.data || []).find((s: any) => s.club_id === club.id);
         const hasPro = sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override;
         return { ...club, hasPro: !!hasPro };
       });
     },
-    enabled: !!user,
+    enabled: !!user && !!userMemberships,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -1056,22 +920,18 @@ export default function HomePage() {
     },
   });
 
+  // Only fetch all clubs/teams/leagues when join dialogs are open (lazy loading)
   const { data: clubs, error: clubsError, isLoading: clubsLoading } = useQuery({
     queryKey: ["all-clubs"],
     queryFn: async () => {
-      console.log("[HomePage] Fetching all clubs...");
       const { data, error } = await supabase
         .from("clubs")
         .select("id, name, sport, class_mode_enabled")
         .order("name");
-      if (error) {
-        console.error("[HomePage] Error fetching clubs:", error);
-        throw error;
-      }
-      console.log("[HomePage] Fetched clubs:", data?.length);
+      if (error) throw error;
       return data as Club[];
     },
-    enabled: !!user,
+    enabled: !!user && (clubDialogOpen || teamDialogOpen || !!activeClubFilter),
     staleTime: 1000 * 60 * 5,
     placeholderData: (prev) => prev,
   });
@@ -1079,40 +939,29 @@ export default function HomePage() {
   const { data: teams, error: teamsError, isLoading: teamsLoading } = useQuery({
     queryKey: ["all-teams"],
     queryFn: async () => {
-      console.log("[HomePage] Fetching all teams...");
       const { data, error } = await supabase
         .from("teams")
         .select("id, name, club_id, clubs (name, sport)")
         .order("name");
-      if (error) {
-        console.error("[HomePage] Error fetching teams:", error);
-        throw error;
-      }
-      console.log("[HomePage] Fetched teams:", data?.length);
+      if (error) throw error;
       return data as Team[];
     },
-    enabled: !!user,
+    enabled: !!user && teamDialogOpen,
     staleTime: 1000 * 60 * 5,
     placeholderData: (prev) => prev,
   });
 
-  // Fetch all mini leagues for join request dropdown
   const { data: miniLeagues, error: miniLeaguesError } = useQuery({
     queryKey: ["all-mini-leagues"],
     queryFn: async () => {
-      console.log("[HomePage] Fetching all mini leagues...");
       const { data, error } = await supabase
         .from("mini_leagues")
         .select("id, name, club_id, clubs (name, sport)")
         .order("name");
-      if (error) {
-        console.error("[HomePage] Error fetching mini leagues:", error);
-        throw error;
-      }
-      console.log("[HomePage] Fetched mini leagues:", data?.length);
+      if (error) throw error;
       return data as MiniLeague[];
     },
-    enabled: !!user,
+    enabled: !!user && teamDialogOpen,
     staleTime: 1000 * 60 * 5,
     placeholderData: (prev) => prev,
   });
@@ -1531,7 +1380,7 @@ export default function HomePage() {
   // Don't block entire page on events loading - show skeleton/loading state inline instead
   // This prevents the "double flash" issue on login where the page loads, then shows loading, then loads again
 
-  const activeClubName = clubs?.find(c => c.id === activeClubFilter)?.name;
+  const activeClubName = userClubs?.find((c: any) => c.id === activeClubFilter)?.name || clubs?.find(c => c.id === activeClubFilter)?.name;
   const firstName = profile?.display_name?.split(' ')[0] || 'there';
 
   return (
