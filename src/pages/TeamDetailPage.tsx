@@ -1234,7 +1234,18 @@ export default function TeamDetailPage() {
                               }
                             }
 
-                            return teamChildren.map((assignment: any) => {
+                             // Sort confirmed children first, pending children last
+                             const sorted = [...teamChildren].sort((a: any, b: any) => {
+                               const aChild = a.children;
+                               const bChild = b.children;
+                               const aIsPending = (aChild && (pendingChildIds.has(aChild.id) || 
+                                 (aChild.name && pendingChildNames.has(aChild.name.toLowerCase()) && (!aChild.allParentNames || aChild.allParentNames.length === 0)))) ? 1 : 0;
+                               const bIsPending = (bChild && (pendingChildIds.has(bChild.id) || 
+                                 (bChild.name && pendingChildNames.has(bChild.name.toLowerCase()) && (!bChild.allParentNames || bChild.allParentNames.length === 0)))) ? 1 : 0;
+                               return aIsPending - bIsPending;
+                             });
+
+                             return sorted.map((assignment: any) => {
                               const child = assignment.children;
                               if (!child) return null;
                               const isPending = pendingChildIds.has(child.id) || 
