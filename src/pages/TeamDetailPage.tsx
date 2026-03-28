@@ -1337,14 +1337,6 @@ export default function TeamDetailPage() {
                           <div key={role} className="mb-4 pb-4 border-b last:border-b-0 last:mb-0 last:pb-0">
                             <p className="text-sm font-medium text-muted-foreground mb-2">{roleGroupLabels[role] || role}</p>
                             <div className="space-y-2">
-                              {/* Pending invites for this role */}
-                              {rolePending.length > 0 && (memberRoleFilter === "all" || memberRoleFilter === role) && (
-                                <PendingInvitesList
-                                  invites={rolePending}
-                                  teamId={id}
-                                  isAdmin={isAdmin || isClubAdmin}
-                                />
-                              )}
                               {roleMembers.map(([userId, member]) => (
                               <Card key={userId}>
                                 <CardContent className="p-3 flex items-center gap-3">
