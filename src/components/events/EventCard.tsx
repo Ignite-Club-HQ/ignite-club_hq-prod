@@ -488,25 +488,36 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             ? "Maybe"
             : "Not going";
 
-          // Count of additional household members
-          const totalHousehold = goingNames.length + maybeNames.length + notGoingNames.length;
-          const childCount = totalHousehold - (currentRsvpStatus ? 1 : 0);
+          // Build a compact but clear household summary showing each status group
+          const childGoing = goingNames.filter(n => n !== "You");
+          const childMaybe = maybeNames.filter(n => n !== "You");
+          const childNotGoing = notGoingNames.filter(n => n !== "You");
+
+          // Build child detail parts, only for statuses that differ from parent
+          const childParts: string[] = [];
+          if (childGoing.length > 0) {
+            childParts.push(childGoing.length <= 2 ? childGoing.join(", ") : `${childGoing.length} going`);
+          }
+          if (childMaybe.length > 0) {
+            const label = childMaybe.length <= 2 ? childMaybe.join(", ") : `${childMaybe.length}`;
+            childParts.push(`${label} maybe`);
+          }
+          if (childNotGoing.length > 0) {
+            const label = childNotGoing.length <= 2 ? childNotGoing.join(", ") : `${childNotGoing.length}`;
+            childParts.push(`${label} not going`);
+          }
 
           return (
             <div className="pt-2 border-t border-border/40 space-y-1">
               {/* Line 1: Personal / household RSVP */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
                   {personalStatusIcon}
-                  <span className={`text-[12px] font-semibold ${personalStatusColor}`}>
+                  <span className={`text-[12px] font-semibold ${personalStatusColor} truncate`}>
                     You: {primaryStatus}
-                    {childCount > 0 && (
+                    {childParts.length > 0 && (
                       <span className="font-normal text-foreground/70">
-                        {" · "}
-                        {childCount === 1
-                          ? `${(goingNames.concat(maybeNames, notGoingNames).filter(n => n !== "You"))[0]}`
-                          : `${childCount} children`
-                        }
+                        {" · "}{childParts.join(" · ")}
                       </span>
                     )}
                   </span>
