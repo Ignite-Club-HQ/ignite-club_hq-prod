@@ -140,30 +140,36 @@ export function PendingInviteWelcomeDialog() {
           }
 
           const { data: existingRole } = await roleQuery.maybeSingle();
+          const meta = invite.metadata as any;
+          const needsParentLinking = invite.role === "parent" && (
+            !!meta?.guardian_child_id ||
+            !!meta?.child_id ||
+            Array.isArray(meta?.children)
+          );
 
-          if (existingRole) {
-            // Already a member — just mark invite as accepted
+          if (!existingRole) {
+            const { error: roleError } = await supabase
+              .from("user_roles")
+              .insert({
+                user_id: user.id,
+                role: invite.role as any,
+                team_id: invite.team_id || null,
+                club_id: clubId || null,
+              });
+
+            if (roleError) {
+              console.error("[InviteAutoAccept] Failed to assign role:", roleError);
+              continue;
+            }
+          } else if (!needsParentLinking) {
             await supabase
               .from("pending_invites")
               .update({ status: "accepted", accepted_at: new Date().toISOString() })
               .eq("id", invite.id);
             console.log("[InviteAutoAccept] Invite already fulfilled, marked accepted:", invite.id);
             continue;
-          }
-
-          // Insert the role
-          const { error: roleError } = await supabase
-            .from("user_roles")
-            .insert({
-              user_id: user.id,
-              role: invite.role as any,
-              team_id: invite.team_id || null,
-              club_id: clubId || null,
-            });
-
-          if (roleError) {
-            console.error("[InviteAutoAccept] Failed to assign role:", roleError);
-            continue;
+          } else {
+            console.log("[InviteAutoAccept] Role already exists, continuing with parent-link sync:", invite.id);
           }
 
           const entityName =
