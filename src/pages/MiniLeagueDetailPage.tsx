@@ -447,15 +447,6 @@ export default function MiniLeagueDetailPage() {
       <div className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Match Days</h2>
-          {canManageLeague && hasEvents && (
-            <button
-              onClick={() => navigate(getCreateUrl())}
-              className="text-xs text-primary font-medium hover:underline flex items-center gap-1"
-            >
-              <Plus className="h-3 w-3" />
-              Create Match Day
-            </button>
-          )}
         </div>
 
         {eventsLoading ? (
