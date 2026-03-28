@@ -35,6 +35,17 @@ import { Capacitor } from "@capacitor/core";
 
 type PaymentType = "subscription" | "uniform";
 
+interface PayableEntry {
+  id: string; // unique key: either user_id or `child_${child_id}`
+  displayName: string;
+  avatarUrl: string | null;
+  isChild: boolean;
+  childId?: string;
+  parentUserId?: string; // for children, the parent's user_id
+  userId?: string; // for adult players
+  label: string; // "Player" or "Child Player"
+}
+
 interface Member {
   profile: {
     id: string;
@@ -63,8 +74,12 @@ export default function MemberSubscriptionPaymentsManager({
   
   const [activeTab, setActiveTab] = useState<PaymentType>("subscription");
   const [selectedMember, setSelectedMember] = useState<{
-    userId: string;
+    id: string;
     displayName: string;
+    isChild: boolean;
+    childId?: string;
+    parentUserId?: string;
+    userId?: string;
   } | null>(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentPeriod, setPaymentPeriod] = useState(new Date().getFullYear().toString());
@@ -76,24 +91,78 @@ export default function MemberSubscriptionPaymentsManager({
   // Get current year for default period
   const currentYear = new Date().getFullYear();
 
-  // Fetch payments for all members in this context
-  const memberIds = Object.keys(members);
-  
-  const { data: payments = [], isLoading: isPaymentsLoading } = useQuery({
-    queryKey: ["member-subscription-payments", clubId, memberIds.join(","), paymentPeriod, activeTab],
+  // Fetch children assigned to this team
+  const { data: teamChildren = [] } = useQuery({
+    queryKey: ["team-children-payments", teamId],
     queryFn: async () => {
-      if (memberIds.length === 0) return [];
+      if (!teamId) return [];
+      const { data, error } = await supabase
+        .from("child_team_assignments")
+        .select("child_id, children(id, name, parent_id)")
+        .eq("team_id", teamId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!teamId,
+  });
+
+  // Build payable entries: adult players + child players
+  const payableEntries: PayableEntry[] = useMemo(() => {
+    const entries: PayableEntry[] = [];
+
+    // Adult players from user_roles
+    Object.entries(members).forEach(([userId, member]) => {
+      const roles = member.roles?.map(r => r.role) || [];
+      if (roles.includes("player")) {
+        entries.push({
+          id: userId,
+          displayName: member.profile?.display_name || "Unknown",
+          avatarUrl: member.profile?.avatar_url || null,
+          isChild: false,
+          userId,
+          label: "Player",
+        });
+      }
+    });
+
+    // Child players from team assignments
+    teamChildren.forEach((assignment: any) => {
+      const child = assignment.children;
+      if (!child) return;
+      entries.push({
+        id: `child_${child.id}`,
+        displayName: child.name,
+        avatarUrl: null,
+        isChild: true,
+        childId: child.id,
+        parentUserId: child.parent_id,
+        label: "Player",
+      });
+    });
+
+    return entries;
+  }, [members, teamChildren]);
+
+  // Collect all relevant user_ids and child_ids for payment lookup
+  const parentIds = [...new Set(payableEntries.filter(e => e.isChild && e.parentUserId).map(e => e.parentUserId!))];
+  const adultPlayerIds = payableEntries.filter(e => !e.isChild && e.userId).map(e => e.userId!);
+  const allUserIds = [...new Set([...adultPlayerIds, ...parentIds])];
+
+  const { data: payments = [], isLoading: isPaymentsLoading } = useQuery({
+    queryKey: ["member-subscription-payments", clubId, payableEntries.map(e => e.id).join(","), paymentPeriod, activeTab],
+    queryFn: async () => {
+      if (allUserIds.length === 0) return [];
       const { data, error } = await supabase
         .from("member_subscription_payments")
         .select("*")
         .eq("club_id", clubId)
         .eq("payment_period", paymentPeriod)
         .eq("payment_type", activeTab)
-        .in("user_id", memberIds);
+        .in("user_id", allUserIds);
       if (error) throw error;
       return data || [];
     },
-    enabled: memberIds.length > 0,
+    enabled: allUserIds.length > 0,
   });
 
   // Fetch club subscription for member payment settings
