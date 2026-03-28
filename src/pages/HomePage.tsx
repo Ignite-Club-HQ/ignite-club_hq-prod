@@ -450,68 +450,35 @@ export default function HomePage() {
   
   const showProBadge = !!userRoles && !isLoadingUserRoles && !isLoadingProAccess && !hasProAccess && !isAppAdmin;
 
-  // Fetch clubs for rewards with Pro status
+  // Fetch clubs for rewards with Pro status - uses memberships data
   const { data: rewardClubs = [] } = useQuery({
-    queryKey: ["reward-clubs-home", user?.id, activeClubFilter],
+    queryKey: ["reward-clubs-home", user?.id, activeClubFilter, userMemberships?.clubIds],
     queryFn: async () => {
-      // If active club filter, only return that club
       if (activeClubFilter) {
-        const { data: club } = await supabase
-          .from("clubs")
-          .select("id, name, logo_url")
-          .eq("id", activeClubFilter)
-          .single();
-
-        if (!club) return [];
-
-        const { data: subscription } = await supabase
-          .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .eq("club_id", activeClubFilter)
-          .maybeSingle();
-
-        const hasPro = subscription?.is_pro || subscription?.is_pro_football || 
-                       subscription?.admin_pro_override || subscription?.admin_pro_football_override;
-        return [{ ...club, hasPro: !!hasPro }];
+        const [clubResult, subResult] = await Promise.all([
+          supabase.from("clubs").select("id, name, logo_url").eq("id", activeClubFilter).single(),
+          supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").eq("club_id", activeClubFilter).maybeSingle(),
+        ]);
+        if (!clubResult.data) return [];
+        const hasPro = subResult.data?.is_pro || subResult.data?.is_pro_football || subResult.data?.admin_pro_override || subResult.data?.admin_pro_football_override;
+        return [{ ...clubResult.data, hasPro: !!hasPro }];
       }
 
-      // Get all user's clubs
-      if (!userRoles) return [];
-      const clubIds = new Set<string>();
-      userRoles.forEach(role => {
-        if (role.club_id) clubIds.add(role.club_id);
-      });
+      const clubIds = userMemberships?.clubIds || [];
+      if (clubIds.length === 0) return [];
 
-      const teamIds = userRoles.filter(r => r.team_id).map(r => r.team_id) as string[];
-      if (teamIds.length > 0) {
-        const { data: teamsData } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        teamsData?.forEach(t => {
-          if (t.club_id) clubIds.add(t.club_id);
-        });
-      }
+      const [clubsResult, subsResult] = await Promise.all([
+        supabase.from("clubs").select("id, name, logo_url").in("id", clubIds),
+        supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds),
+      ]);
 
-      if (clubIds.size === 0) return [];
-
-      const { data: clubs } = await supabase
-        .from("clubs")
-        .select("id, name, logo_url")
-        .in("id", Array.from(clubIds));
-
-      const { data: subscriptions } = await supabase
-        .from("club_subscriptions")
-        .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-        .in("club_id", Array.from(clubIds));
-
-      return (clubs || []).map(club => {
-        const sub = subscriptions?.find(s => s.club_id === club.id);
+      return (clubsResult.data || []).map(club => {
+        const sub = (subsResult.data || []).find((s: any) => s.club_id === club.id);
         const hasPro = sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override;
         return { ...club, hasPro: !!hasPro };
       });
     },
-    enabled: !!user,
+    enabled: !!user && !!userMemberships,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
