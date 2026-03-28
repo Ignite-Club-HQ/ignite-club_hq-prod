@@ -78,14 +78,16 @@ export default function CreateEventPage() {
   const presetType = searchParams.get("type") as EventType | null;
   const presetClubId = searchParams.get("club_id");
   const presetMiniLeagueId = searchParams.get("mini_league_id");
+  const prefillTitle = searchParams.get("prefill_title");
+  const prefillDate = searchParams.get("prefill_date");
   const isFromMiniLeague = presetType === "mini_league" && !!presetMiniLeagueId;
 
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(prefillTitle || "");
   const [type, setType] = useState<EventType>(presetType || "training");
   const [clubId, setClubId] = useState(presetClubId || "");
   const [teamId, setTeamId] = useState("");
   const [miniLeagueId, setMiniLeagueId] = useState(presetMiniLeagueId || "");
-  const [eventDateTime, setEventDateTime] = useState("");
+  const [eventDateTime, setEventDateTime] = useState(prefillDate || "");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -261,6 +263,11 @@ export default function CreateEventPage() {
     enabled: !!clubId && !!hasProFootball,
   });
 
+  // Fetch the specific mini league name when coming from a mini league
+  const miniLeagueName = isFromMiniLeague 
+    ? miniLeagues?.find(ml => ml.id === presetMiniLeagueId)?.name 
+    : undefined;
+
   // Get teams user has direct membership in (team_admin, coach, or any team role)
   const { data: userTeamIds } = useQuery({
     queryKey: ["user-team-memberships", clubId, user?.id],
@@ -313,12 +320,12 @@ export default function CreateEventPage() {
     return true;
   }, [clubId, user, isClubAdminForSelectedClub, teams]);
 
-  // Auto-set social type for committee-only users
+  // Auto-set social type for committee-only users (but never override mini league)
   useEffect(() => {
-    if (isCommitteeOnlyForClub && type !== "social") {
+    if (isCommitteeOnlyForClub && type !== "social" && !isFromMiniLeague) {
       setType("social");
     }
-  }, [isCommitteeOnlyForClub, type]);
+  }, [isCommitteeOnlyForClub, type, isFromMiniLeague]);
 
   const { data: members } = useQuery({
     queryKey: ["event-members-for-duty", clubId, teamId],
@@ -799,7 +806,12 @@ export default function CreateEventPage() {
         <Button variant="ghost" size="icon" onClick={() => isFromMiniLeague ? navigate(-1) : navigate("/events")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-bold">{isFromMiniLeague ? "New Session" : "New Event"}</h1>
+        <div>
+          <h1 className="text-xl font-bold">{isFromMiniLeague ? "New Match Day" : "New Event"}</h1>
+          {isFromMiniLeague && miniLeagueName && (
+            <p className="text-sm text-muted-foreground">{miniLeagueName}</p>
+          )}
+        </div>
       </div>
 
       {/* Event Type Selection - hidden when coming from mini league */}
@@ -859,7 +871,7 @@ export default function CreateEventPage() {
         <Collapsible open={openSections.details}>
           <SectionHeader 
             icon={FileText} 
-            title="Event Details" 
+            title={isFromMiniLeague ? "Match Day Details" : "Event Details"} 
             isOpen={openSections.details}
             onClick={() => toggleSection('details')}
             badge="Required"
@@ -869,7 +881,7 @@ export default function CreateEventPage() {
               {/* Title */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="title">Event Title</Label>
+                  <Label htmlFor="title">{isFromMiniLeague ? "Match Day Title" : "Event Title"}</Label>
                   <div className="flex items-center gap-1">
                     {favoriteTitles && favoriteTitles.length > 0 && (
                       <DropdownMenu>
@@ -925,7 +937,7 @@ export default function CreateEventPage() {
                 <div className="relative">
                   <Input
                     id="title"
-                    placeholder="e.g., Saturday Training"
+                    placeholder={isFromMiniLeague ? "e.g., Round 1" : "e.g., Saturday Training"}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     maxLength={100}
@@ -1098,7 +1110,8 @@ export default function CreateEventPage() {
                 />
               </div>
 
-              {/* Recurring Toggle */}
+              {/* Recurring Toggle - hidden for mini league match days */}
+              {!isFromMiniLeague && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
                   <Repeat className="h-4 w-4 text-muted-foreground" />
@@ -1109,6 +1122,7 @@ export default function CreateEventPage() {
                   onCheckedChange={setIsRecurring}
                 />
               </div>
+              )}
 
               {isRecurring && (
                 <div className="space-y-4 p-3 rounded-lg border border-dashed">
@@ -1396,7 +1410,7 @@ export default function CreateEventPage() {
           {saving ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
-            "Create Event"
+            isFromMiniLeague ? "Create Match Day" : "Create Event"
           )}
         </Button>
       </div>

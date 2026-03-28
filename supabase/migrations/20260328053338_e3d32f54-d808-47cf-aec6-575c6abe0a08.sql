@@ -1,0 +1,1 @@
+DELETE FROM mini_league_players WHERE parent_user_id IS NULL AND child_id IS NULL;

@@ -539,7 +539,7 @@ export default function EventDetailPage() {
   const isSocialEvent = event?.type === "social";
   const effectiveShowAll = isSocialEvent ? true : showAllRoles;
   const isMiniLeagueEvent = !!event?.mini_league_id;
-  const eventTypeLabel = isMiniLeagueEvent ? "Session" : getEventTypeLabel(event?.type);
+  const eventTypeLabel = isMiniLeagueEvent ? "Match Day" : getEventTypeLabel(event?.type);
 
   // Filter members based on showAllRoles toggle
   const members = membersWithRoles;
@@ -2092,6 +2092,21 @@ export default function EventDetailPage() {
         />
       )}
 
+      {/* Mini League Matches — PRIMARY section for league events, placed at top */}
+      {isMiniLeagueEvent && event.mini_league_id && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <EventGroupsManager
+              eventId={id!}
+              miniLeagueId={event.mini_league_id}
+              isAdmin={isAdmin || isAppAdmin || false}
+              playerOverrides={playerOverrides}
+            />
+          </section>
+        </>
+      )}
+
       {/* Event Sponsors (Pro only) */}
       <EventSponsorsSection eventId={id!} clubId={event.club_id} />
 
@@ -2120,7 +2135,7 @@ export default function EventDetailPage() {
 
       {/* RSVP Section */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Your RSVP</h2>
+        <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Attendance" : "Your RSVP"}</h2>
         <div className="grid grid-cols-3 gap-2">
           {rsvpOptions.map(({ value, label, icon }) => (
             <Button
@@ -2265,27 +2280,15 @@ export default function EventDetailPage() {
         </section>
       )}
 
-      {/* Mini League Breakout Groups (only for mini league events) - above responses for easy access */}
-      {event.mini_league_id && (
-        <>
-          <Separator />
-          <section className="space-y-3">
-            <EventGroupsManager
-              eventId={id!}
-              miniLeagueId={event.mini_league_id}
-              isAdmin={isAdmin || isAppAdmin || false}
-              playerOverrides={playerOverrides}
-            />
-          </section>
-        </>
-      )}
+      {/* Mini League Matches - rendered earlier for mini league events (moved above Responses) */}
+      {!isMiniLeagueEvent && event.mini_league_id && null}
 
       <Separator />
 
       {/* Attendees by Status */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Responses</h2>
+          <h2 className="text-lg font-semibold">{isMiniLeagueEvent ? "Player Responses" : "Responses"}</h2>
           {/* Only show filter for training and game events, not social */}
           {!isSocialEvent && (
             <div className="flex items-center gap-2">
@@ -2589,7 +2592,7 @@ export default function EventDetailPage() {
         </>
       )}
 
-      {/* Duties Section (only for non-mini-league games — mini league duties are auto-created via Quick Setup) */}
+      {/* Duties Section (only for non-mini-league games — mini league duties are auto-created via Generate Matches) */}
       {event.type === "game" && !isMiniLeagueEvent && (
         <>
           <section className="space-y-3">

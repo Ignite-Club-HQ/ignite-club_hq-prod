@@ -246,7 +246,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       const leagueIds = new Set(playerLeagues?.map(p => p.mini_league_id) || []);
 
       const leagueAdminClubIds = roles
-        .filter(r => r.club_id && (r.role === "league_admin" || r.role === "club_admin"))
+        .filter(r => r.club_id && r.role === "league_admin")
         .map(r => r.club_id) as string[];
 
       if (leagueAdminClubIds.length > 0) {
