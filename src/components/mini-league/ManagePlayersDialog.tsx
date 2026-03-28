@@ -123,11 +123,11 @@ function DraggablePlayerCard({ player, children, canDrag }: { player: MiniLeague
       {...(canDrag ? { ...listeners, ...attributes } : {})}
     >
       {canDrag && (
-        <div className="absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center pointer-events-none">
-          <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40" />
+        <div className="absolute left-0 top-0 bottom-0 w-4 flex items-center justify-center pointer-events-none">
+          <GripVertical className="h-3 w-3 text-muted-foreground/35" />
         </div>
       )}
-      <div className={canDrag ? "pl-4" : ""}>
+      <div className={canDrag ? "pl-2.5" : ""}>
         {children}
       </div>
     </div>
