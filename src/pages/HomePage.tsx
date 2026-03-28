@@ -399,32 +399,13 @@ export default function HomePage() {
 
   const isAppAdmin = userRoles?.some(r => r.role === "app_admin");
 
-  // Get user's clubs (for upgrade selection)
+  // Get user's clubs (for upgrade selection) - uses memberships data to avoid extra user_roles fetch
   const { data: userClubs = [] } = useQuery({
-    queryKey: ["user-clubs-for-upgrade", user?.id, userRoles],
+    queryKey: ["user-clubs-for-upgrade", user?.id, userMemberships?.clubIds],
     queryFn: async () => {
-      // Get user's club IDs through their roles
-      const clubIds = userRoles?.filter(r => r.club_id).map(r => r.club_id) as string[] || [];
-      
-      // Also get club IDs from team memberships
-      const teamIds = userRoles?.filter(r => r.team_id).map(r => r.team_id) as string[] || [];
-      
-      if (teamIds.length > 0) {
-        const { data: teamsData } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        
-        teamsData?.forEach(t => {
-          if (t.club_id && !clubIds.includes(t.club_id)) {
-            clubIds.push(t.club_id);
-          }
-        });
-      }
-
+      const clubIds = userMemberships?.clubIds || [];
       if (clubIds.length === 0) return [];
 
-      // Fetch club details
       const { data: clubs } = await supabase
         .from("clubs")
         .select("id, name, sport, points_display_name, points_icon_url")
@@ -433,7 +414,7 @@ export default function HomePage() {
 
       return clubs || [];
     },
-    enabled: !!user && !!userRoles,
+    enabled: !!user && !!userMemberships && (userMemberships?.clubIds?.length ?? 0) > 0,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
