@@ -528,6 +528,19 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {inviteLink && (
+                    <>
+                      <DropdownMenuItem onClick={handleCopyLink}>
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy invite link
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleShareInvite}>
+                        <Share2 className="h-4 w-4 mr-2" />
+                        Share invite link
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   <DropdownMenuItem onClick={handleOpenEdit}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit name/role
