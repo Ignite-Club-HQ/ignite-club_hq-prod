@@ -5,7 +5,7 @@ import { format, isToday, parseISO, startOfDay, nextSaturday } from "date-fns";
 import {
   ArrowLeft, Users, Calendar as CalendarIcon, Plus, MoreVertical, Loader2,
   ChevronRight, Clock, MapPin, Shirt, Settings, Trophy, Target,
-  UserPlus, CalendarDays
+  UserPlus, CalendarDays, Shield, UserRound
 } from "lucide-react";
 import {
   DropdownMenu,
