@@ -527,46 +527,35 @@ export default function MemberSubscriptionPaymentsManager({
             </div>
           ) : (
             <div className="space-y-2">
-              {payableMembers.map(([userId, member]) => {
-                const payment = paymentMap[userId];
+              {payableEntries.map((entry) => {
+                const payment = paymentMap[entry.id];
                 const isPaid = !!payment;
                 
                 return (
                   <Card 
-                    key={userId}
+                    key={entry.id}
                     className={`transition-colors ${
                       isAdmin ? "cursor-pointer hover:bg-muted/50" : ""
                     } ${
                       isPaid ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30"
                     }`}
-                    onClick={() => handleMemberClick(userId, member.profile?.display_name || "Unknown")}
+                    onClick={() => handleEntryClick(entry)}
                   >
                     <CardContent className="p-3 flex items-center gap-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={member.profile?.avatar_url || undefined} />
+                        <AvatarImage src={entry.avatarUrl || undefined} />
                         <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                          {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                          {entry.displayName?.charAt(0)?.toUpperCase() || "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate">
-                          {member.profile?.display_name || "Unknown User"}
-                          {userId === user?.id && <span className="text-muted-foreground"> (You)</span>}
+                          {entry.displayName}
+                          {!entry.isChild && entry.userId === user?.id && <span className="text-muted-foreground"> (You)</span>}
                         </p>
-                        <div className="flex flex-wrap gap-1 mt-0.5">
-                          {member.roles?.map((roleItem) => {
-                            const roleLabels: Record<string, string> = {
-                              player: "Player",
-                              parent: "Parent",
-                            };
-                            if (!["player", "parent"].includes(roleItem.role)) return null;
-                            return (
-                              <Badge key={roleItem.id} variant="secondary" className="text-xs">
-                                {roleLabels[roleItem.role] || roleItem.role}
-                              </Badge>
-                            );
-                          })}
-                        </div>
+                        <Badge variant="secondary" className="text-xs mt-0.5">
+                          {entry.label}
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-2">
                         {isPaid ? (
