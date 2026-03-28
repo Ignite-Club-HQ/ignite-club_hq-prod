@@ -318,6 +318,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             </div>
           )}
         </div>
+      </CardContent>
 
       {/* Dialogs */}
       <div onClick={(e) => e.stopPropagation()}>
