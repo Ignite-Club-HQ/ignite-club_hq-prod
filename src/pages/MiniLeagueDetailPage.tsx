@@ -281,18 +281,18 @@ export default function MiniLeagueDetailPage() {
 
         {/* How it works */}
         <div className="pt-1 space-y-2.5">
-          <div className="flex items-center justify-center gap-5">
+          <div className="flex items-start justify-center gap-5">
             {[
               { icon: CalendarIcon, label: "Create Match Day", step: "1" },
               { icon: Shirt, label: "Add Games", step: "2" },
               { icon: Target, label: "Track Scores", step: "3" },
             ].map(({ icon: Icon, label, step }) => (
               <div key={step} className="flex flex-col items-center gap-1.5 text-center w-20">
-                <div className="relative">
+                <div className="relative h-9 w-9">
                   <div className="h-9 w-9 rounded-xl bg-muted/60 flex items-center justify-center">
                     <Icon className="h-4 w-4 text-muted-foreground/70" />
                   </div>
-                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shadow-sm">
+                  <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shadow-sm">
                     {step}
                   </span>
                 </div>
