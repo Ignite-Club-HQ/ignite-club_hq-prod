@@ -1320,8 +1320,9 @@ export default function TeamDetailPage() {
                       for (const inv of pendingInvites) {
                         if (memberRoleFilter !== "all" && inv.role !== memberRoleFilter) continue;
                         const role = inv.role || "basic_user";
-                        if (!pendingByRole[role]) pendingByRole[role] = [];
-                        pendingByRole[role].push(inv);
+                        const mappedInvRole = roleGroupMap[role] || "basic_user";
+                        if (!pendingByRole[mappedInvRole]) pendingByRole[mappedInvRole] = [];
+                        pendingByRole[mappedInvRole].push(inv);
                       }
 
                       // Collect all roles that have members or pending invites
