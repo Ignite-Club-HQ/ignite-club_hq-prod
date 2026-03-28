@@ -24,7 +24,7 @@ import {
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
-import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users } from "lucide-react";
+import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users, MoreVertical } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, differenceInCalendarDays } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
@@ -347,16 +347,17 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
     setRemindDialogOpen(true);
   };
 
-  // Long-press to open admin menu
+  // Long-press to reveal three-dots admin button
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
+  const [showAdminDots, setShowAdminDots] = useState(false);
 
   const handlePointerDown = useCallback(() => {
     if (!isAdmin) return;
     longPressTriggered.current = false;
     longPressTimer.current = setTimeout(() => {
       longPressTriggered.current = true;
-      setAdminMenuOpen(true);
+      setShowAdminDots(true);
     }, 500);
   }, [isAdmin]);
 
@@ -537,10 +538,18 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
         })()}
       </CardContent>
 
-      {/* Admin menu triggered by long-press */}
-      {isAdmin && (
-        <DropdownMenu open={adminMenuOpen} onOpenChange={setAdminMenuOpen}>
-          <DropdownMenuTrigger className="sr-only" />
+      {/* Admin three-dots revealed by long-press */}
+      {isAdmin && showAdminDots && (
+        <div className="absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu open={adminMenuOpen} onOpenChange={(open) => {
+            setAdminMenuOpen(open);
+            if (!open) setShowAdminDots(false);
+          }}>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1.5 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors">
+                <MoreVertical className="h-4 w-4 text-foreground/70" />
+              </button>
+            </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {!event.is_cancelled && (
               <>
