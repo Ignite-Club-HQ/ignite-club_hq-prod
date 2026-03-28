@@ -1762,21 +1762,13 @@ export default function EventDetailPage() {
   }
 
   if (!event) {
-    const roastMessages = [
-      "🚫 Nice try, but you're not on the guest list. This event is more exclusive than your playlist.",
-      "🔒 Whoa there! You don't have access to this event. Maybe try making some friends first?",
-      "🙅 Access denied! This event is invitation-only, and clearly... you weren't invited.",
-      "😬 Awkward... You're trying to crash a party you weren't invited to. Bold move.",
-      "🫣 Plot twist: you need to actually be a member to see this. Wild concept, right?",
-      "🏟️ You can't just walk into any event like you own the place. Get invited first!",
-      "🚷 Hold up! This area is members-only. No ticket, no entry, no exceptions.",
-    ];
-    const roast = roastMessages[Math.floor(Math.random() * roastMessages.length)];
     return (
       <div className="py-12 text-center space-y-4 px-6">
-        <div className="text-5xl">🚫</div>
-        <h2 className="text-xl font-bold text-foreground">No Access</h2>
-        <p className="text-muted-foreground max-w-sm mx-auto">{roast}</p>
+        <div className="text-5xl">📋</div>
+        <h2 className="text-xl font-bold text-foreground">Event Not Available</h2>
+        <p className="text-muted-foreground max-w-sm mx-auto">
+          This event may have been removed, or it's for a specific team or group you're not part of. If you think this is a mistake, check with your club admin.
+        </p>
         <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
           Go Home
         </Button>
