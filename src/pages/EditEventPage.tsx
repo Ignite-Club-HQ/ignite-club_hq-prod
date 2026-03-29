@@ -577,26 +577,8 @@ export default function EditEventPage() {
         }
       }
 
-      // Notify all RSVPs about the event update
-      const { data: rsvps } = await supabase
-        .from("rsvps")
-        .select("user_id")
-        .eq("event_id", id!);
-      
-      if (rsvps && rsvps.length > 0) {
-        const notifications = rsvps
-          .filter(r => r.user_id !== user?.id)
-          .map(r => ({
-            user_id: r.user_id,
-            type: "event_updated",
-            message: `Event updated: ${title.trim()}`,
-            related_id: id,
-          }));
-        
-        if (notifications.length > 0) {
-          await supabase.from("notifications").insert(notifications);
-        }
-      }
+      // Event update notifications are now handled automatically by the
+      // on_event_updated DB trigger → process-event-notifications edge function
 
       navigate(`/events/${id}`);
     } catch (error) {
