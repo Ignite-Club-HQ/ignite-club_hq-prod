@@ -306,7 +306,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
   return (
     <Card
-      className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 ${fullWidth ? "w-full" : "min-w-[300px] w-[calc(100vw-2.5rem)] max-w-[420px]"} shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
