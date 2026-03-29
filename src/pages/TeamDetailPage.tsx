@@ -1266,8 +1266,8 @@ export default function TeamDetailPage() {
                               return (
                                 <Card 
                                   key={assignment.id} 
-                                  className={cn(isPending ? "opacity-70" : "", (isAdmin || isClubAdmin) && "cursor-pointer select-none")}
-                                  onTouchStart={(isAdmin || isClubAdmin) ? (() => {
+                                  className={cn(isPending ? "opacity-70" : "", (isAdmin || isClubAdmin) && isSoccerClub && "cursor-pointer select-none")}
+                                  onTouchStart={(isAdmin || isClubAdmin) && isSoccerClub ? (() => {
                                     const timer = setTimeout(() => {
                                       setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
                                     }, 500);
