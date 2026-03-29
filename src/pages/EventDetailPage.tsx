@@ -6,7 +6,7 @@ import { getShareUrl } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
@@ -454,18 +454,75 @@ export default function EventDetailPage() {
   // Check if user can access pitch board (coach/admin) - requires Pro Football subscription
   const canAccessPitchBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
 
-  // Fetch team members for pitch board
+  // Check if user is a team member (for read-only pitch board access)
+  const { data: isTeamMember } = useQuery({
+    queryKey: ["is-team-member", event?.team_id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("team_id", event!.team_id!)
+        .limit(1)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && !!event?.team_id && !canAccessPitchBoard,
+  });
+
+  // Check if a game is currently in progress (for read-only spectator mode)
+  const { data: activeGameSummary } = useQuery({
+    queryKey: ["active-game-summary", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("game_summaries")
+        .select("id, is_active, pitch_state, timer_state")
+        .eq("event_id", id!)
+        .eq("is_active", true)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!id && !!isTeamMember && !canAccessPitchBoard && event?.type === 'game' && !!isSoccerClub && hasProFootball === true,
+    refetchInterval: 30000, // Poll every 30s to detect game start
+  });
+
+  const canViewPitchBoardReadOnly = !!isTeamMember && !canAccessPitchBoard && !!activeGameSummary;
+
+  // Fetch team members for pitch board (adults + children)
   const { data: teamMembers } = useQuery({
     queryKey: ["team-members-for-pitch", event?.team_id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("user_id, role, profiles:user_id (id, display_name, avatar_url)")
-        .eq("team_id", event!.team_id!);
-      if (error) throw error;
-      return data;
+      const [rolesResult, childrenResult] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id, role, profiles:user_id (id, display_name, avatar_url)")
+          .eq("team_id", event!.team_id!),
+        supabase.rpc("get_team_children_for_pitch_board", {
+          p_team_id: event!.team_id!,
+        }),
+      ]);
+
+      if (rolesResult.error) throw rolesResult.error;
+
+      const adultMembers = (rolesResult.data || []).map(m => ({
+        user_id: m.user_id,
+        role: m.role,
+        profiles: m.profiles,
+      }));
+
+      const childMembers = (childrenResult.data || []).map(child => ({
+        user_id: child.child_id,
+        role: "player" as string,
+        profiles: {
+          id: child.child_id,
+          display_name: child.child_name,
+          avatar_url: null,
+        },
+      }));
+
+      return [...adultMembers, ...childMembers];
     },
-    enabled: !!event?.team_id && !!canAccessPitchBoard,
+    enabled: !!event?.team_id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
   });
 
   // Fetch team subscription for pitch board settings
@@ -480,7 +537,7 @@ export default function EventDetailPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!event?.team_id && !!canAccessPitchBoard,
+    enabled: !!event?.team_id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
   });
 
   // Fetch team/club members for duty assignment and not responded list (with roles)
@@ -2061,7 +2118,7 @@ export default function EventDetailPage() {
           )}
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 text-primary" />
-            <span>{rsvps?.filter(r => r.status === "going").length || 0} attending</span>
+            <span>{rsvps?.filter(r => r.status === "going" && (event.type === "social" ? true : r.child_id != null)).length || 0} attending</span>
           </div>
           {/* Price for social events */}
           {event.type === "social" && eventPrice && eventPrice > 0 && (
@@ -2103,6 +2160,18 @@ export default function EventDetailPage() {
               </Button>
             );
           })()}
+          {/* Read-only "Watch Live" button for parents when game is in progress */}
+          {canViewPitchBoardReadOnly && teamMembers && (
+            <Button
+              variant="default"
+              size="lg"
+              className="w-full mt-2 h-14 text-lg font-bold gap-3"
+              onClick={() => setShowPitchBoard(true)}
+            >
+              <Play className="h-5 w-5" />
+              Open Pitch Board
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -2745,7 +2814,7 @@ export default function EventDetailPage() {
       />
 
       {/* Pitch Board Modal */}
-      {showPitchBoard && canAccessPitchBoard && teamMembers && event?.team_id && createPortal(
+      {showPitchBoard && (canAccessPitchBoard || canViewPitchBoardReadOnly) && teamMembers && event?.team_id && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen flex items-center justify-center" style={{ backgroundColor: '#2d5a27', zIndex: 999999 }}>
             <div className="flex flex-col items-center gap-4">
@@ -2781,6 +2850,7 @@ export default function EventDetailPage() {
             initialLinkedEventId={id}
             initialShowMatchHeader={teamSubscription?.show_match_header ?? true}
             initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
+            readOnly={!!canViewPitchBoardReadOnly}
           />
         </Suspense>,
         document.body

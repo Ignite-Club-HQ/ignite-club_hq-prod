@@ -5590,6 +5590,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
           teamId={teamId}
           teamName={teamName} 
           onLinkEvent={readOnly || (gameInProgress && !!linkedEventId) ? undefined : handleLinkEvent}
+          isGameInProgress={gameInProgress}
         />
         )}
 

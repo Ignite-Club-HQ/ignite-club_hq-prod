@@ -23,6 +23,7 @@ interface LinkedEventHeaderProps {
   scoreExpanded?: boolean;
   onToggleScore?: () => void;
   currentScore?: { team: number; opponent: number };
+  isGameInProgress?: boolean;
 }
 
 interface EventDetails {
@@ -46,7 +47,7 @@ interface GameEvent {
   opponent: string | null;
 }
 
-export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, onLinkEvent, showScoreToggle = false, scoreExpanded = false, onToggleScore, currentScore }: LinkedEventHeaderProps) {
+export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, onLinkEvent, showScoreToggle = false, scoreExpanded = false, onToggleScore, currentScore, isGameInProgress = false }: LinkedEventHeaderProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showEventSelector, setShowEventSelector] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -225,10 +226,17 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
   if (compact) {
     return (
       <div className="flex items-center gap-2 text-xs bg-background/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-md">
-        <Badge variant="outline" className="gap-1 text-[10px] bg-primary/10 border-primary/20">
-          <Calendar className="h-3 w-3" />
-          LIVE
-        </Badge>
+        {isGameInProgress ? (
+          <Badge variant="outline" className="gap-1 text-[10px] bg-primary/10 border-primary/20">
+            <div className="w-1.5 h-1.5 bg-destructive rounded-full animate-pulse" />
+            LIVE
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="gap-1 text-[10px] bg-primary/10 border-primary/20">
+            <Calendar className="h-3 w-3" />
+            Match
+          </Badge>
+        )}
         <span className="font-medium truncate max-w-[150px]">{event.title}</span>
         {event.suburb && (
           <span className="text-muted-foreground flex items-center gap-1">
@@ -249,10 +257,17 @@ export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, 
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <Badge variant="default" className="gap-1 shrink-0 text-[10px] sm:text-xs px-1.5 sm:px-2">
-              <div className="w-1.5 h-1.5 bg-destructive rounded-full animate-pulse" />
-              LIVE
-            </Badge>
+            {isGameInProgress ? (
+              <Badge variant="default" className="gap-1 shrink-0 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                <div className="w-1.5 h-1.5 bg-destructive rounded-full animate-pulse" />
+                LIVE
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="gap-1 shrink-0 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                <Calendar className="h-3 w-3" />
+                Match
+              </Badge>
+            )}
             <span className="font-medium text-xs sm:text-sm truncate">{event.title}</span>
             {opponent && !isExpanded && (
               <span className="text-[10px] sm:text-xs text-muted-foreground hidden sm:inline">vs {opponent}</span>
