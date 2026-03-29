@@ -447,27 +447,29 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       if (teamIds.length === 0 || !user?.id) return {};
       const map: Record<string, number> = {};
 
+      // Get all team_message_ids that user has read
+      const { data: readMessages } = await supabase
+        .from("message_reads")
+        .select("team_message_id")
+        .eq("user_id", user.id)
+        .not("team_message_id", "is", null);
+
+      const readIds = new Set((readMessages || []).map(r => r.team_message_id).filter(Boolean));
+
       for (const teamId of teamIds) {
         try {
-          const readResult = await (supabase
-            .from("message_reads") as any)
-            .select("read_at")
-            .eq("user_id", user.id)
-            .eq("team_id", teamId)
-            .order("read_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          const lastRead = readResult.data?.read_at || "1970-01-01T00:00:00Z";
-
-          const msgQuery = supabase
+          // Get all messages in this team not by the current user
+          const { data: messages } = await supabase
             .from("team_messages")
-            .select("id", { count: "exact", head: true })
+            .select("id")
             .eq("team_id", teamId)
-            .is("deleted_at", null);
-          const { count } = await (msgQuery as any).gt("created_at", lastRead).neq("author_id", user.id);
+            .is("deleted_at", null)
+            .neq("author_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(50);
 
-          if (count && count > 0) map[teamId] = count;
+          const unread = (messages || []).filter(m => !readIds.has(m.id)).length;
+          if (unread > 0) map[teamId] = unread;
         } catch {
           // Ignore errors for individual teams
         }

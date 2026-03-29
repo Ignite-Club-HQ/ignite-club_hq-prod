@@ -48,25 +48,29 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
     queryFn: async (): Promise<number> => {
       if (!user?.id) return 0;
 
-      // Get last read timestamp  
-      const readResult = await (supabase
-        .from("message_reads") as any)
-        .select("read_at")
+      // Get IDs of messages in this team that the user has already read
+      const { data: readMessages } = await supabase
+        .from("message_reads")
+        .select("team_message_id")
         .eq("user_id", user.id)
-        .eq("team_id", teamId)
-        .order("read_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .not("team_message_id", "is", null);
 
-      const lastRead = readResult.data?.read_at || "1970-01-01T00:00:00Z";
+      const readIds = (readMessages || []).map(r => r.team_message_id).filter(Boolean) as string[];
 
-      const msgQuery = supabase
+      // Count unread messages: messages in this team, not by current user, not in read list
+      let query = supabase
         .from("team_messages")
         .select("id", { count: "exact", head: true })
         .eq("team_id", teamId)
-        .is("deleted_at", null);
-      const { count } = await (msgQuery as any).gt("created_at", lastRead).neq("author_id", user.id);
+        .is("deleted_at", null)
+        .neq("author_id", user.id);
 
+      if (readIds.length > 0) {
+        // Exclude already-read messages
+        query = query.not("id", "in", `(${readIds.join(",")})`);
+      }
+
+      const { count } = await query;
       return (count as number) || 0;
     },
     enabled: !!teamId && !!user?.id,
