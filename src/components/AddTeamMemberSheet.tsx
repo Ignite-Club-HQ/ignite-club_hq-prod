@@ -1300,7 +1300,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           Add Member
         </Button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="h-[90vh] rounded-t-2xl flex flex-col overflow-hidden">
+      <SheetContent side="bottom" enableDragToClose className="h-[90vh] rounded-t-2xl flex flex-col overflow-hidden">
         <SheetHeader className="mb-4 shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
