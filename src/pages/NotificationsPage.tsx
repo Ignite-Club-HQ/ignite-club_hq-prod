@@ -162,7 +162,8 @@ export default function NotificationsPage() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const updated = payload.new as Notification;
+          const raw = payload.new as any;
+          const updated: Notification = { ...raw, read: raw.is_read };
           queryClient.setQueryData<Notification[]>(
             ["notifications", user.id],
             (old) => old?.map(n => n.id === updated.id ? updated : n) || []
