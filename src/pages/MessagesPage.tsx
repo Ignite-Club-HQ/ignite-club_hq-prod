@@ -508,6 +508,20 @@ export default function MessagesPage() {
     enabled: !!user,
   });
 
+  // Fetch all user roles for chat group filtering
+  const { data: userAllRoles } = useQuery({
+    queryKey: ["user-all-roles", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role, club_id, team_id")
+        .eq("user_id", user!.id);
+      return data || [];
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Check if user has any Pro access
   // Pro Access Logic: Club Pro → all teams inherit; Free club → check team subscription
   const { data: hasAnyProAccess, isLoading: isLoadingProAccess } = useQuery({
