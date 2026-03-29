@@ -8,22 +8,26 @@ const corsHeaders = {
 /**
  * Process event notifications asynchronously.
  * 
- * Called by lightweight DB triggers via net.http_post when an event is created or cancelled.
+ * Called by lightweight DB triggers via net.http_post when an event is created, cancelled, or updated.
  * Handles the fan-out: determines recipients, batch-inserts notifications with skip_push=true,
  * and dispatches push notifications in controlled batches (20 concurrent).
- * 
- * This replaces the old synchronous notify_team_members/notify_club_members calls
- * that blocked the event INSERT/UPDATE transaction and created N per-row push dispatches.
  */
 
+interface ChangedField {
+  field: string;
+  old: string | null;
+  new: string | null;
+}
+
 interface EventPayload {
-  action: 'event_created' | 'event_cancelled';
+  action: 'event_created' | 'event_cancelled' | 'event_updated';
   eventId: string;
   clubId: string;
   teamId: string | null;
   miniLeagueId: string | null;
   createdBy: string;
   title: string;
+  changedFields?: ChangedField[];
 }
 
 // Dispatch push notifications with controlled concurrency
@@ -71,6 +75,125 @@ async function dispatchPushBatch(
   return { sent, failed };
 }
 
+// Build a human-readable update message from changed fields
+function buildUpdateMessage(title: string, changedFields: ChangedField[]): string {
+  const fieldLabels: Record<string, string> = {
+    date: 'date',
+    start_time: 'kick-off time',
+    meet_time: 'meet time',
+    location: 'venue',
+    address: 'address',
+    title: 'title',
+    opponent: 'opponent',
+  };
+
+  const changedNames = changedFields
+    .map(f => fieldLabels[f.field] || f.field)
+    .filter((v, i, a) => a.indexOf(v) === i); // deduplicate
+
+  if (changedNames.length === 1) {
+    return `📅 ${title} updated: new ${changedNames[0]}`;
+  }
+  return `📅 ${title} updated: ${changedNames.slice(0, -1).join(', ')} & ${changedNames[changedNames.length - 1]} changed`;
+}
+
+// Resolve recipients for team/club/mini-league scoped events
+async function resolveRecipients(
+  supabase: any,
+  clubId: string,
+  teamId: string | null,
+  miniLeagueId: string | null,
+  excludeUserId: string,
+): Promise<string[]> {
+  if (miniLeagueId) {
+    const [parentResult, adminResult] = await Promise.all([
+      supabase
+        .from('mini_league_players')
+        .select('parent_user_id')
+        .eq('mini_league_id', miniLeagueId)
+        .not('parent_user_id', 'is', null),
+      supabase
+        .from('user_roles')
+        .select('user_id')
+        .in('role', ['league_admin', 'coach', 'club_admin'])
+        .eq('club_id', clubId),
+    ]);
+    const parentIds = (parentResult.data || []).map((p: any) => p.parent_user_id);
+    const adminIds = (adminResult.data || []).map((a: any) => a.user_id);
+    return [...new Set([...parentIds, ...adminIds])].filter(id => id !== excludeUserId);
+  }
+
+  if (teamId) {
+    const { data: members } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('team_id', teamId)
+      .neq('user_id', excludeUserId);
+    return [...new Set((members || []).map((m: any) => m.user_id))];
+  }
+
+  // Club-wide: paginated
+  const PAGE_SIZE = 1000;
+  let offset = 0;
+  let hasMore = true;
+  const ids: string[] = [];
+  while (hasMore) {
+    const { data: page } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('club_id', clubId)
+      .neq('user_id', excludeUserId)
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (page && page.length > 0) {
+      ids.push(...page.map((m: any) => m.user_id));
+      offset += PAGE_SIZE;
+      hasMore = page.length === PAGE_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+  return [...new Set(ids)];
+}
+
+// Batch insert notifications and return inserted IDs
+async function batchInsertNotifications(
+  supabase: any,
+  recipientUserIds: string[],
+  notificationType: string,
+  message: string,
+  eventId: string,
+): Promise<{ inserted: number; ids: Array<{ userId: string; id: string }> }> {
+  const BATCH_SIZE = 500;
+  let totalInserted = 0;
+  const allIds: Array<{ userId: string; id: string }> = [];
+
+  for (let i = 0; i < recipientUserIds.length; i += BATCH_SIZE) {
+    const batch = recipientUserIds.slice(i, i + BATCH_SIZE);
+    const rows = batch.map(userId => ({
+      user_id: userId,
+      type: notificationType,
+      message,
+      related_id: eventId,
+      skip_push: true,
+    }));
+
+    const { data: inserted, error } = await supabase
+      .from('notifications')
+      .upsert(rows, { onConflict: 'id', ignoreDuplicates: true })
+      .select('id, user_id');
+
+    if (error) {
+      console.error(`[EVENT-NOTIFY] Batch insert error:`, error);
+    } else {
+      const results = inserted || [];
+      totalInserted += results.length;
+      allIds.push(...results.map((r: any) => ({ userId: r.user_id, id: r.id })));
+    }
+  }
+
+  return { inserted: totalInserted, ids: allIds };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -80,7 +203,7 @@ Deno.serve(async (req) => {
 
   try {
     const payload: EventPayload = await req.json();
-    const { action, eventId, clubId, teamId, miniLeagueId, createdBy, title } = payload;
+    const { action, eventId, clubId, teamId, miniLeagueId, createdBy, title, changedFields } = payload;
 
     console.log(`[EVENT-NOTIFY] Processing ${action} for event ${eventId}`);
 
@@ -97,117 +220,46 @@ Deno.serve(async (req) => {
     if (action === 'event_created') {
       notificationType = 'event_invite';
       message = `You've been invited to: ${title}`;
+      recipientUserIds = await resolveRecipients(supabase, clubId, teamId, miniLeagueId, createdBy);
 
-      if (miniLeagueId) {
-        // Mini-league event: notify parents with players in the league + league admins/coaches
-        const [parentResult, adminResult] = await Promise.all([
-          supabase
-            .from('mini_league_players')
-            .select('parent_user_id')
-            .eq('mini_league_id', miniLeagueId)
-            .not('parent_user_id', 'is', null),
-          supabase
-            .from('user_roles')
-            .select('user_id')
-            .in('role', ['league_admin', 'coach', 'club_admin'])
-            .eq('club_id', clubId),
-        ]);
-        const parentIds = (parentResult.data || []).map(p => p.parent_user_id);
-        const adminIds = (adminResult.data || []).map(a => a.user_id);
-        recipientUserIds = [...new Set([...parentIds, ...adminIds])].filter(id => id !== createdBy);
-      } else if (teamId) {
-        // Team event - notify team members
-        const { data: members } = await supabase
-          .from('user_roles')
-          .select('user_id')
-          .eq('team_id', teamId)
-          .neq('user_id', createdBy);
-        recipientUserIds = [...new Set((members || []).map(m => m.user_id))];
-      } else {
-        // Club event - notify club members (paginated)
-        const PAGE_SIZE = 1000;
-        let offset = 0;
-        let hasMore = true;
-        while (hasMore) {
-          const { data: page } = await supabase
-            .from('user_roles')
-            .select('user_id')
-            .eq('club_id', clubId)
-            .neq('user_id', createdBy)
-            .range(offset, offset + PAGE_SIZE - 1);
-          if (page && page.length > 0) {
-            recipientUserIds.push(...page.map(m => m.user_id));
-            offset += PAGE_SIZE;
-            hasMore = page.length === PAGE_SIZE;
-          } else {
-            hasMore = false;
-          }
-        }
-        recipientUserIds = [...new Set(recipientUserIds)];
-      }
     } else if (action === 'event_cancelled') {
       notificationType = 'event_cancelled';
       message = `Event cancelled: ${title} has been cancelled`;
 
-      // First: Get users who RSVP'd
+      // RSVP'd users + team/club/mini-league members
       const { data: rsvps } = await supabase
         .from('rsvps')
         .select('user_id')
         .eq('event_id', eventId)
         .not('user_id', 'is', null);
-      const rsvpUserIds = new Set((rsvps || []).map(r => r.user_id));
+      const rsvpUserIds = new Set((rsvps || []).map((r: any) => r.user_id));
 
-      // Then: Get remaining team/club/mini-league members NOT already in RSVP list
-      let additionalIds: string[] = [];
+      const additionalIds = await resolveRecipients(supabase, clubId, teamId, miniLeagueId, '');
+      recipientUserIds = [...new Set([...rsvpUserIds, ...additionalIds])];
 
-      if (miniLeagueId) {
-        // Mini-league event: parents + league admins/coaches
-        const [parentResult, adminResult] = await Promise.all([
-          supabase
-            .from('mini_league_players')
-            .select('parent_user_id')
-            .eq('mini_league_id', miniLeagueId)
-            .not('parent_user_id', 'is', null),
-          supabase
-            .from('user_roles')
-            .select('user_id')
-            .in('role', ['league_admin', 'coach', 'club_admin'])
-            .eq('club_id', clubId),
-        ]);
-        const parentIds = (parentResult.data || []).map(p => p.parent_user_id);
-        const adminIds = (adminResult.data || []).map(a => a.user_id);
-        additionalIds = [...new Set([...parentIds, ...adminIds])];
-      } else if (teamId) {
-        const { data: members } = await supabase
-          .from('user_roles')
-          .select('user_id')
-          .eq('team_id', teamId)
-          .not('user_id', 'is', null);
-        additionalIds = (members || []).map(m => m.user_id);
-      } else {
-        // Club event - paginated
-        const PAGE_SIZE = 1000;
-        let offset = 0;
-        let hasMore = true;
-        while (hasMore) {
-          const { data: page } = await supabase
-            .from('user_roles')
-            .select('user_id')
-            .eq('club_id', clubId)
-            .not('user_id', 'is', null)
-            .range(offset, offset + PAGE_SIZE - 1);
-          if (page && page.length > 0) {
-            additionalIds.push(...page.map(m => m.user_id));
-            offset += PAGE_SIZE;
-            hasMore = page.length === PAGE_SIZE;
-          } else {
-            hasMore = false;
-          }
-        }
+    } else if (action === 'event_updated') {
+      notificationType = 'event_updated';
+
+      if (!changedFields || changedFields.length === 0) {
+        return new Response(
+          JSON.stringify({ message: 'No tracked fields changed, skipping' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-      // Merge RSVP'd users + additional members (deduplicated)
-      recipientUserIds = [...new Set([...rsvpUserIds, ...additionalIds])];
+      message = buildUpdateMessage(title, changedFields);
+
+      // Notify RSVP'd users (people who've committed) + team/club members
+      const { data: rsvps } = await supabase
+        .from('rsvps')
+        .select('user_id')
+        .eq('event_id', eventId)
+        .not('user_id', 'is', null);
+      const rsvpUserIds = new Set((rsvps || []).map((r: any) => r.user_id));
+
+      const memberIds = await resolveRecipients(supabase, clubId, teamId, miniLeagueId, createdBy);
+      recipientUserIds = [...new Set([...rsvpUserIds, ...memberIds])].filter(id => id !== createdBy);
+
     } else {
       return new Response(
         JSON.stringify({ error: `Unknown action: ${action}` }),
@@ -217,38 +269,13 @@ Deno.serve(async (req) => {
 
     console.log(`[EVENT-NOTIFY] ${recipientUserIds.length} recipients for ${action}`);
 
-    // Batch insert notifications with skip_push=true
-    const BATCH_SIZE = 500;
-    let notificationsInserted = 0;
-    const insertedNotificationIds: Array<{ userId: string; id: string }> = [];
-
-    for (let i = 0; i < recipientUserIds.length; i += BATCH_SIZE) {
-      const batch = recipientUserIds.slice(i, i + BATCH_SIZE);
-      const notificationRows = batch.map(userId => ({
-        user_id: userId,
-        type: notificationType,
-        message,
-        related_id: eventId,
-        skip_push: true,
-      }));
-
-      const { data: inserted, error: insertError } = await supabase
-        .from('notifications')
-        .upsert(notificationRows, { onConflict: 'id', ignoreDuplicates: true })
-        .select('id, user_id');
-
-      if (insertError) {
-        console.error(`[EVENT-NOTIFY] Batch insert error:`, insertError);
-      } else {
-        const rows = inserted || [];
-        notificationsInserted += rows.length;
-        insertedNotificationIds.push(...rows.map((r: any) => ({ userId: r.user_id, id: r.id })));
-      }
-    }
+    // Batch insert notifications
+    const { inserted: notificationsInserted, ids: insertedNotificationIds } =
+      await batchInsertNotifications(supabase, recipientUserIds, notificationType, message, eventId);
 
     console.log(`[EVENT-NOTIFY] Inserted ${notificationsInserted} notifications`);
 
-    // Dispatch push notifications in controlled batches
+    // Dispatch push notifications
     const pushPayloads = insertedNotificationIds.map(n => ({
       userId: n.userId,
       body: message,
