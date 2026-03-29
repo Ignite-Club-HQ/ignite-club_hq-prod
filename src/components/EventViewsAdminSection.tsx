@@ -65,24 +65,50 @@ export function EventViewsAdminSection({
   const { data: members, isLoading: membersLoading } = useQuery({
     queryKey: ["event-members-for-views", eventId],
     queryFn: async () => {
-      // Only include users who have an RSVP record (i.e., were invited)
+      // Get all RSVPs for this event (both user-based and child-based)
       const { data: rsvps, error: rsvpError } = await supabase
         .from("rsvps")
-        .select("user_id")
-        .eq("event_id", eventId)
-        .not("user_id", "is", null);
+        .select("user_id, child_id")
+        .eq("event_id", eventId);
 
       if (rsvpError) throw rsvpError;
 
-      const userIds = [...new Set((rsvps || []).map(r => r.user_id).filter(Boolean) as string[])];
+      const directUserIds = (rsvps || []).map(r => r.user_id).filter(Boolean) as string[];
+      const childIds = (rsvps || []).map(r => r.child_id).filter(Boolean) as string[];
 
-      if (userIds.length === 0) return [];
+      // For child-based RSVPs, find parents via children table and child_guardians
+      let parentUserIds: string[] = [];
+      if (childIds.length > 0) {
+        // Get parent_id from children table
+        const { data: children } = await supabase
+          .from("children")
+          .select("parent_id")
+          .in("id", childIds);
+        
+        if (children) {
+          parentUserIds.push(...children.map(c => c.parent_id).filter(Boolean));
+        }
+
+        // Also get guardians from child_guardians table
+        const { data: guardians } = await supabase
+          .from("child_guardians")
+          .select("guardian_id")
+          .in("child_id", childIds);
+        
+        if (guardians) {
+          parentUserIds.push(...guardians.map(g => g.guardian_id).filter(Boolean));
+        }
+      }
+
+      const allUserIds = [...new Set([...directUserIds, ...parentUserIds])];
+
+      if (allUserIds.length === 0) return [];
 
       // Fetch profiles
       const { data: profiles, error } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
-        .in("id", userIds);
+        .in("id", allUserIds);
 
       if (error) throw error;
       return profiles || [];
