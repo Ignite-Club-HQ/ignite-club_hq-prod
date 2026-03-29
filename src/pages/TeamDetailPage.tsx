@@ -1220,7 +1220,7 @@ export default function TeamDetailPage() {
                       <div className="mb-4 pb-4 border-b">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-sm font-medium text-muted-foreground">Players (Children)</p>
-                          {(isAdmin || isClubAdmin) && (
+                          {(isAdmin || isClubAdmin) && isSoccerClub && (
                             <p className="text-[10px] text-muted-foreground italic">Long-press to set number & position</p>
                           )}
                         </div>
@@ -1266,8 +1266,8 @@ export default function TeamDetailPage() {
                               return (
                                 <Card 
                                   key={assignment.id} 
-                                  className={cn(isPending ? "opacity-70" : "", (isAdmin || isClubAdmin) && "cursor-pointer select-none")}
-                                  onTouchStart={(isAdmin || isClubAdmin) ? (() => {
+                                  className={cn(isPending ? "opacity-70" : "", (isAdmin || isClubAdmin) && isSoccerClub && "cursor-pointer select-none")}
+                                  onTouchStart={(isAdmin || isClubAdmin) && isSoccerClub ? (() => {
                                     const timer = setTimeout(() => {
                                       setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
                                     }, 500);
