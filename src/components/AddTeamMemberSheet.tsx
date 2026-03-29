@@ -226,25 +226,45 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     u => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
   );
 
-  // Search for second parent (existing users)
-  const { data: secondParentSearchResults = [] } = useQuery({
-    queryKey: ["second-parent-search", debouncedSecondParentSearch],
+  const bulkSearchTerms = Array.from(
+    new Set(
+      bulkMembers
+        .filter((member) => !member.selectedUser && member.name.trim().length >= 2)
+        .map((member) => member.name.trim())
+    )
+  );
+
+  const { data: bulkSearchResults = [] } = useQuery({
+    queryKey: ["bulk-user-search-team-member", bulkSearchTerms],
     queryFn: async () => {
-      if (debouncedSecondParentSearch.length < 2) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedSecondParentSearch}%`)
-        .limit(5);
-      return data || [];
+      if (bulkSearchTerms.length === 0) return [];
+
+      const searches = await Promise.all(
+        bulkSearchTerms.map(async (term) => {
+          const { data } = await supabase
+            .from("profiles")
+            .select("id, display_name, avatar_url")
+            .ilike("display_name", `%${term}%`)
+            .limit(6);
+
+          return {
+            term,
+            results: (data || []).filter(
+              (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
+            ),
+          };
+        })
+      );
+
+      return searches;
     },
-    enabled: debouncedSecondParentSearch.length >= 2 && !selectedSecondParent,
+    enabled: open && mode === "bulk" && bulkSearchTerms.length > 0,
   });
 
-  // Filter second parent results: exclude primary user but allow existing members (they may need parent role added)
-  const filteredSecondParentResults = secondParentSearchResults.filter(
-    u => u.id !== selectedUser?.id
-  );
+  const bulkSearchMap = new Map(bulkSearchResults.map((entry) => [entry.term, entry.results]));
+
+  // Search for second parent (existing users)
+  const { data: secondParentSearchResults = [] } = useQuery({
 
   // Find matching existing children by partial name (case-insensitive)
   const findMatchingChildren = (name: string) => {
@@ -1109,8 +1129,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     }
   };
 
-  const updateBulkMember = (id: string, field: keyof Omit<BulkMember, "id" | "children">, value: string) => {
-    setBulkMembers(bulkMembers.map(m => m.id === id ? { ...m, [field]: value } : m));
+  const updateBulkMember = (id: string, field: keyof Omit<BulkMember, "id" | "children" | "selectedUser">, value: string) => {
+    setBulkMembers(bulkMembers.map(m => 
+      m.id === id
+        ? { ...m, [field]: value, ...(field === "name" ? { selectedUser: null } : {}) }
+        : m
+    ));
+  };
+
+  const selectBulkExistingUser = (memberId: string, selected: { id: string; display_name: string | null; avatar_url: string | null }) => {
+    setBulkMembers(bulkMembers.map(m =>
+      m.id === memberId
+        ? { ...m, name: selected.display_name || "", selectedUser: selected, email: "" }
+        : m
+    ));
   };
 
   const updateBulkMemberRole = (id: string, role: TeamRole) => {
