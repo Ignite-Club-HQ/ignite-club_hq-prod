@@ -1196,6 +1196,10 @@ export default function TeamDetailPage() {
                             { userId, profile: member.profile, roles: member.roles }
                           ])
                         )}
+                        children={teamChildren
+                          .filter((a: any) => a.children)
+                          .map((a: any) => ({ id: a.children.id, name: a.children.name }))
+                        }
                       />
                     )}
                     {(isAdmin || isClubAdmin) && (
