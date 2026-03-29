@@ -67,6 +67,7 @@ import ChatGroupsList from "@/components/chat/ChatGroupsList";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
+import PlayerPositionSheet from "@/components/PlayerPositionSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
