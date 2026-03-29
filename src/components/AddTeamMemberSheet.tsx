@@ -144,26 +144,47 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const { data: clubChildren = [] } = useQuery({
     queryKey: ["club-children", clubId],
     queryFn: async () => {
-      // Get all children linked to this club via team assignments
+      // Strategy 1: Children linked to club teams via assignments
       const { data: teamIds } = await supabase
         .from("teams")
         .select("id")
         .eq("club_id", clubId);
-      if (!teamIds?.length) return [];
       
-      const { data: assignments } = await supabase
-        .from("child_team_assignments")
-        .select("child_id")
-        .in("team_id", teamIds.map(t => t.id));
-      if (!assignments?.length) return [];
+      const childIdsFromTeams = new Set<string>();
+      if (teamIds?.length) {
+        const { data: assignments } = await supabase
+          .from("child_team_assignments")
+          .select("child_id")
+          .in("team_id", teamIds.map(t => t.id));
+        assignments?.forEach(a => childIdsFromTeams.add(a.child_id));
+      }
       
-      const childIds = [...new Set(assignments.map(a => a.child_id))];
+      // Strategy 2: Children whose parents have roles in this club
+      const { data: clubParents } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", clubId)
+        .eq("role", "parent");
+      
+      const parentUserIds = [...new Set(clubParents?.map(p => p.user_id) || [])];
+      const childIdsFromParents = new Set<string>();
+      if (parentUserIds.length) {
+        const { data: parentChildren } = await supabase
+          .from("children")
+          .select("id")
+          .in("parent_id", parentUserIds);
+        parentChildren?.forEach(c => childIdsFromParents.add(c.id));
+      }
+      
+      // Merge both sets
+      const allChildIds = [...new Set([...childIdsFromTeams, ...childIdsFromParents])];
+      if (!allChildIds.length) return [];
+      
       const { data: children } = await supabase
         .from("children")
         .select("id, name, year_of_birth, parent_id")
-        .in("id", childIds);
+        .in("id", allChildIds);
       
-      // Get parent names for context
       if (!children?.length) return [];
       const parentIds = [...new Set(children.map(c => c.parent_id))];
       const { data: parents } = await supabase
