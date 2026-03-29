@@ -854,7 +854,31 @@ export default function MessagesPage() {
   const displayTeams = teams || cachedData?.teams || [];
   const displayMemberClubs = memberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
-  const displayChatGroups = chatGroups?.length > 0 ? chatGroups : (cachedData?.chatGroups as any) || [];
+  const allChatGroups = chatGroups?.length > 0 ? chatGroups : (cachedData?.chatGroups as any) || [];
+  
+  // Filter chat groups by user's roles - committee members and app admins see all
+  const displayChatGroups = useMemo(() => {
+    if (isAppAdmin || isCommitteeMember) return allChatGroups;
+    if (!userAllRoles?.length) return [];
+    
+    return allChatGroups.filter((group: any) => {
+      const allowedRoles: string[] = group.allowed_roles || [];
+      if (allowedRoles.length === 0) return true; // No restrictions
+      
+      return userAllRoles.some((ur: any) => {
+        if (!allowedRoles.includes(ur.role)) return false;
+        // Club-level group: user must have matching role in that club
+        if (group.club_id && !group.team_id) {
+          return ur.club_id === group.club_id;
+        }
+        // Team-level group: user must have matching role in that team
+        if (group.team_id) {
+          return ur.team_id === group.team_id;
+        }
+        return true;
+      });
+    });
+  }, [allChatGroups, userAllRoles, isAppAdmin, isCommitteeMember]);
   const displayLatestBroadcast = latestBroadcast || cachedData?.latestBroadcast;
   const displayLatestTeamMessages = latestTeamMessages || {};
   const displayLatestClubMessages = latestClubMessages || {};
