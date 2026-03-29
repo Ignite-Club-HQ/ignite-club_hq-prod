@@ -77,13 +77,31 @@ export function EventViewsAdminSection({
         if (error) throw error;
         userIds = (roles || []).map(r => r.user_id).filter(Boolean);
       } else if (clubId) {
-        // Get all users with a role in this club
-        const { data: roles, error } = await supabase
+        // Get all users with a role in this club (direct club roles)
+        const { data: clubRoles, error: clubError } = await supabase
           .from("user_roles")
           .select("user_id")
           .eq("club_id", clubId);
-        if (error) throw error;
-        userIds = (roles || []).map(r => r.user_id).filter(Boolean);
+        if (clubError) throw clubError;
+        const clubUserIds = (clubRoles || []).map(r => r.user_id).filter(Boolean);
+
+        // Also get members from all teams in this club (covers team-only role rows)
+        const { data: clubTeams } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("club_id", clubId);
+        
+        let teamUserIds: string[] = [];
+        if (clubTeams?.length) {
+          const teamIds = clubTeams.map(t => t.id);
+          const { data: teamRoles } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .in("team_id", teamIds);
+          teamUserIds = (teamRoles || []).map(r => r.user_id).filter(Boolean);
+        }
+
+        userIds = [...clubUserIds, ...teamUserIds];
       }
 
       const uniqueUserIds = [...new Set(userIds)];
