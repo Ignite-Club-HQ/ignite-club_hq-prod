@@ -131,7 +131,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
 
   return (
     <Card
-      className={`shrink-0 w-[85vw] max-w-[340px] cursor-pointer border bg-card transition-all snap-start overflow-hidden ${
+      className={`shrink-0 w-[85vw] max-w-[340px] cursor-pointer border bg-card transition-all snap-start overflow-hidden relative ${
         hasActivity 
           ? `border-l-[3px] ${accentBorder || "border-l-primary"} shadow-md hover:shadow-lg` 
           : "hover:border-primary/40 shadow-sm hover:shadow-md"
@@ -139,13 +139,10 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
       role="button"
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
-      onClick={() => {
-        if (item.type === "team") {
-          navigate(`/teams/${item.id}`);
-        } else {
-          navigate(`/mini-leagues/${item.id}`);
-        }
-      }}
+      onClick={handleCardClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
