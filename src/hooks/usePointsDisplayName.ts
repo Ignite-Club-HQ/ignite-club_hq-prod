@@ -27,12 +27,13 @@ export function usePointsDisplay(clubId: string | null | undefined) {
       if (!clubId) return { name: DEFAULT_POINTS_NAME, iconUrl: null };
       const { data } = await supabase
         .from("clubs")
-        .select("points_display_name, points_icon_url, theme_enabled, club_subscriptions(is_pro, is_pro_football)")
+        .select("points_display_name, points_icon_url, theme_enabled, club_subscriptions(is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at)")
         .eq("id", clubId)
         .single();
       const club = data as any;
       const sub = club?.club_subscriptions?.[0] ?? club?.club_subscriptions;
-      const isPro = sub?.is_pro || sub?.is_pro_football;
+      const isActive = !sub?.expires_at || new Date(sub.expires_at) > new Date();
+      const isPro = isActive && (sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override);
       const canCustomise = isPro && club?.theme_enabled;
       return {
         name: (canCustomise && club?.points_display_name) || DEFAULT_POINTS_NAME,
@@ -50,7 +51,8 @@ export function usePointsDisplay(clubId: string | null | undefined) {
 export function getPointsDisplayName(club: { points_display_name?: string | null; theme_enabled?: boolean; is_pro?: boolean; club_subscriptions?: any } | null | undefined): string {
   const c = club as any;
   const sub = Array.isArray(c?.club_subscriptions) ? c.club_subscriptions[0] : c?.club_subscriptions;
-  const isPro = c?.is_pro || sub?.is_pro || sub?.is_pro_football;
+  const isActive = !sub?.expires_at || new Date(sub.expires_at) > new Date();
+  const isPro = isActive && (c?.is_pro || sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override);
   const canCustomise = isPro && c?.theme_enabled;
   return (canCustomise && c?.points_display_name) || DEFAULT_POINTS_NAME;
 }

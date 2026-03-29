@@ -33,13 +33,14 @@ export function EventSponsorsSection({ eventId, clubId }: EventSponsorsSectionPr
     queryFn: async () => {
       const { data } = await supabase
         .from("club_subscriptions")
-        .select("is_pro, is_pro_football, expires_at")
+        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
         .eq("club_id", clubId)
         .single();
       
       if (!data) return false;
-      return (data.is_pro || data.is_pro_football) && 
-        (!data.expires_at || new Date(data.expires_at) > new Date());
+      const isActive = !data.expires_at || new Date(data.expires_at) > new Date();
+      return isActive && (data.is_pro || data.is_pro_football || 
+        data.admin_pro_override || data.admin_pro_football_override);
     },
   });
 
