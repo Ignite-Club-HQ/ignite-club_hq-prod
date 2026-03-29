@@ -1625,12 +1625,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="e.g., John Smith"
-                      value={nameInput || nameInput}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setNameInput(val);
-                        setNameInput(val);
-                      }}
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
                       className="pl-10"
                     />
                   </div>
