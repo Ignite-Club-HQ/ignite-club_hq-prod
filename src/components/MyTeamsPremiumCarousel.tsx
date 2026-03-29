@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image } from "lucide-react";
+import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image, MessageCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
@@ -47,22 +47,59 @@ const eventDotColors: Record<string, string> = {
   social: "bg-warning",
 };
 
-function TeamCard({ item, nextEvent, photos }: { 
+function TeamCard({ item, nextEvent, photos, unreadMessages }: { 
   item: TeamOrLeague; 
   nextEvent?: NextEventInfo;
   photos: string[];
+  unreadMessages?: number;
 }) {
   const navigate = useNavigate();
 
-  const hasActivity = !!nextEvent || photos.length > 0;
+  const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
   const accentBorder = nextEvent ? (eventAccentColors[nextEvent.type] || "border-l-primary") : "";
+
+  // Build activity indicators
+  const activityItems: React.ReactNode[] = [];
+  if (nextEvent) {
+    activityItems.push(
+      <div key="event" className="flex items-center gap-2 text-sm">
+        <Calendar className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+        <span className="font-medium text-foreground truncate">
+          {nextEvent.title}
+        </span>
+        <span className="text-muted-foreground text-xs shrink-0">
+          {nextEvent.dateLabel}
+        </span>
+      </div>
+    );
+  }
+  if (unreadMessages && unreadMessages > 0) {
+    activityItems.push(
+      <div key="messages" className="flex items-center gap-2 text-sm">
+        <MessageCircle className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+        <span className="text-foreground font-medium">
+          {unreadMessages} unread message{unreadMessages > 1 ? "s" : ""}
+        </span>
+      </div>
+    );
+  }
+  if (photos.length > 0) {
+    activityItems.push(
+      <div key="photos" className="flex items-center gap-2 text-sm">
+        <Image className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+        <span className="text-muted-foreground">
+          {photos.length} new photo{photos.length > 1 ? "s" : ""}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <Card
-      className={`shrink-0 w-[82vw] max-w-[320px] cursor-pointer border bg-card transition-all snap-start overflow-hidden ${
+      className={`shrink-0 w-[85vw] max-w-[340px] cursor-pointer border bg-card transition-all snap-start overflow-hidden ${
         hasActivity 
-          ? `border-l-[3px] ${accentBorder} shadow-md hover:shadow-lg` 
-          : "hover:border-primary/40 shadow-sm hover:shadow-md opacity-80"
+          ? `border-l-[3px] ${accentBorder || "border-l-primary"} shadow-md hover:shadow-lg` 
+          : "hover:border-primary/40 shadow-sm hover:shadow-md"
       }`}
       role="button"
       tabIndex={0}
@@ -81,17 +118,17 @@ function TeamCard({ item, nextEvent, photos }: {
         }
       }}
     >
-      <CardContent className="p-4 space-y-3">
-        {/* Header: avatar + name + menu */}
+      <CardContent className="p-4 space-y-3.5">
+        {/* Header: avatar + name + badges + menu */}
         <div className="flex items-center gap-3">
           {item.logo_url ? (
             <img
               src={item.logo_url}
               alt=""
-              className="h-10 w-10 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
+              className="h-11 w-11 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
             />
           ) : (
-            <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
+            <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${
               item.type === "league" 
                 ? "bg-accent/60 ring-2 ring-accent" 
                 : "bg-primary/10 ring-2 ring-primary/20"
@@ -104,15 +141,18 @@ function TeamCard({ item, nextEvent, photos }: {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-[15px] leading-tight truncate">{item.name}</h3>
-            <p className="text-[11px] text-muted-foreground truncate">{item.club_name}</p>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-[15px] leading-tight truncate">{item.name}</h3>
+              {/* Unread badge next to name */}
+              {unreadMessages && unreadMessages > 0 && (
+                <Badge className="bg-primary text-primary-foreground text-[9px] h-[18px] min-w-[18px] px-1.5 shrink-0 rounded-full">
+                  {unreadMessages > 99 ? "99+" : unreadMessages}
+                </Badge>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground/70 truncate">{item.club_name}</p>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Activity indicator dot */}
-            {hasActivity && nextEvent && (
-              <div className={`h-2 w-2 rounded-full ${eventDotColors[nextEvent.type] || "bg-primary"}`} />
-            )}
-            {/* 3-dot menu */}
+          <div className="shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -145,30 +185,44 @@ function TeamCard({ item, nextEvent, photos }: {
           </div>
         </div>
 
-        {/* Status area */}
-        <div className="space-y-1.5">
-          {nextEvent ? (
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
-              <span className="font-medium text-foreground truncate">
-                {nextEvent.title}
-              </span>
-              <span className="text-muted-foreground text-xs shrink-0">
-                {nextEvent.dateLabel}
-              </span>
-            </div>
+        {/* Activity section — always show something meaningful */}
+        <div className="space-y-2 min-h-[48px]">
+          {activityItems.length > 0 ? (
+            activityItems
           ) : (
-            <p className="text-xs text-muted-foreground italic">No upcoming events</p>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+                <span className="italic text-xs">No upcoming events</span>
+              </div>
+              {item.canManage ? (
+                <button
+                  className="flex items-center gap-1.5 text-xs text-primary font-semibold hover:underline"
+                  onClick={(e) => { e.stopPropagation(); navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new"); }}
+                >
+                  <Plus className="h-3 w-3" />
+                  Schedule {item.type === "league" ? "match" : "training"}
+                </button>
+              ) : (
+                <button
+                  className="flex items-center gap-1 text-xs text-primary font-medium hover:underline"
+                  onClick={(e) => { e.stopPropagation(); navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`); }}
+                >
+                  View {item.type === "team" ? "team" : "league"}
+                  <ChevronRight className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Photo thumbnails — non-interactive, just visual */}
+        {/* Photo thumbnails */}
         {photos.length > 0 && (
           <div className="flex gap-1.5">
             {photos.slice(0, 2).map((url, i) => (
               <div
                 key={i}
-                className="h-12 w-16 rounded-md overflow-hidden bg-muted"
+                className="h-14 w-[72px] rounded-md overflow-hidden bg-muted"
               >
                 <img
                   src={url}
@@ -184,7 +238,6 @@ function TeamCard({ item, nextEvent, photos }: {
     </Card>
   );
 }
-
 interface MyTeamsPremiumCarouselProps {
   onJoinTeam?: () => void;
   onCreateTeam?: () => void;
@@ -389,13 +442,54 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch unread message counts per team
+  const { data: unreadCounts = {} } = useQuery({
+    queryKey: ["team-unread-counts", teamIds, user?.id],
+    queryFn: async () => {
+      if (teamIds.length === 0 || !user?.id) return {};
+      const map: Record<string, number> = {};
+
+      // Get all team_message_ids that user has read
+      const { data: readMessages } = await supabase
+        .from("message_reads")
+        .select("team_message_id")
+        .eq("user_id", user.id)
+        .not("team_message_id", "is", null);
+
+      const readIds = new Set((readMessages || []).map(r => r.team_message_id).filter(Boolean));
+
+      for (const teamId of teamIds) {
+        try {
+          // Get all messages in this team not by the current user
+          const { data: messages } = await supabase
+            .from("team_messages")
+            .select("id")
+            .eq("team_id", teamId)
+            .is("deleted_at", null)
+            .neq("author_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(50);
+
+          const unread = (messages || []).filter(m => !readIds.has(m.id)).length;
+          if (unread > 0) map[teamId] = unread;
+        } catch {
+          // Ignore errors for individual teams
+        }
+      }
+
+      return map;
+    },
+    enabled: teamIds.length > 0 && !!user?.id,
+    staleTime: 60 * 1000,
+  });
+
   if (isLoading) {
     return (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My Teams</h2>
         <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
           {[1, 2].map(i => (
-            <div key={i} className="shrink-0 w-[82vw] max-w-[320px] h-[120px] rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="shrink-0 w-[85vw] max-w-[340px] h-[140px] rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
       </section>
@@ -404,7 +498,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
 
   const addTeamCard = (onJoinTeam || onCreateTeam) ? (
     <Card
-      className="shrink-0 w-[82vw] max-w-[320px] cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all snap-start"
+      className="shrink-0 w-[85vw] max-w-[340px] cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all snap-start"
       onClick={() => {
         if (onJoinTeam && onCreateTeam) {
           // Could show a choice, but for simplicity navigate to create
@@ -497,6 +591,10 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
               const aHasEvent = !!nextEvents[a.id];
               const bHasEvent = !!nextEvents[b.id];
               if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
+              // Then items with unread messages
+              const aUnread = unreadCounts[a.id] || 0;
+              const bUnread = unreadCounts[b.id] || 0;
+              if (aUnread !== bUnread) return bUnread - aUnread;
               // Then items with photos (activity)
               const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
               const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
@@ -510,6 +608,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
               item={item}
               nextEvent={nextEvents[item.id]}
               photos={teamPhotos[item.id] || []}
+              unreadMessages={unreadCounts[item.id]}
             />
           ))}
           {addTeamCard}
