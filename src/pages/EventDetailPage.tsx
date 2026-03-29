@@ -454,6 +454,40 @@ export default function EventDetailPage() {
   // Check if user can access pitch board (coach/admin) - requires Pro Football subscription
   const canAccessPitchBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
 
+  // Check if user is a team member (for read-only pitch board access)
+  const { data: isTeamMember } = useQuery({
+    queryKey: ["is-team-member", event?.team_id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("team_id", event!.team_id!)
+        .limit(1)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && !!event?.team_id && !canAccessPitchBoard,
+  });
+
+  // Check if a game is currently in progress (for read-only spectator mode)
+  const { data: activeGameSummary } = useQuery({
+    queryKey: ["active-game-summary", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("game_summaries")
+        .select("id, is_active, pitch_state, timer_state")
+        .eq("event_id", id!)
+        .eq("is_active", true)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!id && !!isTeamMember && !canAccessPitchBoard && event?.type === 'game' && !!isSoccerClub && hasProFootball === true,
+    refetchInterval: 30000, // Poll every 30s to detect game start
+  });
+
+  const canViewPitchBoardReadOnly = !!isTeamMember && !canAccessPitchBoard && !!activeGameSummary;
+
   // Fetch team members for pitch board
   const { data: teamMembers } = useQuery({
     queryKey: ["team-members-for-pitch", event?.team_id],
