@@ -1618,15 +1618,19 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             {!selectedUser && (
               <>
                 <div className="space-y-2">
-                  <Label>Search for existing user</Label>
+                  <Label>Name</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Type a name to search existing users or add a new member
+                  </p>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search by name..."
-                      value={searchQuery}
+                      placeholder="e.g., John Smith"
+                      value={searchQuery || customName}
                       onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setCustomName("");
+                        const val = e.target.value;
+                        setSearchQuery(val);
+                        setCustomName(val);
                       }}
                       className="pl-10"
                     />
@@ -1639,7 +1643,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     </div>
                   )}
 
-                  {!isSearching && filteredResults.length > 0 && (
+                  {!isSearching && filteredResults.length > 0 && debouncedSearch.length >= 2 && (
                     <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
                       {filteredResults.map((result) => (
                         <button
@@ -1661,36 +1665,17 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                           <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
                         </button>
                       ))}
+                      <p className="text-xs text-muted-foreground px-2 pt-1">
+                        Or continue typing to add as a new member
+                      </p>
                     </div>
                   )}
 
                   {!isSearching && debouncedSearch.length >= 2 && filteredResults.length === 0 && (
-                    <p className="text-sm text-muted-foreground py-2">
-                      No users found. Enter a name below to invite someone new.
+                    <p className="text-xs text-muted-foreground py-1">
+                      No existing users found — this person will be invited as a new member
                     </p>
                   )}
-                </div>
-
-                <div className="relative flex items-center">
-                  <div className="flex-1 border-t border-border" />
-                  <span className="px-3 text-xs text-muted-foreground uppercase">or add by name</span>
-                  <div className="flex-1 border-t border-border" />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Enter name (for new members)</Label>
-                  <div className="relative">
-                    <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="e.g., John Smith"
-                      value={customName}
-                      onChange={(e) => {
-                        setCustomName(e.target.value);
-                        setSearchQuery("");
-                      }}
-                      className="pl-10"
-                    />
-                  </div>
                 </div>
 
                 {customName.trim() && (
