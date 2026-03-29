@@ -917,6 +917,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           validChildren.map(c => ({ 
             name: c.name.trim(), 
             yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+            jerseyNumber: c.jerseyNumber ? parseInt(c.jerseyNumber) : null,
             existingChildId: c.existingChildId || null,
           }))
         ) : null;
