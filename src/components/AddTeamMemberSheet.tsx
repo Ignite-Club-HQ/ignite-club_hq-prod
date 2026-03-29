@@ -27,6 +27,7 @@ interface BulkChild {
   id: string;
   name: string;
   yearOfBirth: string;
+  jerseyNumber: string;
   existingChildId?: string; // If set, links to an existing child record instead of creating new
   existingChildParentName?: string; // Display context for existing child
 }
@@ -341,6 +342,33 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               if (assignError) {
                 console.error("Failed to assign child to team:", assignError.message);
                 throw new Error(`We saved ${child.name.trim()}, but couldn't add them to ${teamName}. Please try again.`);
+              }
+            }
+
+            // Save jersey number to team_player_positions if provided
+            if (child.jerseyNumber) {
+              const jerseyNum = parseInt(child.jerseyNumber);
+              if (!isNaN(jerseyNum)) {
+                // Check if position record already exists
+                const { data: existingPos } = await supabase
+                  .from("team_player_positions")
+                  .select("id")
+                  .eq("team_id", teamId)
+                  .eq("child_id", childId)
+                  .maybeSingle();
+
+                if (existingPos) {
+                  await supabase.from("team_player_positions")
+                    .update({ jersey_number: jerseyNum })
+                    .eq("id", existingPos.id);
+                } else {
+                  await supabase.from("team_player_positions").insert({
+                    team_id: teamId,
+                    child_id: childId,
+                    position: "MID",
+                    jersey_number: jerseyNum,
+                  });
+                }
               }
             }
           }
@@ -889,6 +917,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           validChildren.map(c => ({ 
             name: c.name.trim(), 
             yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+            jerseyNumber: c.jerseyNumber ? parseInt(c.jerseyNumber) : null,
             existingChildId: c.existingChildId || null,
           }))
         ) : null;
@@ -1066,7 +1095,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const addChildToMember = (memberId: string) => {
     setBulkMembers(bulkMembers.map(m => 
       m.id === memberId 
-        ? { ...m, children: [...m.children, { id: crypto.randomUUID(), name: "", yearOfBirth: "" }] }
+        ? { ...m, children: [...m.children, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }] }
         : m
     ));
   };
@@ -1079,7 +1108,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     ));
   };
 
-  const updateChild = (memberId: string, childId: string, field: "name" | "yearOfBirth", value: string) => {
+  const updateChild = (memberId: string, childId: string, field: "name" | "yearOfBirth" | "jerseyNumber", value: string) => {
     setBulkMembers(bulkMembers.map(m => 
       m.id === memberId 
         ? { ...m, children: m.children.map(c => {
@@ -1377,7 +1406,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "" }])}
+                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
                         className="h-7 text-xs border-pink-500/30 text-pink-600 hover:bg-pink-500/10"
                       >
                         <Plus className="h-3 w-3 mr-1" />
@@ -1406,7 +1435,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
                                 </div>
-                                <div className="w-24">
+                                <div className="w-16">
+                                  <Input
+                                    placeholder="#"
+                                    value={child.jerseyNumber}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                      setSingleChildren(singleChildren.map(c => 
+                                        c.id === child.id ? { ...c, jerseyNumber: val } : c
+                                      ));
+                                    }}
+                                    className="h-9"
+                                    maxLength={2}
+                                    inputMode="numeric"
+                                  />
+                                </div>
+                                <div className="w-20">
                                   <Input
                                     placeholder="Year"
                                     value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
@@ -1696,7 +1740,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "" }])}
+                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
                         className="h-7 text-xs border-pink-500/30 text-pink-600 hover:bg-pink-500/10"
                       >
                         <Plus className="h-3 w-3 mr-1" />
@@ -1725,7 +1769,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
                                 </div>
-                                <div className="w-24">
+                                <div className="w-16">
+                                  <Input
+                                    placeholder="#"
+                                    value={child.jerseyNumber}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                      setSingleChildren(singleChildren.map(c => 
+                                        c.id === child.id ? { ...c, jerseyNumber: val } : c
+                                      ));
+                                    }}
+                                    className="h-9"
+                                    maxLength={2}
+                                    inputMode="numeric"
+                                  />
+                                </div>
+                                <div className="w-20">
                                   <Input
                                     placeholder="Year"
                                     value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
@@ -1969,6 +2028,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         id: crypto.randomUUID(),
                         name: child.name,
                         yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
+                        jerseyNumber: "",
                         existingChildId: match?.id,
                         existingChildParentName: match?.parent_name,
                       };
@@ -2059,6 +2119,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               value={child.name}
                               onChange={(e) => updateChild(member.id, child.id, "name", e.target.value)}
                               className={`h-8 text-sm flex-1 ${child.existingChildId ? 'border-amber-500/50' : ''}`}
+                            />
+                            <Input
+                              placeholder="#"
+                              value={child.jerseyNumber}
+                              onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
+                              className="h-8 text-sm w-12"
+                              maxLength={2}
+                              inputMode="numeric"
                             />
                             <Input
                               placeholder="Year"
