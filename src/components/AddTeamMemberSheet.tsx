@@ -1416,19 +1416,36 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     ) : (
                       <div className="space-y-2">
                         {singleChildren.map((child, idx) => {
-                          const match = !child.existingChildId ? findMatchingChild(child.name) : null;
+                          const matches = !child.existingChildId ? findMatchingChildren(child.name) : [];
                           return (
                             <div key={child.id} className="space-y-1">
                               <div className="flex gap-2 items-start">
-                                <div className="flex-1 space-y-1">
+                                <div className="flex-1 space-y-1 relative">
                                   <Input
-                                    placeholder="Child's name"
+                                    placeholder="Search or type child's name"
                                     value={child.name}
                                     onChange={(e) => setSingleChildren(singleChildren.map(c => 
                                       c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined } : c
                                     ))}
                                     className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
+                                  {matches.length > 0 && !child.existingChildId && (
+                                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                                      {matches.map(m => (
+                                        <button
+                                          key={m.id}
+                                          type="button"
+                                          onClick={() => setSingleChildren(singleChildren.map(c => 
+                                            c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, yearOfBirth: m.year_of_birth?.toString() || '' } : c
+                                          ))}
+                                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
+                                        >
+                                          <span className="font-medium">{m.name}</span>
+                                          <span className="text-xs text-muted-foreground">{m.parent_name} {m.year_of_birth ? `· ${m.year_of_birth}` : ''}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="w-16">
                                   <Input
@@ -1475,17 +1492,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <CheckCircle2 className="h-3 w-3" />
                                   Linked to existing child ({child.existingChildParentName || 'existing parent'})
                                 </p>
-                              )}
-                              {match && !child.existingChildId && (
-                                <button
-                                  type="button"
-                                  onClick={() => setSingleChildren(singleChildren.map(c => 
-                                    c.id === child.id ? { ...c, existingChildId: match.id, existingChildParentName: match.parent_name, yearOfBirth: match.year_of_birth?.toString() || '' } : c
-                                  ))}
-                                  className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1 hover:bg-amber-500/20 transition-colors ml-1"
-                                >
-                                  ⚠️ "{match.name}" already exists (parent: {match.parent_name}) — tap to link
-                                </button>
                               )}
                             </div>
                           );
