@@ -38,6 +38,11 @@ interface BulkMember {
   email: string;
   role: TeamRole;
   children: BulkChild[];
+  selectedUser?: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
 }
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -98,7 +103,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Single invite children (for parent role)
   const [singleChildren, setSingleChildren] = useState<BulkChild[]>([]);
   const [bulkMembers, setBulkMembers] = useState<BulkMember[]>([
-    { id: crypto.randomUUID(), name: "", email: "", role: "parent", children: [] },
+    { id: crypto.randomUUID(), name: "", email: "", role: "parent", children: [], selectedUser: null },
   ]);
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
@@ -1080,7 +1085,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setInviteSent(false);
     setMode("single");
     setSingleChildren([]);
-    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [] }]);
+    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [], selectedUser: null }]);
     setBulkResults([]);
     setCustomMessage("");
     setShowMessageEditor(false);
