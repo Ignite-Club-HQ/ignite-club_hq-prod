@@ -226,16 +226,13 @@ Deno.serve(async (req) => {
       notificationType = 'event_cancelled';
       message = `Event cancelled: ${title} has been cancelled`;
 
-      // RSVP'd users + team/club/mini-league members
+      // Only notify users who have an RSVP for this event
       const { data: rsvps } = await supabase
         .from('rsvps')
         .select('user_id')
         .eq('event_id', eventId)
         .not('user_id', 'is', null);
-      const rsvpUserIds = new Set((rsvps || []).map((r: any) => r.user_id));
-
-      const additionalIds = await resolveRecipients(supabase, clubId, teamId, miniLeagueId, '');
-      recipientUserIds = [...new Set([...rsvpUserIds, ...additionalIds])];
+      recipientUserIds = [...new Set((rsvps || []).map((r: any) => r.user_id))];
 
     } else if (action === 'event_updated') {
       notificationType = 'event_updated';
@@ -249,16 +246,13 @@ Deno.serve(async (req) => {
 
       message = buildUpdateMessage(title, changedFields);
 
-      // Notify RSVP'd users (people who've committed) + team/club members
+      // Only notify users who have an RSVP for this event
       const { data: rsvps } = await supabase
         .from('rsvps')
         .select('user_id')
         .eq('event_id', eventId)
         .not('user_id', 'is', null);
-      const rsvpUserIds = new Set((rsvps || []).map((r: any) => r.user_id));
-
-      const memberIds = await resolveRecipients(supabase, clubId, teamId, miniLeagueId, createdBy);
-      recipientUserIds = [...new Set([...rsvpUserIds, ...memberIds])].filter(id => id !== createdBy);
+      recipientUserIds = [...new Set((rsvps || []).map((r: any) => r.user_id))].filter(id => id !== createdBy);
 
     } else {
       return new Response(
