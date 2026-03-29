@@ -23,6 +23,7 @@ interface LinkedEventHeaderProps {
   scoreExpanded?: boolean;
   onToggleScore?: () => void;
   currentScore?: { team: number; opponent: number };
+  isGameInProgress?: boolean;
 }
 
 interface EventDetails {
@@ -46,7 +47,7 @@ interface GameEvent {
   opponent: string | null;
 }
 
-export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, onLinkEvent, showScoreToggle = false, scoreExpanded = false, onToggleScore, currentScore }: LinkedEventHeaderProps) {
+export function LinkedEventHeader({ eventId, teamId, teamName, compact = false, onLinkEvent, showScoreToggle = false, scoreExpanded = false, onToggleScore, currentScore, isGameInProgress = false }: LinkedEventHeaderProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showEventSelector, setShowEventSelector] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
