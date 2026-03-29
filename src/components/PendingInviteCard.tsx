@@ -201,7 +201,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(invite.role);
     const roleName = roleLabels[invite.role] || invite.role.replace("_", " ");
     const email = invite.invited_email;
-    const appDownload = `\n\n🍎 https://apps.apple.com/au/app/ignite-club-hq/id6758928691\n🤖 https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub`;
+    const appDownload = `\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
     const emailNote = email
       ? `\n\nSign up with ${email} so your account links automatically.`
       : "";
