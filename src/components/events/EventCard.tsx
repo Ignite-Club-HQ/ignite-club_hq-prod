@@ -494,18 +494,20 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
           const childMaybe = maybeNames.filter(n => n !== "You");
           const childNotGoing = notGoingNames.filter(n => n !== "You");
 
-          // Build child detail parts, only for statuses that differ from parent
+          // Always show child names with their status for clarity
           const childParts: string[] = [];
           if (childGoing.length > 0) {
-            childParts.push(childGoing.length <= 2 ? childGoing.join(", ") : `${childGoing.length} going`);
+            const names = childGoing.length <= 3 ? childGoing.join(", ") : `${childGoing.slice(0, 2).join(", ")} +${childGoing.length - 2}`;
+            // If parent is also going, just show names (same status implied)
+            childParts.push(primaryStatus === "Going" ? names : `${names} going`);
           }
           if (childMaybe.length > 0) {
-            const label = childMaybe.length <= 2 ? childMaybe.join(", ") : `${childMaybe.length}`;
-            childParts.push(`${label} maybe`);
+            const names = childMaybe.length <= 3 ? childMaybe.join(", ") : `${childMaybe.slice(0, 2).join(", ")} +${childMaybe.length - 2}`;
+            childParts.push(primaryStatus === "Maybe" ? names : `${names} maybe`);
           }
           if (childNotGoing.length > 0) {
-            const label = childNotGoing.length <= 2 ? childNotGoing.join(", ") : `${childNotGoing.length}`;
-            childParts.push(`${label} not going`);
+            const names = childNotGoing.length <= 3 ? childNotGoing.join(", ") : `${childNotGoing.slice(0, 2).join(", ")} +${childNotGoing.length - 2}`;
+            childParts.push(primaryStatus === "Not going" ? names : `${names} not going`);
           }
 
           return (
