@@ -673,6 +673,8 @@ export default function CreateEventPage() {
       opponent: type === "game" ? opponent.trim() || null : null,
       allow_guests: type === "social" && allowGuests ? true : null,
       max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
+      start_time: getStartTimeStr() || null,
+      end_time: endTime || null,
     };
 
     try {
