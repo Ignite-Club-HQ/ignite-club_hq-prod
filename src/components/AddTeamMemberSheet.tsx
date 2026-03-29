@@ -265,6 +265,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   // Search for second parent (existing users)
   const { data: secondParentSearchResults = [] } = useQuery({
+    queryKey: ["second-parent-search", debouncedSecondParentSearch],
+    queryFn: async () => {
+      if (debouncedSecondParentSearch.length < 2) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .ilike("display_name", `%${debouncedSecondParentSearch}%`)
+        .limit(5);
+      return data || [];
+    },
+    enabled: debouncedSecondParentSearch.length >= 2 && !selectedSecondParent,
+  });
+
+  // Filter second parent results: exclude primary user but allow existing members (they may need parent role added)
+  const filteredSecondParentResults = secondParentSearchResults.filter(
+    u => u.id !== selectedUser?.id
+  );
 
   // Find matching existing children by partial name (case-insensitive)
   const findMatchingChildren = (name: string) => {
@@ -1120,7 +1137,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   };
 
   const addBulkMemberRow = () => {
-    setBulkMembers([...bulkMembers, { id: crypto.randomUUID(), name: "", email: "", role: selectedRole, children: [] }]);
+    setBulkMembers([...bulkMembers, { id: crypto.randomUUID(), name: "", email: "", role: selectedRole, children: [], selectedUser: null }]);
   };
 
   const removeBulkMemberRow = (id: string) => {
