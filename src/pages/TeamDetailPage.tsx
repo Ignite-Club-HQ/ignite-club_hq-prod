@@ -1174,7 +1174,7 @@ export default function TeamDetailPage() {
               <div className="space-y-4 pt-2">
                 <div className="flex flex-wrap gap-2 justify-between items-center pl-1">
                   <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
-                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                    <SelectTrigger className="w-[140px] h-8 text-xs">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1186,15 +1186,28 @@ export default function TeamDetailPage() {
                       <SelectItem value="child">Children</SelectItem>
                     </SelectContent>
                   </Select>
-                  {(isAdmin || isClubAdmin) && (
-                    <AddTeamMemberSheet 
-                      teamId={id!} 
-                      teamName={team.name} 
-                      clubId={team.club_id}
-                      teamType={(team as any).team_type || "mixed"}
-                      isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                    />
-                  )}
+                  <div className="flex gap-2">
+                    {(isAdmin || isClubAdmin) && (
+                      <TeamPlayerPositionEditor 
+                        teamId={id!} 
+                        members={Object.fromEntries(
+                          Object.entries(members).map(([userId, member]) => [
+                            userId,
+                            { userId, profile: member.profile, roles: member.roles }
+                          ])
+                        )}
+                      />
+                    )}
+                    {(isAdmin || isClubAdmin) && (
+                      <AddTeamMemberSheet 
+                        teamId={id!} 
+                        teamName={team.name} 
+                        clubId={team.club_id}
+                        teamType={(team as any).team_type || "mixed"}
+                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
+                      />
+                    )}
+                  </div>
                 </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <p className="text-muted-foreground text-sm">No members yet</p>
