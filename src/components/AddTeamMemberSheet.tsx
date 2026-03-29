@@ -374,7 +374,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           }
         }
       }
-      }
 
       // Handle second parent
       let secondParentInviteLink: string | null = null;
