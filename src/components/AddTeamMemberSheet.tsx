@@ -2224,6 +2224,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             </Button>
           </TabsContent>
         </Tabs>
+        </div>
       </SheetContent>
     </Sheet>
   );
