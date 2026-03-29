@@ -349,7 +349,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       if (leagueIds.size > 0) {
         const { data: leagues } = await supabase
           .from("mini_leagues")
-          .select("id, name, club_id, clubs(name, sport)")
+          .select("id, name, club_id, clubs(name, sport, logo_url)")
           .in("id", Array.from(leagueIds));
 
         if (leagues) {
@@ -357,7 +357,9 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
             if (activeClubFilter && league.club_id !== activeClubFilter) continue;
             const canManage = leagueAdminClubIds.includes(league.club_id);
             result.push({
-              id: league.id, name: league.name, logo_url: null, type: "league",
+              id: league.id, name: league.name, logo_url: null,
+              club_logo_url: league.clubs?.logo_url || null,
+              type: "league",
               club_name: league.clubs?.name || "", sport: league.clubs?.sport || null,
               club_id: league.club_id, canManage,
             });
