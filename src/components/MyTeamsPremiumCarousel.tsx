@@ -47,21 +47,58 @@ const eventDotColors: Record<string, string> = {
   social: "bg-warning",
 };
 
-function TeamCard({ item, nextEvent, photos }: { 
+function TeamCard({ item, nextEvent, photos, unreadMessages }: { 
   item: TeamOrLeague; 
   nextEvent?: NextEventInfo;
   photos: string[];
+  unreadMessages?: number;
 }) {
   const navigate = useNavigate();
 
-  const hasActivity = !!nextEvent || photos.length > 0;
+  const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
   const accentBorder = nextEvent ? (eventAccentColors[nextEvent.type] || "border-l-primary") : "";
+
+  // Build activity indicators
+  const activityItems: React.ReactNode[] = [];
+  if (nextEvent) {
+    activityItems.push(
+      <div key="event" className="flex items-center gap-2 text-sm">
+        <Calendar className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+        <span className="font-medium text-foreground truncate">
+          {nextEvent.title}
+        </span>
+        <span className="text-muted-foreground text-xs shrink-0">
+          {nextEvent.dateLabel}
+        </span>
+      </div>
+    );
+  }
+  if (unreadMessages && unreadMessages > 0) {
+    activityItems.push(
+      <div key="messages" className="flex items-center gap-2 text-sm">
+        <MessageCircle className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+        <span className="text-foreground font-medium">
+          {unreadMessages} unread message{unreadMessages > 1 ? "s" : ""}
+        </span>
+      </div>
+    );
+  }
+  if (photos.length > 0) {
+    activityItems.push(
+      <div key="photos" className="flex items-center gap-2 text-sm">
+        <Image className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+        <span className="text-muted-foreground">
+          {photos.length} new photo{photos.length > 1 ? "s" : ""}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <Card
       className={`shrink-0 w-[82vw] max-w-[320px] cursor-pointer border bg-card transition-all snap-start overflow-hidden ${
         hasActivity 
-          ? `border-l-[3px] ${accentBorder} shadow-md hover:shadow-lg` 
+          ? `border-l-[3px] ${accentBorder || "border-l-primary"} shadow-md hover:shadow-lg` 
           : "hover:border-primary/40 shadow-sm hover:shadow-md opacity-80"
       }`}
       role="button"
@@ -112,6 +149,12 @@ function TeamCard({ item, nextEvent, photos }: {
             {hasActivity && nextEvent && (
               <div className={`h-2 w-2 rounded-full ${eventDotColors[nextEvent.type] || "bg-primary"}`} />
             )}
+            {/* Unread badge */}
+            {unreadMessages && unreadMessages > 0 && !nextEvent && (
+              <Badge className="bg-primary text-primary-foreground text-[9px] h-4 min-w-[16px] px-1 shrink-0">
+                {unreadMessages > 99 ? "99+" : unreadMessages}
+              </Badge>
+            )}
             {/* 3-dot menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -145,20 +188,29 @@ function TeamCard({ item, nextEvent, photos }: {
           </div>
         </div>
 
-        {/* Status area */}
+        {/* Activity indicators */}
         <div className="space-y-1.5">
-          {nextEvent ? (
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
-              <span className="font-medium text-foreground truncate">
-                {nextEvent.title}
-              </span>
-              <span className="text-muted-foreground text-xs shrink-0">
-                {nextEvent.dateLabel}
-              </span>
-            </div>
+          {activityItems.length > 0 ? (
+            activityItems
           ) : (
-            <p className="text-xs text-muted-foreground italic">No upcoming events</p>
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground italic">No upcoming events</p>
+              {item.canManage ? (
+                <button
+                  className="text-[11px] text-primary font-medium hover:underline"
+                  onClick={(e) => { e.stopPropagation(); navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new"); }}
+                >
+                  + Schedule {item.type === "league" ? "match" : "training"}
+                </button>
+              ) : (
+                <button
+                  className="text-[11px] text-primary font-medium hover:underline"
+                  onClick={(e) => { e.stopPropagation(); navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`); }}
+                >
+                  View {item.type === "team" ? "team" : "league"} →
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -184,7 +236,6 @@ function TeamCard({ item, nextEvent, photos }: {
     </Card>
   );
 }
-
 interface MyTeamsPremiumCarouselProps {
   onJoinTeam?: () => void;
   onCreateTeam?: () => void;
