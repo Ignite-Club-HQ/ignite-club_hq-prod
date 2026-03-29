@@ -1218,7 +1218,12 @@ export default function TeamDetailPage() {
                       return meta?.children && meta.children.length > 0;
                     })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
                       <div className="mb-4 pb-4 border-b">
-                        <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-muted-foreground">Players (Children)</p>
+                          {(isAdmin || isClubAdmin) && (
+                            <p className="text-[10px] text-muted-foreground italic">Long-press to set number & position</p>
+                          )}
+                        </div>
                         <div className="space-y-2">
                           {(() => {
                             // Build set of child IDs from pending invites to mark as pending
