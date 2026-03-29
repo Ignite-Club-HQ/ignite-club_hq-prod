@@ -248,7 +248,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
       return;
     }
     const clubName = teamData?.clubs?.name || clubData?.name || "the club";
-    const message = buildShareMessage();
+    const message = buildShareMessage().trim();
 
     if (Capacitor.isNativePlatform()) {
       try {
