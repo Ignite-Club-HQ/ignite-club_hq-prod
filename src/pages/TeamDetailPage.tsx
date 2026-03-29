@@ -1343,6 +1343,20 @@ export default function TeamDetailPage() {
                                         </p>
                                       ) : null}
                                     </div>
+                                    {(isAdmin || isClubAdmin) && !isPending && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0"
+                                        aria-label={`Invite parent for ${child.name}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setInviteParentChild({ childId: child.id, childName: child.name });
+                                        }}
+                                      >
+                                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    )}
                                     <Badge variant="outline" className={isPending 
                                       ? "text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30"
                                       : "text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30"
