@@ -820,16 +820,23 @@ function DialogInner({
     }
   };
   
-  if (!hasEnoughPlayers) {
+   if (!hasEnoughPlayers) {
     return (
       <div className="flex flex-col items-center gap-4 py-8">
         <AlertTriangle className="h-12 w-12 text-amber-500" />
         <p className="text-center text-muted-foreground">
-          You need {teamSize} players on pitch and at least 1 on the bench to generate a substitution plan.
+          {benchPlayers.length === 0 
+            ? "No bench players available — auto-substitutions aren't needed."
+            : `You need ${teamSize} players on pitch and at least 1 on the bench to generate a substitution plan.`
+          }
         </p>
         <p className="text-sm text-muted-foreground">
           Current: {playersOnPitch.length} on pitch, {benchPlayers.length} on bench
         </p>
+        <Button onClick={onClose} className="gap-2 mt-2">
+          <Play className="h-4 w-4" />
+          {benchPlayers.length === 0 ? "Continue to Pitch Board" : "Go Back"}
+        </Button>
       </div>
     );
   }
