@@ -143,8 +143,8 @@ export default function NotificationsPage() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const newNotification = payload.new as Notification;
-          // Direct cache update - prepend new notification
+          const raw = payload.new as any;
+          const newNotification: Notification = { ...raw, read: raw.is_read };
           queryClient.setQueryData<Notification[]>(
             ["notifications", user.id],
             (old) => old ? [newNotification, ...old] : [newNotification]
