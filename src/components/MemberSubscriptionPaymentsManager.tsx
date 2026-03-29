@@ -208,7 +208,7 @@ export default function MemberSubscriptionPaymentsManager({
         club_id: clubId,
         payment_period: paymentPeriod,
         payment_type: activeTab,
-        amount: amount ? parseFloat(amount) : null,
+        amount: amount ? parseFloat(amount) : 0,
         notes: notes.trim() || null,
         marked_by: user!.id,
       };
