@@ -600,6 +600,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
               item={item}
               nextEvent={nextEvents[item.id]}
               photos={teamPhotos[item.id] || []}
+              unreadMessages={unreadCounts[item.id]}
             />
           ))}
           {addTeamCard}
