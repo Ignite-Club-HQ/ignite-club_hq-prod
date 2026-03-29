@@ -562,7 +562,7 @@ export function NextUpCarousel({ events }: NextUpCarouselProps) {
               {allEvents.map((event, index) => (
                 <div
                   key={event.id}
-                  className="flex-[0_0_82%] min-w-0 pr-3 transition-transform duration-300"
+                  className="flex-[0_0_92%] min-w-0 pr-3 transition-transform duration-300"
                   style={{
                     transform: selectedIndex === index ? "scale(1)" : "scale(0.95)",
                     opacity: selectedIndex === index ? 1 : 0.85,
