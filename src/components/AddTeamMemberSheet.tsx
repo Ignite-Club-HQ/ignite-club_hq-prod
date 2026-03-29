@@ -1074,7 +1074,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setOpen(false);
     setNameInput("");
     setSelectedUser(null);
-    setNameInput("");
     setCustomEmail("");
     setSelectedRole(getDefaultRole());
     setInviteLink(null);
@@ -1646,7 +1645,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                           type="button"
                           onClick={() => {
                             setSelectedUser(result);
-                            setNameInput("");
                             setNameInput("");
                           }}
                           className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
