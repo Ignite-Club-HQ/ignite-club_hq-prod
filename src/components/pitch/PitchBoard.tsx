@@ -670,8 +670,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       if (error) throw error;
       return data || [];
     },
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    staleTime: 30 * 1000, // Refetch after 30s to pick up jersey/position changes
+    gcTime: 10 * 60 * 1000,
   });
 
   // Fetch linked event details (for opponent name)
@@ -1473,7 +1473,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const dbPosition = teamPlayerPositions.find(p => p.user_id === player.id);
       if (dbPosition) {
         const newAssignedPositions = (dbPosition.preferred_positions || []) as PitchPosition[];
-        const newNumber = dbPosition.jersey_number || player.number;
+        const newNumber = dbPosition.jersey_number ?? player.number;
         
         // Only update if there's actually a change
         const positionsChanged = JSON.stringify(player.assignedPositions) !== JSON.stringify(newAssignedPositions);
