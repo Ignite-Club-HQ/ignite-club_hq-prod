@@ -337,8 +337,9 @@ function ClubCard({ club, subscription, sponsors = [], isMember = false }: {
   isMember?: boolean;
 }) {
   const { trackView, trackClick } = useSponsorAnalytics();
-  const hasPro = subscription?.is_pro || subscription?.is_pro_football || 
-    subscription?.admin_pro_override || subscription?.admin_pro_football_override;
+  const hasPro = subscription?.is_pro || subscription?.admin_pro_override;
+  const hasProFootball = subscription?.is_pro_football || subscription?.admin_pro_football_override;
+  const hasAnyPro = hasPro || hasProFootball;
   
   // Only show primary sponsor
   const primarySponsor = sponsors.find(s => s.id === club.primary_sponsor_id && s.logo_url);
