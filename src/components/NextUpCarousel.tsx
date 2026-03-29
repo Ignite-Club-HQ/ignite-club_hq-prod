@@ -514,32 +514,93 @@ function CompactCard({ event }: { event: EventItem }) {
 }
 
 export function NextUpCarousel({ events }: NextUpCarouselProps) {
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    align: "start",
+    containScroll: "trimSnaps",
+    slidesToScroll: 1,
+  });
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const [scrollSnaps, setScrollSnaps] = React.useState<number[]>([]);
+
+  const onSelect = React.useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
+
+  React.useEffect(() => {
+    if (!emblaApi) return;
+    setScrollSnaps(emblaApi.scrollSnapList());
+    emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", () => {
+      setScrollSnaps(emblaApi.scrollSnapList());
+      onSelect();
+    });
+    onSelect();
+    return () => { emblaApi.off("select", onSelect); };
+  }, [emblaApi, onSelect]);
+
   if (!events || events.length === 0) return null;
 
-  const heroEvent = events[0];
-  const secondaryEvents = events.slice(1, 6);
-  const hasSecondary = secondaryEvents.length > 0;
+  const allEvents = events.slice(0, 6);
+  const showCarousel = allEvents.length > 1;
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Next Up</h2>
-        <Link to="/events" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+        <Link to="/events" className="text-xs text-muted-foreground/60 hover:text-primary transition-colors">
           View all →
         </Link>
       </div>
-      {hasSecondary ? (
-        <ScrollArea className="w-full">
-          <div className="flex gap-3 pb-3">
-            <HeroCard event={heroEvent} />
-            {secondaryEvents.map((event) => (
-              <CompactCard key={event.id} event={event} />
-            ))}
+
+      {showCarousel ? (
+        <div className="relative">
+          {/* Carousel */}
+          <div ref={emblaRef} className="overflow-hidden">
+            <div className="flex">
+              {allEvents.map((event, index) => (
+                <div
+                  key={event.id}
+                  className="flex-[0_0_82%] min-w-0 pr-3 transition-transform duration-300"
+                  style={{
+                    transform: selectedIndex === index ? "scale(1)" : "scale(0.95)",
+                    opacity: selectedIndex === index ? 1 : 0.85,
+                    transformOrigin: "center center",
+                  }}
+                >
+                  {index === 0 ? (
+                    <HeroCard event={event} fullWidth />
+                  ) : (
+                    <HeroCard event={event} fullWidth />
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+
+          {/* Right edge fade gradient */}
+          <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10" />
+
+          {/* Pagination dots */}
+          {scrollSnaps.length > 1 && (
+            <div className="flex items-center justify-center gap-1.5 pt-3">
+              {scrollSnaps.map((_, index) => (
+                <button
+                  key={index}
+                  className={`rounded-full transition-all duration-300 ${
+                    index === selectedIndex
+                      ? "w-5 h-1.5 bg-primary"
+                      : "w-1.5 h-1.5 bg-muted-foreground/25 hover:bg-muted-foreground/40"
+                  }`}
+                  onClick={() => emblaApi?.scrollTo(index)}
+                  aria-label={`Go to event ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       ) : (
-        <HeroCard event={heroEvent} fullWidth />
+        <HeroCard event={allEvents[0]} fullWidth />
       )}
     </section>
   );
