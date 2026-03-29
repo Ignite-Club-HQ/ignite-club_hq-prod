@@ -16,6 +16,7 @@ interface TeamOrLeague {
   id: string;
   name: string;
   logo_url: string | null;
+  club_logo_url: string | null;
   type: "team" | "league";
   club_name: string;
   sport: string | null;
@@ -153,9 +154,9 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
       <CardContent className="p-4 space-y-3.5">
         {/* Header: avatar + name + badges + menu */}
         <div className="flex items-center gap-3">
-          {item.logo_url ? (
+          {(item.logo_url || item.club_logo_url) ? (
             <img
-              src={item.logo_url}
+              src={item.logo_url || item.club_logo_url!}
               alt=""
               className="h-11 w-11 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
             />
@@ -300,7 +301,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       if (teamIds.length > 0) {
         const { data: teams } = await supabase
           .from("teams")
-          .select("id, name, logo_url, club_id, clubs(name, sport)")
+          .select("id, name, logo_url, club_id, clubs(name, sport, logo_url)")
           .in("id", teamIds);
 
         if (teams) {
@@ -315,7 +316,9 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
             const canManage = teamRoles.some(r => ['coach', 'team_admin'].includes(r.role)) ||
               clubRoles.some(r => ['club_admin', 'app_admin'].includes(r.role));
             result.push({
-              id: team.id, name: team.name, logo_url: team.logo_url, type: "team",
+              id: team.id, name: team.name, logo_url: team.logo_url,
+              club_logo_url: team.clubs?.logo_url || null,
+              type: "team",
               club_name: team.clubs?.name || "", sport: team.clubs?.sport || null,
               club_id: team.club_id, canManage,
             });
