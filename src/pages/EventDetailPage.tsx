@@ -2137,6 +2137,18 @@ export default function EventDetailPage() {
               </Button>
             );
           })()}
+          {/* Read-only "Watch Live" button for parents when game is in progress */}
+          {canViewPitchBoardReadOnly && teamMembers && (
+            <Button
+              variant="default"
+              size="lg"
+              className="w-full mt-2 h-14 text-lg font-bold gap-3"
+              onClick={() => setShowPitchBoard(true)}
+            >
+              <Eye className="h-5 w-5" />
+              Watch Live
+            </Button>
+          )}
         </CardContent>
       </Card>
 
