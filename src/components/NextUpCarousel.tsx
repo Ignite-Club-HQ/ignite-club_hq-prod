@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users } from "lucide-react";
+import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { format, isToday, isTomorrow, parseISO, differenceInCalendarDays, isThisWeek, isSameWeek, addWeeks } from "date-fns";
+import { format, isToday, isTomorrow, parseISO, differenceInCalendarDays } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
 
@@ -52,6 +52,19 @@ function formatContextualDate(dateStr: string) {
     return { label: `Next ${format(date, "EEEE")}`, time };
   }
   return { label: format(date, "EEE, MMM d"), time };
+}
+
+function getUrgencyBadge(dateStr: string) {
+  const date = parseISO(dateStr);
+  const now = new Date();
+  const daysAway = differenceInCalendarDays(date, now);
+
+  if (isToday(date)) return { text: "🔴 Today", className: "bg-destructive/15 text-destructive border-destructive/30" };
+  if (isTomorrow(date)) return { text: "⏳ Tomorrow", className: "bg-warning/15 text-warning border-warning/30" };
+  if (daysAway === 2) return { text: "⏳ In 2 days", className: "bg-warning/10 text-warning border-warning/20" };
+  if (daysAway <= 6) return { text: `📅 This ${format(date, "EEEE")}`, className: "bg-primary/10 text-primary border-primary/20" };
+  if (daysAway <= 13) return { text: `📅 Next ${format(date, "EEEE")}`, className: "bg-muted text-muted-foreground border-border" };
+  return null;
 }
 
 const typeBadgeStyles: Record<string, string> = {
@@ -104,7 +117,6 @@ function useRsvpSummary(eventId: string, eventType?: string) {
         .eq("status", "going");
       
       if (!isSocial) {
-        // For games/training, only count players (child RSVPs)
         query = query.not("child_id", "is", null);
       }
       
@@ -131,20 +143,61 @@ function useRsvpSummary(eventId: string, eventType?: string) {
   });
 }
 
-function ChildRsvpIndicators({ eventId, userId }: { eventId: string; userId: string | undefined }) {
+function HouseholdRsvpSummary({ eventId, userId, currentStatus }: { eventId: string; userId: string | undefined; currentStatus: RsvpStatus | null }) {
   const { data: childRsvps } = useChildRsvps(eventId, userId);
   
-  if (!childRsvps || childRsvps.length === 0) return null;
+  if (!childRsvps || childRsvps.length === 0) {
+    return null;
+  }
+
+  const goingChildren = childRsvps.filter(r => r.status === "going");
+  const maybeChildren = childRsvps.filter(r => r.status === "maybe");
+  const notGoingChildren = childRsvps.filter(r => r.status === "not_going");
+
+  const parts: React.ReactNode[] = [];
+  
+  // User status
+  if (currentStatus === "going") parts.push(<span key="you" className="text-primary font-medium">You: Going</span>);
+  else if (currentStatus === "maybe") parts.push(<span key="you" className="text-warning font-medium">You: Maybe</span>);
+  else if (currentStatus === "not_going") parts.push(<span key="you" className="text-destructive font-medium">You: Can't go</span>);
+
+  if (goingChildren.length > 0) {
+    const names = goingChildren.map(c => c.children?.name?.split(' ')[0] || "Child").join(", ");
+    parts.push(
+      <span key="going" className="flex items-center gap-0.5">
+        <Check className="h-2.5 w-2.5 text-primary" />
+        <span>{names}</span>
+      </span>
+    );
+  }
+  if (maybeChildren.length > 0) {
+    const names = maybeChildren.map(c => c.children?.name?.split(' ')[0] || "Child").join(", ");
+    parts.push(
+      <span key="maybe" className="flex items-center gap-0.5">
+        <HelpCircle className="h-2.5 w-2.5 text-warning" />
+        <span>{names} maybe</span>
+      </span>
+    );
+  }
+  if (notGoingChildren.length > 0) {
+    const names = notGoingChildren.map(c => c.children?.name?.split(' ')[0] || "Child").join(", ");
+    parts.push(
+      <span key="notgoing" className="flex items-center gap-0.5">
+        <X className="h-2.5 w-2.5 text-destructive" />
+        <span>{names}</span>
+      </span>
+    );
+  }
+
+  if (parts.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {childRsvps.map((rsvp) => (
-        <Badge key={rsvp.id} variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal border-border/60">
-          {rsvp.status === "going" && <Check className="h-2.5 w-2.5 text-primary" />}
-          {rsvp.status === "maybe" && <HelpCircle className="h-2.5 w-2.5 text-warning" />}
-          {rsvp.status === "not_going" && <X className="h-2.5 w-2.5 text-destructive" />}
-          <span className="truncate max-w-[60px]">{rsvp.children?.name?.split(' ')[0] || "Child"}</span>
-        </Badge>
+    <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      {parts.map((part, i) => (
+        <span key={i} className="flex items-center gap-0.5">
+          {i > 0 && <span className="text-border mx-0.5">·</span>}
+          {part}
+        </span>
       ))}
     </div>
   );
@@ -156,23 +209,24 @@ function AttendeeAvatars({ eventId, eventType }: { eventId: string; eventType?: 
   if (!goingRsvps || goingRsvps.length === 0) return null;
 
   const visible = goingRsvps.slice(0, 3);
-  const count = goingRsvps.length;
+  const remaining = goingRsvps.length - 3;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] text-muted-foreground/70 font-medium uppercase tracking-wide">Attending</span>
       <div className="flex -space-x-1.5">
         {visible.map((rsvp) => (
-          <Avatar key={rsvp.id} className="h-6 w-6 border-2 border-background">
+          <Avatar key={rsvp.id} className="h-5 w-5 border-[1.5px] border-background">
             <AvatarImage src={rsvp.profile?.avatar_url || undefined} />
-            <AvatarFallback className="bg-primary/15 text-primary text-[9px] font-medium">
+            <AvatarFallback className="bg-primary/15 text-primary text-[8px] font-medium">
               {rsvp.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
         ))}
       </div>
-      <span className="text-[11px] text-muted-foreground">
-        {count} going
-      </span>
+      {remaining > 0 && (
+        <span className="text-[10px] text-muted-foreground">+{remaining}</span>
+      )}
     </div>
   );
 }
@@ -186,6 +240,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
   const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
+  const urgency = getUrgencyBadge(event.event_date);
 
   const { data: myRsvp } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -242,10 +297,10 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     },
   });
 
-  const rsvpOptions: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string }[] = [
-    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-sm" },
-    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning text-warning-foreground shadow-sm" },
-    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive text-destructive-foreground shadow-sm" },
+  const rsvpOptions: { status: RsvpStatus; label: string; icon: React.ReactNode; activeClass: string; inactiveHint: string }[] = [
+    { status: "going", label: "Going", icon: <Check className="h-3.5 w-3.5" />, activeClass: "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/30", inactiveHint: "border-primary/40 text-primary hover:bg-primary/5" },
+    { status: "maybe", label: "Maybe", icon: <HelpCircle className="h-3.5 w-3.5" />, activeClass: "bg-warning text-warning-foreground shadow-md ring-2 ring-warning/30", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
+    { status: "not_going", label: "Can't go", icon: <X className="h-3.5 w-3.5" />, activeClass: "bg-destructive text-destructive-foreground shadow-md ring-2 ring-destructive/30", inactiveHint: "border-border/60 text-muted-foreground hover:bg-muted/50" },
   ];
 
   return (
@@ -258,15 +313,17 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-4 space-y-3">
-        {/* Type badge + chevron */}
+        {/* Urgency badge + type */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            {urgency && (
+              <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${urgency.className}`}>
+                {urgency.text}
+              </Badge>
+            )}
             <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
               {typeLabel}
             </Badge>
-            {subtitle && (
-              <span className="text-[11px] text-muted-foreground">{subtitle}</span>
-            )}
           </div>
           <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
         </div>
@@ -277,6 +334,9 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             {event.title}
             {event.opponent && <span className="font-semibold text-muted-foreground"> vs {event.opponent}</span>}
           </h3>
+          {subtitle && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
+          )}
           {event.is_cancelled && (
             <Badge variant="destructive" className="mt-1 text-[10px]">Cancelled</Badge>
           )}
@@ -299,9 +359,9 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
         {/* RSVP Buttons */}
         {!event.is_cancelled && (
-          <div className="space-y-2.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <div className="space-y-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex gap-2">
-              {rsvpOptions.map(({ status, label, icon, activeClass }) => {
+              {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
                 const isActive = currentStatus === status;
                 return (
                   <Button
@@ -310,12 +370,12 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                     size="sm"
                     aria-pressed={isActive}
                     aria-label={`RSVP ${label}`}
-                    className={`flex-1 gap-1.5 text-[12px] font-medium h-8 rounded-full transition-all ${
+                    className={`flex-1 gap-1.5 text-[12px] font-medium h-9 rounded-full transition-all ${
                       isActive
                         ? activeClass
                         : status === "going" && !currentStatus
-                          ? "border-primary/40 text-primary hover:bg-primary/5"
-                          : "border-border/60 text-muted-foreground hover:bg-muted/50"
+                          ? inactiveHint
+                          : inactiveHint
                     }`}
                     disabled={rsvpMutation.isPending}
                     onClick={() => rsvpMutation.mutate(status)}
@@ -333,9 +393,14 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               })}
             </div>
 
-            {/* Children RSVP + Attendees */}
-            <div className="flex items-center justify-between">
-              <ChildRsvpIndicators eventId={event.id} userId={user?.id} />
+            {/* Helper text when no RSVP selected */}
+            {!currentStatus && (
+              <p className="text-[10px] text-muted-foreground/60 text-center">Tap to update your attendance</p>
+            )}
+
+            {/* Household RSVP summary + Attendees */}
+            <div className="flex items-center justify-between gap-2">
+              <HouseholdRsvpSummary eventId={event.id} userId={user?.id} currentStatus={currentStatus} />
               <AttendeeAvatars eventId={event.id} eventType={event.type} />
             </div>
           </div>
@@ -352,6 +417,7 @@ function CompactCard({ event }: { event: EventItem }) {
   const subtitle = event.teams?.name || (!event.team_id ? "Club event" : null);
   const typeLabel = event.type === "game" ? "Game" : event.type === "training" ? "Training" : event.type === "social" ? "Social" : "Event";
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
+  const urgency = getUrgencyBadge(event.event_date);
 
   const { data: myRsvp } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
@@ -372,12 +438,18 @@ function CompactCard({ event }: { event: EventItem }) {
   const currentStatus = myRsvp?.status as RsvpStatus | null;
 
   const rsvpIndicator = currentStatus ? (
-    <div className="flex items-center gap-1 text-[11px]">
+    <div className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ${
+      currentStatus === "going" ? "bg-primary/10" :
+      currentStatus === "maybe" ? "bg-warning/10" :
+      "bg-destructive/10"
+    }`}>
       {currentStatus === "going" && <><Check className="h-3 w-3 text-primary" /><span className="text-primary font-medium">Going</span></>}
       {currentStatus === "maybe" && <><HelpCircle className="h-3 w-3 text-warning" /><span className="text-warning font-medium">Maybe</span></>}
       {currentStatus === "not_going" && <><X className="h-3 w-3 text-destructive" /><span className="text-destructive font-medium">Can't go</span></>}
     </div>
-  ) : null;
+  ) : (
+    <div className="text-[10px] text-muted-foreground/50 italic">Tap to RSVP</div>
+  );
 
   return (
     <Card
@@ -389,11 +461,18 @@ function CompactCard({ event }: { event: EventItem }) {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
       <CardContent className="p-3.5 space-y-2.5">
-        {/* Type badge row */}
+        {/* Urgency + type badge row */}
         <div className="flex items-center justify-between">
-          <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-semibold border ${typeBadgeStyles[event.type] || ""}`}>
-            {typeLabel}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            {urgency && (
+              <Badge variant="outline" className={`text-[9px] h-[18px] px-1.5 font-semibold border ${urgency.className}`}>
+                {urgency.text}
+              </Badge>
+            )}
+            <Badge variant="outline" className={`text-[10px] h-5 px-1.5 font-semibold border ${typeBadgeStyles[event.type] || ""}`}>
+              {typeLabel}
+            </Badge>
+          </div>
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
         </div>
 
@@ -422,11 +501,11 @@ function CompactCard({ event }: { event: EventItem }) {
           )}
         </div>
 
-        {/* RSVP Status */}
-        {!event.is_cancelled && (rsvpIndicator || true) && (
+        {/* RSVP Status + Children */}
+        {!event.is_cancelled && (
           <div className="space-y-1.5">
             {rsvpIndicator}
-            <ChildRsvpIndicators eventId={event.id} userId={user?.id} />
+            <HouseholdRsvpSummary eventId={event.id} userId={user?.id} currentStatus={currentStatus} />
           </div>
         )}
       </CardContent>
@@ -445,8 +524,8 @@ export function NextUpCarousel({ events }: NextUpCarouselProps) {
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Next Up</h2>
-        <Link to="/events" className="text-sm text-primary hover:underline">
-          View all
+        <Link to="/events" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+          View all →
         </Link>
       </div>
       {hasSecondary ? (
