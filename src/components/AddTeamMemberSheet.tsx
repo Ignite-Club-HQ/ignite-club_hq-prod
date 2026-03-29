@@ -111,7 +111,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const [selectedSecondParent, setSelectedSecondParent] = useState<{ id: string; display_name: string | null; avatar_url: string | null } | null>(null);
   const debouncedSecondParentSearch = useDebounce(secondParentSearch, 300);
 
-  const debouncedSearch = useDebounce(searchQuery, 300);
+  const debouncedNameInput = useDebounce(nameInput, 300);
 
   // Fetch existing members (separate key from TeamDetail members query to avoid cache shape collisions)
   const { data: existingMembers } = useQuery({
@@ -202,17 +202,17 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
 
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["user-search-team-member", debouncedSearch],
+    queryKey: ["user-search-team-member", debouncedNameInput],
     queryFn: async () => {
-      if (debouncedSearch.length < 2) return [];
+      if (debouncedNameInput.length < 2) return [];
       const { data } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedSearch}%`)
+        .ilike("display_name", `%${debouncedNameInput}%`)
         .limit(8);
       return data || [];
     },
-    enabled: debouncedSearch.length >= 2,
+    enabled: debouncedNameInput.length >= 2,
   });
 
   // Filter out existing members — but allow the current user (admin adding themselves as parent)
@@ -612,7 +612,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Add pending member (by name) with invite
   const addPendingMemberMutation = useMutation({
     mutationFn: async () => {
-      if (!customName.trim()) throw new Error("Please enter a name");
+      if (!nameInput.trim()) throw new Error("Please enter a name");
 
       // Create a unique token for this specific pending invite (name-restricted)
       const inviteToken = createPendingInviteToken();
@@ -640,7 +640,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         role: selectedRole as any,
         invited_user_id: null,
         invited_by_user_id: user!.id,
-        invited_label: customName.trim(),
+        invited_label: nameInput.trim(),
         invited_email: customEmail.trim().toLowerCase() || null,
         invite_token: inviteToken,
         metadata: childrenMetadata 
@@ -739,7 +739,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               senderName: clubBranding?.name || undefined,
               replyTo: (clubBranding as any)?.contact_email || undefined,
               templateData: {
-                recipientName: customName.trim(),
+                recipientName: nameInput.trim(),
                 invitedEmail: email,
                 teamName,
                 clubName: clubBranding?.name || "The Club",
@@ -796,7 +796,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         try { await navigator.clipboard.writeText(link); } catch {}
         toast({
           title: "Member added — link copied!",
-          description: `${customName} has been added. Paste the invite link to share it with them.`,
+          description: `${nameInput} has been added. Paste the invite link to share it with them.`,
         });
       }
 
@@ -1072,9 +1072,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   const handleClose = () => {
     setOpen(false);
-    setSearchQuery("");
+    setNameInput("");
     setSelectedUser(null);
-    setCustomName("");
+    setNameInput("");
     setCustomEmail("");
     setSelectedRole(getDefaultRole());
     setInviteLink(null);
@@ -1255,7 +1255,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <div className="space-y-6 pb-6">
             <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
-              <p className="font-medium mb-1">{customName}</p>
+              <p className="font-medium mb-1">{nameInput}</p>
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5" />
                 {customEmail ? `Invite sent to ${customEmail}` : "Invite link created — share it with them"}
@@ -1263,13 +1263,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             </div>
 
             <p className="text-sm text-muted-foreground text-center">
-              When they accept the invite, their name will be pre-filled as "{customName}"
+              When they accept the invite, their name will be pre-filled as "{nameInput}"
             </p>
 
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => {
                 setInviteLink(null);
-                setCustomName("");
+                setNameInput("");
                 setCustomEmail("");
                 setSingleChildren([]);
                 setSecondParentName("");
@@ -1625,11 +1625,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="e.g., John Smith"
-                      value={searchQuery || customName}
+                      value={nameInput || nameInput}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setSearchQuery(val);
-                        setCustomName(val);
+                        setNameInput(val);
+                        setNameInput(val);
                       }}
                       className="pl-10"
                     />
@@ -1642,7 +1642,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     </div>
                   )}
 
-                  {!isSearching && filteredResults.length > 0 && debouncedSearch.length >= 2 && (
+                  {!isSearching && filteredResults.length > 0 && debouncedNameInput.length >= 2 && (
                     <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
                       {filteredResults.map((result) => (
                         <button
@@ -1650,8 +1650,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                           type="button"
                           onClick={() => {
                             setSelectedUser(result);
-                            setSearchQuery("");
-                            setCustomName("");
+                            setNameInput("");
+                            setNameInput("");
                           }}
                           className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
                         >
@@ -1670,14 +1670,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     </div>
                   )}
 
-                  {!isSearching && debouncedSearch.length >= 2 && filteredResults.length === 0 && (
+                  {!isSearching && debouncedNameInput.length >= 2 && filteredResults.length === 0 && (
                     <p className="text-xs text-muted-foreground py-1">
                       No existing users found — this person will be invited as a new member
                     </p>
                   )}
                 </div>
 
-                {customName.trim() && (
+                {nameInput.trim() && (
                   <div className="space-y-2">
                     <Label>Email (optional)</Label>
                     <div className="relative">
@@ -1696,7 +1696,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   </div>
                 )}
 
-                {customName.trim() && (
+                {nameInput.trim() && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="flex items-center gap-1.5">
@@ -1736,7 +1736,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 )}
 
                 {/* Child fields for parent role in single mode */}
-                {customName.trim() && selectedRole === "parent" && (
+                {nameInput.trim() && selectedRole === "parent" && (
                   <div className="space-y-3 p-4 rounded-xl bg-pink-500/5 border border-pink-500/20">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -1848,7 +1848,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 )}
 
                 {/* Second parent/guardian fields */}
-                {customName.trim() && selectedRole === "parent" && singleChildren.length > 0 && (
+                {nameInput.trim() && selectedRole === "parent" && singleChildren.length > 0 && (
                   <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-blue-600" />
@@ -1957,21 +1957,21 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               <Button
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => addPendingMemberMutation.mutate()}
-                disabled={!customName.trim() || addPendingMemberMutation.isPending}
+                disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
               >
                 {addPendingMemberMutation.isPending ? (
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 ) : (
                   <Send className="h-5 w-5 mr-2" />
                 )}
-                {customName.trim()
+                {nameInput.trim()
                   ? (selectedSecondParent
                     ? `${customEmail.trim() ? 'Send Invite' : 'Add'} & Add ${selectedSecondParent.display_name}`
                     : secondParentName.trim() && secondParentEmail.trim() 
-                      ? `Send Invites to ${customName} & ${secondParentName}` 
+                      ? `Send Invites to ${nameInput} & ${secondParentName}` 
                       : customEmail.trim()
-                        ? `Send Invite to ${customName}`
-                        : `Add ${customName} as Pending`) 
+                        ? `Send Invite to ${nameInput}`
+                        : `Add ${nameInput} as Pending`) 
                   : "Enter name to continue"}
               </Button>
             )}
