@@ -61,47 +61,20 @@ export function EventViewsAdminSection({
     },
   });
 
-  // Fetch members who should see this event
+  // Fetch members who were invited to this event (have an RSVP record)
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["event-members-for-views", eventId, teamId, clubId, miniLeagueId],
+    queryKey: ["event-members-for-views", eventId],
     queryFn: async () => {
-      let userIds: string[] = [];
+      // Only include users who have an RSVP record (i.e., were invited)
+      const { data: rsvps, error: rsvpError } = await supabase
+        .from("rsvps")
+        .select("user_id")
+        .eq("event_id", eventId)
+        .not("user_id", "is", null);
 
-      if (miniLeagueId) {
-        // For mini-league events, get parents and league admins
-        const { data: players } = await supabase
-          .from("mini_league_players")
-          .select("parent_user_id")
-          .eq("mini_league_id", miniLeagueId)
-          .not("parent_user_id", "is", null);
-        
-        const parentIds = [...new Set(players?.map(p => p.parent_user_id).filter(Boolean) as string[])];
-        
-        const { data: adminRoles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("club_id", clubId)
-          .in("role", ["club_admin", "league_admin", "coach"]);
-        
-        const adminIds = adminRoles?.map(r => r.user_id) || [];
-        userIds = [...new Set([...parentIds, ...adminIds])];
-      } else if (teamId) {
-        // For team events, get team members
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("team_id", teamId);
-        
-        userIds = roles?.map(r => r.user_id) || [];
-      } else {
-        // For club-wide events, get club members
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("club_id", clubId);
-        
-        userIds = roles?.map(r => r.user_id) || [];
-      }
+      if (rsvpError) throw rsvpError;
+
+      const userIds = [...new Set((rsvps || []).map(r => r.user_id).filter(Boolean) as string[])];
 
       if (userIds.length === 0) return [];
 
