@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus, Clock } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -93,6 +93,11 @@ export default function CreateEventPage() {
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // End time / duration state
+  const [endTime, setEndTime] = useState("");
+  const [duration, setDuration] = useState("");
+  const [endTimeMode, setEndTimeMode] = useState<"end_time" | "duration">("duration");
+
   // Recurring event state
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState<RecurrencePattern>("weekly");
@@ -118,7 +123,55 @@ export default function CreateEventPage() {
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
 
-  // Conflict detection state
+  // Auto-calculate end time from duration or vice versa
+  const getStartTimeStr = () => {
+    if (!eventDateTime) return "";
+    const d = new Date(eventDateTime);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const handleDurationChange = (val: string) => {
+    setDuration(val);
+    if (val && eventDateTime) {
+      const mins = parseInt(val);
+      if (!isNaN(mins) && mins > 0) {
+        const start = new Date(eventDateTime);
+        const end = new Date(start.getTime() + mins * 60000);
+        setEndTime(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`);
+      }
+    } else {
+      setEndTime("");
+    }
+  };
+
+  const handleEndTimeChange = (val: string) => {
+    setEndTime(val);
+    if (val && eventDateTime) {
+      const start = new Date(eventDateTime);
+      const [h, m] = val.split(":").map(Number);
+      const endMins = h * 60 + m;
+      const startMins = start.getHours() * 60 + start.getMinutes();
+      let diff = endMins - startMins;
+      if (diff <= 0) diff += 24 * 60; // next day
+      setDuration(String(diff));
+    } else {
+      setDuration("");
+    }
+  };
+
+  // Recalculate end time when start time changes (if duration is set)
+  useEffect(() => {
+    if (endTimeMode === "duration" && duration && eventDateTime) {
+      const mins = parseInt(duration);
+      if (!isNaN(mins) && mins > 0) {
+        const start = new Date(eventDateTime);
+        const end = new Date(start.getTime() + mins * 60000);
+        setEndTime(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`);
+      }
+    }
+  }, [eventDateTime]);
+
+
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictingEvents, setConflictingEvents] = useState<{ title: string; team_name?: string; start_time?: string }[]>([]);
 
@@ -620,6 +673,8 @@ export default function CreateEventPage() {
       opponent: type === "game" ? opponent.trim() || null : null,
       allow_guests: type === "social" && allowGuests ? true : null,
       max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
+      start_time: getStartTimeStr() || null,
+      end_time: endTime || null,
     };
 
     try {
@@ -1107,7 +1162,76 @@ export default function CreateEventPage() {
                 />
               </div>
 
-              {/* Recurring Toggle - hidden for mini league match days */}
+              {/* End Time / Duration */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Label className="text-sm font-medium">End Time</Label>
+                  <span className="text-xs text-muted-foreground">(optional)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEndTimeMode("duration")}
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                      endTimeMode === "duration"
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                    )}
+                  >
+                    Duration
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEndTimeMode("end_time")}
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                      endTimeMode === "end_time"
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                    )}
+                  >
+                    End Time
+                  </button>
+                </div>
+                {endTimeMode === "duration" ? (
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      min={5}
+                      max={720}
+                      step={5}
+                      placeholder="e.g. 60"
+                      value={duration}
+                      onChange={(e) => handleDurationChange(e.target.value)}
+                      className="h-12 pr-16"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">mins</span>
+                    {endTime && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Ends at {endTime}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <Input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => handleEndTimeChange(e.target.value)}
+                      className="h-12"
+                    />
+                    {duration && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Duration: {duration} mins
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+
               {!isFromMiniLeague && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
