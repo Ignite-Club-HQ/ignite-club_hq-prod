@@ -2102,32 +2102,97 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             </div>
 
             <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-1">
-              {bulkMembers.map((member, idx) => (
-                <div key={member.id} className="p-3 rounded-lg border bg-muted/20 space-y-3">
-                  <div className="flex gap-2 items-start">
-                    <div className="flex-1 space-y-2">
-                      <Input
-                        placeholder="Name"
-                        value={member.name}
-                        onChange={(e) => updateBulkMember(member.id, "name", e.target.value)}
-                      />
-                      <Input
-                        type="email"
-                        placeholder="Email (optional)"
-                        value={member.email}
-                        onChange={(e) => updateBulkMember(member.id, "email", e.target.value)}
-                      />
+              {bulkMembers.map((member, idx) => {
+                const bulkMatches = member.selectedUser ? [] : (bulkSearchMap.get(member.name.trim()) || []);
+
+                return (
+                  <div key={member.id} className="p-3 rounded-lg border bg-muted/20 space-y-3">
+                    <div className="flex gap-2 items-start">
+                      <div className="flex-1 space-y-2">
+                        {member.selectedUser ? (
+                          <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={member.selectedUser.avatar_url || undefined} />
+                              <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                                {member.selectedUser.display_name?.[0]?.toUpperCase() || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{member.selectedUser.display_name || member.name}</p>
+                              <p className="text-xs text-muted-foreground">Existing user • Will be added directly</p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => updateBulkMember(member.id, "name", "")}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search existing user or type new name"
+                                value={member.name}
+                                onChange={(e) => updateBulkMember(member.id, "name", e.target.value)}
+                                className="pl-10"
+                              />
+                            </div>
+
+                            {member.name.trim().length >= 2 && bulkMatches.length > 0 && (
+                              <div className="space-y-1 rounded-lg border bg-muted/30 p-2">
+                                {bulkMatches.map((result) => (
+                                  <button
+                                    key={result.id}
+                                    type="button"
+                                    onClick={() => selectBulkExistingUser(member.id, result)}
+                                    className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-background"
+                                  >
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarImage src={result.avatar_url || undefined} />
+                                      <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                                        {result.display_name?.[0]?.toUpperCase() || "?"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                                  </button>
+                                ))}
+                                <p className="px-2 pt-1 text-xs text-muted-foreground">
+                                  Or keep typing to add a new member by name
+                                </p>
+                              </div>
+                            )}
+
+                            {member.name.trim().length >= 2 && bulkMatches.length === 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                No existing users found — this will be added as a new invite
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {!member.selectedUser && (
+                          <Input
+                            type="email"
+                            placeholder="Email (optional)"
+                            value={member.email}
+                            onChange={(e) => updateBulkMember(member.id, "email", e.target.value)}
+                          />
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="mt-1"
+                        onClick={() => removeBulkMemberRow(member.id)}
+                        disabled={bulkMembers.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="mt-1"
-                      onClick={() => removeBulkMemberRow(member.id)}
-                      disabled={bulkMembers.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
                   
                   {/* Per-member role selection */}
                   <div className="flex flex-wrap gap-1.5">
