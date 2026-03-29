@@ -2093,6 +2093,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               className={`h-8 text-sm flex-1 ${child.existingChildId ? 'border-amber-500/50' : ''}`}
                             />
                             <Input
+                              placeholder="#"
+                              value={child.jerseyNumber}
+                              onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
+                              className="h-8 text-sm w-12"
+                              maxLength={2}
+                              inputMode="numeric"
+                            />
+                            <Input
                               placeholder="Year"
                               value={child.yearOfBirth}
                               onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
