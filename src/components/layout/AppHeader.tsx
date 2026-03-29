@@ -560,6 +560,7 @@ export function AppHeader() {
           return;
         case "event_invite":
         case "event_cancelled":
+        case "event_updated":
         case "event_reminder":
         case "duty_assigned":
           navigate(`/events/${relatedId}`);
