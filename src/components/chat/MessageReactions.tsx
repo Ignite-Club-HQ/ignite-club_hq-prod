@@ -50,11 +50,16 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         const pickerHeight = 100; // approximate height of picker
         // Account for fixed headers: ensure picker doesn't render behind them
         const headerSafeZone = 140; // AppHeader + chat header height
-        const showBelow = rect.top < headerSafeZone + pickerHeight;
+        // Account for bottom nav + input bar
+        const bottomSafeZone = 140;
+        const spaceAbove = rect.top - headerSafeZone;
+        const spaceBelow = window.innerHeight - rect.bottom - bottomSafeZone;
+        // Prefer showing above; only show below if not enough space above
+        const showBelow = spaceAbove < pickerHeight && spaceBelow > spaceAbove;
         
         const top = showBelow 
-          ? Math.max(rect.bottom + 4, headerSafeZone) 
-          : rect.top - pickerHeight - 4;
+          ? Math.min(rect.bottom + 4, window.innerHeight - bottomSafeZone - pickerHeight)
+          : Math.max(rect.top - pickerHeight - 4, headerSafeZone);
         
         setPosition({
           top,
