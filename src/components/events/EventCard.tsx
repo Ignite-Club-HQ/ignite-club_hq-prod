@@ -24,12 +24,14 @@ import {
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
-import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users, MoreVertical } from "lucide-react";
+import { format, parseISO, isToday, isTomorrow, differenceInCalendarDays } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+
+type RsvpStatus = "going" | "maybe" | "not_going";
 
 export interface EventCardEvent {
   id: string;
@@ -57,10 +59,46 @@ interface EventCardProps {
 }
 
 const typeBadgeStyles: Record<string, string> = {
-  game: "bg-destructive/15 text-destructive border-destructive/20",
-  training: "bg-primary/15 text-primary border-primary/20",
-  social: "bg-warning/15 text-warning border-warning/20",
+  game: "bg-destructive/10 text-destructive border-destructive/20",
+  training: "bg-primary/10 text-primary border-primary/20",
+  social: "bg-warning/10 text-warning border-warning/20",
 };
+
+function formatContextualDate(dateStr: string) {
+  const date = parseISO(dateStr);
+  const now = new Date();
+  const time = format(date, "h:mm a");
+  if (isToday(date)) return `Today · ${time}`;
+  if (isTomorrow(date)) return `Tomorrow · ${time}`;
+  const daysAway = differenceInCalendarDays(date, now);
+  if (daysAway > 0 && daysAway <= 6) return `This ${format(date, "EEEE")} · ${time}`;
+  if (daysAway > 6 && daysAway <= 13) return `Next ${format(date, "EEEE")} · ${time}`;
+  return `${format(date, "EEE d MMM")} · ${time}`;
+}
+
+function buildFamilyRsvpSummary(
+  parentStatus: RsvpStatus | null,
+  parentName: string | undefined,
+  childRsvps: Array<{ id: string; status: string; child_id: string; children: { name: string } | null }> | undefined
+) {
+  // Build a family line like "You + Archie, Teddy" or "Archie going, Teddy maybe"
+  const goingNames: string[] = [];
+  const maybeNames: string[] = [];
+  const notGoingNames: string[] = [];
+
+  if (parentStatus === "going") goingNames.push("You");
+  else if (parentStatus === "maybe") maybeNames.push("You");
+  else if (parentStatus === "not_going") notGoingNames.push("You");
+
+  childRsvps?.forEach((rsvp) => {
+    const name = rsvp.children?.name?.split(" ")[0] || "Child";
+    if (rsvp.status === "going") goingNames.push(name);
+    else if (rsvp.status === "maybe") maybeNames.push(name);
+    else if (rsvp.status === "not_going") notGoingNames.push(name);
+  });
+
+  return { goingNames, maybeNames, notGoingNames };
+}
 
 export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) {
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
@@ -100,6 +138,79 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
     },
   });
 
+  // Fetch user's own RSVP
+  const { data: myRsvp } = useQuery({
+    queryKey: ["card-rsvp", event.id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("id, status")
+        .eq("event_id", event.id)
+        .eq("user_id", user!.id)
+        .is("child_id", null)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && !event.is_cancelled,
+  });
+
+  // Fetch child RSVPs
+  const { data: childRsvps } = useQuery({
+    queryKey: ["card-child-rsvps", event.id, user?.id],
+    queryFn: async () => {
+      const [ownChildren, guardianLinks] = await Promise.all([
+        supabase.from("children").select("id").eq("parent_id", user!.id),
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user!.id),
+      ]);
+      const childIds = [
+        ...(ownChildren.data || []).map(c => c.id),
+        ...(guardianLinks.data || []).map(g => g.child_id),
+      ];
+      if (childIds.length === 0) return [];
+      const uniqueChildIds = [...new Set(childIds)];
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("id, status, child_id, children:child_id(name)")
+        .eq("event_id", event.id)
+        .in("child_id", uniqueChildIds);
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; status: string; child_id: string; children: { name: string } | null }>;
+    },
+    enabled: !!user && !event.is_cancelled,
+  });
+
+  // Fetch total event attendance counts
+  // Social events: count everyone (parents + children)
+  // Games/Training: count only players (child RSVPs)
+  const isSocialEvent = event.type === "social";
+  const { data: attendanceCounts } = useQuery({
+    queryKey: ["card-attendance-counts", event.id, event.type],
+    queryFn: async () => {
+      let query = supabase
+        .from("rsvps")
+        .select("status")
+        .eq("event_id", event.id);
+      
+      if (!isSocialEvent) {
+        // For games/training, only count child (player) RSVPs
+        query = query.not("child_id", "is", null);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      const counts = { going: 0, maybe: 0, not_going: 0 };
+      (data || []).forEach((r) => {
+        if (r.status === "going") counts.going++;
+        else if (r.status === "maybe") counts.maybe++;
+        else if (r.status === "not_going") counts.not_going++;
+      });
+      return counts;
+    },
+    enabled: !event.is_cancelled,
+  });
+
+  const currentRsvpStatus = myRsvp?.status as RsvpStatus | null;
   const canSendReminders = hasPro === true;
 
   const deleteEventMutation = useMutation({
@@ -236,16 +347,17 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
     setRemindDialogOpen(true);
   };
 
-  // Long-press to open admin menu
+  // Long-press to reveal three-dots admin button
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
+  const [showAdminDots, setShowAdminDots] = useState(false);
 
   const handlePointerDown = useCallback(() => {
     if (!isAdmin) return;
     longPressTriggered.current = false;
     longPressTimer.current = setTimeout(() => {
       longPressTriggered.current = true;
-      setAdminMenuOpen(true);
+      setShowAdminDots(true);
     }, 500);
   }, [isAdmin]);
 
@@ -266,26 +378,26 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
   return (
     <Card
-      className={`group transition-all cursor-pointer border-border/60 hover:border-primary/40 hover:shadow-md ${event.is_cancelled ? "opacity-50" : ""} select-none`}
+      className={`group relative transition-all cursor-pointer border-border/50 hover:border-primary/30 hover:shadow-md shadow-sm ${event.is_cancelled ? "opacity-50" : ""} select-none`}
       onClick={handleCardClick}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
-      onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setAdminMenuOpen(true); } }}
+      onContextMenu={(e) => { if (isAdmin) { e.preventDefault(); setShowAdminDots(true); } }}
     >
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-4 pb-3 space-y-2.5">
         {/* Row 1: Title + Type badge */}
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-1">
-            <h3 className={`font-semibold text-[15px] leading-snug ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
+          <div className="min-w-0 flex-1">
+            <h3 className={`font-bold text-base leading-snug tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
               {event.title}
-              {event.opponent && <span className="font-normal text-muted-foreground"> vs {event.opponent}</span>}
+              {event.opponent && <span className="font-semibold text-muted-foreground"> vs {event.opponent}</span>}
             </h3>
             {subtitle && (
-              <p className="text-xs text-muted-foreground">{subtitle}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
             {hasPro && isAdmin && !hasViewed && !event.is_cancelled && (
               <Badge variant="default" className="gap-1 bg-primary text-primary-foreground text-[10px] h-5">
                 <Eye className="h-3 w-3" />
@@ -295,32 +407,150 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             {event.is_cancelled ? (
               <Badge variant="destructive" className="text-[10px] h-5">Cancelled</Badge>
             ) : (
-              <Badge variant="outline" className={`text-[10px] h-5 px-2 font-medium border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
+              <Badge variant="outline" className={`text-[10px] h-5 px-2 font-semibold border ${typeBadgeStyles[event.type] || "bg-muted/50 text-muted-foreground"}`}>
                 {typeLabel}
               </Badge>
             )}
           </div>
         </div>
 
-        {/* Row 2: Metadata */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-            <span>{format(parseISO(event.event_date), "EEE d MMM")} · {format(parseISO(event.event_date), "h:mm a")}</span>
+        {/* Row 2: Date/time + Location */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-[13px]">
+            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+            <span className="text-foreground/80">{formatContextualDate(event.event_date)}</span>
           </div>
           {locationDisplay && (
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
               <span className="truncate">{locationDisplay}</span>
             </div>
           )}
         </div>
+
+        {/* Row 3: RSVP Section - Personal + Global */}
+        {!event.is_cancelled && (() => {
+          const { goingNames, maybeNames, notGoingNames } = buildFamilyRsvpSummary(
+            currentRsvpStatus, undefined, childRsvps
+          );
+          const hasPersonalRsvp = goingNames.length > 0 || maybeNames.length > 0 || notGoingNames.length > 0;
+          const totalGoing = attendanceCounts?.going || 0;
+          const totalMaybe = attendanceCounts?.maybe || 0;
+
+          if (!hasPersonalRsvp) {
+            return (
+              <div className="pt-2 border-t border-border/40 space-y-1.5">
+                {/* Global attendance even without personal RSVP */}
+                {totalGoing > 0 && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Users className="h-3 w-3 shrink-0" />
+                    <span>{totalGoing} going{totalMaybe > 0 ? ` · ${totalMaybe} maybe` : ""}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-muted-foreground/70 font-medium">Tap to RSVP</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                </div>
+              </div>
+            );
+          }
+
+          // Build personal status line
+          const personalStatusIcon = goingNames.length > 0
+            ? <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+            : maybeNames.length > 0
+            ? <HelpCircle className="h-3.5 w-3.5 text-warning shrink-0" />
+            : <X className="h-3.5 w-3.5 text-destructive shrink-0" />;
+
+          const personalStatusColor = goingNames.length > 0
+            ? "text-primary"
+            : maybeNames.length > 0
+            ? "text-warning"
+            : "text-destructive";
+
+          // Build household display: "You, Archie, Teddy" for going, etc.
+          const householdParts: string[] = [];
+          if (goingNames.length > 0) {
+            householdParts.push(goingNames.join(", "));
+          }
+          if (maybeNames.length > 0) {
+            const maybeLabel = maybeNames.join(", ") + " (maybe)";
+            householdParts.push(maybeLabel);
+          }
+          if (notGoingNames.length > 0) {
+            const notGoingLabel = notGoingNames.join(", ") + " (not going)";
+            householdParts.push(notGoingLabel);
+          }
+
+          // Primary status word
+          const primaryStatus = goingNames.length > 0
+            ? "Going"
+            : maybeNames.length > 0
+            ? "Maybe"
+            : "Not going";
+
+          // Build a compact but clear household summary showing each status group
+          const childGoing = goingNames.filter(n => n !== "You");
+          const childMaybe = maybeNames.filter(n => n !== "You");
+          const childNotGoing = notGoingNames.filter(n => n !== "You");
+
+          // Always show child names with an explicit status for clarity
+          const childParts: string[] = [];
+          if (childGoing.length > 0) {
+            const names = childGoing.length <= 3 ? childGoing.join(", ") : `${childGoing.slice(0, 2).join(", ")} +${childGoing.length - 2}`;
+            childParts.push(`${names} going`);
+          }
+          if (childMaybe.length > 0) {
+            const names = childMaybe.length <= 3 ? childMaybe.join(", ") : `${childMaybe.slice(0, 2).join(", ")} +${childMaybe.length - 2}`;
+            childParts.push(`${names} maybe`);
+          }
+          if (childNotGoing.length > 0) {
+            const names = childNotGoing.length <= 3 ? childNotGoing.join(", ") : `${childNotGoing.slice(0, 2).join(", ")} +${childNotGoing.length - 2}`;
+            childParts.push(`${names} not going`);
+          }
+
+          return (
+            <div className="pt-2 border-t border-border/40 space-y-1">
+              {/* Line 1: Personal / household RSVP */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {personalStatusIcon}
+                  <span className={`text-[12px] font-semibold ${personalStatusColor} truncate`}>
+                    You: {primaryStatus}
+                    {childParts.length > 0 && (
+                      <span className="font-normal text-foreground/70">
+                        {" · "}{childParts.join(" · ")}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+              </div>
+
+              {/* Line 2: Global attendance */}
+              {totalGoing > 0 && (
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <Users className="h-3 w-3 shrink-0" />
+                  <span>{totalGoing} going{totalMaybe > 0 ? ` · ${totalMaybe} maybe` : ""}</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </CardContent>
 
-      {/* Admin menu triggered by long-press */}
-      {isAdmin && (
-        <DropdownMenu open={adminMenuOpen} onOpenChange={setAdminMenuOpen}>
-          <DropdownMenuTrigger className="sr-only" />
+      {/* Admin three-dots revealed by long-press */}
+      {isAdmin && showAdminDots && (
+        <div className="absolute top-12 right-2 z-10" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu open={adminMenuOpen} onOpenChange={(open) => {
+            setAdminMenuOpen(open);
+            if (!open) setShowAdminDots(false);
+          }}>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1.5 rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors">
+                <MoreVertical className="h-4 w-4 text-foreground/70" />
+              </button>
+            </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {!event.is_cancelled && (
               <>
@@ -346,7 +576,8 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
+          </DropdownMenu>
+        </div>
       )}
       {/* Dialogs */}
       <div onClick={(e) => e.stopPropagation()}>

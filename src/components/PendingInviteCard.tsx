@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, RotateCw, Copy, Share2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Capacitor } from "@capacitor/core";
-import { APP_STORE_URL, PLAY_STORE_URL } from "@/components/AppStoreDownloadGuide";
+
 import { Share } from "@capacitor/share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -201,7 +201,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(invite.role);
     const roleName = roleLabels[invite.role] || invite.role.replace("_", " ");
     const email = invite.invited_email;
-    const appDownload = `\n\n📲 Download the Ignite Club HQ app first:\niPhone: ${APP_STORE_URL}\nAndroid: ${PLAY_STORE_URL}`;
+    const appDownload = `\n\n📲 Download the Ignite Club HQ app:\n🍎 iPhone: Search "Ignite Club HQ" on the App Store\n🤖 Android: Search "Ignite Club HQ" on Google Play`;
     const emailNote = email
       ? `\n\nSign up with ${email} so your account links automatically.`
       : "";
