@@ -83,13 +83,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [nameInput, setNameInput] = useState("");
   const [selectedUser, setSelectedUser] = useState<{
     id: string;
     display_name: string | null;
     avatar_url: string | null;
   } | null>(null);
-  const [customName, setCustomName] = useState("");
   const [customEmail, setCustomEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState<TeamRole>(getDefaultRole());
   const [inviteSent, setInviteSent] = useState(false);
