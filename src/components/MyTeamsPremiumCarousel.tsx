@@ -489,7 +489,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         <h2 className="text-lg font-semibold">My Teams</h2>
         <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
           {[1, 2].map(i => (
-            <div key={i} className="shrink-0 w-[82vw] max-w-[320px] h-[120px] rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="shrink-0 w-[85vw] max-w-[340px] h-[140px] rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
       </section>
@@ -498,7 +498,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
 
   const addTeamCard = (onJoinTeam || onCreateTeam) ? (
     <Card
-      className="shrink-0 w-[82vw] max-w-[320px] cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all snap-start"
+      className="shrink-0 w-[85vw] max-w-[340px] cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all snap-start"
       onClick={() => {
         if (onJoinTeam && onCreateTeam) {
           // Could show a choice, but for simplicity navigate to create
