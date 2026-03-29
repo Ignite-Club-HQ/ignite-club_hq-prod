@@ -499,7 +499,7 @@ export default function EventDetailPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!event?.team_id && !!canAccessPitchBoard,
+    enabled: !!event?.team_id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
   });
 
   // Fetch team subscription for pitch board settings
@@ -514,7 +514,7 @@ export default function EventDetailPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!event?.team_id && !!canAccessPitchBoard,
+    enabled: !!event?.team_id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
   });
 
   // Fetch team/club members for duty assignment and not responded list (with roles)
