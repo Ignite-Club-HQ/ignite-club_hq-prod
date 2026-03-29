@@ -71,8 +71,8 @@ function formatContextualDate(dateStr: string) {
   if (isToday(date)) return `Today · ${time}`;
   if (isTomorrow(date)) return `Tomorrow · ${time}`;
   const daysAway = differenceInCalendarDays(date, now);
-  if (daysAway <= 6) return `This ${format(date, "EEEE")} · ${time}`;
-  if (daysAway <= 13) return `Next ${format(date, "EEEE")} · ${time}`;
+  if (daysAway > 0 && daysAway <= 6) return `This ${format(date, "EEEE")} · ${time}`;
+  if (daysAway > 6 && daysAway <= 13) return `Next ${format(date, "EEEE")} · ${time}`;
   return `${format(date, "EEE d MMM")} · ${time}`;
 }
 
