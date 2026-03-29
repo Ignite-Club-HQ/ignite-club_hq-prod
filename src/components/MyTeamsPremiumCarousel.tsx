@@ -96,10 +96,10 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
 
   return (
     <Card
-      className={`shrink-0 w-[82vw] max-w-[320px] cursor-pointer border bg-card transition-all snap-start overflow-hidden ${
+      className={`shrink-0 w-[85vw] max-w-[340px] cursor-pointer border bg-card transition-all snap-start overflow-hidden ${
         hasActivity 
           ? `border-l-[3px] ${accentBorder || "border-l-primary"} shadow-md hover:shadow-lg` 
-          : "hover:border-primary/40 shadow-sm hover:shadow-md opacity-80"
+          : "hover:border-primary/40 shadow-sm hover:shadow-md"
       }`}
       role="button"
       tabIndex={0}
@@ -118,17 +118,17 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
         }
       }}
     >
-      <CardContent className="p-4 space-y-3">
-        {/* Header: avatar + name + menu */}
+      <CardContent className="p-4 space-y-3.5">
+        {/* Header: avatar + name + badges + menu */}
         <div className="flex items-center gap-3">
           {item.logo_url ? (
             <img
               src={item.logo_url}
               alt=""
-              className="h-10 w-10 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
+              className="h-11 w-11 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
             />
           ) : (
-            <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
+            <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${
               item.type === "league" 
                 ? "bg-accent/60 ring-2 ring-accent" 
                 : "bg-primary/10 ring-2 ring-primary/20"
@@ -141,21 +141,18 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-[15px] leading-tight truncate">{item.name}</h3>
-            <p className="text-[11px] text-muted-foreground truncate">{item.club_name}</p>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-[15px] leading-tight truncate">{item.name}</h3>
+              {/* Unread badge next to name */}
+              {unreadMessages && unreadMessages > 0 && (
+                <Badge className="bg-primary text-primary-foreground text-[9px] h-[18px] min-w-[18px] px-1.5 shrink-0 rounded-full">
+                  {unreadMessages > 99 ? "99+" : unreadMessages}
+                </Badge>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground/70 truncate">{item.club_name}</p>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Activity indicator dot */}
-            {hasActivity && nextEvent && (
-              <div className={`h-2 w-2 rounded-full ${eventDotColors[nextEvent.type] || "bg-primary"}`} />
-            )}
-            {/* Unread badge */}
-            {unreadMessages && unreadMessages > 0 && !nextEvent && (
-              <Badge className="bg-primary text-primary-foreground text-[9px] h-4 min-w-[16px] px-1 shrink-0">
-                {unreadMessages > 99 ? "99+" : unreadMessages}
-              </Badge>
-            )}
-            {/* 3-dot menu */}
+          <div className="shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -188,39 +185,44 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           </div>
         </div>
 
-        {/* Activity indicators */}
-        <div className="space-y-1.5">
+        {/* Activity section — always show something meaningful */}
+        <div className="space-y-2 min-h-[48px]">
           {activityItems.length > 0 ? (
             activityItems
           ) : (
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground italic">No upcoming events</p>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+                <span className="italic text-xs">No upcoming events</span>
+              </div>
               {item.canManage ? (
                 <button
-                  className="text-[11px] text-primary font-medium hover:underline"
+                  className="flex items-center gap-1.5 text-xs text-primary font-semibold hover:underline"
                   onClick={(e) => { e.stopPropagation(); navigate(item.type === "league" ? `/events/new?type=mini_league&mini_league_id=${item.id}&club_id=${item.club_id}` : "/events/new"); }}
                 >
-                  + Schedule {item.type === "league" ? "match" : "training"}
+                  <Plus className="h-3 w-3" />
+                  Schedule {item.type === "league" ? "match" : "training"}
                 </button>
               ) : (
                 <button
-                  className="text-[11px] text-primary font-medium hover:underline"
+                  className="flex items-center gap-1 text-xs text-primary font-medium hover:underline"
                   onClick={(e) => { e.stopPropagation(); navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`); }}
                 >
-                  View {item.type === "team" ? "team" : "league"} →
+                  View {item.type === "team" ? "team" : "league"}
+                  <ChevronRight className="h-3 w-3" />
                 </button>
               )}
             </div>
           )}
         </div>
 
-        {/* Photo thumbnails — non-interactive, just visual */}
+        {/* Photo thumbnails */}
         {photos.length > 0 && (
           <div className="flex gap-1.5">
             {photos.slice(0, 2).map((url, i) => (
               <div
                 key={i}
-                className="h-12 w-16 rounded-md overflow-hidden bg-muted"
+                className="h-14 w-[72px] rounded-md overflow-hidden bg-muted"
               >
                 <img
                   src={url}
@@ -487,7 +489,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         <h2 className="text-lg font-semibold">My Teams</h2>
         <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
           {[1, 2].map(i => (
-            <div key={i} className="shrink-0 w-[82vw] max-w-[320px] h-[120px] rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="shrink-0 w-[85vw] max-w-[340px] h-[140px] rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
       </section>
@@ -496,7 +498,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
 
   const addTeamCard = (onJoinTeam || onCreateTeam) ? (
     <Card
-      className="shrink-0 w-[82vw] max-w-[320px] cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all snap-start"
+      className="shrink-0 w-[85vw] max-w-[340px] cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all snap-start"
       onClick={() => {
         if (onJoinTeam && onCreateTeam) {
           // Could show a choice, but for simplicity navigate to create
