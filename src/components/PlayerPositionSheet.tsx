@@ -112,7 +112,6 @@ export default function PlayerPositionSheet({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-player-positions", teamId] });
       queryClient.invalidateQueries({ queryKey: ["player-position", teamId, playerType, playerId] });
-      toast({ title: "Saved" });
       onOpenChange(false);
     },
     onError: () => {
@@ -142,7 +141,7 @@ export default function PlayerPositionSheet({
         ) : (
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label className="text-sm">Jersey Number</Label>
+              <Label className="text-sm">Shirt Number</Label>
               <Input
                 type="number"
                 inputMode="numeric"
