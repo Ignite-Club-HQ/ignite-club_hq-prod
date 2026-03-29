@@ -215,6 +215,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          )}
         </div>
 
         {/* Activity section — always show something meaningful */}
