@@ -1193,21 +1193,6 @@ export default function TeamDetailPage() {
                   </Select>
                   <div className="flex gap-2">
                     {(isAdmin || isClubAdmin) && (
-                      <TeamPlayerPositionEditor 
-                        teamId={id!} 
-                        members={Object.fromEntries(
-                          Object.entries(members).map(([userId, member]) => [
-                            userId,
-                            { userId, profile: member.profile, roles: member.roles }
-                          ])
-                        )}
-                        children={teamChildren
-                          .filter((a: any) => a.children)
-                          .map((a: any) => ({ id: a.children.id, name: a.children.name }))
-                        }
-                      />
-                    )}
-                    {(isAdmin || isClubAdmin) && (
                       <AddTeamMemberSheet 
                         teamId={id!} 
                         teamName={team.name} 
