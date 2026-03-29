@@ -1279,8 +1279,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           Add Member
         </Button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="h-[90vh] rounded-t-2xl overflow-y-auto">
-        <SheetHeader className="mb-4">
+      <SheetContent side="bottom" className="h-[90vh] rounded-t-2xl flex flex-col overflow-hidden">
+        <SheetHeader className="mb-4 shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
             Add Team Member
@@ -1292,11 +1292,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
         {/* Club admin confirmation banner */}
         {isClubAdminOnly && (
-          <div className="mb-4">
+          <div className="mb-4 shrink-0">
             <ClubAdminConfirmBanner teamName={teamName} action="add members" />
           </div>
         )}
 
+        <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-6">
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="single" className="flex items-center gap-2">
