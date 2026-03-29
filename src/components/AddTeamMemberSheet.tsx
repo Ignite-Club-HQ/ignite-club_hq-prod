@@ -1115,16 +1115,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         ? { ...m, children: m.children.map(c => {
             if (c.id !== childId) return c;
             const updated = { ...c, [field]: value };
-            // Auto-detect existing children by name match when name changes
+            // Clear existing link when name changes (user must explicitly pick from search)
             if (field === "name") {
-              const match = findMatchingChild(value);
-              if (match) {
-                updated.existingChildId = match.id;
-                updated.existingChildParentName = match.parent_name;
-              } else {
-                updated.existingChildId = undefined;
-                updated.existingChildParentName = undefined;
-              }
+              updated.existingChildId = undefined;
+              updated.existingChildParentName = undefined;
             }
             return updated;
           }) }
