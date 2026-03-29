@@ -1,3 +1,4 @@
+import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock } from "lucide-react";
@@ -5,13 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, parseISO, differenceInCalendarDays } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
+import useEmblaCarousel from "embla-carousel-react";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
