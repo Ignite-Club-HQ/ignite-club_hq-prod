@@ -1473,7 +1473,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       const dbPosition = teamPlayerPositions.find(p => p.user_id === player.id);
       if (dbPosition) {
         const newAssignedPositions = (dbPosition.preferred_positions || []) as PitchPosition[];
-        const newNumber = dbPosition.jersey_number || player.number;
+        const newNumber = dbPosition.jersey_number ?? player.number;
         
         // Only update if there's actually a change
         const positionsChanged = JSON.stringify(player.assignedPositions) !== JSON.stringify(newAssignedPositions);
