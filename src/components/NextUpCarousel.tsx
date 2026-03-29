@@ -306,14 +306,14 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
   return (
     <Card
-      className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-3 space-y-2 flex-1 flex flex-col">
         {/* Urgency badge + type */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -331,7 +331,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
         {/* Title */}
         <div>
-          <h3 className={`text-lg font-bold leading-tight tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
+          <h3 className={`text-base font-bold leading-tight tracking-tight ${event.is_cancelled ? "line-through text-muted-foreground" : ""}`}>
             {event.title}
             {event.opponent && <span className="font-semibold text-muted-foreground"> vs {event.opponent}</span>}
           </h3>
@@ -344,7 +344,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         </div>
 
         {/* Date + Location */}
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           <div className="flex items-center gap-2 text-[13px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
             <span className="font-medium text-foreground">{dateLabel}</span>
@@ -359,8 +359,9 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         </div>
 
         {/* RSVP Buttons */}
+        <div className="mt-auto" />
         {!event.is_cancelled && (
-          <div className="space-y-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <div className="space-y-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex gap-2">
               {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
                 const isActive = currentStatus === status;
@@ -371,7 +372,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                     size="sm"
                     aria-pressed={isActive}
                     aria-label={`RSVP ${label}`}
-                    className={`flex-1 gap-1.5 text-[12px] font-medium h-9 rounded-full transition-all ${
+                    className={`flex-1 gap-1.5 text-[12px] font-medium h-8 rounded-full transition-all ${
                       isActive
                         ? activeClass
                         : status === "going" && !currentStatus
@@ -562,7 +563,7 @@ export function NextUpCarousel({ events }: NextUpCarouselProps) {
               {allEvents.map((event, index) => (
                 <div
                   key={event.id}
-                  className="flex-[0_0_92%] min-w-0 pr-3 transition-transform duration-300"
+                  className="flex-[0_0_96%] min-w-0 pr-2 transition-transform duration-300 flex"
                   style={{
                     transform: selectedIndex === index ? "scale(1)" : "scale(0.95)",
                     opacity: selectedIndex === index ? 1 : 0.85,

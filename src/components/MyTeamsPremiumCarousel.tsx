@@ -1,3 +1,4 @@
+import { useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,6 +58,37 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
   unreadMessages?: number;
 }) {
   const navigate = useNavigate();
+  const [showDots, setShowDots] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    longPressTriggered.current = false;
+    touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      setShowDots(true);
+    }, 600);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartPos.current) return;
+    const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
+    const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
+    if (dx > 10 || dy > 10) { clearLongPress(); }
+  }, [clearLongPress]);
+
+  const handleTouchEnd = useCallback(() => { clearLongPress(); }, [clearLongPress]);
+
+  const handleCardClick = useCallback(() => {
+    if (longPressTriggered.current) { longPressTriggered.current = false; return; }
+    navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
+  }, [navigate, item.type, item.id]);
 
   const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
   const accentBorder = nextEvent ? (eventAccentColors[nextEvent.type] || "border-l-primary") : "";
@@ -99,7 +131,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
 
   return (
     <Card
-      className={`shrink-0 w-[85vw] max-w-[340px] cursor-pointer border bg-card transition-all snap-start overflow-hidden ${
+      className={`shrink-0 w-[85vw] max-w-[340px] cursor-pointer border bg-card transition-all snap-start overflow-hidden relative ${
         hasActivity 
           ? `border-l-[3px] ${accentBorder || "border-l-primary"} shadow-md hover:shadow-lg` 
           : "hover:border-primary/40 shadow-sm hover:shadow-md"
@@ -107,13 +139,10 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
       role="button"
       tabIndex={0}
       aria-label={`${item.name} — ${item.club_name}`}
-      onClick={() => {
-        if (item.type === "team") {
-          navigate(`/teams/${item.id}`);
-        } else {
-          navigate(`/mini-leagues/${item.id}`);
-        }
-      }}
+      onClick={handleCardClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -155,15 +184,15 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
             </div>
             <p className="text-[11px] text-muted-foreground/70 truncate">{item.club_name}</p>
           </div>
-          <div className="shrink-0">
-            <DropdownMenu>
+          {showDots && (
+          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu onOpenChange={(open) => { if (!open) setShowDots(false); }}>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted/80 active:bg-muted transition-colors"
-                  onClick={(e) => e.stopPropagation()}
+                  className="h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors"
                   aria-label="Team actions"
                 >
-                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                  <MoreVertical className="h-4 w-4 text-foreground/70" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
@@ -186,6 +215,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          )}
         </div>
 
         {/* Activity section — always show something meaningful */}

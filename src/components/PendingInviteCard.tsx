@@ -201,7 +201,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(invite.role);
     const roleName = roleLabels[invite.role] || invite.role.replace("_", " ");
     const email = invite.invited_email;
-    const appDownload = `\n\n📲 Download the Ignite Club HQ app:\n🍎 iPhone: Search "Ignite Club HQ" on the App Store\n🤖 Android: Search "Ignite Club HQ" on Google Play`;
+    const appDownload = `\n\n📲 Download the Ignite Club HQ app:\n🍎 iPhone: https://apps.apple.com/au/app/ignite-club-hq/id6758928691\n🤖 Android: https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub`;
     const emailNote = email
       ? `\n\nSign up with ${email} so your account links automatically.`
       : "";
@@ -218,15 +218,15 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
 
     // Parent invite with children
     if (invite.role === "parent" && childrenNames.length === 1) {
-      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}`;
+      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}${inviteLink ? `\n\nJoin here: ${inviteLink}` : ""}`;
     }
     if (invite.role === "parent" && childrenNames.length > 1) {
-      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}`;
+      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}${inviteLink ? `\n\nJoin here: ${inviteLink}` : ""}`;
     }
 
     // Parent invite without children names
     if (invite.role === "parent" && teamName) {
-      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}`;
+      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}${inviteLink ? `\n\nJoin here: ${inviteLink}` : ""}`;
     }
 
     // Generic team invite
