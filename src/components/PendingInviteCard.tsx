@@ -226,7 +226,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
 
     // Parent invite without children names
     if (invite.role === "parent" && teamName) {
-      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}`;
+      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}${inviteLink ? `\n\nJoin here: ${inviteLink}` : ""}`;
     }
 
     // Generic team invite
