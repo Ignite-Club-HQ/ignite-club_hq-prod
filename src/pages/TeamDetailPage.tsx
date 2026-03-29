@@ -1886,18 +1886,6 @@ export default function TeamDetailPage() {
                   </div>
                 ) : (hasProFootball || isAppAdmin) ? (
                   <div className="pt-2 space-y-4">
-                    {/* Player Positions Editor */}
-                    <div className="flex justify-end">
-                      <TeamPlayerPositionEditor 
-                        teamId={id!} 
-                        members={Object.fromEntries(
-                          Object.entries(members).map(([userId, member]) => [
-                            userId,
-                            { userId, profile: member.profile, roles: member.roles }
-                          ])
-                        )}
-                      />
-                    </div>
                     <DefaultPitchSettings
                     teamSize={teamSubscription?.team_size || 7}
                     formation={teamSubscription?.formation || null}
