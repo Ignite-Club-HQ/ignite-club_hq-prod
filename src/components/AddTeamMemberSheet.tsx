@@ -2030,7 +2030,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   const formattedMembers: BulkMember[] = members.map(m => ({
                     ...m,
                     children: m.children.map(child => {
-                      const match = findMatchingChild(child.name);
+                      const match = findMatchingChildren(child.name)[0] || null;
                       return {
                         id: crypto.randomUUID(),
                         name: child.name,
