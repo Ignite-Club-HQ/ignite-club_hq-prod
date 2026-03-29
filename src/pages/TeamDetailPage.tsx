@@ -2181,6 +2181,15 @@ export default function TeamDetailPage() {
           playerType={positionSheetPlayer.type}
         />
       )}
+      {inviteParentChild && id && (
+        <InviteOtherParentSheet
+          open={!!inviteParentChild}
+          onOpenChange={(open) => { if (!open) setInviteParentChild(null); }}
+          childId={inviteParentChild.childId}
+          childName={inviteParentChild.childName}
+          teamIds={[id]}
+        />
+      )}
     </div>
   );
 }
