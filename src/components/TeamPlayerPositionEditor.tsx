@@ -212,7 +212,7 @@ export default function TeamPlayerPositionEditor({ teamId, members, children: te
         ) : editingPlayer ? (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Jersey Number</Label>
+              <Label>Shirt Number</Label>
               <Input
                 type="number"
                 placeholder="e.g. 10"
