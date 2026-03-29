@@ -51,38 +51,89 @@ export function EventViewsAdminSection({
   const { data: eventViews } = useQuery({
     queryKey: ["event-views", eventId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("event_views")
-        .select("user_id, viewed_at")
-        .eq("event_id", eventId);
+      // Fetch explicit views and RSVPs in parallel
+      const [viewsResult, rsvpsResult] = await Promise.all([
+        supabase
+          .from("event_views")
+          .select("user_id, viewed_at")
+          .eq("event_id", eventId),
+        supabase
+          .from("rsvps")
+          .select("user_id, created_at")
+          .eq("event_id", eventId),
+      ]);
       
-      if (error) throw error;
-      return data || [];
+      if (viewsResult.error) throw viewsResult.error;
+      
+      // Merge: anyone who RSVP'd has also effectively "viewed" the event
+      const viewMap = new Map<string, string>();
+      (viewsResult.data || []).forEach(v => {
+        viewMap.set(v.user_id, v.viewed_at);
+      });
+      (rsvpsResult.data || []).forEach(r => {
+        if (!viewMap.has(r.user_id)) {
+          viewMap.set(r.user_id, r.created_at);
+        }
+      });
+      
+      return Array.from(viewMap.entries()).map(([user_id, viewed_at]) => ({
+        user_id,
+        viewed_at,
+      }));
     },
   });
 
-  // Fetch members who were invited to this event (have an RSVP record)
+  // Fetch all team/club members who should see this event
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["event-members-for-views", eventId],
+    queryKey: ["event-members-for-views", eventId, teamId, clubId],
     queryFn: async () => {
-      // Only include users who have an RSVP record (i.e., were invited)
-      const { data: rsvps, error: rsvpError } = await supabase
-        .from("rsvps")
-        .select("user_id")
-        .eq("event_id", eventId)
-        .not("user_id", "is", null);
+      // For team events, get all team members; for club events, get all club members
+      let userIds: string[] = [];
 
-      if (rsvpError) throw rsvpError;
+      if (teamId) {
+        // Get all users with a role on this team
+        const { data: roles, error } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("team_id", teamId);
+        if (error) throw error;
+        userIds = (roles || []).map(r => r.user_id).filter(Boolean);
+      } else if (clubId) {
+        // Get all users with a role in this club (direct club roles)
+        const { data: clubRoles, error: clubError } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", clubId);
+        if (clubError) throw clubError;
+        const clubUserIds = (clubRoles || []).map(r => r.user_id).filter(Boolean);
 
-      const userIds = [...new Set((rsvps || []).map(r => r.user_id).filter(Boolean) as string[])];
+        // Also get members from all teams in this club (covers team-only role rows)
+        const { data: clubTeams } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("club_id", clubId);
+        
+        let teamUserIds: string[] = [];
+        if (clubTeams?.length) {
+          const teamIds = clubTeams.map(t => t.id);
+          const { data: teamRoles } = await supabase
+            .from("user_roles")
+            .select("user_id")
+            .in("team_id", teamIds);
+          teamUserIds = (teamRoles || []).map(r => r.user_id).filter(Boolean);
+        }
 
-      if (userIds.length === 0) return [];
+        userIds = [...clubUserIds, ...teamUserIds];
+      }
+
+      const uniqueUserIds = [...new Set(userIds)];
+      if (uniqueUserIds.length === 0) return [];
 
       // Fetch profiles
       const { data: profiles, error } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
-        .in("id", userIds);
+        .in("id", uniqueUserIds);
 
       if (error) throw error;
       return profiles || [];

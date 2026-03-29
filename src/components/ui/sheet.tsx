@@ -8,7 +8,15 @@ import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 
 type SheetProps = React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root>;
 
-const SheetOpenContext = React.createContext(false);
+type SheetOpenContextValue = {
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+};
+
+const SheetOpenContext = React.createContext<SheetOpenContextValue>({
+  onOpenChange: () => undefined,
+  open: false,
+});
 
 const Sheet = ({ open, defaultOpen, onOpenChange, children, ...props }: SheetProps) => {
   const isControlled = open !== undefined;
@@ -26,7 +34,7 @@ const Sheet = ({ open, defaultOpen, onOpenChange, children, ...props }: SheetPro
   );
 
   return (
-    <SheetOpenContext.Provider value={isOpen}>
+    <SheetOpenContext.Provider value={{ open: isOpen, onOpenChange: handleOpenChange }}>
       <SheetPrimitive.Root
         open={open}
         defaultOpen={defaultOpen}
@@ -82,13 +90,64 @@ const sheetVariants = cva(
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
+  enableDragToClose?: boolean;
+  dragCloseThreshold?: number;
   hideCloseButton?: boolean;
 }
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, hideCloseButton, style, ...props }, ref) => {
-    const isSheetOpen = React.useContext(SheetOpenContext);
+  ({ side = "right", className, children, hideCloseButton, style, enableDragToClose = false, dragCloseThreshold = 96, ...props }, ref) => {
+    const { open: isSheetOpen, onOpenChange } = React.useContext(SheetOpenContext);
+    const dragStartYRef = React.useRef(0);
+    const [dragOffsetY, setDragOffsetY] = React.useState(0);
+    const [isDragging, setIsDragging] = React.useState(false);
+
     useIOSScrollLock(isSheetOpen);
+
+    const setContentRefs = React.useCallback(
+      (node: React.ElementRef<typeof SheetPrimitive.Content> | null) => {
+        if (typeof ref === "function") {
+          ref(node);
+        } else if (ref) {
+          ref.current = node;
+        }
+      },
+      [ref]
+    );
+
+    const handleDragStart = React.useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+      if (!enableDragToClose || side !== "bottom") return;
+
+      dragStartYRef.current = event.touches[0]?.clientY ?? 0;
+      setIsDragging(true);
+    }, [enableDragToClose, side]);
+
+    const handleDragMove = React.useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+      if (!enableDragToClose || side !== "bottom" || !isDragging) return;
+
+      const currentY = event.touches[0]?.clientY ?? dragStartYRef.current;
+      const nextOffset = Math.max(0, currentY - dragStartYRef.current);
+
+      setDragOffsetY(nextOffset);
+
+      if (nextOffset > 0) {
+        event.preventDefault();
+      }
+    }, [enableDragToClose, isDragging, side]);
+
+    const handleDragEnd = React.useCallback(() => {
+      if (!enableDragToClose || side !== "bottom") return;
+
+      setIsDragging(false);
+
+      if (dragOffsetY >= dragCloseThreshold) {
+        onOpenChange(false);
+        setDragOffsetY(0);
+        return;
+      }
+
+      setDragOffsetY(0);
+    }, [dragCloseThreshold, dragOffsetY, enableDragToClose, onOpenChange, side]);
 
     // Apply safe area positioning via inline styles for better cross-platform support
     const safeAreaStyle = React.useMemo(() => {
@@ -104,20 +163,37 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
         return {
           ...baseStyle,
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          transform: dragOffsetY > 0 ? `translateY(${dragOffsetY}px)` : undefined,
+          transitionDuration: isDragging ? '0ms' : dragOffsetY > 0 ? '200ms' : undefined,
+          transitionProperty: dragOffsetY > 0 || isDragging ? 'transform' : undefined,
+          transitionTimingFunction: dragOffsetY > 0 ? 'ease-out' : undefined,
+          willChange: dragOffsetY > 0 ? 'transform' : undefined,
         };
       }
       return baseStyle;
-    }, [side, style]);
+    }, [dragOffsetY, isDragging, side, style]);
 
     return (
       <SheetPortal>
         <SheetOverlay />
         <SheetPrimitive.Content 
-          ref={ref} 
+          ref={setContentRefs}
           className={cn(sheetVariants({ side }), className)} 
           style={safeAreaStyle}
           {...props}
         >
+          {enableDragToClose && side === "bottom" && (
+            <div
+              aria-hidden="true"
+              className="flex justify-center pt-2 pb-1"
+              onTouchEnd={handleDragEnd}
+              onTouchMove={handleDragMove}
+              onTouchStart={handleDragStart}
+              onTouchCancel={handleDragEnd}
+            >
+              <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+            </div>
+          )}
           {children}
           {!hideCloseButton && (
             <SheetPrimitive.Close 

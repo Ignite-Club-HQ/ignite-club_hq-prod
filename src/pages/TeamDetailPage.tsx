@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy, ChevronRight } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy, ChevronRight, LogOut } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
@@ -710,7 +710,7 @@ export default function TeamDetailPage() {
               <Pencil className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
-          {isAdmin && (
+          {(isAdmin || isClubAdmin) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Team options menu">
@@ -718,10 +718,10 @@ export default function TeamDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+              {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit {isClassMode ? "Class" : "Team"}
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
               {isClassMode && (
                 <DropdownMenuItem onClick={async () => {
                   // Duplicate class: create a copy with "(Copy)" suffix
@@ -784,7 +784,53 @@ export default function TeamDetailPage() {
                   <DropdownMenuSeparator />
                 </>
               )}
-              <ArchiveTeamDialog
+              {/* Leave Team - only for members (not pure club admins) */}
+              {userRoles.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-warning">
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Leave Team
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Leave Team?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          You will be removed from {team?.name || "this team"}. You'll need a new invite to rejoin.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={async () => {
+                            const { error } = await supabase
+                              .from("user_roles")
+                              .delete()
+                              .eq("user_id", user!.id)
+                              .eq("team_id", id!);
+                            if (error) {
+                              toast({ title: "Failed to leave team", variant: "destructive" });
+                            } else {
+                              toast({ title: `You left ${team?.name || "the team"}` });
+                              queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                              queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+                              navigate(`/clubs/${team?.club_id}`);
+                            }
+                          }}
+                          className="bg-destructive text-destructive-foreground"
+                        >
+                          Leave
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
+              {isAdmin && <DropdownMenuSeparator />}
+              {isAdmin && <ArchiveTeamDialog
                 teamId={id!}
                 teamName={team?.name || ""}
                 clubId={team?.club_id || ""}
@@ -801,7 +847,8 @@ export default function TeamDetailPage() {
                   </DropdownMenuItem>
                 }
               />
-              <AlertDialog>
+              }
+              {isAdmin && <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
                     <Trash2 className="h-4 w-4 mr-2" />
@@ -822,7 +869,7 @@ export default function TeamDetailPage() {
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
-              </AlertDialog>
+              </AlertDialog>}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -1447,7 +1494,8 @@ export default function TeamDetailPage() {
                                       };
                                       const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
                                       const label = roleLabels[roleItem.role] || "Member";
-                                      const canRemoveRole = isAdmin && userId !== user?.id && (member.roles?.length || 0) > 1;
+                                      const canManage = isAdmin || isClubAdmin;
+                                      const canRemoveRole = canManage && userId !== user?.id && (member.roles?.length || 0) > 1;
                                       return (
                                         <AlertDialog key={roleItem.id}>
                                           <Badge variant="outline" className={`text-xs border ${colorClass} flex items-center gap-1`}>
@@ -1495,7 +1543,7 @@ export default function TeamDetailPage() {
                                       );
                                     })}
                                   </div>
-                                  {isAdmin && (
+                                  {(isAdmin || isClubAdmin) && (
                                     <AddRoleToMemberDialog
                                       userId={userId}
                                       userName={member.profile?.display_name || "User"}
@@ -1505,7 +1553,7 @@ export default function TeamDetailPage() {
                                       existingRoles={member.roles?.map(r => r.role) || []}
                                     />
                                   )}
-                                  {isAdmin && userId !== user?.id && (
+                                  {(isAdmin || isClubAdmin) && userId !== user?.id && (
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
@@ -1591,7 +1639,7 @@ export default function TeamDetailPage() {
 
 
           {/* Admin Section - collapsed by default */}
-          {isAdmin && (
+          {(isAdmin || isClubAdmin) && (
             <AccordionItem value="admin" className="border rounded-lg px-4">
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
