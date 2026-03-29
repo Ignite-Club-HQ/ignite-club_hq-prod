@@ -488,16 +488,39 @@ export default function EventDetailPage() {
 
   const canViewPitchBoardReadOnly = !!isTeamMember && !canAccessPitchBoard && !!activeGameSummary;
 
-  // Fetch team members for pitch board
+  // Fetch team members for pitch board (adults + children)
   const { data: teamMembers } = useQuery({
     queryKey: ["team-members-for-pitch", event?.team_id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("user_id, role, profiles:user_id (id, display_name, avatar_url)")
-        .eq("team_id", event!.team_id!);
-      if (error) throw error;
-      return data;
+      const [rolesResult, childrenResult] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id, role, profiles:user_id (id, display_name, avatar_url)")
+          .eq("team_id", event!.team_id!),
+        supabase.rpc("get_team_children_for_pitch_board", {
+          p_team_id: event!.team_id!,
+        }),
+      ]);
+
+      if (rolesResult.error) throw rolesResult.error;
+
+      const adultMembers = (rolesResult.data || []).map(m => ({
+        user_id: m.user_id,
+        role: m.role,
+        profiles: m.profiles,
+      }));
+
+      const childMembers = (childrenResult.data || []).map(child => ({
+        user_id: child.child_id,
+        role: "player" as string,
+        profiles: {
+          id: child.child_id,
+          display_name: child.child_name,
+          avatar_url: null,
+        },
+      }));
+
+      return [...adultMembers, ...childMembers];
     },
     enabled: !!event?.team_id && !!(canAccessPitchBoard || canViewPitchBoardReadOnly),
   });
