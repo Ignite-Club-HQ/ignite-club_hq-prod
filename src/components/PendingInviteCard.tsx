@@ -218,10 +218,10 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
 
     // Parent invite with children
     if (invite.role === "parent" && childrenNames.length === 1) {
-      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}`;
+      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}${inviteLink ? `\n\nJoin here: ${inviteLink}` : ""}`;
     }
     if (invite.role === "parent" && childrenNames.length > 1) {
-      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}`;
+      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}${inviteLink ? `\n\nJoin here: ${inviteLink}` : ""}`;
     }
 
     // Parent invite without children names
