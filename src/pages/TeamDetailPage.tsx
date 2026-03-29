@@ -67,6 +67,7 @@ import ChatGroupsList from "@/components/chat/ChatGroupsList";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
+import PlayerPositionSheet from "@/components/PlayerPositionSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -78,6 +79,7 @@ import PendingInvitesList from "@/components/PendingInvitesList";
 import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
 import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
+import { cn } from "@/lib/utils";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -106,6 +108,9 @@ export default function TeamDetailPage() {
   const [linkedEventId, setLinkedEventId] = useState<string | null>(null);
   const [pitchBoardMembersOverride, setPitchBoardMembersOverride] = useState<Array<{ id: string; user_id: string; role: string; profiles: { display_name: string | null; avatar_url: string | null } | null }>>([]);
   const [isSavingPitchSettings, setIsSavingPitchSettings] = useState(false);
+  
+  // Long-press position editor state
+  const [positionSheetPlayer, setPositionSheetPlayer] = useState<{ id: string; name: string; type: "member" | "child" } | null>(null);
   
   // Handle admin invite dialog from team creation flow
   const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string } | null;
@@ -1174,7 +1179,7 @@ export default function TeamDetailPage() {
               <div className="space-y-4 pt-2">
                 <div className="flex flex-wrap gap-2 justify-between items-center pl-1">
                   <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
-                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                    <SelectTrigger className="w-[140px] h-8 text-xs">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1186,15 +1191,17 @@ export default function TeamDetailPage() {
                       <SelectItem value="child">Children</SelectItem>
                     </SelectContent>
                   </Select>
-                  {(isAdmin || isClubAdmin) && (
-                    <AddTeamMemberSheet 
-                      teamId={id!} 
-                      teamName={team.name} 
-                      clubId={team.club_id}
-                      teamType={(team as any).team_type || "mixed"}
-                      isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                    />
-                  )}
+                  <div className="flex gap-2">
+                    {(isAdmin || isClubAdmin) && (
+                      <AddTeamMemberSheet 
+                        teamId={id!} 
+                        teamName={team.name} 
+                        clubId={team.club_id}
+                        teamType={(team as any).team_type || "mixed"}
+                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
+                      />
+                    )}
+                  </div>
                 </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <p className="text-muted-foreground text-sm">No members yet</p>
@@ -1211,7 +1218,12 @@ export default function TeamDetailPage() {
                       return meta?.children && meta.children.length > 0;
                     })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
                       <div className="mb-4 pb-4 border-b">
-                        <p className="text-sm font-medium text-muted-foreground mb-2">Players (Children)</p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-muted-foreground">Players (Children)</p>
+                          {(isAdmin || isClubAdmin) && isSoccerClub && (
+                            <p className="text-[10px] text-muted-foreground italic">Long-press to set number & position</p>
+                          )}
+                        </div>
                         <div className="space-y-2">
                           {(() => {
                             // Build set of child IDs from pending invites to mark as pending
@@ -1252,7 +1264,18 @@ export default function TeamDetailPage() {
                                 (child.name && pendingChildNames.has(child.name.toLowerCase()) && (!child.allParentNames || child.allParentNames.length === 0));
                               const parentLabel = pendingParentLabels.get(child.id) || pendingParentLabels.get(child.name?.toLowerCase());
                               return (
-                                <Card key={assignment.id} className={isPending ? "opacity-70" : ""}>
+                                <Card 
+                                  key={assignment.id} 
+                                  className={cn(isPending ? "opacity-70" : "", (isAdmin || isClubAdmin) && isSoccerClub && "cursor-pointer select-none")}
+                                  onTouchStart={(isAdmin || isClubAdmin) && isSoccerClub ? (() => {
+                                    const timer = setTimeout(() => {
+                                      setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
+                                    }, 500);
+                                    (window as any).__longPressTimer = timer;
+                                  }) : undefined}
+                                  onTouchEnd={() => clearTimeout((window as any).__longPressTimer)}
+                                  onTouchMove={() => clearTimeout((window as any).__longPressTimer)}
+                                >
                                   <CardContent className="p-3 flex items-center gap-3">
                                     <Avatar className="h-8 w-8">
                                       <AvatarFallback className={isPending ? "bg-orange-500/20 text-orange-500 text-sm" : "bg-pink-500/20 text-pink-500 text-sm"}>
@@ -1873,18 +1896,6 @@ export default function TeamDetailPage() {
                   </div>
                 ) : (hasProFootball || isAppAdmin) ? (
                   <div className="pt-2 space-y-4">
-                    {/* Player Positions Editor */}
-                    <div className="flex justify-end">
-                      <TeamPlayerPositionEditor 
-                        teamId={id!} 
-                        members={Object.fromEntries(
-                          Object.entries(members).map(([userId, member]) => [
-                            userId,
-                            { userId, profile: member.profile, roles: member.roles }
-                          ])
-                        )}
-                      />
-                    </div>
                     <DefaultPitchSettings
                     teamSize={teamSubscription?.team_size || 7}
                     formation={teamSubscription?.formation || null}
@@ -2094,6 +2105,18 @@ export default function TeamDetailPage() {
           navigate(location.pathname, { replace: true, state: {} });
         }}
       />
+
+      {/* Long-press position editor */}
+      {positionSheetPlayer && id && (
+        <PlayerPositionSheet
+          open={!!positionSheetPlayer}
+          onOpenChange={(open) => { if (!open) setPositionSheetPlayer(null); }}
+          teamId={id}
+          playerId={positionSheetPlayer.id}
+          playerName={positionSheetPlayer.name}
+          playerType={positionSheetPlayer.type}
+        />
+      )}
     </div>
   );
 }

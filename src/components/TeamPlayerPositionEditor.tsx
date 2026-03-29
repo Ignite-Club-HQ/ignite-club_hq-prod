@@ -38,16 +38,31 @@ interface Member {
   roles: { id: string; role: string }[];
 }
 
+interface ChildPlayer {
+  id: string;
+  name: string;
+}
+
 interface TeamPlayerPositionEditorProps {
   teamId: string;
   members: Record<string, Member>;
+  children?: ChildPlayer[];
 }
 
-export default function TeamPlayerPositionEditor({ teamId, members }: TeamPlayerPositionEditorProps) {
+// Unified player entry for the list
+interface PlayerEntry {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+  type: "member" | "child";
+}
+
+export default function TeamPlayerPositionEditor({ teamId, members, children: teamChildren = [] }: TeamPlayerPositionEditorProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<string | null>(null);
+  const [editingPlayer, setEditingPlayer] = useState<string | null>(null);
+  const [editingType, setEditingType] = useState<"member" | "child">("member");
   const [selectedPositions, setSelectedPositions] = useState<PitchPosition[]>([]);
   const [jerseyNumber, setJerseyNumber] = useState<string>("");
 
@@ -66,33 +81,78 @@ export default function TeamPlayerPositionEditor({ teamId, members }: TeamPlayer
   });
 
   const upsertPositionMutation = useMutation({
-    mutationFn: async ({ userId, positions, number }: { userId: string; positions: PitchPosition[]; number: number | null }) => {
-      const { error } = await supabase
-        .from("team_player_positions")
-        .upsert({
-          team_id: teamId,
-          user_id: userId,
-          position: positions[0] || 'MID',
-          preferred_positions: positions,
-          jersey_number: number,
-        } as any, {
-          onConflict: "team_id,user_id",
-        });
-      if (error) throw error;
+    mutationFn: async ({ playerId, playerType, positions, number }: { playerId: string; playerType: "member" | "child"; positions: PitchPosition[]; number: number | null }) => {
+      const payload: any = {
+        team_id: teamId,
+        position: positions[0] || 'MID',
+        preferred_positions: positions,
+        jersey_number: number,
+      };
+
+      if (playerType === "child") {
+        payload.child_id = playerId;
+        payload.user_id = null;
+      } else {
+        payload.user_id = playerId;
+        payload.child_id = null;
+      }
+
+      // Try to find existing record
+      let query = supabase.from("team_player_positions").select("id").eq("team_id", teamId);
+      if (playerType === "child") {
+        query = query.eq("child_id", playerId);
+      } else {
+        query = query.eq("user_id", playerId);
+      }
+      const { data: existing } = await query.maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from("team_player_positions")
+          .update(payload)
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("team_player_positions")
+          .insert(payload);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-player-positions", teamId] });
       toast({ title: "Positions saved" });
-      setEditingMember(null);
+      setEditingPlayer(null);
     },
     onError: () => {
       toast({ title: "Failed to save positions", variant: "destructive" });
     },
   });
 
-  const handleMemberClick = (userId: string) => {
-    const existing = playerPositions?.find(p => p.user_id === userId);
-    setEditingMember(userId);
+  // Build unified player list: children first, then adult players
+  const allPlayers: PlayerEntry[] = [
+    ...teamChildren.map(child => ({
+      id: child.id,
+      name: child.name,
+      avatarUrl: null,
+      type: "child" as const,
+    })),
+    ...Object.entries(members)
+      .filter(([_, member]) => member.roles.some(r => r.role === "player"))
+      .map(([userId, member]) => ({
+        id: userId,
+        name: member.profile?.display_name || "Unknown",
+        avatarUrl: member.profile?.avatar_url,
+        type: "member" as const,
+      })),
+  ];
+
+  const handlePlayerClick = (player: PlayerEntry) => {
+    const existing = player.type === "child"
+      ? playerPositions?.find(p => p.child_id === player.id)
+      : playerPositions?.find(p => p.user_id === player.id);
+    setEditingPlayer(player.id);
+    setEditingType(player.type);
     setSelectedPositions((existing?.preferred_positions || []) as PitchPosition[]);
     setJerseyNumber(existing?.jersey_number?.toString() || "");
   };
@@ -106,27 +166,27 @@ export default function TeamPlayerPositionEditor({ teamId, members }: TeamPlayer
   };
 
   const handleSave = () => {
-    if (!editingMember) return;
+    if (!editingPlayer) return;
     upsertPositionMutation.mutate({
-      userId: editingMember,
+      playerId: editingPlayer,
+      playerType: editingType,
       positions: selectedPositions,
       number: jerseyNumber ? parseInt(jerseyNumber) : null,
     });
   };
 
   const handleBack = () => {
-    setEditingMember(null);
+    setEditingPlayer(null);
     setSelectedPositions([]);
     setJerseyNumber("");
   };
 
-  // Get players only (those with 'player' role)
-  const playerMembers = Object.entries(members).filter(([_, member]) =>
-    member.roles.some(r => r.role === "player")
-  );
+  const getPositionData = (id: string, type: "member" | "child") =>
+    type === "child"
+      ? playerPositions?.find(p => p.child_id === id)
+      : playerPositions?.find(p => p.user_id === id);
 
-  const currentMember = editingMember ? members[editingMember] : null;
-  const getPositionData = (userId: string) => playerPositions?.find(p => p.user_id === userId);
+  const currentPlayer = allPlayers.find(p => p.id === editingPlayer);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -139,8 +199,8 @@ export default function TeamPlayerPositionEditor({ teamId, members }: TeamPlayer
       <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {editingMember
-              ? `Edit: ${currentMember?.profile?.display_name || "Player"}`
+            {editingPlayer
+              ? `Edit: ${currentPlayer?.name || "Player"}`
               : "Player Positions"}
           </DialogTitle>
         </DialogHeader>
@@ -149,10 +209,10 @@ export default function TeamPlayerPositionEditor({ teamId, members }: TeamPlayer
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
-        ) : editingMember ? (
+        ) : editingPlayer ? (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Jersey Number</Label>
+              <Label>Shirt Number</Label>
               <Input
                 type="number"
                 placeholder="e.g. 10"
@@ -219,32 +279,32 @@ export default function TeamPlayerPositionEditor({ teamId, members }: TeamPlayer
               </Button>
             </div>
           </div>
-        ) : playerMembers.length === 0 ? (
+        ) : allPlayers.length === 0 ? (
           <p className="text-muted-foreground text-center py-4">
             No players in this team yet
           </p>
         ) : (
           <div className="space-y-2">
-            {playerMembers.map(([userId, member]) => {
-              const posData = getPositionData(userId);
+            {allPlayers.map((player) => {
+              const posData = getPositionData(player.id, player.type);
               const positions = (posData?.preferred_positions || []) as PitchPosition[];
 
               return (
                 <button
-                  key={userId}
-                  onClick={() => handleMemberClick(userId)}
+                  key={`${player.type}-${player.id}`}
+                  onClick={() => handlePlayerClick(player)}
                   className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-muted/50 hover:bg-muted transition-all"
                 >
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={member.profile?.avatar_url || undefined} />
+                      <AvatarImage src={player.avatarUrl || undefined} />
                       <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                        {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                        {player.name?.charAt(0)?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="text-left">
                       <span className="font-medium text-sm">
-                        {member.profile?.display_name || "Unknown"}
+                        {player.name}
                       </span>
                       {posData?.jersey_number && (
                         <Badge variant="outline" className="ml-2 text-xs">

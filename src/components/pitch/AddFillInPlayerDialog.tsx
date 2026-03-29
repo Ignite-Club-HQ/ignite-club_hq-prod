@@ -95,7 +95,7 @@ export default function AddFillInPlayerDialog({
             </div>
             
             <div className="space-y-1.5">
-              <Label htmlFor="fillInNumber" className="text-sm font-medium">Jersey Number</Label>
+              <Label htmlFor="fillInNumber" className="text-sm font-medium">Shirt Number</Label>
               <div className="flex gap-2">
                 <Input
                   id="fillInNumber"
