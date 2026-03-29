@@ -45,10 +45,10 @@ function formatContextualDate(dateStr: string) {
 
   const daysAway = differenceInCalendarDays(date, now);
 
-  if (daysAway <= 6) {
+  if (daysAway > 0 && daysAway <= 6) {
     return { label: `This ${format(date, "EEEE")}`, time };
   }
-  if (daysAway <= 13) {
+  if (daysAway > 6 && daysAway <= 13) {
     return { label: `Next ${format(date, "EEEE")}`, time };
   }
   return { label: format(date, "EEE, MMM d"), time };
