@@ -123,7 +123,55 @@ export default function CreateEventPage() {
   // Opponent for game events
   const [opponent, setOpponent] = useState("");
 
-  // Conflict detection state
+  // Auto-calculate end time from duration or vice versa
+  const getStartTimeStr = () => {
+    if (!eventDateTime) return "";
+    const d = new Date(eventDateTime);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const handleDurationChange = (val: string) => {
+    setDuration(val);
+    if (val && eventDateTime) {
+      const mins = parseInt(val);
+      if (!isNaN(mins) && mins > 0) {
+        const start = new Date(eventDateTime);
+        const end = new Date(start.getTime() + mins * 60000);
+        setEndTime(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`);
+      }
+    } else {
+      setEndTime("");
+    }
+  };
+
+  const handleEndTimeChange = (val: string) => {
+    setEndTime(val);
+    if (val && eventDateTime) {
+      const start = new Date(eventDateTime);
+      const [h, m] = val.split(":").map(Number);
+      const endMins = h * 60 + m;
+      const startMins = start.getHours() * 60 + start.getMinutes();
+      let diff = endMins - startMins;
+      if (diff <= 0) diff += 24 * 60; // next day
+      setDuration(String(diff));
+    } else {
+      setDuration("");
+    }
+  };
+
+  // Recalculate end time when start time changes (if duration is set)
+  useEffect(() => {
+    if (endTimeMode === "duration" && duration && eventDateTime) {
+      const mins = parseInt(duration);
+      if (!isNaN(mins) && mins > 0) {
+        const start = new Date(eventDateTime);
+        const end = new Date(start.getTime() + mins * 60000);
+        setEndTime(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`);
+      }
+    }
+  }, [eventDateTime]);
+
+
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictingEvents, setConflictingEvents] = useState<{ title: string; team_name?: string; start_time?: string }[]>([]);
 
