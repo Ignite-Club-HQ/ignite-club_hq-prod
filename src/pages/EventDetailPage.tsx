@@ -2827,6 +2827,7 @@ export default function EventDetailPage() {
             initialLinkedEventId={id}
             initialShowMatchHeader={teamSubscription?.show_match_header ?? true}
             initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
+            readOnly={!!canViewPitchBoardReadOnly}
           />
         </Suspense>,
         document.body
