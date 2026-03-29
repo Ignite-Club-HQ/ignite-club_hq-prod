@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, RotateCw, Copy, Share2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Capacitor } from "@capacitor/core";
-import { APP_STORE_URL, PLAY_STORE_URL } from "@/components/AppStoreDownloadGuide";
+
 import { Share } from "@capacitor/share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
