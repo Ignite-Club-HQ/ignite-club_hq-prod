@@ -9,7 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cacheTeams } from "@/lib/clubTeamCache";
-import { format, isToday, isTomorrow, parseISO } from "date-fns";
+import { format, isToday, isTomorrow, isThisWeek, parseISO, differenceInDays } from "date-fns";
 
 interface TeamOrLeague {
   id: string;
@@ -30,9 +30,12 @@ interface NextEventInfo {
 
 function formatShortDate(dateStr: string): string {
   const date = parseISO(dateStr);
+  const now = new Date();
   if (isToday(date)) return `Today ${format(date, "h:mma").toLowerCase()}`;
   if (isTomorrow(date)) return `Tmrw ${format(date, "h:mma").toLowerCase()}`;
-  return `${format(date, "EEE")} ${format(date, "h:mma").toLowerCase()}`;
+  const daysAway = differenceInDays(date, now);
+  if (daysAway <= 6) return `${format(date, "EEE")} ${format(date, "h:mma").toLowerCase()} (in ${daysAway}d)`;
+  return `${format(date, "EEE d MMM")} ${format(date, "h:mma").toLowerCase()}`;
 }
 
 const eventAccentColors: Record<string, string> = {
