@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus, Clock } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -92,6 +92,11 @@ export default function CreateEventPage() {
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // End time / duration state
+  const [endTime, setEndTime] = useState("");
+  const [duration, setDuration] = useState("");
+  const [endTimeMode, setEndTimeMode] = useState<"end_time" | "duration">("duration");
 
   // Recurring event state
   const [isRecurring, setIsRecurring] = useState(false);
