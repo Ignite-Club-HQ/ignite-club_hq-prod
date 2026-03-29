@@ -38,6 +38,11 @@ interface BulkMember {
   email: string;
   role: TeamRole;
   children: BulkChild[];
+  selectedUser?: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
 }
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -98,7 +103,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Single invite children (for parent role)
   const [singleChildren, setSingleChildren] = useState<BulkChild[]>([]);
   const [bulkMembers, setBulkMembers] = useState<BulkMember[]>([
-    { id: crypto.randomUUID(), name: "", email: "", role: "parent", children: [] },
+    { id: crypto.randomUUID(), name: "", email: "", role: "parent", children: [], selectedUser: null },
   ]);
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
@@ -220,6 +225,43 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const filteredResults = searchResults.filter(
     u => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
   );
+
+  const bulkSearchTerms = Array.from(
+    new Set(
+      bulkMembers
+        .filter((member) => !member.selectedUser && member.name.trim().length >= 2)
+        .map((member) => member.name.trim())
+    )
+  );
+
+  const { data: bulkSearchResults = [] } = useQuery({
+    queryKey: ["bulk-user-search-team-member", bulkSearchTerms],
+    queryFn: async () => {
+      if (bulkSearchTerms.length === 0) return [];
+
+      const searches = await Promise.all(
+        bulkSearchTerms.map(async (term) => {
+          const { data } = await supabase
+            .from("profiles")
+            .select("id, display_name, avatar_url")
+            .ilike("display_name", `%${term}%`)
+            .limit(6);
+
+          return {
+            term,
+            results: (data || []).filter(
+              (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
+            ),
+          };
+        })
+      );
+
+      return searches;
+    },
+    enabled: open && mode === "bulk" && bulkSearchTerms.length > 0,
+  });
+
+  const bulkSearchMap = new Map(bulkSearchResults.map((entry) => [entry.term, entry.results]));
 
   // Search for second parent (existing users)
   const { data: secondParentSearchResults = [] } = useQuery({
@@ -943,6 +985,85 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           }))
         ) : null;
 
+        if (member.selectedUser) {
+          const { error: roleError } = await supabase.from("user_roles").insert({
+            user_id: member.selectedUser.id,
+            team_id: teamId,
+            club_id: clubId,
+            role: memberRole,
+          });
+
+          if (roleError && !isDuplicateError(roleError)) {
+            console.error("Failed to add existing bulk member", member.name, roleError);
+            continue;
+          }
+
+          for (const child of validChildren) {
+            let childId = child.existingChildId;
+
+            if (memberRole === "parent") {
+              if (childId) {
+                const existingChild = clubChildren.find(c => c.id === childId);
+                if (existingChild && existingChild.parent_id !== member.selectedUser.id) {
+                  await supabase.from("child_guardians").insert({
+                    child_id: childId,
+                    guardian_id: member.selectedUser.id,
+                  }).select().maybeSingle();
+                }
+              } else {
+                const { data: newChildId, error: childError } = await supabase.rpc(
+                  "create_child_for_parent_on_team",
+                  {
+                    p_parent_user_id: member.selectedUser.id,
+                    p_team_id: teamId,
+                    p_name: child.name.trim(),
+                    p_year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
+                  }
+                );
+
+                if (childError) {
+                  console.error("Failed to create bulk child:", childError);
+                  continue;
+                }
+                childId = newChildId;
+              }
+
+              if (childId) {
+                const { data: existingAssignment } = await supabase
+                  .from("child_team_assignments")
+                  .select("id")
+                  .eq("child_id", childId)
+                  .eq("team_id", teamId)
+                  .maybeSingle();
+
+                if (!existingAssignment) {
+                  await supabase.from("child_team_assignments").insert({
+                    child_id: childId,
+                    team_id: teamId,
+                  });
+                }
+              }
+            }
+          }
+
+          await supabase.from("notifications").insert({
+            user_id: member.selectedUser.id,
+            type: "membership",
+            message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === memberRole)?.label}`,
+            related_id: teamId,
+          });
+
+          results.push({
+            name: member.selectedUser.display_name || member.name.trim(),
+            email: member.email.trim(),
+            link: `${window.location.origin}/teams/${teamId}`,
+            sent: true,
+            role: memberRole,
+            childrenCount: validChildren.length,
+          });
+          continue;
+        }
+
         // Add linked_invite_token if this parent is paired with another
         const linkedToken = crossLinks.get(i);
         const metadata = childrenMetadata 
@@ -954,7 +1075,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           team_id: teamId,
           club_id: clubId,
           role: memberRole as any,
-          invited_user_id: null, // Will be set when user accepts invite
+          invited_user_id: null,
           invited_by_user_id: user!.id,
           invited_label: member.name.trim(),
           invited_email: member.email.trim().toLowerCase() || null,
@@ -970,16 +1091,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         const link = `${window.location.origin}/join/p/${inviteToken}`;
         let sent = false;
 
-        // Build email content with children info
-        let childrenInfo = "";
-        if (validChildren.length > 0) {
-          childrenInfo = `<p>Your child${validChildren.length > 1 ? "ren" : ""} will also be registered: <strong>${validChildren.map(c => c.name).join(", ")}</strong></p>`;
-        }
-
         // Send email if provided - with verification and tracking
         let emailId: string | null = null;
         let emailError: string | null = null;
-        
+
         if (member.email.trim()) {
           try {
             const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
@@ -1050,6 +1165,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     onSuccess: (results) => {
       setBulkResults(results);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
+      queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
       
       const sentCount = results.filter(r => r.sent).length;
       const totalCount = results.length;
@@ -1057,7 +1173,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       toast({
         title: `${totalCount} member${totalCount > 1 ? "s" : ""} added`,
         description: sentCount > 0 
-          ? `${sentCount} invite email${sentCount > 1 ? "s" : ""} sent successfully`
+          ? `${sentCount} member${sentCount > 1 ? "s were" : " was"} added or emailed successfully`
           : "Share the invite links with your members",
       });
     },
@@ -1080,7 +1196,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setInviteSent(false);
     setMode("single");
     setSingleChildren([]);
-    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [] }]);
+    setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [], selectedUser: null }]);
     setBulkResults([]);
     setCustomMessage("");
     setShowMessageEditor(false);
@@ -1095,7 +1211,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   };
 
   const addBulkMemberRow = () => {
-    setBulkMembers([...bulkMembers, { id: crypto.randomUUID(), name: "", email: "", role: selectedRole, children: [] }]);
+    setBulkMembers([...bulkMembers, { id: crypto.randomUUID(), name: "", email: "", role: selectedRole, children: [], selectedUser: null }]);
   };
 
   const removeBulkMemberRow = (id: string) => {
@@ -1104,8 +1220,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     }
   };
 
-  const updateBulkMember = (id: string, field: keyof Omit<BulkMember, "id" | "children">, value: string) => {
-    setBulkMembers(bulkMembers.map(m => m.id === id ? { ...m, [field]: value } : m));
+  const updateBulkMember = (id: string, field: keyof Omit<BulkMember, "id" | "children" | "selectedUser">, value: string) => {
+    setBulkMembers(bulkMembers.map(m => 
+      m.id === id
+        ? { ...m, [field]: value, ...(field === "name" ? { selectedUser: null } : {}) }
+        : m
+    ));
+  };
+
+  const selectBulkExistingUser = (memberId: string, selected: { id: string; display_name: string | null; avatar_url: string | null }) => {
+    setBulkMembers(bulkMembers.map(m =>
+      m.id === memberId
+        ? { ...m, name: selected.display_name || "", selectedUser: selected, email: "" }
+        : m
+    ));
   };
 
   const updateBulkMemberRole = (id: string, role: TeamRole) => {
@@ -2048,32 +2176,97 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             </div>
 
             <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-1">
-              {bulkMembers.map((member, idx) => (
-                <div key={member.id} className="p-3 rounded-lg border bg-muted/20 space-y-3">
-                  <div className="flex gap-2 items-start">
-                    <div className="flex-1 space-y-2">
-                      <Input
-                        placeholder="Name"
-                        value={member.name}
-                        onChange={(e) => updateBulkMember(member.id, "name", e.target.value)}
-                      />
-                      <Input
-                        type="email"
-                        placeholder="Email (optional)"
-                        value={member.email}
-                        onChange={(e) => updateBulkMember(member.id, "email", e.target.value)}
-                      />
+              {bulkMembers.map((member, idx) => {
+                const bulkMatches = member.selectedUser ? [] : (bulkSearchMap.get(member.name.trim()) || []);
+
+                return (
+                  <div key={member.id} className="p-3 rounded-lg border bg-muted/20 space-y-3">
+                    <div className="flex gap-2 items-start">
+                      <div className="flex-1 space-y-2">
+                        {member.selectedUser ? (
+                          <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={member.selectedUser.avatar_url || undefined} />
+                              <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                                {member.selectedUser.display_name?.[0]?.toUpperCase() || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{member.selectedUser.display_name || member.name}</p>
+                              <p className="text-xs text-muted-foreground">Existing user • Will be added directly</p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => updateBulkMember(member.id, "name", "")}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Search existing user or type new name"
+                                value={member.name}
+                                onChange={(e) => updateBulkMember(member.id, "name", e.target.value)}
+                                className="pl-10"
+                              />
+                            </div>
+
+                            {member.name.trim().length >= 2 && bulkMatches.length > 0 && (
+                              <div className="space-y-1 rounded-lg border bg-muted/30 p-2">
+                                {bulkMatches.map((result) => (
+                                  <button
+                                    key={result.id}
+                                    type="button"
+                                    onClick={() => selectBulkExistingUser(member.id, result)}
+                                    className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-background"
+                                  >
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarImage src={result.avatar_url || undefined} />
+                                      <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                                        {result.display_name?.[0]?.toUpperCase() || "?"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                                  </button>
+                                ))}
+                                <p className="px-2 pt-1 text-xs text-muted-foreground">
+                                  Or keep typing to add a new member by name
+                                </p>
+                              </div>
+                            )}
+
+                            {member.name.trim().length >= 2 && bulkMatches.length === 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                No existing users found — this will be added as a new invite
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {!member.selectedUser && (
+                          <Input
+                            type="email"
+                            placeholder="Email (optional)"
+                            value={member.email}
+                            onChange={(e) => updateBulkMember(member.id, "email", e.target.value)}
+                          />
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="mt-1"
+                        onClick={() => removeBulkMemberRow(member.id)}
+                        disabled={bulkMembers.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="mt-1"
-                      onClick={() => removeBulkMemberRow(member.id)}
-                      disabled={bulkMembers.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
                   
                   {/* Per-member role selection */}
                   <div className="flex flex-wrap gap-1.5">
@@ -2161,7 +2354,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Custom message for bulk invites */}
