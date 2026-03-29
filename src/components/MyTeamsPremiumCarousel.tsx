@@ -440,7 +440,45 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     staleTime: 5 * 60 * 1000,
   });
 
-  if (isLoading) {
+  // Fetch unread message counts per team
+  const { data: unreadCounts = {} } = useQuery({
+    queryKey: ["team-unread-counts", teamIds, user?.id],
+    queryFn: async () => {
+      if (teamIds.length === 0 || !user?.id) return {};
+      const map: Record<string, number> = {};
+
+      for (const teamId of teamIds) {
+        try {
+          const readResult = await (supabase
+            .from("message_reads") as any)
+            .select("read_at")
+            .eq("user_id", user.id)
+            .eq("team_id", teamId)
+            .order("read_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const lastRead = readResult.data?.read_at || "1970-01-01T00:00:00Z";
+
+          const msgQuery = supabase
+            .from("team_messages")
+            .select("id", { count: "exact", head: true })
+            .eq("team_id", teamId)
+            .is("deleted_at", null);
+          const { count } = await (msgQuery as any).gt("created_at", lastRead).neq("author_id", user.id);
+
+          if (count && count > 0) map[teamId] = count;
+        } catch {
+          // Ignore errors for individual teams
+        }
+      }
+
+      return map;
+    },
+    enabled: teamIds.length > 0 && !!user?.id,
+    staleTime: 60 * 1000,
+  });
+
     return (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My Teams</h2>
