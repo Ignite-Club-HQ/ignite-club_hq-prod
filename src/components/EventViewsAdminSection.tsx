@@ -61,54 +61,39 @@ export function EventViewsAdminSection({
     },
   });
 
-  // Fetch members who were invited to this event (have an RSVP record)
+  // Fetch all team/club members who should see this event
   const { data: members, isLoading: membersLoading } = useQuery({
-    queryKey: ["event-members-for-views", eventId],
+    queryKey: ["event-members-for-views", eventId, teamId, clubId],
     queryFn: async () => {
-      // Get all RSVPs for this event (both user-based and child-based)
-      const { data: rsvps, error: rsvpError } = await supabase
-        .from("rsvps")
-        .select("user_id, child_id")
-        .eq("event_id", eventId);
+      // For team events, get all team members; for club events, get all club members
+      let userIds: string[] = [];
 
-      if (rsvpError) throw rsvpError;
-
-      const directUserIds = (rsvps || []).map(r => r.user_id).filter(Boolean) as string[];
-      const childIds = (rsvps || []).map(r => r.child_id).filter(Boolean) as string[];
-
-      // For child-based RSVPs, find parents via children table and child_guardians
-      let parentUserIds: string[] = [];
-      if (childIds.length > 0) {
-        // Get parent_id from children table
-        const { data: children } = await supabase
-          .from("children")
-          .select("parent_id")
-          .in("id", childIds);
-        
-        if (children) {
-          parentUserIds.push(...children.map(c => c.parent_id).filter(Boolean));
-        }
-
-        // Also get guardians from child_guardians table
-        const { data: guardians } = await supabase
-          .from("child_guardians")
-          .select("guardian_id")
-          .in("child_id", childIds);
-        
-        if (guardians) {
-          parentUserIds.push(...guardians.map(g => g.guardian_id).filter(Boolean));
-        }
+      if (teamId) {
+        // Get all users with a role on this team
+        const { data: roles, error } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("team_id", teamId);
+        if (error) throw error;
+        userIds = (roles || []).map(r => r.user_id).filter(Boolean);
+      } else if (clubId) {
+        // Get all users with a role in this club
+        const { data: roles, error } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", clubId);
+        if (error) throw error;
+        userIds = (roles || []).map(r => r.user_id).filter(Boolean);
       }
 
-      const allUserIds = [...new Set([...directUserIds, ...parentUserIds])];
-
-      if (allUserIds.length === 0) return [];
+      const uniqueUserIds = [...new Set(userIds)];
+      if (uniqueUserIds.length === 0) return [];
 
       // Fetch profiles
       const { data: profiles, error } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
-        .in("id", allUserIds);
+        .in("id", uniqueUserIds);
 
       if (error) throw error;
       return profiles || [];
