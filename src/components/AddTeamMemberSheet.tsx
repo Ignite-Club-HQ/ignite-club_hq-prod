@@ -985,6 +985,85 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           }))
         ) : null;
 
+        if (member.selectedUser) {
+          const { error: roleError } = await supabase.from("user_roles").insert({
+            user_id: member.selectedUser.id,
+            team_id: teamId,
+            club_id: clubId,
+            role: memberRole,
+          });
+
+          if (roleError && !isDuplicateError(roleError)) {
+            console.error("Failed to add existing bulk member", member.name, roleError);
+            continue;
+          }
+
+          for (const child of validChildren) {
+            let childId = child.existingChildId;
+
+            if (memberRole === "parent") {
+              if (childId) {
+                const existingChild = clubChildren.find(c => c.id === childId);
+                if (existingChild && existingChild.parent_id !== member.selectedUser.id) {
+                  await supabase.from("child_guardians").insert({
+                    child_id: childId,
+                    guardian_id: member.selectedUser.id,
+                  }).select().maybeSingle();
+                }
+              } else {
+                const { data: newChildId, error: childError } = await supabase.rpc(
+                  "create_child_for_parent_on_team",
+                  {
+                    p_parent_user_id: member.selectedUser.id,
+                    p_team_id: teamId,
+                    p_name: child.name.trim(),
+                    p_year_of_birth: child.yearOfBirth ? parseInt(child.yearOfBirth) : null,
+                  }
+                );
+
+                if (childError) {
+                  console.error("Failed to create bulk child:", childError);
+                  continue;
+                }
+                childId = newChildId;
+              }
+
+              if (childId) {
+                const { data: existingAssignment } = await supabase
+                  .from("child_team_assignments")
+                  .select("id")
+                  .eq("child_id", childId)
+                  .eq("team_id", teamId)
+                  .maybeSingle();
+
+                if (!existingAssignment) {
+                  await supabase.from("child_team_assignments").insert({
+                    child_id: childId,
+                    team_id: teamId,
+                  });
+                }
+              }
+            }
+          }
+
+          await supabase.from("notifications").insert({
+            user_id: member.selectedUser.id,
+            type: "membership",
+            message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === memberRole)?.label}`,
+            related_id: teamId,
+          });
+
+          results.push({
+            name: member.selectedUser.display_name || member.name.trim(),
+            email: member.email.trim(),
+            link: `${window.location.origin}/teams/${teamId}`,
+            sent: true,
+            role: memberRole,
+            childrenCount: validChildren.length,
+          });
+          continue;
+        }
+
         // Add linked_invite_token if this parent is paired with another
         const linkedToken = crossLinks.get(i);
         const metadata = childrenMetadata 
@@ -996,7 +1075,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           team_id: teamId,
           club_id: clubId,
           role: memberRole as any,
-          invited_user_id: null, // Will be set when user accepts invite
+          invited_user_id: null,
           invited_by_user_id: user!.id,
           invited_label: member.name.trim(),
           invited_email: member.email.trim().toLowerCase() || null,
@@ -1012,16 +1091,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         const link = `${window.location.origin}/join/p/${inviteToken}`;
         let sent = false;
 
-        // Build email content with children info
-        let childrenInfo = "";
-        if (validChildren.length > 0) {
-          childrenInfo = `<p>Your child${validChildren.length > 1 ? "ren" : ""} will also be registered: <strong>${validChildren.map(c => c.name).join(", ")}</strong></p>`;
-        }
-
         // Send email if provided - with verification and tracking
         let emailId: string | null = null;
         let emailError: string | null = null;
-        
+
         if (member.email.trim()) {
           try {
             const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
@@ -1092,6 +1165,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     onSuccess: (results) => {
       setBulkResults(results);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
+      queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
       
       const sentCount = results.filter(r => r.sent).length;
       const totalCount = results.length;
@@ -1099,7 +1173,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       toast({
         title: `${totalCount} member${totalCount > 1 ? "s" : ""} added`,
         description: sentCount > 0 
-          ? `${sentCount} invite email${sentCount > 1 ? "s" : ""} sent successfully`
+          ? `${sentCount} member${sentCount > 1 ? "s were" : " was"} added or emailed successfully`
           : "Share the invite links with your members",
       });
     },
