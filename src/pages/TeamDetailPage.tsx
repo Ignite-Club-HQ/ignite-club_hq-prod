@@ -79,6 +79,7 @@ import PendingInvitesList from "@/components/PendingInvitesList";
 import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
 import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
+import { cn } from "@/lib/utils";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
