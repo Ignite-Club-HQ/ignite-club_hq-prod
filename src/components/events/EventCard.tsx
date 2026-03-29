@@ -540,7 +540,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
 
       {/* Admin three-dots revealed by long-press */}
       {isAdmin && showAdminDots && (
-        <div className="absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute top-12 right-2 z-10" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu open={adminMenuOpen} onOpenChange={(open) => {
             setAdminMenuOpen(open);
             if (!open) setShowAdminDots(false);
