@@ -1454,14 +1454,14 @@ export default function ClubDetailPage() {
                         <div className="flex flex-wrap gap-1">
                           {member.roles?.map((roleItem) => {
                             const roleColors: Record<string, string> = {
-                              app_admin: "bg-red-500/15 text-red-600 border-red-500/30",
-                              club_admin: "bg-purple-500/15 text-purple-600 border-purple-500/30",
-                              team_admin: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
-                              coach: "bg-blue-500/15 text-blue-600 border-blue-500/30",
-                              committee_member: "bg-violet-500/15 text-violet-600 border-violet-500/30",
-                              player: "bg-amber-500/15 text-amber-600 border-amber-500/30",
-                              parent: "bg-teal-500/15 text-teal-600 border-teal-500/30",
-                              league_admin: "bg-orange-500/15 text-orange-600 border-orange-500/30",
+                              app_admin: "bg-red-500/15 text-red-400 dark:text-red-400 border-red-500/30",
+                              club_admin: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
+                              team_admin: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+                              coach: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
+                              committee_member: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30",
+                              player: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+                              parent: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30",
+                              league_admin: "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30",
                               basic_user: "bg-muted text-muted-foreground border-border",
                             };
                             const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
