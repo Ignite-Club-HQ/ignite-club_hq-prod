@@ -118,27 +118,18 @@ serve(async (req) => {
         // Calculate hours until event for urgency display
         const hoursUntilEvent = Math.round((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60));
 
-        // Get all RSVPs for this event
+        // Get all RSVPs for this event (these are the invited users)
         const { data: rsvps } = await supabase
           .from("rsvps")
-          .select("user_id")
-          .eq("event_id", event.id);
+          .select("user_id, status")
+          .eq("event_id", event.id)
+          .not("user_id", "is", null);
 
-        const rsvpUserIds = rsvps?.map(r => r.user_id) || [];
-
-        // Get all members who should RSVP
-        let memberQuery = supabase.from("user_roles").select("user_id");
-        if (event.team_id) {
-          memberQuery = memberQuery.eq("team_id", event.team_id);
-        } else {
-          memberQuery = memberQuery.eq("club_id", event.club_id);
-        }
-
-        const { data: members } = await memberQuery;
-        const allMemberIds = [...new Set(members?.map(m => m.user_id) || [])];
-
-        // Find members who haven't RSVPed
-        const nonRsvpMembers = allMemberIds.filter(id => !rsvpUserIds.includes(id));
+        // Only remind invited users (those with an RSVP record) who haven't responded "going"
+        const nonRsvpMembers = (rsvps || [])
+          .filter(r => r.status !== "going")
+          .map(r => r.user_id)
+          .filter((id, i, arr) => arr.indexOf(id) === i);
 
         if (nonRsvpMembers.length > 0) {
           // Create notifications
