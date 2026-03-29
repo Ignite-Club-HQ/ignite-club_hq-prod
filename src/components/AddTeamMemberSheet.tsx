@@ -221,10 +221,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     u => u.id !== selectedUser?.id
   );
 
-  // Find matching existing children by exact name (case-insensitive)
-  const findMatchingChild = (name: string) => {
-    if (!name.trim()) return null;
-    return clubChildren.find(c => c.name.toLowerCase() === name.trim().toLowerCase()) || null;
+  // Find matching existing children by partial name (case-insensitive)
+  const findMatchingChildren = (name: string) => {
+    if (!name.trim() || name.trim().length < 2) return [];
+    const query = name.trim().toLowerCase();
+    return clubChildren.filter(c => c.name.toLowerCase().includes(query)).slice(0, 5);
   };
 
   // Create a unique invite token for a pending invite (name-restricted)
