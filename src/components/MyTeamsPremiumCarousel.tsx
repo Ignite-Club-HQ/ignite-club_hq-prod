@@ -184,15 +184,15 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
             </div>
             <p className="text-[11px] text-muted-foreground/70 truncate">{item.club_name}</p>
           </div>
-          <div className="shrink-0">
-            <DropdownMenu>
+          {showDots && (
+          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu onOpenChange={(open) => { if (!open) setShowDots(false); }}>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted/80 active:bg-muted transition-colors"
-                  onClick={(e) => e.stopPropagation()}
+                  className="h-7 w-7 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-muted transition-colors"
                   aria-label="Team actions"
                 >
-                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                  <MoreVertical className="h-4 w-4 text-foreground/70" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
