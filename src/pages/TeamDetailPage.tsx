@@ -1220,7 +1220,7 @@ export default function TeamDetailPage() {
                       <div className="mb-4 pb-4 border-b">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-sm font-medium text-muted-foreground">Players (Children)</p>
-                          {(isAdmin || isClubAdmin) && (
+                          {(isAdmin || isClubAdmin) && isSoccerClub && (
                             <p className="text-[10px] text-muted-foreground italic">Long-press to set number & position</p>
                           )}
                         </div>
