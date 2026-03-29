@@ -587,6 +587,10 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
               const aHasEvent = !!nextEvents[a.id];
               const bHasEvent = !!nextEvents[b.id];
               if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
+              // Then items with unread messages
+              const aUnread = unreadCounts[a.id] || 0;
+              const bUnread = unreadCounts[b.id] || 0;
+              if (aUnread !== bUnread) return bUnread - aUnread;
               // Then items with photos (activity)
               const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
               const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
