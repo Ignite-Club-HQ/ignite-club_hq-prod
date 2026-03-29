@@ -1273,7 +1273,18 @@ export default function TeamDetailPage() {
                                 (child.name && pendingChildNames.has(child.name.toLowerCase()) && (!child.allParentNames || child.allParentNames.length === 0));
                               const parentLabel = pendingParentLabels.get(child.id) || pendingParentLabels.get(child.name?.toLowerCase());
                               return (
-                                <Card key={assignment.id} className={isPending ? "opacity-70" : ""}>
+                                <Card 
+                                  key={assignment.id} 
+                                  className={cn(isPending ? "opacity-70" : "", (isAdmin || isClubAdmin) && "cursor-pointer select-none")}
+                                  onTouchStart={(isAdmin || isClubAdmin) ? (() => {
+                                    const timer = setTimeout(() => {
+                                      setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
+                                    }, 500);
+                                    (window as any).__longPressTimer = timer;
+                                  }) : undefined}
+                                  onTouchEnd={() => clearTimeout((window as any).__longPressTimer)}
+                                  onTouchMove={() => clearTimeout((window as any).__longPressTimer)}
+                                >
                                   <CardContent className="p-3 flex items-center gap-3">
                                     <Avatar className="h-8 w-8">
                                       <AvatarFallback className={isPending ? "bg-orange-500/20 text-orange-500 text-sm" : "bg-pink-500/20 text-pink-500 text-sm"}>
