@@ -2145,8 +2145,8 @@ export default function EventDetailPage() {
               className="w-full mt-2 h-14 text-lg font-bold gap-3"
               onClick={() => setShowPitchBoard(true)}
             >
-              <Eye className="h-5 w-5" />
-              Watch Live
+              <Play className="h-5 w-5" />
+              Open Pitch Board
             </Button>
           )}
         </CardContent>
