@@ -90,6 +90,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
     navigate(item.type === "team" ? `/teams/${item.id}` : `/mini-leagues/${item.id}`);
   }, [navigate, item.type, item.id]);
 
+  const hasActivity = !!nextEvent || photos.length > 0 || (unreadMessages && unreadMessages > 0);
   const accentBorder = nextEvent ? (eventAccentColors[nextEvent.type] || "border-l-primary") : "";
 
   // Build activity indicators
