@@ -306,14 +306,14 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
   return (
     <Card
-      className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
       onClick={() => navigate(`/events/${event.id}`)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/events/${event.id}`); } }}
     >
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-4 space-y-3 flex-1 flex flex-col">
         {/* Urgency badge + type */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -359,6 +359,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         </div>
 
         {/* RSVP Buttons */}
+        <div className="mt-auto" />
         {!event.is_cancelled && (
           <div className="space-y-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <div className="flex gap-2">
@@ -562,7 +563,7 @@ export function NextUpCarousel({ events }: NextUpCarouselProps) {
               {allEvents.map((event, index) => (
                 <div
                   key={event.id}
-                  className="flex-[0_0_92%] min-w-0 pr-3 transition-transform duration-300"
+                  className="flex-[0_0_92%] min-w-0 pr-3 transition-transform duration-300 flex"
                   style={{
                     transform: selectedIndex === index ? "scale(1)" : "scale(0.95)",
                     opacity: selectedIndex === index ? 1 : 0.85,
