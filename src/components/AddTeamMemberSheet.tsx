@@ -1712,7 +1712,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "" }])}
+                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
                         className="h-7 text-xs border-pink-500/30 text-pink-600 hover:bg-pink-500/10"
                       >
                         <Plus className="h-3 w-3 mr-1" />
@@ -1741,7 +1741,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
                                 </div>
-                                <div className="w-24">
+                                <div className="w-16">
+                                  <Input
+                                    placeholder="#"
+                                    value={child.jerseyNumber}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                      setSingleChildren(singleChildren.map(c => 
+                                        c.id === child.id ? { ...c, jerseyNumber: val } : c
+                                      ));
+                                    }}
+                                    className="h-9"
+                                    maxLength={2}
+                                    inputMode="numeric"
+                                  />
+                                </div>
+                                <div className="w-20">
                                   <Input
                                     placeholder="Year"
                                     value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
@@ -1985,6 +2000,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         id: crypto.randomUUID(),
                         name: child.name,
                         yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
+                        jerseyNumber: "",
                         existingChildId: match?.id,
                         existingChildParentName: match?.parent_name,
                       };
