@@ -2115,6 +2115,18 @@ export default function TeamDetailPage() {
           navigate(location.pathname, { replace: true, state: {} });
         }}
       />
+
+      {/* Long-press position editor */}
+      {positionSheetPlayer && id && (
+        <PlayerPositionSheet
+          open={!!positionSheetPlayer}
+          onOpenChange={(open) => { if (!open) setPositionSheetPlayer(null); }}
+          teamId={id}
+          playerId={positionSheetPlayer.id}
+          playerName={positionSheetPlayer.name}
+          playerType={positionSheetPlayer.type}
+        />
+      )}
     </div>
   );
 }
