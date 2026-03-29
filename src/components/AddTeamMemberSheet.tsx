@@ -344,8 +344,36 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 throw new Error(`We saved ${child.name.trim()}, but couldn't add them to ${teamName}. Please try again.`);
               }
             }
+
+            // Save jersey number to team_player_positions if provided
+            if (child.jerseyNumber) {
+              const jerseyNum = parseInt(child.jerseyNumber);
+              if (!isNaN(jerseyNum)) {
+                // Check if position record already exists
+                const { data: existingPos } = await supabase
+                  .from("team_player_positions")
+                  .select("id")
+                  .eq("team_id", teamId)
+                  .eq("child_id", childId)
+                  .maybeSingle();
+
+                if (existingPos) {
+                  await supabase.from("team_player_positions")
+                    .update({ jersey_number: jerseyNum })
+                    .eq("id", existingPos.id);
+                } else {
+                  await supabase.from("team_player_positions").insert({
+                    team_id: teamId,
+                    child_id: childId,
+                    position: "MID",
+                    jersey_number: jerseyNum,
+                  });
+                }
+              }
+            }
           }
         }
+      }
       }
 
       // Handle second parent
