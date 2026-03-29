@@ -1162,7 +1162,76 @@ export default function CreateEventPage() {
                 />
               </div>
 
-              {/* Recurring Toggle - hidden for mini league match days */}
+              {/* End Time / Duration */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Label className="text-sm font-medium">End Time</Label>
+                  <span className="text-xs text-muted-foreground">(optional)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEndTimeMode("duration")}
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                      endTimeMode === "duration"
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                    )}
+                  >
+                    Duration
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEndTimeMode("end_time")}
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                      endTimeMode === "end_time"
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                    )}
+                  >
+                    End Time
+                  </button>
+                </div>
+                {endTimeMode === "duration" ? (
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      min={5}
+                      max={720}
+                      step={5}
+                      placeholder="e.g. 60"
+                      value={duration}
+                      onChange={(e) => handleDurationChange(e.target.value)}
+                      className="h-12 pr-16"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">mins</span>
+                    {endTime && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Ends at {endTime}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <Input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => handleEndTimeChange(e.target.value)}
+                      className="h-12"
+                    />
+                    {duration && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Duration: {duration} mins
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+
               {!isFromMiniLeague && (
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
