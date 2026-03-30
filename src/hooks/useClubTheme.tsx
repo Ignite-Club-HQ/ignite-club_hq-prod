@@ -933,6 +933,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   const themeIsReady = !isUserSwitching && (
     (!authLoading && !user?.id) || // No user - no theme to load
     dbLoadComplete || // DB load is complete - theme is authoritative
+    hasCacheAppliedOnLogin || // Fresh login with cached theme applied - render instantly
     (!isLoadingFromDb && hasLocalThemeData && !authLoading) // Have cache AND not loading
   );
   
