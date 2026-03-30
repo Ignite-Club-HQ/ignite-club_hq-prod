@@ -98,10 +98,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         className="fixed z-[100001]"
         style={{
           top: position?.top ?? 0,
-          ...(isOwnMessage 
-            ? { right: position ? window.innerWidth - position.left : 0 }
-            : { left: position?.left ?? 0 }
-          ),
+          left: position?.left ?? 0,
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
