@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Plus, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
@@ -318,19 +317,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           </button>
         </div>
       ) : (
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="icon"
           onClick={handleImageButtonClick}
           disabled={disabled || uploading}
+          className="flex items-center justify-center h-10 w-10 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
         >
           {uploading ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
-            <ImagePlus className="h-5 w-5" />
+            <Plus className="h-5 w-5" />
           )}
-        </Button>
+        </button>
       )}
     </div>
   );
