@@ -49,10 +49,11 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         const rect = parent.getBoundingClientRect();
         const pickerHeight = 100;
         const headerSafeZone = 140;
-        // Use a smaller safe zone — bottom nav is hidden in chat threads
-        const bottomSafeZone = 80;
+        // Account for chat input bar (~60px) + safe area inset (~34px) + padding
+        const bottomSafeZone = 120;
         const spaceAbove = rect.top - headerSafeZone;
         const spaceBelow = window.innerHeight - rect.bottom - bottomSafeZone;
+        // Prefer above; only show below if truly no room above AND more room below
         const showBelow = spaceAbove < pickerHeight && spaceBelow > spaceAbove;
         
         const top = showBelow 
