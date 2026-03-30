@@ -2093,13 +2093,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       }
                                     </p>
                                     <div className="flex gap-2 mt-1.5">
-                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                        onClick={() => setSingleChildren(singleChildren.map(c =>
-                                          c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
-                                        ))}
-                                      >
-                                        Link to existing
-                                      </Button>
+                                      {(matches[0] as any).isPending ? (
+                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                          onClick={() => setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, confirmedNew: true } : c
+                                          ))}
+                                        >
+                                          Yes, same child
+                                        </Button>
+                                      ) : (
+                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                          onClick={() => setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
+                                          ))}
+                                        >
+                                          Link to existing
+                                        </Button>
+                                      )}
                                       <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
                                         onClick={() => setSingleChildren(singleChildren.map(c =>
                                           c.id === child.id ? { ...c, confirmedNew: true } : c
@@ -2525,19 +2535,31 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     }
                                   </p>
                                   <div className="flex gap-2 mt-1.5">
-                                    <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                      onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
-                                        ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined } : c)
-                                      } : bm))}
-                                    >
-                                      Link to existing
-                                    </Button>
+                                    {(m as any).isPending ? (
+                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                        onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
+                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true } : c)
+                                        } : bm))}
+                                      >
+                                        Yes, same child
+                                      </Button>
+                                    ) : (
+                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                        onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
+                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined } : c)
+                                        } : bm))}
+                                      >
+                                        Link to existing
+                                      </Button>
+                                    )}
                                     <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
                                       onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
                                         ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true } : c)
                                       } : bm))}
                                     >
                                       Different child
+                                    </Button>
+                                  </div>
                                     </Button>
                                   </div>
                                 </div>
