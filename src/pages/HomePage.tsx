@@ -1585,6 +1585,7 @@ export default function HomePage() {
                 onValueChange={(v) => {
                   setSelectedClubForTeam(v);
                   setSelectedTeam(""); // Reset selection when club changes
+                  setSelectedChildForLink("");
                 }}
                 options={[
                   { value: "all", label: "All clubs" },
