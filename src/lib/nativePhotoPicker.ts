@@ -99,12 +99,20 @@ export function resetPermissionCache(): void {
   return;
 }
 
+export interface NativePhotoPickOptions {
+  quality?: number;
+  width?: number;
+  height?: number;
+}
+
 /**
  * Picks a photo using a reliable native iOS image picker.
  * This avoids the Capacitor Camera photo-library path that can throw
  * "Error loading image" for iCloud-optimized Photos assets on iOS.
+ *
+ * The options are kept for API compatibility with existing callers.
  */
-export async function pickNativePhoto(): Promise<NativePhotoResult> {
+export async function pickNativePhoto(_options?: NativePhotoPickOptions): Promise<NativePhotoResult> {
   await ensureCameraPermissions();
 
   let pickerDismissed = false;
