@@ -541,8 +541,17 @@ export default function DirectMessagePage() {
         });
       }
     },
-    onError: (error) => {
-      toast.error("Failed to send message: " + error.message);
+    onError: (error, variables) => {
+      // Check if the message actually arrived via realtime before showing error
+      const currentData = queryClient.getQueryData<{ messages: DirectMessage[] }>(["dm-messages", conversationId]);
+      const messageExists = currentData?.messages?.some(
+        m => !m.id.startsWith("temp-") && m.author_id === user?.id && m.text === variables.text
+      );
+      if (!messageExists) {
+        toast.error("Failed to send message. Please try again.");
+        // Remove optimistic message
+        setLocalMessages((prev) => prev?.filter(m => !m.id.startsWith("temp-")) || null);
+      }
     },
   });
   const handleSend = () => {
