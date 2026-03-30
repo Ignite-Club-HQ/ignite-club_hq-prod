@@ -1,20 +1,11 @@
 /**
- * Shared native iOS photo picker logic with retry/fallback strategy.
+ * Shared native iOS photo picker logic with fallback strategy.
  * Used by profile, club, team, and other upload flows.
  *
- * ROOT CAUSE of past "error loading image" failures:
- * 1. Capacitor Camera plugin doesn't wait for iCloud downloads when
- *    "Optimize iPhone Storage" is enabled (known plugin bug #1807).
- * 2. The first Camera.getPhoto() call triggers the iOS permission dialog,
- *    and the plugin throws instead of waiting for the grant.
- *
- * STRATEGY:
- * - Let Camera.getPhoto() own the real permission prompt so the native
- *   iOS gesture chain stays intact.
- * - Use URI mode as PRIMARY (better iCloud support than Base64).
- * - Always pass a width constraint (forces iOS to deliver a locally-
- *   available rendition instead of the full-res iCloud original).
- * - Fall back to Base64 mode only if URI fails.
+ * The Capacitor Camera plugin has a persistent bug (#1807) where
+ * iCloud-optimized photos throw "error loading image". Rather than
+ * retrying Camera.getPhoto() (which reopens the picker — bad UX),
+ * callers should fall back to the HTML file input when this fails.
  */
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
@@ -28,26 +19,26 @@ export interface NativePhotoResult {
   previewUrl: string;
 }
 
+/** Indicates the native picker failed but the user DID try to pick a photo.
+ *  Callers should fall back to HTML file input. */
+export class NativePickerLoadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NativePickerLoadError";
+  }
+}
+
 const isLoadingError = (err: unknown) => {
   const msg = getReadableUploadError(err).toLowerCase();
   return msg.includes("error loading image") || msg.includes("loading image");
 };
 
 // ──────────────────────────────────────────────────────────────────────
-// Permission warm-up — call once at app startup on native iOS.
-// Ensures the iOS permission dialog is shown (and granted) before any
-// Camera.getPhoto() call, preventing the "error loading image" loop.
+// Permission warm-up
 // ──────────────────────────────────────────────────────────────────────
 let permissionsReady = false;
 let permissionsPromise: Promise<void> | null = null;
 
-/**
- * Optional helper for flows that explicitly want to warm photo permissions.
- *
- * NOTE: pickNativePhoto intentionally does NOT call this automatically,
- * because separating permission prompting from Camera.getPhoto() can break
- * native iOS picker presentation in WebViews.
- */
 export async function ensureCameraPermissions(): Promise<void> {
   if (permissionsReady) return;
   if (permissionsPromise) return permissionsPromise;
@@ -66,18 +57,13 @@ export async function ensureCameraPermissions(): Promise<void> {
         console.log("[nativePhotoPicker] Requesting photo permissions...");
         const result = await Camera.requestPermissions({ permissions: ["photos"] });
         console.log("[nativePhotoPicker] Permission result:", JSON.stringify(result));
-
-        // Brief delay for iOS to register the permission grant
         await new Promise((r) => setTimeout(r, 150));
-
-        // Re-verify the permission actually took effect
         const verified = await Camera.checkPermissions();
         console.log("[nativePhotoPicker] Post-grant verification:", JSON.stringify(verified));
       }
 
       permissionsReady = true;
     } catch (err) {
-      // Don't block on permission errors — getPhoto will re-prompt if needed
       console.warn("[nativePhotoPicker] Permission warm-up failed (non-fatal):", err);
       permissionsReady = true;
     }
@@ -90,16 +76,14 @@ export async function ensureCameraPermissions(): Promise<void> {
 // Photo picking
 // ──────────────────────────────────────────────────────────────────────
 
-/** Default max width to request — forces iOS to deliver a local rendition
- *  instead of trying to download the full-res iCloud original. */
 const DEFAULT_MAX_WIDTH = 2048;
 
 /**
- * Picks a photo using the native iOS camera picker with a resilient
- * URI → Base64 fallback strategy. Returns a blob ready for upload.
- *
- * IMPORTANT: Call this directly from the user tap handler — do NOT
- * set any React state before calling, as that breaks the iOS gesture chain.
+ * Picks a photo using the native iOS camera picker.
+ * Does NOT retry Camera.getPhoto() on failure (that would reopen the picker).
+ * 
+ * Throws NativePickerLoadError on "error loading image" — callers should
+ * catch this specifically and fall back to HTML file input.
  */
 export async function pickNativePhoto(options?: {
   quality?: number;
@@ -107,8 +91,6 @@ export async function pickNativePhoto(options?: {
   height?: number;
 }): Promise<NativePhotoResult> {
   const { quality = 80, width, height } = options ?? {};
-
-  // Always constrain width to avoid full-res iCloud downloads
   const effectiveWidth = width || DEFAULT_MAX_WIDTH;
 
   const photoOptions = {
@@ -119,15 +101,12 @@ export async function pickNativePhoto(options?: {
     ...(height ? { height } : {}),
   };
 
-  const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
   let photo: Awaited<ReturnType<typeof Camera.getPhoto>>;
 
-  // ── Strategy: URI first (better iCloud support), then Base64 fallback ──
+  // Single attempt with URI mode (best iCloud compatibility).
+  // If this fails, we throw immediately — no retries that reopen the picker.
   try {
-    // Primary attempt: URI mode — iOS can serve a local file reference
-    // for iCloud photos more reliably than loading into memory as Base64.
-    console.log("[nativePhotoPicker] Attempting URI mode (primary)");
+    console.log("[nativePhotoPicker] Attempting URI mode");
     photo = await Camera.getPhoto({
       ...photoOptions,
       resultType: CameraResultType.Uri,
@@ -137,57 +116,27 @@ export async function pickNativePhoto(options?: {
 
     console.warn("[nativePhotoPicker] URI mode failed:", uriError);
 
-    if (isLoadingError(uriError)) {
-      // iCloud photo not ready — wait and retry URI once
-      console.log("[nativePhotoPicker] iCloud loading error, waiting 500ms before retry...");
-      await wait(500);
+    // Try Base64 as a single fallback (doesn't reopen picker on some iOS versions
+    // if the photo was already selected)
+    try {
+      console.log("[nativePhotoPicker] Trying Base64 fallback");
+      photo = await Camera.getPhoto({
+        ...photoOptions,
+        resultType: CameraResultType.Base64,
+      });
+    } catch (base64Error: unknown) {
+      if (isCancelledSelectionError(base64Error)) throw base64Error;
 
-      try {
-        photo = await Camera.getPhoto({
-          ...photoOptions,
-          resultType: CameraResultType.Uri,
-        });
-      } catch (uriRetryError: unknown) {
-        if (isCancelledSelectionError(uriRetryError)) throw uriRetryError;
-
-        // Last resort: try Base64 (some edge cases handle this better)
-        console.warn("[nativePhotoPicker] URI retry failed, trying Base64 fallback");
-        try {
-          photo = await Camera.getPhoto({
-            ...photoOptions,
-            resultType: CameraResultType.Base64,
-          });
-        } catch (base64Error: unknown) {
-          if (isCancelledSelectionError(base64Error)) throw base64Error;
-          // Throw the original URI error as it's more informative
-          throw uriError;
-        }
+      // Throw a specific error so callers can fall back to HTML file input
+      const msg = getReadableUploadError(uriError);
+      if (isLoadingError(uriError)) {
+        throw new NativePickerLoadError(
+          msg || "Error loading image — please try selecting from files"
+        );
       }
-    } else {
-      // Non-loading error (permission, gesture chain break) — retry once
-      console.warn("[nativePhotoPicker] Non-loading error, retrying once...");
-      try {
-        photo = await Camera.getPhoto({
-          ...photoOptions,
-          resultType: CameraResultType.Uri,
-        });
-      } catch (retryError: unknown) {
-        if (isCancelledSelectionError(retryError)) throw retryError;
-
-        // Try Base64 as last resort
-        try {
-          photo = await Camera.getPhoto({
-            ...photoOptions,
-            resultType: CameraResultType.Base64,
-          });
-        } catch (base64Error: unknown) {
-          if (isCancelledSelectionError(base64Error)) throw base64Error;
-          throw retryError;
-        }
-      }
+      throw uriError;
     }
   }
-
 
   if (!hasCameraPhotoSource(photo)) {
     throw new Error("No photo selected (missing base64String/webPath/path)");
