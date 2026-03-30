@@ -119,6 +119,14 @@ export default function MediaPage() {
 
   // Sync club filter with theme - reset to "all" when theme is cleared
   useEffect(() => {
+    // When deep-linking to a specific photo, clear all filters so it's visible
+    if (highlightedPhotoId) {
+      setSelectedClubId("all");
+      setSelectedTeamId("all");
+      setDateRange({ from: undefined, to: undefined });
+      return;
+    }
+    
     if (urlTeamId) {
       setSelectedTeamId(urlTeamId);
       setShowFilters(true);
@@ -132,7 +140,7 @@ export default function MediaPage() {
       setSelectedClubId("all");
       setSelectedTeamId("all");
     }
-  }, [activeClubFilter, urlTeamId, urlClubId]);
+  }, [activeClubFilter, urlTeamId, urlClubId, highlightedPhotoId]);
 
 
   // Scroll to highlighted photo when loaded
