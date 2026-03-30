@@ -250,9 +250,24 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           )}
         </div>
 
-        {/* Photo thumbnails */}
+        {/* Photo thumbnails — tap goes to gallery, not team page */}
         {photos.length > 0 && (
-          <div className="flex gap-1.5">
+          <div
+            className="flex gap-1.5"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
+              }
+            }}
+          >
             {photos.slice(0, 2).map((url, i) => (
               <div
                 key={i}
