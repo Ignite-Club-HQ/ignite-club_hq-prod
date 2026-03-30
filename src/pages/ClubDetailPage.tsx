@@ -1028,8 +1028,8 @@ export default function ClubDetailPage() {
               ))}
             </div>
 
-            {/* Year level filter chips */}
-            {(() => {
+            {/* Year level filter chips - only show when Junior is selected */}
+            {teamFilter === "junior" && (() => {
               const yearLevels = Array.from(
                 new Set(
                   activeTeams
