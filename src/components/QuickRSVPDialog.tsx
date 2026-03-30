@@ -187,15 +187,15 @@ export function QuickRSVPDialog({
         rsvpId = newRsvp?.id || null;
       }
 
-      // Award early RSVP points if going and event is 3+ days away
+      // Fire-and-forget: don't block UI for points calculation
       if (status === "going" && rsvpId) {
-        await awardEarlyRsvpPoints({
+        awardEarlyRsvpPoints({
           userId: user!.id,
           eventDate,
           rsvpId,
           clubId,
           clubName,
-        });
+        }).catch(console.error);
       }
     },
     onSuccess: (_data, status) => {
