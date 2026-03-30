@@ -150,6 +150,7 @@ export const ChatMessage = memo(function ChatMessage({
   const addReactionMutation = useMutation({
     mutationFn: async ({ reactionType }: { reactionType: string; existingReactionId?: string }) => {
       const messageIdField = getMessageIdField();
+      console.log('[Reaction] mutationFn called:', { reactionType, messageIdField, messageId: id, currentUserId });
 
       if (!currentUserId) {
         throw new Error("Not authenticated");
@@ -368,11 +369,12 @@ export const ChatMessage = memo(function ChatMessage({
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
+      console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       suppressOutsideCloseUntilRef.current = Date.now() + 900;
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 600);
-  }, []);
+  }, [id, messageType]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current && touchStartPos.current) {
@@ -458,44 +460,8 @@ export const ChatMessage = memo(function ChatMessage({
     };
   }, []);
 
-  // Close reaction picker when clicking outside
-  useEffect(() => {
-    if (!showReactionPicker) return;
-    
-    const handleClickOutside = (e: Event) => {
-      // Ignore synthetic touch/click sequence right after long press
-      if (Date.now() < suppressOutsideCloseUntilRef.current) {
-        return;
-      }
-
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-
-      // Keep picker open while interacting with the portal content on Android/iOS
-      if (target.closest('[data-reaction-picker="true"]')) {
-        return;
-      }
-
-      // Ignore touches on the message bubble itself
-      if (bubbleRef.current?.contains(target)) {
-        return;
-      }
-
-      setShowReactionPicker(false);
-    };
-    
-    // Use 400ms delay to survive synthetic click events from long press on mobile
-    const timer = setTimeout(() => {
-      document.addEventListener('click', handleClickOutside);
-      document.addEventListener('touchend', handleClickOutside);
-    }, 400);
-    
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('touchend', handleClickOutside);
-    };
-  }, [showReactionPicker]);
+  // The reaction picker now uses a fullscreen backdrop (in MessageReactionsPopover),
+  // so no document-level outside-click handler is needed here.
 
   // Close three-dot menu when tapping outside
   useEffect(() => {
