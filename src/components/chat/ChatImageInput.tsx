@@ -7,7 +7,7 @@ import { Capacitor } from "@capacitor/core";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, NativePickerLoadError, openFileInputPicker, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
 
 interface ChatImageInputProps {

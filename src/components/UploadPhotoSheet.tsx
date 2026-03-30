@@ -14,7 +14,7 @@ import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, NativePickerLoadError, openFileInputPicker, shouldUseNativePicker as shouldUseNativeIOSPicker } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker } from "@/lib/nativePhotoPicker";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
