@@ -102,11 +102,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     // Always close the picker immediately — before any mutation logic
     onOpenChange(false);
 
-    if (isMutating) return;
-
-    // Always route through onReact which uses getLatestReactions() from cache
-    // This handles both add and toggle-remove via the same path,
-    // avoiding stale reactions prop issues
+    // Don't check isMutating here — let handleReactionClick handle its own guard
+    // using the freshest isPending state from the mutation objects
     onReact(type);
   };
 
