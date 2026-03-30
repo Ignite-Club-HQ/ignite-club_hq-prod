@@ -31,6 +31,8 @@ interface BulkChild {
   existingChildId?: string; // If set, links to an existing child record instead of creating new
   existingChildParentName?: string; // Display context for existing child
   confirmedNew?: boolean; // If true, user explicitly confirmed this is a different child despite name match
+  pendingInviteId?: string; // If set, child exists in a pending invite — skip creation
+  pendingParentName?: string; // Display context for pending invite parent
 }
 
 interface BulkMember {
@@ -422,6 +424,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         const validChildren = singleChildren.filter(c => c.name.trim());
         for (const child of validChildren) {
           let childId = child.existingChildId;
+          
+          // Skip children linked to pending invites — they'll be created when the invite is accepted
+          if (child.pendingInviteId) {
+            continue;
+          }
           
           if (childId) {
             // Existing child — just add guardian link if not already the parent
@@ -1071,6 +1078,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           for (const child of validChildren) {
             let childId = child.existingChildId;
 
+            // Skip children linked to pending invites
+            if (child.pendingInviteId) continue;
+
             if (memberRole === "parent") {
               if (childId) {
                 const existingChild = clubChildren.find(c => c.id === childId);
@@ -1712,6 +1722,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   Linked to existing child ({child.existingChildParentName || 'existing parent'})
                                 </p>
                               )}
+                              {child.pendingInviteId && !child.existingChildId && (
+                                <p className="text-xs text-blue-600 flex items-center gap-1 pl-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Pending invite (parent: {child.pendingParentName}) — won't create duplicate
+                                </p>
+                              )}
                               {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
                                 <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
                                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -1727,7 +1743,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       {(matches[0] as any).isPending ? (
                                         <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                           onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, confirmedNew: true } : c
+                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name } : c
                                           ))}
                                         >
                                           Yes, same child
@@ -2081,6 +2097,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   Linked to existing child ({child.existingChildParentName || 'existing parent'})
                                 </p>
                               )}
+                              {child.pendingInviteId && !child.existingChildId && (
+                                <p className="text-xs text-blue-600 flex items-center gap-1 pl-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Pending invite (parent: {child.pendingParentName}) — won't create duplicate
+                                </p>
+                              )}
                               {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
                                 <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
                                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -2096,7 +2118,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       {(matches[0] as any).isPending ? (
                                         <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                           onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, confirmedNew: true } : c
+                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name } : c
                                           ))}
                                         >
                                           Yes, same child
@@ -2519,6 +2541,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               Linked to existing child ({child.existingChildParentName || 'existing parent'})
                             </p>
                           )}
+                          {child.pendingInviteId && !child.existingChildId && (
+                            <p className="text-[10px] text-blue-600 pl-1 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Pending invite (parent: {child.pendingParentName}) — won't create duplicate
+                            </p>
+                          )}
                           {!child.existingChildId && !child.confirmedNew && (() => {
                             const bulkChildMatches = findMatchingChildren(child.name);
                             if (bulkChildMatches.length === 0 || child.name.trim().length < 3) return null;
@@ -2538,7 +2566,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     {(m as any).isPending ? (
                                       <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                         onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
-                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true } : c)
+                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name } : c)
                                         } : bm))}
                                       >
                                         Yes, same child
