@@ -342,18 +342,22 @@ export function MentionInput({
         </div>
       )}
       
-      <div className="flex items-center bg-muted/60 rounded-full px-1 min-h-[44px]">
+      <div className="flex items-end bg-muted/60 rounded-[22px] px-1 min-h-[44px] transition-all duration-150">
         {showEmojiPicker && (
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
+          <div className="flex items-center h-[44px]">
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
+          </div>
         )}
-        <input
+        <textarea
           ref={inputRef}
           value={displayValue}
           onChange={handleDisplayChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={placeholder}
-          className={`flex-1 bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
+          rows={1}
+          className={`flex-1 bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] ${className || ''}`}
+          style={{ maxHeight: '120px', overflowY: 'hidden' }}
         />
       </div>
       
