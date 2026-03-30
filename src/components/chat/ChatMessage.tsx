@@ -462,18 +462,25 @@ export const ChatMessage = memo(function ChatMessage({
   useEffect(() => {
     if (!showReactionPicker) return;
     
-    const handleClickOutside = () => {
+    const handleClickOutside = (e: Event) => {
+      // Ignore synthetic clicks triggered by long press touchend
+      if (longPressTriggeredRef.current) {
+        longPressTriggeredRef.current = false;
+        return;
+      }
       setShowReactionPicker(false);
     };
     
-    // Use setTimeout to avoid immediately closing from the same click that opened it
+    // Use 400ms delay to survive synthetic click events from long press on mobile
     const timer = setTimeout(() => {
       document.addEventListener('click', handleClickOutside);
-    }, 0);
+      document.addEventListener('touchend', handleClickOutside);
+    }, 400);
     
     return () => {
       clearTimeout(timer);
       document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('touchend', handleClickOutside);
     };
   }, [showReactionPicker]);
 
