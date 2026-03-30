@@ -147,7 +147,23 @@ export default function GroupChatPage() {
     
     scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
   }, []);
-  
+
+  // Scroll to bottom when keyboard opens (viewport shrinks)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let prevHeight = vv.height;
+    const handleResize = () => {
+      const currentHeight = vv.height;
+      if (prevHeight - currentHeight > 100) {
+        requestAnimationFrame(() => scrollToBottom());
+      }
+      prevHeight = currentHeight;
+    };
+    vv.addEventListener("resize", handleResize);
+    return () => vv.removeEventListener("resize", handleResize);
+  }, [scrollToBottom]);
+
   const targetMessageId = searchParams.get("message");
 
   // Set highlighted message from URL param
