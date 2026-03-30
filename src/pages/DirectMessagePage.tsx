@@ -936,30 +936,30 @@ export default function DirectMessagePage() {
         </>
       ) : (
         <>
-          <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
-          <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
-            <div className="flex gap-2 items-end">
-              <MentionInput
-                value={message}
-                onChange={setMessage}
-                onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                placeholder="Type a message... (@ to mention)"
-                disabled={sendMessageMutation.isPending}
-              />
-              
-              <Button 
-                onClick={handleSend} 
-                disabled={!message.trim() || sendMessageMutation.isPending}
-                size="icon"
-              >
-                {sendMessageMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </div>
+           <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
+           <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
+             <div className="flex gap-1.5 items-end">
+               <MentionInput
+                 value={message}
+                 onChange={setMessage}
+                 onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                 placeholder="Type a message..."
+                 disabled={sendMessageMutation.isPending}
+               />
+               
+               <button 
+                 onClick={handleSend} 
+                 disabled={!message.trim() || sendMessageMutation.isPending}
+                 className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
+               >
+                 {sendMessageMutation.isPending ? (
+                   <Loader2 className="h-5 w-5 animate-spin" />
+                 ) : (
+                   <Send className="h-5 w-5" />
+                 )}
+               </button>
+             </div>
+           </div>
         </>
       )}
     </div>

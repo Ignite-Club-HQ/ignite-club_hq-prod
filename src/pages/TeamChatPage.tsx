@@ -1187,10 +1187,10 @@ export default function TeamChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
-      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
+      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
-        <div className="flex gap-2 items-end">
+        <div className="flex gap-1.5 items-end">
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
@@ -1199,7 +1199,7 @@ export default function TeamChatPage() {
             teamId={teamId}
           />
           <MentionInput
-            placeholder="Type a message... (@ to mention)"
+            placeholder="Type a message..."
             value={message}
             onChange={(val) => {
               setMessage(val);
@@ -1211,20 +1211,20 @@ export default function TeamChatPage() {
             teamId={teamId}
             clubId={team.club_id}
           />
-          <Button
-            size="icon"
+          <button
             onClick={() => {
               stopTyping();
               handleSend();
             }}
             disabled={(!message.trim() && !imageUrl) || sendMessageMutation.isPending}
+            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
           >
             {sendMessageMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="h-5 w-5" />
             )}
-          </Button>
+          </button>
         </div>
       </div>
     </div>
