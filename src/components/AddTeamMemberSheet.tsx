@@ -1737,7 +1737,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       {(matches[0] as any).isPending ? (
                                         <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                           onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, confirmedNew: true } : c
+                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name } : c
                                           ))}
                                         >
                                           Yes, same child
@@ -2106,7 +2106,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       {(matches[0] as any).isPending ? (
                                         <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                           onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, confirmedNew: true } : c
+                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name } : c
                                           ))}
                                         >
                                           Yes, same child
@@ -2548,7 +2548,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     {(m as any).isPending ? (
                                       <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                         onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
-                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true } : c)
+                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name } : c)
                                         } : bm))}
                                       >
                                         Yes, same child
