@@ -1386,7 +1386,7 @@ export default function GroupChatPage() {
             </Button>
           </div>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
             imageUrl={imageUrl} 
@@ -1400,7 +1400,7 @@ export default function GroupChatPage() {
               if (val.trim()) startTyping();
               else stopTyping();
             }}
-            placeholder="Type a message... (@ to mention)"
+            placeholder="Type a message..."
             onKeyPress={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 stopTyping();
@@ -1411,17 +1411,17 @@ export default function GroupChatPage() {
             teamId={group?.team_id || undefined}
             clubId={group?.club_id || undefined}
             disabled={sendMessageMutation.isPending}
-            showEmojiPicker={false}
           />
-          <Button 
+          <button 
             onClick={() => {
               stopTyping();
               handleSend();
             }} 
             disabled={!message.trim() && !imageUrl}
+            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
           >
-            <Send className="h-4 w-4" />
-          </Button>
+            <Send className="h-5 w-5" />
+          </button>
         </div>
       </div>
 
