@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, NativePickerLoadError } from "@/lib/nativePhotoPicker";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
