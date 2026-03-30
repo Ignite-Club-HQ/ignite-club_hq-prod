@@ -88,6 +88,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "vite-plugin-pwa": "0.19.8",
+    "web-vitals": "^5.2.0",
     "workbox-precaching": "^7.4.0",
     "zod": "^3.25.76"
   },

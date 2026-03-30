@@ -45,6 +45,7 @@ import App from "./App.tsx";
 import "./index.css";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
+import { initWebVitalsReporter } from "./lib/webVitalsReporter";
 
 // Declare global types
 declare global {
@@ -143,5 +144,8 @@ const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined>
 
 // Start registration immediately
 window.__swReady = registerServiceWorker();
+
+// Start Web Vitals reporting (samples 25% of page loads)
+initWebVitalsReporter();
 
 createRoot(document.getElementById("root")!).render(<App />);
