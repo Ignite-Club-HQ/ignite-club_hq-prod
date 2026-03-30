@@ -92,8 +92,8 @@ export interface CameraPhotoLike {
   format?: string | null;
 }
 
-const NATIVE_READ_RETRY_ATTEMPTS = 4;
-const NATIVE_READ_RETRY_DELAY_MS = 500;
+const NATIVE_READ_RETRY_ATTEMPTS = 5;
+const NATIVE_READ_RETRY_DELAY_MS = 600;
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
