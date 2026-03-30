@@ -331,6 +331,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           {showReactionPicker && pickerPosition && createPortal(
             <div
               className="fixed inset-0 z-[100001]"
+              onTouchStart={(e) => { e.stopPropagation(); }}
               onClick={(e) => { e.stopPropagation(); setShowReactionPicker(false); setShowMenu(false); }}
               onTouchEnd={(e) => {
                 if (e.target === e.currentTarget) { e.stopPropagation(); e.preventDefault(); setShowReactionPicker(false); setShowMenu(false); }
@@ -342,6 +343,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 style={{ top: pickerPosition.top, left: pickerPosition.left, width: "min(280px, calc(100vw - 16px))" }}
                 onClick={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
               >
                 <div className="bg-popover border rounded-lg p-2 shadow-lg">
                   <div className="flex gap-1.5">
