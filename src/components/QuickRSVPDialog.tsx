@@ -333,8 +333,8 @@ export function QuickRSVPDialog({
                       variant={myRsvp?.status === option.value ? "default" : "outline"}
                       size="sm"
                       className="flex-1"
-                      onClick={() => handleSelfRsvp(option.value)}
-                      disabled={rsvpMutation.isPending}
+                      onClick={() => myRsvp?.status !== option.value && handleSelfRsvp(option.value)}
+                      disabled={rsvpMutation.isPending || myRsvp?.status === option.value}
                     >
                       {rsvpMutation.isPending && myRsvp?.status !== option.value ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-1" />
