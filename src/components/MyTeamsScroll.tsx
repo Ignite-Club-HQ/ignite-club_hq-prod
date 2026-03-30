@@ -204,7 +204,16 @@ export function MyTeamsScroll() {
 
   return (
     <section className="space-y-2">
-      <h2 className="text-lg font-semibold">My Teams</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">My Teams</h2>
+        <button
+          onClick={() => navigate("/join-team")}
+          className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+        >
+          <Users className="h-3 w-3" />
+          Join a Team
+        </button>
+      </div>
       <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
         {items.map((item) => {
           const nextEvent = nextEvents[item.id];
