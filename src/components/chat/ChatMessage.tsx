@@ -577,44 +577,8 @@ export const ChatMessage = memo(function ChatMessage({
           <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
-        <div className="flex items-start gap-1">
-          {isOwn && showMenu && (
-            <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 min-h-[32px] min-w-[32px]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsDropdownOpen(true);
-                  }}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => e.stopPropagation()}
-                >
-                  <MoreVertical className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="top" collisionPadding={16} className="bg-popover border">
-                {canReply && (
-                  <DropdownMenuItem onClick={handleReply}>
-                    <Reply className="h-4 w-4 mr-2" /> Reply
-                  </DropdownMenuItem>
-                )}
-                {!imageUrl && (
-                  <DropdownMenuItem onClick={handleStartEdit}>
-                    <Pencil className="h-4 w-4 mr-2" /> Edit
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem 
-                  onClick={handleDelete}
-                  className="text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+        <div className="relative">
+          <div className="flex items-start gap-1">
           <div
             className={`relative rounded-2xl px-4 py-2 select-none ${
               isOwn
