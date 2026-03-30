@@ -723,6 +723,36 @@ export default function DirectMessagePage() {
       .on(
         "postgres_changes",
         {
+          event: "UPDATE",
+          schema: "public",
+          table: "message_reactions",
+        },
+        (payload) => {
+          const reaction = payload.new as any;
+          if (!reaction.direct_message_id) return;
+          queryClient.setQueryData(
+            ["dm-messages", conversationId],
+            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+              if (!old) return old;
+              return {
+                ...old,
+                messages: old.messages.map(m => {
+                  if (m.id !== reaction.direct_message_id) return m;
+                  const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
+                  const hasExisting = (m.reactions || []).some(r => r.id === reaction.id);
+                  if (hasExisting) {
+                    return { ...m, reactions: (m.reactions || []).map(r => r.id === reaction.id ? newReaction : r) };
+                  }
+                  return { ...m, reactions: [...(m.reactions || []).filter(r => r.user_id !== reaction.user_id), newReaction] };
+                }),
+              };
+            }
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
           event: "DELETE",
           schema: "public",
           table: "message_reactions",
