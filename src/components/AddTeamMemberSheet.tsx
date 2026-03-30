@@ -35,6 +35,16 @@ interface BulkChild {
   pendingParentName?: string; // Display context for pending invite parent
 }
 
+interface PendingInviteChildMatch {
+  id: string;
+  name: string;
+  year_of_birth: number | null;
+  parent_name: string;
+  parent_id: string;
+  isPending: true;
+  inviteId: string;
+}
+
 interface BulkMember {
   id: string;
   name: string;
@@ -229,7 +239,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   });
 
   // Fetch children from pending invites for this team
-  const { data: pendingInviteChildren = [] } = useQuery({
+  const { data: pendingInviteChildren = [] } = useQuery<PendingInviteChildMatch[]>({
     queryKey: ["pending-invite-children", teamId],
     queryFn: async () => {
       const { data: invites } = await supabase
@@ -240,28 +250,41 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       
       if (!invites?.length) return [];
       
-      const pendingChildren: { id: string; name: string; year_of_birth: number | null; parent_name: string; parent_id: string; isPending: true; inviteId: string }[] = [];
+      const inviteLookup = new Map(invites.map((invite) => [invite.id, invite]));
+      const pendingChildren = new Map<string, PendingInviteChildMatch>();
       
       invites.forEach(invite => {
         const meta = invite.metadata as any;
         if (meta?.children && Array.isArray(meta.children)) {
           meta.children.forEach((child: any) => {
             if (child.name) {
-              pendingChildren.push({
-                id: `pending-${invite.id}-${child.name}`,
-                name: child.name,
-                year_of_birth: child.yearOfBirth || null,
-                parent_name: invite.invited_label || "Unknown",
-                parent_id: invite.id,
-                isPending: true,
-                inviteId: invite.id,
-              });
+              const normalizedName = String(child.name).trim();
+              const referencedPendingInviteId = typeof child.existingChildId === "string" && child.existingChildId.startsWith("pending-")
+                ? child.existingChildId.replace(/^pending-([^-]+)-.*$/, "$1")
+                : null;
+              const canonicalInviteId = referencedPendingInviteId && inviteLookup.has(referencedPendingInviteId)
+                ? referencedPendingInviteId
+                : invite.id;
+              const canonicalInvite = inviteLookup.get(canonicalInviteId) || invite;
+              const dedupeKey = `${canonicalInviteId}:${normalizedName.toLowerCase()}:${child.yearOfBirth || ""}`;
+
+              if (!pendingChildren.has(dedupeKey)) {
+                pendingChildren.set(dedupeKey, {
+                  id: `pending-${canonicalInviteId}-${normalizedName}`,
+                  name: normalizedName,
+                  year_of_birth: child.yearOfBirth || null,
+                  parent_name: canonicalInvite.invited_label || invite.invited_label || "Unknown",
+                  parent_id: canonicalInviteId,
+                  isPending: true,
+                  inviteId: canonicalInviteId,
+                });
+              }
             }
           });
         }
       });
       
-      return pendingChildren;
+      return Array.from(pendingChildren.values());
     },
     enabled: open && !!teamId && (selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")),
   });
@@ -1346,6 +1369,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             if (field === "name") {
               updated.existingChildId = undefined;
               updated.existingChildParentName = undefined;
+              updated.pendingInviteId = undefined;
+              updated.pendingParentName = undefined;
               updated.confirmedNew = undefined;
             }
             return updated;
@@ -1654,7 +1679,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     placeholder="Search or type child's name"
                                     value={child.name}
                                     onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, confirmedNew: undefined } : c
+                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
                                     ))}
                                     className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
@@ -1665,7 +1690,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                           key={m.id}
                                           type="button"
                                           onClick={() => setSingleChildren(singleChildren.map(c => 
-                                            c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, yearOfBirth: m.year_of_birth?.toString() || '' } : c
+                                            c.id === child.id ? ((m as any).isPending
+                                              ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
+                                              : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
                                           ))}
                                           className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
                                         >
@@ -1743,7 +1770,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       {(matches[0] as any).isPending ? (
                                         <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                           onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name } : c
+                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name, existingChildId: undefined, existingChildParentName: undefined } : c
                                           ))}
                                         >
                                           Yes, same child
@@ -2029,7 +2056,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     placeholder="Search or type child's name"
                                     value={child.name}
                                     onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, confirmedNew: undefined } : c
+                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
                                     ))}
                                     className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
@@ -2040,7 +2067,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                           key={m.id}
                                           type="button"
                                           onClick={() => setSingleChildren(singleChildren.map(c => 
-                                            c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, yearOfBirth: m.year_of_birth?.toString() || '' } : c
+                                            c.id === child.id ? ((m as any).isPending
+                                              ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
+                                              : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
                                           ))}
                                           className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
                                         >
@@ -2118,7 +2147,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       {(matches[0] as any).isPending ? (
                                         <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                           onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name } : c
+                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name, existingChildId: undefined, existingChildParentName: undefined } : c
                                           ))}
                                         >
                                           Yes, same child
@@ -2346,8 +2375,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         name: child.name,
                         yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
                         jerseyNumber: "",
-                        existingChildId: match?.id,
-                        existingChildParentName: match?.parent_name,
+                        existingChildId: match && !(match as any).isPending ? match.id : undefined,
+                        existingChildParentName: match && !(match as any).isPending ? match.parent_name : undefined,
+                        pendingInviteId: (match as any)?.isPending ? (match as any).inviteId : undefined,
+                        pendingParentName: (match as any)?.isPending ? match.parent_name : undefined,
+                        confirmedNew: (match as any)?.isPending ? true : undefined,
                       };
                     }),
                   }));
@@ -2566,7 +2598,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     {(m as any).isPending ? (
                                       <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                         onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
-                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name } : c)
+                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined } : c)
                                         } : bm))}
                                       >
                                         Yes, same child
@@ -2574,7 +2606,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     ) : (
                                       <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                         onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
-                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined } : c)
+                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined } : c)
                                         } : bm))}
                                       >
                                         Link to existing
