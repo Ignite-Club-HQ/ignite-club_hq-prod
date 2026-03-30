@@ -809,6 +809,26 @@ export default function GroupChatPage() {
       .on(
         "postgres_changes",
         {
+          event: "UPDATE",
+          schema: "public",
+          table: "message_reactions",
+        },
+        (payload) => {
+          const reaction = payload.new as any;
+          if (!reaction.group_message_id) return;
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+            if (!old) return { messages: [], reactions: [] };
+            const hasExisting = old.reactions.some(r => r.id === reaction.id);
+            if (hasExisting) {
+              return { ...old, reactions: old.reactions.map(r => r.id === reaction.id ? { ...r, reaction_type: reaction.reaction_type } : r) };
+            }
+            return { ...old, reactions: [...old.reactions.filter(r => r.user_id !== reaction.user_id || r.group_message_id !== reaction.group_message_id), reaction] };
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
           event: "DELETE",
           schema: "public",
           table: "message_reactions",
