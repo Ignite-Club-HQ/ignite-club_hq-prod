@@ -56,6 +56,15 @@ interface BulkMember {
     display_name: string | null;
     avatar_url: string | null;
   } | null;
+  // Second guardian fields for parent role
+  secondParentName?: string;
+  secondParentEmail?: string;
+  secondParentSearch?: string;
+  selectedSecondParent?: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
 }
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
