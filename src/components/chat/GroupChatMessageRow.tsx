@@ -4,6 +4,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { MoreVertical, Pencil, Trash2, Reply, Clock } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { MessageContent } from "./MessageContent";
 import { MessageReadAvatars } from "./MessageReadAvatars";
@@ -316,15 +319,14 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             />
           )}
 
-          {/* Always-visible reaction badges */}
+          {/* Always-visible reaction badges with popover */}
           {messageReactions.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {messageReactions.map((r) => (
-                <span key={r.id} className="text-xs bg-muted px-1 rounded">
-                  {r.reaction_type}
-                </span>
-              ))}
-            </div>
+            <GroupReactionBadges
+              messageReactions={messageReactions}
+              userId={userId}
+              toggleReactionMutation={toggleReactionMutation}
+              messageId={msg.id}
+            />
           )}
 
           {/* Reaction picker - rendered in portal so it never sits under composer */}
@@ -391,3 +393,112 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     </div>
   );
 });
+
+// Sub-component for interactive reaction badges with popover
+function GroupReactionBadges({
+  messageReactions,
+  userId,
+  toggleReactionMutation,
+  messageId,
+}: {
+  messageReactions: any[];
+  userId?: string;
+  toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
+  messageId: string;
+}) {
+  const [openType, setOpenType] = useState<string | null>(null);
+
+  const allUserIds = [...new Set(messageReactions.map((r: any) => r.user_id))];
+
+  const { data: users = [] } = useQuery({
+    queryKey: ["group-reaction-users", allUserIds],
+    queryFn: async () => {
+      if (allUserIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", allUserIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: openType !== null && allUserIds.length > 0,
+  });
+
+  // Group by reaction_type
+  const grouped = messageReactions.reduce((acc: any, r: any) => {
+    if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
+    acc[r.reaction_type].push(r);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  const getUserName = (id: string) =>
+    users.find((u: any) => u.id === id)?.display_name || "";
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
+        const userReaction = items.find((r: any) => r.user_id === userId);
+        return (
+          <Popover
+            key={type}
+            open={openType === type}
+            onOpenChange={(open) => setOpenType(open ? type : null)}
+          >
+            <PopoverTrigger asChild>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (userReaction) {
+                    // Instant toggle-off
+                    toggleReactionMutation.mutate({ messageId, reactionType: type });
+                  } else {
+                    setOpenType(type);
+                  }
+                }}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                  userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
+                }`}
+              >
+                <span>{type}</span>
+                <span>{items.length}</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-auto p-3 bg-popover border z-50"
+              align="start"
+              side="top"
+              sideOffset={8}
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <div className="flex flex-col gap-2 min-w-[140px]">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {type} ({items.length})
+                </p>
+                {items.map((r: any) => (
+                  <p key={r.id} className="text-sm">
+                    {getUserName(r.user_id)}
+                    {r.user_id === userId && " (you)"}
+                  </p>
+                ))}
+                {userReaction && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-destructive hover:text-destructive justify-start px-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleReactionMutation.mutate({ messageId, reactionType: type });
+                      setOpenType(null);
+                    }}
+                  >
+                    Remove your {type}
+                  </Button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        );
+      })}
+    </div>
+  );
+}
