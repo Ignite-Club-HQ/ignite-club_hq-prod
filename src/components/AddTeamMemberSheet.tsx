@@ -385,17 +385,42 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
       const searches = await Promise.all(
         bulkSearchTerms.map(async (term) => {
-          const { data } = await supabase
+          // Search profiles
+          const { data: profileData } = await supabase
             .from("profiles")
             .select("id, display_name, avatar_url")
             .ilike("display_name", `%${term}%`)
             .limit(6);
 
+          const profileResults = (profileData || []).filter(
+            (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
+          );
+
+          // Also search pending invites from other teams in same club
+          const { data: invites } = await supabase
+            .from("pending_invites")
+            .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
+            .eq("club_id", clubId)
+            .eq("status", "pending")
+            .neq("team_id", teamId)
+            .ilike("invited_label", `%${term}%`)
+            .limit(6);
+
+          const profileIds = new Set(profileResults.map(r => r.id));
+          const pendingResults = (invites || [])
+            .map(invite => ({
+              id: invite.invited_user_id || `pending-${invite.id}`,
+              display_name: invite.invited_label,
+              avatar_url: null as string | null,
+              isPendingInvite: true,
+              pendingInviteId: invite.id,
+              invited_email: invite.invited_email,
+            }))
+            .filter(r => !profileIds.has(r.id));
+
           return {
             term,
-            results: (data || []).filter(
-              (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
-            ),
+            results: [...profileResults, ...pendingResults],
           };
         })
       );
