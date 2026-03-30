@@ -359,6 +359,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       const storedId = localStorage.getItem(getStorageKey(user.id));
       const storedData = localStorage.getItem(getStorageDataKey(user.id));
       
+      let cacheApplied = false;
       if (storedId && storedData) {
         try {
           const parsedData = JSON.parse(storedData) as CachedThemeData;
@@ -371,6 +372,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             setActiveClubThemeState(storedId);
             setCachedThemeData(themeFromCache);
             applyThemeCSS(themeFromCache, getEffectiveTheme() === "dark");
+            cacheApplied = true;
             
             // Preload the logo image so it's ready when the header renders
             if (themeFromCache.logoUrl) {
@@ -381,8 +383,12 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         } catch {
           // Invalid cache, will be populated from DB
         }
+      } else if (!storedId) {
+        // No cached theme for this user = they use Ignite Mode, also instant-ready
+        cacheApplied = true;
       }
       
+      setHasCacheAppliedOnLogin(cacheApplied);
       setHasCheckedDefault(false);
       setHasStartedDbLoad(false);
       setIsLoadingFromDb(true);
