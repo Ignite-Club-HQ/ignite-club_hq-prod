@@ -181,41 +181,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     };
   }, [isOwnMessage, showReactionPicker]);
 
-  // Close menu/reactions on outside tap
-  useEffect(() => {
-    if ((!showMenu && !showReactionPicker) || isDropdownOpen) return;
-
-    const handleClickOutside = (e: Event) => {
-      if (longPressTriggeredRef.current) {
-        longPressTriggeredRef.current = false;
-        return;
-      }
-
-      const target = e.target as Node | null;
-      if (!target) return;
-
-      if (
-        bubbleRef.current?.contains(target) ||
-        pickerRef.current?.contains(target) ||
-        menuButtonWrapperRef.current?.contains(target)
-      ) {
-        return;
-      }
-
-      closeActionUi();
-    };
-
-    const timer = setTimeout(() => {
-      document.addEventListener("touchend", handleClickOutside);
-      document.addEventListener("click", handleClickOutside);
-    }, 320);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("touchend", handleClickOutside);
-      document.removeEventListener("click", handleClickOutside);
-    };
-  }, [showMenu, showReactionPicker, isDropdownOpen, closeActionUi]);
+  // The reaction picker now uses a fullscreen backdrop pattern,
+  // so no document-level outside-click handler is needed here.
 
   useEffect(() => {
     if (!showReactionPicker && !isDropdownOpen) {
