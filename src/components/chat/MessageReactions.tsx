@@ -121,6 +121,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="bg-popover border rounded-lg p-2 shadow-lg">
           <div className="flex gap-1.5">
