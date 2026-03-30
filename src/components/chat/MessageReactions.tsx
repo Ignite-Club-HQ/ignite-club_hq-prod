@@ -47,24 +47,28 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const parent = parentRef.current.parentElement;
       if (parent) {
         const rect = parent.getBoundingClientRect();
-        const pickerHeight = 100;
+        const pickerHeight = 124;
         const headerSafeZone = 140;
-        // Account for chat input bar (~60px) + safe area inset (~34px) + padding
-        const bottomSafeZone = 120;
+        const bottomSafeZone = 164;
+        const verticalGap = 12;
         const spaceAbove = rect.top - headerSafeZone;
         const spaceBelow = window.innerHeight - rect.bottom - bottomSafeZone;
-        // Prefer above; only show below if truly no room above AND more room below
-        const showBelow = spaceAbove < pickerHeight && spaceBelow > spaceAbove;
-        
-        const top = showBelow 
-          ? Math.min(rect.bottom + 4, window.innerHeight - bottomSafeZone - pickerHeight)
-          : Math.max(rect.top - pickerHeight - 4, headerSafeZone);
-        
+        // Strongly prefer rendering above the message so it never tucks under the composer
+        const showBelow = spaceAbove < pickerHeight && spaceBelow > pickerHeight;
+
+        const unclampedTop = showBelow
+          ? rect.bottom + verticalGap
+          : rect.top - pickerHeight - verticalGap;
+        const top = Math.max(
+          headerSafeZone,
+          Math.min(unclampedTop, window.innerHeight - bottomSafeZone - pickerHeight)
+        );
+
         // Clamp horizontal position to stay within viewport
         const pickerWidth = 280;
         let left = isOwnMessage ? rect.right - pickerWidth : rect.left;
         left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
-        
+
         setPosition({
           top,
           left,
