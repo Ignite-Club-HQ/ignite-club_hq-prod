@@ -319,15 +319,14 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             />
           )}
 
-          {/* Always-visible reaction badges */}
+          {/* Always-visible reaction badges with popover */}
           {messageReactions.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {messageReactions.map((r) => (
-                <span key={r.id} className="text-xs bg-muted px-1 rounded">
-                  {r.reaction_type}
-                </span>
-              ))}
-            </div>
+            <GroupReactionBadges
+              messageReactions={messageReactions}
+              userId={userId}
+              toggleReactionMutation={toggleReactionMutation}
+              messageId={msg.id}
+            />
           )}
 
           {/* Reaction picker - rendered in portal so it never sits under composer */}
