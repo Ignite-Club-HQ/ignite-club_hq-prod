@@ -5810,6 +5810,45 @@ export type Database = {
           },
         ]
       }
+      web_vitals: {
+        Row: {
+          connection_type: string | null
+          created_at: string
+          device_memory: number | null
+          id: string
+          metric_name: string
+          metric_value: number
+          page_path: string | null
+          rating: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          connection_type?: string | null
+          created_at?: string
+          device_memory?: number | null
+          id?: string
+          metric_name: string
+          metric_value: number
+          page_path?: string | null
+          rating?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          connection_type?: string | null
+          created_at?: string
+          device_memory?: number | null
+          id?: string
+          metric_name?: string
+          metric_value?: number
+          page_path?: string | null
+          rating?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       public_clubs: {
