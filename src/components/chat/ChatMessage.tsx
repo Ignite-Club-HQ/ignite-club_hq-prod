@@ -99,6 +99,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
@@ -590,6 +591,7 @@ export const ChatMessage = memo(function ChatMessage({
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="relative">
           <div
+            ref={bubbleRef}
             className={`relative rounded-2xl px-4 py-2 select-none ${
               isOwn
                 ? "bg-primary text-primary-foreground rounded-br-sm"
@@ -622,6 +624,7 @@ export const ChatMessage = memo(function ChatMessage({
               isOpen={showReactionPicker}
               onOpenChange={setShowReactionPicker}
               isOwnMessage={isOwn}
+              anchorRef={bubbleRef}
             />
           </div>
           {showMenu && (
