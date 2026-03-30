@@ -30,7 +30,52 @@ export class NativePickerLoadError extends Error {
 
 const isLoadingError = (err: unknown) => {
   const msg = getReadableUploadError(err).toLowerCase();
-  return msg.includes("error loading image") || msg.includes("loading image");
+  return [
+    "error loading image",
+    "loading image",
+    "cannot select that photo",
+    "can't select that photo",
+    "cannot select this photo",
+    "can't select this photo",
+    "could not load",
+    "unable to load",
+    "cannot load",
+    "photo data is unavailable",
+    "selected photo data is unavailable",
+  ].some((pattern) => msg.includes(pattern));
+};
+
+const isSourceUnavailableError = (err: unknown) => {
+  const msg = getReadableUploadError(err).toLowerCase();
+  return isLoadingError(err) || msg.includes("photo data is unavailable") || msg.includes("asset unavailable");
+};
+
+let forceWebPickerForSession = false;
+
+export const disableNativePickerForSession = () => {
+  forceWebPickerForSession = true;
+};
+
+export const openFileInputPicker = (input: HTMLInputElement | null | undefined): boolean => {
+  if (!input) return false;
+
+  try {
+    const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
+    if (typeof pickerInput.showPicker === "function") {
+      pickerInput.showPicker();
+      return true;
+    }
+  } catch (error) {
+    console.warn("[nativePhotoPicker] showPicker failed:", error);
+  }
+
+  try {
+    input.click();
+    return true;
+  } catch (error) {
+    console.warn("[nativePhotoPicker] input.click() failed:", error);
+    return false;
+  }
 };
 
 // ──────────────────────────────────────────────────────────────────────
@@ -76,7 +121,7 @@ export async function ensureCameraPermissions(): Promise<void> {
 // Photo picking
 // ──────────────────────────────────────────────────────────────────────
 
-const DEFAULT_MAX_WIDTH = 2048;
+const DEFAULT_MAX_WIDTH: number | undefined = undefined;
 
 /**
  * Picks a photo using the native iOS camera picker.
@@ -93,11 +138,13 @@ export async function pickNativePhoto(options?: {
   const { quality = 80, width, height } = options ?? {};
   const effectiveWidth = width || DEFAULT_MAX_WIDTH;
 
+  await ensureCameraPermissions();
+
   const photoOptions = {
     source: CameraSource.Photos,
     allowEditing: false,
     quality,
-    width: effectiveWidth,
+    ...(effectiveWidth ? { width: effectiveWidth } : {}),
     ...(height ? { height } : {}),
   };
 
@@ -128,13 +175,14 @@ export async function pickNativePhoto(options?: {
       if (isCancelledSelectionError(base64Error)) throw base64Error;
 
       // Throw a specific error so callers can fall back to HTML file input
-      const msg = getReadableUploadError(uriError);
-      if (isLoadingError(uriError)) {
+      const msg = getReadableUploadError(base64Error) || getReadableUploadError(uriError);
+      if (isLoadingError(uriError) || isLoadingError(base64Error)) {
+        disableNativePickerForSession();
         throw new NativePickerLoadError(
           msg || "Error loading image — please try selecting from files"
         );
       }
-      throw uriError;
+      throw base64Error;
     }
   }
 
@@ -142,7 +190,20 @@ export async function pickNativePhoto(options?: {
     throw new Error("No photo selected (missing base64String/webPath/path)");
   }
 
-  const result = await cameraPhotoToBlob(photo);
+  let result: Awaited<ReturnType<typeof cameraPhotoToBlob>>;
+
+  try {
+    result = await cameraPhotoToBlob(photo);
+  } catch (blobError: unknown) {
+    if (isSourceUnavailableError(blobError)) {
+      disableNativePickerForSession();
+      throw new NativePickerLoadError(
+        getReadableUploadError(blobError) || "Error loading image — please try selecting from files"
+      );
+    }
+    throw blobError;
+  }
+
   return {
     blob: result.blob,
     mimeType: result.mimeType,
@@ -153,4 +214,4 @@ export async function pickNativePhoto(options?: {
 
 /** Check if current platform should use native photo picker */
 export const shouldUseNativePicker = () =>
-  Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios" && !forceWebPickerForSession;
