@@ -178,9 +178,12 @@ export default function DirectMessagePage() {
     refetchOnMount: true, // Always re-check when returning to page
   });
 
+  // Memoize query key to prevent ChatMessage memo breaks
+  const dmQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
+
   // Fetch messages with cache support
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
-    queryKey: ["dm-messages", conversationId],
+    queryKey: dmQueryKey,
     queryFn: async () => {
       const { data: rawMessages, error } = await supabase
         .from("direct_messages")
