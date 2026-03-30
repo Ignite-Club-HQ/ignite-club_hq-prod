@@ -11,7 +11,7 @@ const REACTION_EMOJIS = [
   { type: "fire", emoji: "🔥" },
   { type: "clap", emoji: "👏" },
   { type: "laugh", emoji: "😂" },
-  { type: "wow", emoji: "😮" },
+  { type: "thumbsup", emoji: "👍" },
   { type: "sad", emoji: "😢" },
 ];
 
