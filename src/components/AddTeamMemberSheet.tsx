@@ -2563,7 +2563,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                 </div>
                               </div>
                             );
-                            );
                           })()}
                         </div>
                       ))}
