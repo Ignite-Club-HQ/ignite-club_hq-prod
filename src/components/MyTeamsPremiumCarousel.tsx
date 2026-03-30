@@ -467,11 +467,11 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     queryKey: ["team-photos-premium", teamIds],
     queryFn: async () => {
       if (teamIds.length === 0) return {};
-      const map: Record<string, string[]> = {};
+      const map: Record<string, { id: string; url: string }[]> = {};
 
       const { data } = await supabase
         .from("photos")
-        .select("team_id, file_url, image_url")
+        .select("id, team_id, file_url, image_url")
         .in("team_id", teamIds)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -484,7 +484,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
           if (!url) continue;
           if (!map[photo.team_id]) map[photo.team_id] = [];
           if (map[photo.team_id].length < 2) {
-            map[photo.team_id].push(url);
+            map[photo.team_id].push({ id: photo.id, url });
           }
         }
       }
