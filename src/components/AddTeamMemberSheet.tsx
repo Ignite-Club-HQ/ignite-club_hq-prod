@@ -432,6 +432,36 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   const bulkSearchMap = new Map(bulkSearchResults.map((entry) => [entry.term, entry.results]));
 
+  // Bulk second parent search
+  const bulkSecondParentTerms = Array.from(
+    new Set(
+      bulkMembers
+        .filter(m => m.role === "parent" && !m.selectedSecondParent && (m.secondParentSearch || "").trim().length >= 2)
+        .map(m => (m.secondParentSearch || "").trim())
+    )
+  );
+
+  const { data: bulkSecondParentResults = [] } = useQuery({
+    queryKey: ["bulk-second-parent-search", bulkSecondParentTerms],
+    queryFn: async () => {
+      if (bulkSecondParentTerms.length === 0) return [];
+      const searches = await Promise.all(
+        bulkSecondParentTerms.map(async (term) => {
+          const { data } = await supabase
+            .from("profiles")
+            .select("id, display_name, avatar_url")
+            .ilike("display_name", `%${term}%`)
+            .limit(5);
+          return { term, results: data || [] };
+        })
+      );
+      return searches;
+    },
+    enabled: open && mode === "bulk" && bulkSecondParentTerms.length > 0,
+  });
+
+  const bulkSecondParentMap = new Map(bulkSecondParentResults.map((entry) => [entry.term, entry.results]));
+
   // Search for second parent (existing users)
   const { data: secondParentSearchResults = [] } = useQuery({
     queryKey: ["second-parent-search", debouncedSecondParentSearch],
