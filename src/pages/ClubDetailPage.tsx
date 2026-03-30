@@ -987,28 +987,7 @@ export default function ClubDetailPage() {
           <div className="flex items-center gap-2">
             {isAdmin && (
               <>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setCreateFolderDialogOpen(true)}>
-                      <FolderPlus className="h-4 w-4 mr-2" />
-                      Manage Folders
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <CreateTeamFolderDialog
-                  open={createFolderDialogOpen}
-                  onOpenChange={setCreateFolderDialogOpen}
-                  onCreateFolder={(name, description, color) => 
-                    createFolderMutation.mutate({ name, description, color })
-                  }
-                  isCreating={createFolderMutation.isPending}
-                  classMode={!!club?.class_mode_enabled}
-                />
+               
                 <Link to={`/clubs/${id}/teams/new`}>
                   <Button size="sm">
                     <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
