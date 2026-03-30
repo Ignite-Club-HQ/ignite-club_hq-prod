@@ -471,6 +471,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         .from("photos")
         .select("id, team_id, file_url, image_url")
         .in("team_id", teamIds)
+        .eq("show_in_feed", true)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(teamIds.length * 2);
