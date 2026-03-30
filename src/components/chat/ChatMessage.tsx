@@ -242,6 +242,7 @@ export const ChatMessage = memo(function ChatMessage({
 
       const shouldRemoveReaction = existingReaction?.reaction_type === reactionType;
       const tempReactionId = shouldRemoveReaction ? null : `temp-${Date.now()}`;
+      console.log('[Reaction] onMutate', { reactionType, shouldRemoveReaction, existingId: existingReaction?.id });
 
       updateReactionMessages((msgs) =>
         msgs.map((msg: any) => {
