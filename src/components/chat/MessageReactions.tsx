@@ -99,16 +99,18 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
-    // Always close the picker, even if mutating
-    onOpenChange(false);
-
-    if (isMutating) return;
+    if (isMutating) {
+      console.log('[ReactionPicker] Blocked - mutation in progress');
+      onOpenChange(false);
+      return;
+    }
 
     console.log('[ReactionPicker] Emoji tapped:', type, 'currentUserId:', currentUserId);
     const userReaction = reactions.find(
       (r) => r.user_id === currentUserId && r.reaction_type === type
     );
 
+    // Fire the mutation FIRST (matching GroupChatMessageRow pattern that works)
     if (userReaction) {
       console.log('[ReactionPicker] Removing existing reaction:', userReaction.id);
       onRemove(userReaction.id);
@@ -116,6 +118,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       console.log('[ReactionPicker] Adding/changing reaction to:', type);
       onReact(type);
     }
+
+    // Close picker AFTER mutation is dispatched
+    onOpenChange(false);
   };
 
   if (!isOpen || !position) return null;
@@ -124,19 +129,18 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     <div
       className="fixed inset-0 z-[100001]"
       data-reaction-picker="true"
-      onClick={(e) => {
-        e.stopPropagation();
-        console.log('[ReactionPicker] Backdrop tapped - closing');
-        onOpenChange(false);
-      }}
       onTouchEnd={(e) => {
-        // Only close if the touch target is the backdrop itself, not a child button
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           e.preventDefault();
           console.log('[ReactionPicker] Backdrop touch - closing');
           onOpenChange(false);
         }
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        console.log('[ReactionPicker] Backdrop click - closing');
+        onOpenChange(false);
       }}
     >
       <div
@@ -148,6 +152,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="bg-popover border rounded-lg p-2 shadow-lg">
           <div className="flex gap-1.5">
@@ -160,37 +165,21 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                 <button
                   key={type}
                   type="button"
-                  disabled={isMutating}
-                  onTouchStart={(e) => {
-                    e.stopPropagation();
-                  }}
                   onTouchEnd={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    if (isMutating) return;
                     if (Date.now() - lastTouchReactionAtRef.current < 500) return;
                     lastTouchReactionAtRef.current = Date.now();
-                    console.log('[ReactionPicker] Touch on emoji:', type);
-                    handleEmojiClick(type);
-                  }}
-                  onPointerUp={(e) => {
-                    e.stopPropagation();
-                    if (isMutating) return;
-                    if (Date.now() - lastTouchReactionAtRef.current < 500) return;
-                    lastTouchReactionAtRef.current = Date.now();
-                    console.log('[ReactionPicker] PointerUp on emoji:', type);
                     handleEmojiClick(type);
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    if (isMutating) return;
                     if (Date.now() - lastTouchReactionAtRef.current < 500) return;
                     lastTouchReactionAtRef.current = Date.now();
-                    console.log('[ReactionPicker] Click on emoji:', type);
                     handleEmojiClick(type);
                   }}
-                  className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 transition-colors active:bg-accent disabled:opacity-50 disabled:pointer-events-none ${
+                  className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 transition-colors active:bg-accent ${
                     userHasReaction ? "bg-primary/20" : "hover:bg-accent"
                   }`}
                 >
