@@ -1,4 +1,4 @@
-import { onCLS, onFID, onLCP, onTTFB, onINP, type Metric } from "web-vitals";
+import { onCLS, onLCP, onTTFB, onINP, type Metric } from "web-vitals";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
