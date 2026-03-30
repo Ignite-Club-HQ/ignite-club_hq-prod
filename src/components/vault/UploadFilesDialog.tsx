@@ -338,9 +338,9 @@ export function UploadFilesDialog({
                   </p>
                 </div>
               </div>
-              {/* Hidden file input – only used on non-native paths */}
-              {!shouldUseNativePhotoPicker && (
-                <input
+              {/* Hidden file input – used as primary on non-native, fallback on native */}
+              <input
+                style={{ display: 'none' }}
                   ref={fileInputRef}
                   type="file"
                     accept={
