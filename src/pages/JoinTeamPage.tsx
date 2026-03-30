@@ -616,6 +616,14 @@ export default function JoinTeamPage() {
         const isDuplicate = roleError.code === '23505' || roleError.message.includes('duplicate key') || roleError.message.includes('unique constraint');
         if (!isDuplicate) {
           console.error('Role insert error:', roleError);
+          // Provide a user-friendly message for RLS violations (usually email mismatch)
+          if (roleError.message.includes('row-level security policy')) {
+            const invitedEmail = isPendingInvite ? pendingInviteData?.invited_email : null;
+            const hint = invitedEmail 
+              ? `Please make sure you signed up with the email address the invite was sent to (${invitedEmail}). If you used a different email, ask your admin to resend the invite to your correct email.`
+              : `Please make sure you signed up with the same email address the invite was sent to. If you used a different email, ask your admin to resend the invite to your correct email.`;
+            throw new Error(hint);
+          }
           throw new Error(`Failed to add ${role} role: ${roleError.message}`);
         }
       }
