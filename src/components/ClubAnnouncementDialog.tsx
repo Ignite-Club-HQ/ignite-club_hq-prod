@@ -87,6 +87,8 @@ export function ClubAnnouncementDialog({
     },
   });
 
+  const canSend = message.trim().length > 0 && selectedTeamIds.size > 0 && !sendMutation.isPending;
+
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="max-w-md">
@@ -97,7 +99,7 @@ export function ClubAnnouncementDialog({
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 flex-1 min-h-0 overflow-y-auto">
           {/* From label */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50">
             <span className="text-xs text-muted-foreground">From:</span>
@@ -112,7 +114,7 @@ export function ClubAnnouncementDialog({
               placeholder="Write your announcement..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              rows={4}
+              rows={3}
               className="resize-none"
             />
           </div>
@@ -125,7 +127,7 @@ export function ClubAnnouncementDialog({
                 {selectedTeamIds.size === activeTeams.length ? "Deselect All" : "Select All"}
               </Button>
             </div>
-            <div className="max-h-48 overflow-y-auto space-y-1 border rounded-lg p-2">
+            <div className="max-h-40 overflow-y-auto space-y-1 border rounded-lg p-2">
               {activeTeams.map((team) => (
                 <label
                   key={team.id}
@@ -150,10 +152,10 @@ export function ClubAnnouncementDialog({
           </div>
         </div>
 
-        <ResponsiveDialogFooter>
+        <div className="sticky bottom-0 pt-3 pb-1 bg-background border-t mt-2">
           <Button
             onClick={() => sendMutation.mutate()}
-            disabled={!message.trim() || selectedTeamIds.size === 0 || sendMutation.isPending}
+            disabled={!canSend}
             className="w-full"
           >
             {sendMutation.isPending ? (
@@ -163,7 +165,7 @@ export function ClubAnnouncementDialog({
             )}
             Send Announcement
           </Button>
-        </ResponsiveDialogFooter>
+        </div>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
   );
