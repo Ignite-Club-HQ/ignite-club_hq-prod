@@ -2374,7 +2374,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         id: crypto.randomUUID(),
                         name: child.name,
                         yearOfBirth: child.yearOfBirth ? String(child.yearOfBirth) : "",
-                        jerseyNumber: "",
+                        jerseyNumber: child.shirtNumber ? String(child.shirtNumber) : "",
                         existingChildId: match && !(match as any).isPending ? match.id : undefined,
                         existingChildParentName: match && !(match as any).isPending ? match.parent_name : undefined,
                         pendingInviteId: (match as any)?.isPending ? (match as any).inviteId : undefined,
