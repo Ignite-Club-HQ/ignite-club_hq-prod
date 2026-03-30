@@ -1661,10 +1661,10 @@ export default function HomePage() {
             {/* Optional child linking when parent role selected */}
             {showChildLinker && teamChildren && teamChildren.length > 0 && (
               <MobileCardSelect
-                value={selectedChildForLink}
-                onValueChange={setSelectedChildForLink}
+                value={selectedChildForLink || "skip"}
+                onValueChange={(v) => setSelectedChildForLink(v === "skip" ? "" : v)}
                 options={[
-                  { value: "", label: "Skip — link later" },
+                  { value: "skip", label: "Skip — link later" },
                   ...teamChildren.map((child) => ({
                     value: child.id,
                     label: child.name,
