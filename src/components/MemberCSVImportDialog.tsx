@@ -182,7 +182,7 @@ export function MemberCSVImportDialog({
       }
 
       // Build children array from separate columns
-      const children: { name: string; yearOfBirth: number | null }[] = [];
+      const children: ParsedChild[] = [];
       
       if (child1Name) {
         const yob = child1Yob ? parseInt(child1Yob) : null;
