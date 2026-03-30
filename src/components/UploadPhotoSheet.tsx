@@ -74,7 +74,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
   const shouldStabilizeIOSLayout = isIOSEnvironment();
-  const shouldUseNativePhotoPicker = shouldUseNativeIOSPicker();
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -524,7 +523,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   };
 
   const handleNativePhotoPick = async () => {
-    if (!shouldUseNativePhotoPicker || uploading || isPickingNativePhoto) return;
+    if (!shouldUseNativeIOSPicker() || uploading || isPickingNativePhoto) return;
 
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
@@ -747,7 +746,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                     (uploading || isPickingNativePhoto) && "pointer-events-none opacity-70"
                   )}
                   onClick={(e) => {
-                    if (shouldUseNativePhotoPicker) {
+                    if (shouldUseNativeIOSPicker()) {
                       e.preventDefault();
                       void handleNativePhotoPick();
                       return;
@@ -854,7 +853,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           isPickingNativePhoto && "pointer-events-none opacity-70"
                         )}
                         onClick={(e) => {
-                          if (shouldUseNativePhotoPicker) {
+                          if (shouldUseNativeIOSPicker()) {
                             e.preventDefault();
                             void handleNativePhotoPick();
                             return;
