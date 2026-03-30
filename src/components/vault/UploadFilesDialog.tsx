@@ -180,12 +180,17 @@ export function UploadFilesDialog({
       handleFileSelect(file);
       queueNativeLayoutRecovery([0, 380, 1200]);
     } catch (error) {
-      if (!isCancelledSelectionError(error)) {
+      if (isCancelledSelectionError(error)) {
+        console.log("[UploadFilesDialog] user cancelled");
+      } else if (error instanceof NativePickerLoadError) {
+        console.warn("[UploadFilesDialog] Native picker load error, falling back to file input");
+        toast.error("Couldn't load that photo. Please try selecting again.", { duration: 3000 });
+        setTimeout(() => fileInputRef.current?.click(), 400);
+      } else {
         const errMsg = getReadableUploadError(error);
         console.warn("[UploadFilesDialog] Native picker failed:", errMsg, error);
         toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
-      } else {
-        console.log("[UploadFilesDialog] user cancelled");
+        setTimeout(() => fileInputRef.current?.click(), 400);
       }
     } finally {
       restoreBodyScrollLock();
