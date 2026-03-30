@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, NativePickerLoadError } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, NativePickerLoadError, openFileInputPicker, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -48,7 +48,7 @@ export function UploadFilesDialog({
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
   const shouldStabilizeIOSLayout = isIOSEnvironment();
-  const shouldUseNativePhotoPicker = uploadType === "photo" && isNativeIOS;
+  const shouldUseNativePhotoPicker = uploadType === "photo" && shouldUseNativePicker();
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
   const nativePickerInFlightRef = useRef(false);
   const wasOpenRef = useRef(open);
@@ -184,13 +184,16 @@ export function UploadFilesDialog({
         console.log("[UploadFilesDialog] user cancelled");
       } else if (error instanceof NativePickerLoadError) {
         console.warn("[UploadFilesDialog] Native picker load error, falling back to file input");
-        toast.error("Couldn't load that photo. Please try selecting again.", { duration: 3000 });
-        setTimeout(() => fileInputRef.current?.click(), 400);
+        toast.error("Couldn't load that photo. Using iOS fallback picker.", { duration: 3000 });
+        const openedFallback = openFileInputPicker(fileInputRef.current);
+        if (!openedFallback) {
+          toast.error("Tap to select photo again.");
+        }
       } else {
         const errMsg = getReadableUploadError(error);
         console.warn("[UploadFilesDialog] Native picker failed:", errMsg, error);
         toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
-        setTimeout(() => fileInputRef.current?.click(), 400);
+        openFileInputPicker(fileInputRef.current);
       }
     } finally {
       restoreBodyScrollLock();
@@ -205,7 +208,7 @@ export function UploadFilesDialog({
       void handleNativePhotoPick();
     } else {
       // For non-native: trigger the hidden file input manually
-      fileInputRef.current?.click();
+      openFileInputPicker(fileInputRef.current);
     }
   };
 
@@ -340,7 +343,6 @@ export function UploadFilesDialog({
               </div>
               {/* Hidden file input – used as primary on non-native, fallback on native */}
               <input
-                style={{ display: 'none' }}
                   ref={fileInputRef}
                   type="file"
                     accept={
@@ -352,7 +354,7 @@ export function UploadFilesDialog({
                           ? ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.mp4,.mp3,.wav,.mov,.json,.xml,.yaml,.md"
                           : "*"
                   }
-                  className="hidden"
+                  className="sr-only"
                   onChange={handleInputChange}
                   disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
                 />

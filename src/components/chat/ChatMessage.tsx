@@ -147,23 +147,26 @@ export const ChatMessage = memo(function ChatMessage({
     });
   }, [queryClient, queryKey]);
 
+  const getLatestReactions = useCallback((): Reaction[] => {
+    const cacheEntry = queryClient.getQueryData<any>(queryKey);
+    const messages = Array.isArray(cacheEntry) ? cacheEntry : cacheEntry?.messages || [];
+    const cachedMessage = messages.find((message: any) => message.id === id);
+    return (cachedMessage?.reactions || reactions) as Reaction[];
+  }, [queryClient, queryKey, id, reactions]);
+
   const addReactionMutation = useMutation({
-    mutationFn: async ({ reactionType }: { reactionType: string; existingReactionId?: string }) => {
+    mutationFn: async ({
+      reactionType,
+      existingReaction,
+    }: {
+      reactionType: string;
+      existingReaction?: Reaction;
+    }) => {
       const messageIdField = getMessageIdField();
-      console.log('[Reaction] mutationFn called:', { reactionType, messageIdField, messageId: id, currentUserId });
 
       if (!currentUserId) {
         throw new Error("Not authenticated");
       }
-
-      const { data: existingReaction, error: fetchError } = await supabase
-        .from("message_reactions")
-        .select("id, user_id, reaction_type")
-        .eq(messageIdField, id)
-        .eq("user_id", currentUserId)
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
 
       if (existingReaction) {
         if (existingReaction.reaction_type === reactionType) {
@@ -199,11 +202,37 @@ export const ChatMessage = memo(function ChatMessage({
         .select("id, user_id, reaction_type")
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if ((error as { code?: string }).code === "23505") {
+          const { data: conflictingReaction, error: conflictFetchError } = await supabase
+            .from("message_reactions")
+            .select("id")
+            .eq(messageIdField, id)
+            .eq("user_id", currentUserId)
+            .maybeSingle();
+
+          if (conflictFetchError || !conflictingReaction) {
+            throw conflictFetchError || error;
+          }
+
+          const { data: updatedReaction, error: updateError } = await supabase
+            .from("message_reactions")
+            .update({ reaction_type: reactionType })
+            .eq("id", conflictingReaction.id)
+            .select("id, user_id, reaction_type")
+            .single();
+
+          if (updateError) throw updateError;
+
+          return { action: "update" as const, reaction: updatedReaction };
+        }
+
+        throw error;
+      }
 
       return { action: "insert" as const, reaction: insertedReaction };
     },
-    onMutate: async ({ reactionType }) => {
+    onMutate: async ({ reactionType, existingReaction }) => {
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
 
@@ -211,8 +240,7 @@ export const ChatMessage = memo(function ChatMessage({
         return { previousMessages, tempReactionId: null };
       }
 
-      const existingUserReaction = reactions.find((reaction) => reaction.user_id === currentUserId);
-      const shouldRemoveReaction = existingUserReaction?.reaction_type === reactionType;
+      const shouldRemoveReaction = existingReaction?.reaction_type === reactionType;
       const tempReactionId = shouldRemoveReaction ? null : `temp-${Date.now()}`;
 
       updateReactionMessages((msgs) =>
@@ -281,8 +309,9 @@ export const ChatMessage = memo(function ChatMessage({
         .eq("id", reactionId);
       if (error) throw error;
     },
-    onMutate: async (reactionId: string) => {
-      await queryClient.cancelQueries({ queryKey });
+    onMutate: (reactionId: string) => {
+      // Do not await cancellation — optimistic removal must feel instant
+      void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
 
       updateReactionMessages((msgs) =>
@@ -405,14 +434,13 @@ export const ChatMessage = memo(function ChatMessage({
     if (existingReactionId) {
       removeReactionMutation.mutate(existingReactionId);
     } else {
-      // Find existing reaction at call time to avoid stale closure
-      const existingReaction = reactions.find(r => r.user_id === currentUserId);
+      const existingReaction = getLatestReactions().find((reaction) => reaction.user_id === currentUserId);
       addReactionMutation.mutate({ 
         reactionType: type, 
-        existingReactionId: existingReaction?.id 
+        existingReaction,
       });
     }
-  }, [addReactionMutation, removeReactionMutation, reactions, currentUserId]);
+  }, [addReactionMutation, removeReactionMutation, getLatestReactions, currentUserId]);
 
   const handleSaveEdit = useCallback(() => {
     if (editText.trim() && editText !== text) {
@@ -469,9 +497,12 @@ export const ChatMessage = memo(function ChatMessage({
 
   // Close three-dot menu when tapping outside
   useEffect(() => {
-    if (!showMenu || isDropdownOpen) return;
+    if (!showMenu || isDropdownOpen || showReactionPicker) return;
     
-    const handleClickOutside = () => {
+    const handleClickOutside = (e: Event) => {
+      // Never close menu if the touch/click is inside the reaction picker portal
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-reaction-picker="true"]')) return;
       setShowMenu(false);
     };
     
@@ -485,7 +516,7 @@ export const ChatMessage = memo(function ChatMessage({
       document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [showMenu, isDropdownOpen]);
+  }, [showMenu, isDropdownOpen, showReactionPicker]);
 
   // Get display name - never show placeholder text; hide name until profile loads
   const displayName = authorName || "";

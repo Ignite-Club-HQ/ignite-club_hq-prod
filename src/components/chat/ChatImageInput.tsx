@@ -7,7 +7,7 @@ import { Capacitor } from "@capacitor/core";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, NativePickerLoadError } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, NativePickerLoadError, openFileInputPicker, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
 
 interface ChatImageInputProps {
@@ -116,14 +116,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           console.warn("[ChatImageInput] Native picker load error, falling back to file input");
           restoreBodyScrollLock();
           restoreNativeLayout();
-          toast.error("Couldn't load that photo. Please try selecting again.", { duration: 3000 });
-          // Trigger HTML file input as fallback
-          setTimeout(() => fileInputRef.current?.click(), 400);
+          toast.error("Couldn't load that photo. Using iOS fallback picker.", { duration: 3000 });
+          const openedFallback = openFileInputPicker(fileInputRef.current);
+          if (!openedFallback) {
+            toast.error("Tap + again to select from Files.");
+          }
           return;
         }
 
         console.warn("[ChatImageInput] Native Camera picker failed:", getReadableUploadError(pickerError), pickerError);
-        restoreNativeLayout();
+        const openedFallback = openFileInputPicker(fileInputRef.current);
+        if (openedFallback) {
+          restoreNativeLayout();
+          return;
+        }
         throw pickerError;
       }
 
@@ -224,7 +230,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleImageButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (isNativeIOS) {
+    if (shouldUseNativePicker()) {
       // Do NOT call dismissIOSKeyboardAccessory() before Camera.getPhoto —
       // blurring breaks the gesture chain and iOS rejects the picker.
       void handleNativePhotoPick();
@@ -232,7 +238,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       // Blur the button so its focus/active style doesn't persist after the
       // file picker closes (especially visible on Android WebView).
       (e.currentTarget as HTMLElement)?.blur();
-      fileInputRef.current?.click();
+      openFileInputPicker(fileInputRef.current);
       if (shouldStabilizeIOSLayout) {
         requestAnimationFrame(() => {
           restoreNativeLayout();
@@ -285,7 +291,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         type="file"
         accept="image/*"
         onChange={handleFileSelect}
-        className="hidden"
+        className="sr-only"
         disabled={disabled || uploading}
       />
 

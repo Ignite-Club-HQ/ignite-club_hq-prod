@@ -14,7 +14,7 @@ import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, NativePickerLoadError } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, NativePickerLoadError, openFileInputPicker, shouldUseNativePicker as shouldUseNativeIOSPicker } from "@/lib/nativePhotoPicker";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
@@ -74,7 +74,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
   const shouldStabilizeIOSLayout = isIOSEnvironment();
-  const shouldUseNativePhotoPicker = isNativeIOS;
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -524,7 +523,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   };
 
   const handleNativePhotoPick = async () => {
-    if (!shouldUseNativePhotoPicker || uploading || isPickingNativePhoto) return;
+    if (!shouldUseNativeIOSPicker() || uploading || isPickingNativePhoto) return;
 
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
@@ -553,15 +552,16 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
         console.log("[UploadPhotoSheet] user cancelled");
       } else if (error instanceof NativePickerLoadError) {
         console.warn("[UploadPhotoSheet] Native picker load error, falling back to file input");
-        toast.error("Couldn't load that photo. Please try selecting again.", { duration: 3000 });
-        // Fall back to HTML file input
-        setTimeout(() => primaryFileInputRef.current?.click(), 400);
+        toast.error("Couldn't load that photo. Using iOS fallback picker.", { duration: 3000 });
+        const openedFallback = openFileInputPicker(primaryFileInputRef.current);
+        if (!openedFallback) {
+          toast.error("Tap to select photos again.");
+        }
       } else {
         const errMsg = getReadableUploadError(error);
         console.warn("[UploadPhotoSheet] Native picker failed:", errMsg, error);
         toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
-        // Also fall back to HTML file input for any native error
-        setTimeout(() => primaryFileInputRef.current?.click(), 400);
+        openFileInputPicker(primaryFileInputRef.current);
       }
     } finally {
       restoreBodyScrollLock();
@@ -746,7 +746,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                     (uploading || isPickingNativePhoto) && "pointer-events-none opacity-70"
                   )}
                   onClick={(e) => {
-                    if (shouldUseNativePhotoPicker) {
+                    if (shouldUseNativeIOSPicker()) {
                       e.preventDefault();
                       void handleNativePhotoPick();
                       return;
@@ -777,7 +777,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                     type="file"
                     accept="image/*"
                     multiple
-                    className="hidden"
+                    className="sr-only"
                     onChange={handleFileSelect}
                     disabled={uploading || isPickingNativePhoto}
                   />
@@ -853,7 +853,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           isPickingNativePhoto && "pointer-events-none opacity-70"
                         )}
                         onClick={(e) => {
-                          if (shouldUseNativePhotoPicker) {
+                          if (shouldUseNativeIOSPicker()) {
                             e.preventDefault();
                             void handleNativePhotoPick();
                             return;
@@ -876,7 +876,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           type="file"
                           accept="image/*"
                           multiple
-                          className="hidden"
+                          className="sr-only"
                           onChange={handleFileSelect}
                           disabled={uploading || isPickingNativePhoto}
                         />

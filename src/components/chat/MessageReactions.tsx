@@ -99,28 +99,20 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
-    if (isMutating) {
-      console.log('[ReactionPicker] Blocked - mutation in progress');
-      onOpenChange(false);
-      return;
-    }
+    // Always close the picker immediately — before any mutation logic
+    onOpenChange(false);
 
-    console.log('[ReactionPicker] Emoji tapped:', type, 'currentUserId:', currentUserId);
+    if (isMutating) return;
+
     const userReaction = reactions.find(
       (r) => r.user_id === currentUserId && r.reaction_type === type
     );
 
-    // Fire the mutation FIRST (matching GroupChatMessageRow pattern that works)
     if (userReaction) {
-      console.log('[ReactionPicker] Removing existing reaction:', userReaction.id);
       onRemove(userReaction.id);
     } else {
-      console.log('[ReactionPicker] Adding/changing reaction to:', type);
       onReact(type);
     }
-
-    // Close picker AFTER mutation is dispatched
-    onOpenChange(false);
   };
 
   if (!isOpen || !position) return null;
@@ -129,17 +121,19 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     <div
       className="fixed inset-0 z-[100001]"
       data-reaction-picker="true"
+      onTouchStart={(e) => {
+        // Prevent touchstart from reaching document-level listeners
+        e.stopPropagation();
+      }}
       onTouchEnd={(e) => {
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           e.preventDefault();
-          console.log('[ReactionPicker] Backdrop touch - closing');
           onOpenChange(false);
         }
       }}
       onClick={(e) => {
         e.stopPropagation();
-        console.log('[ReactionPicker] Backdrop click - closing');
         onOpenChange(false);
       }}
     >
@@ -251,7 +245,12 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
                 key={type}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsOpen(true);
+                  if (userReaction) {
+                    // Instantly toggle off the user's own reaction
+                    onReactionClick(type, userReaction.id);
+                  } else {
+                    setIsOpen(true);
+                  }
                 }}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
                   userReaction
