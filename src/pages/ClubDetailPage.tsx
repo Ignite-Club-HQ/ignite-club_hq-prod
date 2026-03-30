@@ -107,6 +107,7 @@ export default function ClubDetailPage() {
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
   const [teamSearchQuery, setTeamSearchQuery] = useState("");
   const [teamFilter, setTeamFilter] = useState<"all" | "junior" | "senior" | "my">("all");
+  const [yearLevelFilter, setYearLevelFilter] = useState<string>("all");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [showAllTeams, setShowAllTeams] = useState<boolean | null>(null); // null = not yet initialized
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
@@ -1032,7 +1033,7 @@ export default function ClubDetailPage() {
               ].map((filter) => (
                 <button
                   key={filter.key}
-                  onClick={() => setTeamFilter(filter.key)}
+                  onClick={() => { setTeamFilter(filter.key); setYearLevelFilter("all"); }}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors min-h-[36px] ${
                     teamFilter === filter.key
                       ? "bg-primary text-primary-foreground"
@@ -1043,6 +1044,49 @@ export default function ClubDetailPage() {
                 </button>
               ))}
             </div>
+
+            {/* Year level filter chips */}
+            {(() => {
+              const yearLevels = Array.from(
+                new Set(
+                  activeTeams
+                    .filter(t => t.level_age)
+                    .map(t => t.level_age as string)
+                )
+              ).sort((a, b) => {
+                const numA = parseInt(a.replace(/\D/g, '')) || 999;
+                const numB = parseInt(b.replace(/\D/g, '')) || 999;
+                return numA - numB;
+              });
+              if (yearLevels.length <= 1) return null;
+              return (
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                  <button
+                    onClick={() => setYearLevelFilter("all")}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors min-h-[28px] ${
+                      yearLevelFilter === "all"
+                        ? "bg-secondary text-secondary-foreground"
+                        : "bg-muted/50 text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    All Levels
+                  </button>
+                  {yearLevels.map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setYearLevelFilter(yearLevelFilter === level ? "all" : level)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors min-h-[28px] ${
+                        yearLevelFilter === level
+                          ? "bg-secondary text-secondary-foreground"
+                          : "bg-muted/50 text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Search */}
             <div className="relative">
@@ -1090,6 +1134,11 @@ export default function ClubDetailPage() {
             if (teamFilter === "junior" && teamType !== "junior") return false;
             if (teamFilter === "senior" && !isSeniorOrMixed) return false;
             if (teamFilter === "my" && !userTeamIds.includes(team.id)) return false;
+
+            // Year level filter
+            if (yearLevelFilter !== "all") {
+              if (team.level_age !== yearLevelFilter) return false;
+            }
             
             // Search filter
             if (teamSearchQuery.trim()) {
@@ -1103,8 +1152,13 @@ export default function ClubDetailPage() {
             return true;
           });
 
+          // Sort alphabetically
+          const sortAlpha = (a: typeof activeTeams[0], b: typeof activeTeams[0]) =>
+            (a.name || "").localeCompare(b.name || "");
+          filteredTeams.sort(sortAlpha);
+
           // Group by type when "All" filter is active (and no search)
-          const showGrouped = teamFilter === "all" && !teamSearchQuery.trim();
+          const showGrouped = teamFilter === "all" && !teamSearchQuery.trim() && yearLevelFilter === "all";
           
           const juniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "junior") : [];
           const seniorTeams = showGrouped ? filteredTeams.filter(t => { const tt = (t as any).team_type?.toLowerCase(); return tt === "senior" || tt === "mixed"; }) : [];
