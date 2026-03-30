@@ -140,6 +140,11 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     e.stopPropagation();
                     handleEmojiClick(type);
                   }}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleEmojiClick(type);
+                  }}
                   className={`h-9 w-9 p-0 text-lg shrink-0 ${
                     userHasReaction ? "bg-primary/20" : ""
                   }`}
