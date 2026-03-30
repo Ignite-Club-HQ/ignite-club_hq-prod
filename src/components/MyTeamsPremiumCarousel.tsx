@@ -250,31 +250,29 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           )}
         </div>
 
-        {/* Photo thumbnails — tap goes to gallery, not team page */}
+        {/* Photo thumbnails — tap goes to specific photo */}
         {photos.length > 0 && (
-          <div
-            className="flex gap-1.5"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
-              }
-            }}
-          >
-            {photos.slice(0, 2).map((url, i) => (
+          <div className="flex gap-1.5">
+            {photos.slice(0, 2).map((photo, i) => (
               <div
                 key={i}
-                className="h-14 w-[72px] rounded-md overflow-hidden bg-muted"
+                className="h-14 w-[72px] rounded-md overflow-hidden bg-muted cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/media?photo=${photo.id}`);
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(`/media?photo=${photo.id}`);
+                  }
+                }}
               >
                 <img
-                  src={url}
+                  src={photo.url}
                   alt=""
                   className="h-full w-full object-cover"
                   loading="lazy"
