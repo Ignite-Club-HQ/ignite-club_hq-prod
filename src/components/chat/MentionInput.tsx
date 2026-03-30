@@ -11,7 +11,7 @@ interface MentionInputProps {
   value: string;
   onChange: (value: string) => void;
   onKeyPress?: (e: React.KeyboardEvent) => void;
-  onInputChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onInputChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -47,10 +47,24 @@ export function MentionInput({
   const [mentionSearch, setMentionSearch] = useState("");
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
-  // Detect URLs in the input
+  // Auto-resize textarea
+  const adjustHeight = useCallback(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    const maxHeight = 120; // ~5 lines
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }, []);
+
+  // Re-adjust height when value changes (including reset on send)
+  useEffect(() => {
+    adjustHeight();
+  }, [value, adjustHeight]);
+
   const detectedUrls = useMemo(() => {
     const matches = value.match(URL_REGEX) || [];
     return [...new Set(matches)].slice(0, 3); // Max 3 previews
@@ -121,11 +135,12 @@ export function MentionInput({
     enabled: showSuggestions && mentionSearch.length >= 0,
   });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     const cursorPosition = e.target.selectionStart || 0;
     
     onChange(newValue);
+    adjustHeight();
     
     // Check for @ trigger
     const textBeforeCursor = newValue.slice(0, cursorPosition);
@@ -133,7 +148,6 @@ export function MentionInput({
     
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
-      // Check if there's a space between @ and cursor (means mention was completed or cancelled)
       if (!textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
         setShowSuggestions(true);
         setMentionSearch(textAfterAt);
@@ -226,9 +240,10 @@ export function MentionInput({
     inputRef.current?.focus();
   }, [mentionStartIndex, mentionSearch, value, onChange, displayIndexToRawIndex]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (!showSuggestions || !users || users.length === 0) {
       if (e.key === "Enter" && !e.shiftKey && onKeyPress) {
+        e.preventDefault();
         onKeyPress(e);
       }
       return;
@@ -257,33 +272,29 @@ export function MentionInput({
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  const handleDisplayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDisplayChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newDisplay = e.target.value;
     const cursorPos = e.target.selectionStart || 0;
     
     if (newDisplay === displayValue) return;
     
-    // Convert display value back to raw value
     let newRaw = newDisplay;
     
-    // Restore any mentions that still exist in the new display value
     mentionMap.forEach((rawMention, displayMention) => {
       if (newRaw.includes(displayMention)) {
-        // Only replace the first occurrence to handle duplicates correctly
         newRaw = newRaw.replace(displayMention, rawMention);
       }
     });
     
     onChange(newRaw);
+    adjustHeight();
     
-    // Check for @ trigger
     const textBeforeCursor = newDisplay.slice(0, cursorPos);
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
     
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
       if (!textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
-        // Check if this @ is part of an existing completed mention
         const mentionAtCursor = `@${textAfterAt}`;
         const isExistingMention = mentionMap.has(mentionAtCursor);
         
@@ -335,18 +346,22 @@ export function MentionInput({
         </div>
       )}
       
-      <div className="flex items-center bg-muted/60 rounded-full px-1 min-h-[44px]">
+      <div className="flex items-end bg-muted/60 rounded-[22px] px-1 min-h-[44px] transition-all duration-150">
         {showEmojiPicker && (
-          <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
+          <div className="flex items-center h-[44px]">
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
+          </div>
         )}
-        <input
+        <textarea
           ref={inputRef}
           value={displayValue}
           onChange={handleDisplayChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={placeholder}
-          className={`flex-1 bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
+          rows={1}
+          className={`flex-1 bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] ${className || ''}`}
+          style={{ maxHeight: '120px', overflowY: 'hidden' }}
         />
       </div>
       
