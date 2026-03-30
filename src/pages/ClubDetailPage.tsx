@@ -121,6 +121,7 @@ export default function ClubDetailPage() {
   const [folderDescription, setFolderDescription] = useState("");
   const [deletingFolder, setDeletingFolder] = useState<{ id: string; name: string } | null>(null);
   const [folderColor, setFolderColor] = useState("default");
+  const [announcementDialogOpen, setAnnouncementDialogOpen] = useState(false);
 
   const { data: club, isLoading } = useQuery({
     queryKey: ["club", id],
