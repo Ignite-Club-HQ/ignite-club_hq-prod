@@ -31,6 +31,8 @@ interface BulkChild {
   existingChildId?: string; // If set, links to an existing child record instead of creating new
   existingChildParentName?: string; // Display context for existing child
   confirmedNew?: boolean; // If true, user explicitly confirmed this is a different child despite name match
+  pendingInviteId?: string; // If set, child exists in a pending invite — skip creation
+  pendingParentName?: string; // Display context for pending invite parent
 }
 
 interface BulkMember {
@@ -422,6 +424,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         const validChildren = singleChildren.filter(c => c.name.trim());
         for (const child of validChildren) {
           let childId = child.existingChildId;
+          
+          // Skip children linked to pending invites — they'll be created when the invite is accepted
+          if (child.pendingInviteId) {
+            continue;
+          }
           
           if (childId) {
             // Existing child — just add guardian link if not already the parent
@@ -1070,6 +1077,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           for (const child of validChildren) {
             let childId = child.existingChildId;
+
+            // Skip children linked to pending invites
+            if (child.pendingInviteId) continue;
 
             if (memberRole === "parent") {
               if (childId) {
