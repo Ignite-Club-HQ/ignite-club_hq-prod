@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle } from "lucide-react";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ interface BulkChild {
   jerseyNumber: string;
   existingChildId?: string; // If set, links to an existing child record instead of creating new
   existingChildParentName?: string; // Display context for existing child
+  confirmedNew?: boolean; // If true, user explicitly confirmed this is a different child despite name match
 }
 
 interface BulkMember {
@@ -130,6 +131,26 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
     enabled: open && !!teamId,
   });
+
+  // Fetch display names for existing team members (for duplicate detection)
+  const { data: existingMemberNames = [] } = useQuery({
+    queryKey: ["team-member-names", teamId, existingMembers],
+    queryFn: async () => {
+      if (!existingMembers?.length) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", existingMembers);
+      return data || [];
+    },
+    enabled: open && !!teamId && (existingMembers?.length || 0) > 0,
+  });
+
+  const memberNameMatchesExisting = (name: string) => {
+    if (!name.trim() || name.trim().length < 3) return null;
+    const query = name.trim().toLowerCase();
+    return existingMemberNames.find(m => m.display_name?.toLowerCase() === query) || null;
+  };
 
   // Fetch club branding data for emails
   const { data: clubBranding } = useQuery({
@@ -1266,6 +1287,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             if (field === "name") {
               updated.existingChildId = undefined;
               updated.existingChildParentName = undefined;
+              updated.confirmedNew = undefined;
             }
             return updated;
           }) }
@@ -1573,7 +1595,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     placeholder="Search or type child's name"
                                     value={child.name}
                                     onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined } : c
+                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, confirmedNew: undefined } : c
                                     ))}
                                     className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
@@ -1640,6 +1662,32 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <CheckCircle2 className="h-3 w-3" />
                                   Linked to existing child ({child.existingChildParentName || 'existing parent'})
                                 </p>
+                              )}
+                              {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
+                                <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                  <div className="flex-1">
+                                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                                      <strong>{matches[0].name}</strong> already exists (parent: {matches[0].parent_name}). Link to them?
+                                    </p>
+                                    <div className="flex gap-2 mt-1.5">
+                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                        onClick={() => setSingleChildren(singleChildren.map(c =>
+                                          c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
+                                        ))}
+                                      >
+                                        Link to existing
+                                      </Button>
+                                      <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                                        onClick={() => setSingleChildren(singleChildren.map(c =>
+                                          c.id === child.id ? { ...c, confirmedNew: true } : c
+                                        ))}
+                                      >
+                                        Different child
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
                               )}
                             </div>
                           );
@@ -1797,6 +1845,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       No existing users found — this person will be invited as a new member
                     </p>
                   )}
+
+                  {selectedRole !== "parent" && !selectedUser && memberNameMatchesExisting(nameInput) && (
+                    <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        <strong>{memberNameMatchesExisting(nameInput)?.display_name}</strong> is already a member of this team. Are you sure you want to create a separate invite?
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {nameInput.trim() && (
@@ -1893,7 +1950,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     placeholder="Search or type child's name"
                                     value={child.name}
                                     onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined } : c
+                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, confirmedNew: undefined } : c
                                     ))}
                                     className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
@@ -1960,6 +2017,32 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <CheckCircle2 className="h-3 w-3" />
                                   Linked to existing child ({child.existingChildParentName || 'existing parent'})
                                 </p>
+                              )}
+                              {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
+                                <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                  <div className="flex-1">
+                                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                                      <strong>{matches[0].name}</strong> already exists (parent: {matches[0].parent_name}). Link to them?
+                                    </p>
+                                    <div className="flex gap-2 mt-1.5">
+                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                        onClick={() => setSingleChildren(singleChildren.map(c =>
+                                          c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
+                                        ))}
+                                      >
+                                        Link to existing
+                                      </Button>
+                                      <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                                        onClick={() => setSingleChildren(singleChildren.map(c =>
+                                          c.id === child.id ? { ...c, confirmedNew: true } : c
+                                        ))}
+                                      >
+                                        Different child
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
                               )}
                             </div>
                           );
@@ -2245,6 +2328,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                 No existing users found — this will be added as a new invite
                               </p>
                             )}
+
+                            {member.role !== "parent" && !member.selectedUser && memberNameMatchesExisting(member.name) && (
+                              <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                <p className="text-xs text-amber-700 dark:text-amber-300">
+                                  <strong>{memberNameMatchesExisting(member.name)?.display_name}</strong> is already a member of this team.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -2345,10 +2437,42 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             </Button>
                           </div>
                           {child.existingChildId && (
-                            <p className="text-[10px] text-amber-600 pl-1">
-                              ⚠️ Matches existing child (parent: {child.existingChildParentName}) — will link instead of creating new
+                            <p className="text-[10px] text-emerald-600 pl-1 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Linked to existing child ({child.existingChildParentName || 'existing parent'})
                             </p>
                           )}
+                          {!child.existingChildId && !child.confirmedNew && (() => {
+                            const bulkChildMatches = findMatchingChildren(child.name);
+                            if (bulkChildMatches.length === 0 || child.name.trim().length < 3) return null;
+                            const m = bulkChildMatches[0];
+                            return (
+                              <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                                    <strong>{m.name}</strong> already exists (parent: {m.parent_name}). Link to them?
+                                  </p>
+                                  <div className="flex gap-2 mt-1.5">
+                                    <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                      onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
+                                        ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined } : c)
+                                      } : bm))}
+                                    >
+                                      Link to existing
+                                    </Button>
+                                    <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                                      onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
+                                        ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true } : c)
+                                      } : bm))}
+                                    >
+                                      Different child
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>
