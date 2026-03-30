@@ -1134,6 +1134,11 @@ export default function ClubDetailPage() {
             if (teamFilter === "junior" && teamType !== "junior") return false;
             if (teamFilter === "senior" && !isSeniorOrMixed) return false;
             if (teamFilter === "my" && !userTeamIds.includes(team.id)) return false;
+
+            // Year level filter
+            if (yearLevelFilter !== "all") {
+              if (team.level_age !== yearLevelFilter) return false;
+            }
             
             // Search filter
             if (teamSearchQuery.trim()) {
@@ -1147,8 +1152,13 @@ export default function ClubDetailPage() {
             return true;
           });
 
+          // Sort alphabetically
+          const sortAlpha = (a: typeof activeTeams[0], b: typeof activeTeams[0]) =>
+            (a.name || "").localeCompare(b.name || "");
+          filteredTeams.sort(sortAlpha);
+
           // Group by type when "All" filter is active (and no search)
-          const showGrouped = teamFilter === "all" && !teamSearchQuery.trim();
+          const showGrouped = teamFilter === "all" && !teamSearchQuery.trim() && yearLevelFilter === "all";
           
           const juniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "junior") : [];
           const seniorTeams = showGrouped ? filteredTeams.filter(t => { const tt = (t as any).team_type?.toLowerCase(); return tt === "senior" || tt === "mixed"; }) : [];
