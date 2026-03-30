@@ -1160,13 +1160,13 @@ export default function ClubDetailPage() {
           // Group by type when "All" filter is active (and no search)
           const showGrouped = teamFilter === "all" && !teamSearchQuery.trim() && yearLevelFilter === "all";
           
-          const juniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "junior") : [];
-          const seniorTeams = showGrouped ? filteredTeams.filter(t => { const tt = (t as any).team_type?.toLowerCase(); return tt === "senior" || tt === "mixed"; }) : [];
+          const juniorTeams = showGrouped ? filteredTeams.filter(t => (t as any).team_type?.toLowerCase() === "junior").sort(sortAlpha) : [];
+          const seniorTeams = showGrouped ? filteredTeams.filter(t => { const tt = (t as any).team_type?.toLowerCase(); return tt === "senior" || tt === "mixed"; }).sort(sortAlpha) : [];
           const otherTeams = showGrouped 
             ? filteredTeams.filter(t => {
                 const tt = (t as any).team_type?.toLowerCase();
                 return tt !== "junior" && tt !== "senior" && tt !== "mixed";
-              })
+              }).sort(sortAlpha)
             : filteredTeams;
 
           const renderTeamRow = (team: typeof activeTeams[0]) => {
