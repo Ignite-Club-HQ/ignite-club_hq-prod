@@ -55,7 +55,7 @@ const eventDotColors: Record<string, string> = {
 function TeamCard({ item, nextEvent, photos, unreadMessages }: { 
   item: TeamOrLeague; 
   nextEvent?: NextEventInfo;
-  photos: string[];
+  photos: { id: string; url: string }[];
   unreadMessages?: number;
 }) {
   const navigate = useNavigate();
@@ -250,31 +250,29 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
           )}
         </div>
 
-        {/* Photo thumbnails — tap goes to gallery, not team page */}
+        {/* Photo thumbnails — tap goes to specific photo */}
         {photos.length > 0 && (
-          <div
-            className="flex gap-1.5"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                navigate(item.type === "league" ? `/media?miniLeague=${item.id}` : `/media?team=${item.id}`);
-              }
-            }}
-          >
-            {photos.slice(0, 2).map((url, i) => (
+          <div className="flex gap-1.5">
+            {photos.slice(0, 2).map((photo, i) => (
               <div
                 key={i}
-                className="h-14 w-[72px] rounded-md overflow-hidden bg-muted"
+                className="h-14 w-[72px] rounded-md overflow-hidden bg-muted cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/media?photo=${photo.id}`);
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(`/media?photo=${photo.id}`);
+                  }
+                }}
               >
                 <img
-                  src={url}
+                  src={photo.url}
                   alt=""
                   className="h-full w-full object-cover"
                   loading="lazy"
@@ -467,11 +465,11 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     queryKey: ["team-photos-premium", teamIds],
     queryFn: async () => {
       if (teamIds.length === 0) return {};
-      const map: Record<string, string[]> = {};
+      const map: Record<string, { id: string; url: string }[]> = {};
 
       const { data } = await supabase
         .from("photos")
-        .select("team_id, file_url, image_url")
+        .select("id, team_id, file_url, image_url")
         .in("team_id", teamIds)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -484,7 +482,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
           if (!url) continue;
           if (!map[photo.team_id]) map[photo.team_id] = [];
           if (map[photo.team_id].length < 2) {
-            map[photo.team_id].push(url);
+            map[photo.team_id].push({ id: photo.id, url });
           }
         }
       }
