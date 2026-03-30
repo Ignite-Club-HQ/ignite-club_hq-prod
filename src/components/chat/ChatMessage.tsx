@@ -150,6 +150,7 @@ export const ChatMessage = memo(function ChatMessage({
   const addReactionMutation = useMutation({
     mutationFn: async ({ reactionType }: { reactionType: string; existingReactionId?: string }) => {
       const messageIdField = getMessageIdField();
+      console.log('[Reaction] mutationFn called:', { reactionType, messageIdField, messageId: id, currentUserId });
 
       if (!currentUserId) {
         throw new Error("Not authenticated");
