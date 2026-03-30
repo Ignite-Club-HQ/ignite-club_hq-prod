@@ -107,7 +107,23 @@ export default function BroadcastChatPage() {
     setTimeout(doScroll, 300);
     setTimeout(doScroll, 500);
   }, []);
-  
+
+  // Scroll to bottom when keyboard opens (viewport shrinks)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let prevHeight = vv.height;
+    const handleResize = () => {
+      const currentHeight = vv.height;
+      if (prevHeight - currentHeight > 100) {
+        requestAnimationFrame(() => scrollToBottom());
+      }
+      prevHeight = currentHeight;
+    };
+    vv.addEventListener("resize", handleResize);
+    return () => vv.removeEventListener("resize", handleResize);
+  }, [scrollToBottom]);
+
   const targetMessageId = searchParams.get("message");
 
   // Set highlighted message from URL param
@@ -580,6 +596,31 @@ export default function BroadcastChatPage() {
                 return { ...m, reactions: newReactions };
               }
               return { ...m, reactions: [...m.reactions, newReaction] };
+            });
+            return { ...old, messages: updatedMessages };
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "message_reactions",
+        },
+        (payload) => {
+          const reaction = payload.new as any;
+          if (!reaction.broadcast_message_id) return;
+          queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+            const existingMessages: Message[] = old?.messages || [];
+            const updatedMessages = existingMessages.map(m => {
+              if (m.id !== reaction.broadcast_message_id) return m;
+              const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
+              const hasExisting = m.reactions.some((r: any) => r.id === reaction.id);
+              if (hasExisting) {
+                return { ...m, reactions: m.reactions.map((r: any) => r.id === reaction.id ? newReaction : r) };
+              }
+              return { ...m, reactions: [...m.reactions.filter((r: any) => r.user_id !== reaction.user_id), newReaction] };
             });
             return { ...old, messages: updatedMessages };
           });

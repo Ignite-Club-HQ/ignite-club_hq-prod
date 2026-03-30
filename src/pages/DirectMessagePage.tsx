@@ -90,7 +90,23 @@ export default function DirectMessagePage() {
     if (!scrollAreaRef.current) return;
     scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
   }, []);
-  
+
+  // Scroll to bottom when keyboard opens (viewport shrinks)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let prevHeight = vv.height;
+    const handleResize = () => {
+      const currentHeight = vv.height;
+      if (prevHeight - currentHeight > 100) {
+        requestAnimationFrame(() => scrollToBottom());
+      }
+      prevHeight = currentHeight;
+    };
+    vv.addEventListener("resize", handleResize);
+    return () => vv.removeEventListener("resize", handleResize);
+  }, [scrollToBottom]);
+
   const targetMessageId = searchParams.get("message");
 
   useEffect(() => {
@@ -698,6 +714,36 @@ export default function DirectMessagePage() {
                     ...m,
                     reactions: [...filtered, { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type }],
                   };
+                }),
+              };
+            }
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "message_reactions",
+        },
+        (payload) => {
+          const reaction = payload.new as any;
+          if (!reaction.direct_message_id) return;
+          queryClient.setQueryData(
+            ["dm-messages", conversationId],
+            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
+              if (!old) return old;
+              return {
+                ...old,
+                messages: old.messages.map(m => {
+                  if (m.id !== reaction.direct_message_id) return m;
+                  const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
+                  const hasExisting = (m.reactions || []).some(r => r.id === reaction.id);
+                  if (hasExisting) {
+                    return { ...m, reactions: (m.reactions || []).map(r => r.id === reaction.id ? newReaction : r) };
+                  }
+                  return { ...m, reactions: [...(m.reactions || []).filter(r => r.user_id !== reaction.user_id), newReaction] };
                 }),
               };
             }

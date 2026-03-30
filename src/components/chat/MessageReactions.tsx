@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useState, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   anchorRef,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const lastTouchReactionAtRef = useRef(0);
 
   useLayoutEffect(() => {
     if (!isOpen || !anchorRef.current) {
@@ -114,6 +115,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     <div className="fixed inset-0 z-[100001] pointer-events-none">
       <div
         className="absolute pointer-events-auto"
+        data-reaction-picker="true"
         style={{
           top: position.top,
           left: position.left,
@@ -121,6 +123,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="bg-popover border rounded-lg p-2 shadow-lg">
           <div className="flex gap-1.5">
@@ -135,7 +139,18 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   variant="ghost"
                   size="sm"
                   onClick={(e) => {
+                    if (Date.now() - lastTouchReactionAtRef.current < 750) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return;
+                    }
                     e.stopPropagation();
+                    handleEmojiClick(type);
+                  }}
+                  onTouchEnd={(e) => {
+                    lastTouchReactionAtRef.current = Date.now();
+                    e.stopPropagation();
+                    e.preventDefault();
                     handleEmojiClick(type);
                   }}
                   className={`h-9 w-9 p-0 text-lg shrink-0 ${
@@ -153,6 +168,11 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
             className="w-full mt-1 text-xs text-muted-foreground"
             onClick={(e) => {
               e.stopPropagation();
+              onOpenChange(false);
+            }}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
               onOpenChange(false);
             }}
           >

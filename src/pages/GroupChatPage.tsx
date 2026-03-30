@@ -147,7 +147,23 @@ export default function GroupChatPage() {
     
     scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
   }, []);
-  
+
+  // Scroll to bottom when keyboard opens (viewport shrinks)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let prevHeight = vv.height;
+    const handleResize = () => {
+      const currentHeight = vv.height;
+      if (prevHeight - currentHeight > 100) {
+        requestAnimationFrame(() => scrollToBottom());
+      }
+      prevHeight = currentHeight;
+    };
+    vv.addEventListener("resize", handleResize);
+    return () => vv.removeEventListener("resize", handleResize);
+  }, [scrollToBottom]);
+
   const targetMessageId = searchParams.get("message");
 
   // Set highlighted message from URL param
@@ -787,6 +803,26 @@ export default function GroupChatPage() {
               return { ...old, reactions: newReactions };
             }
             return { ...old, reactions: [...old.reactions, reaction] };
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "message_reactions",
+        },
+        (payload) => {
+          const reaction = payload.new as any;
+          if (!reaction.group_message_id) return;
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+            if (!old) return { messages: [], reactions: [] };
+            const hasExisting = old.reactions.some(r => r.id === reaction.id);
+            if (hasExisting) {
+              return { ...old, reactions: old.reactions.map(r => r.id === reaction.id ? { ...r, reaction_type: reaction.reaction_type } : r) };
+            }
+            return { ...old, reactions: [...old.reactions.filter(r => r.user_id !== reaction.user_id || r.group_message_id !== reaction.group_message_id), reaction] };
           });
         }
       )

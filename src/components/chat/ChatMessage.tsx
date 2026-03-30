@@ -467,6 +467,20 @@ export const ChatMessage = memo(function ChatMessage({
       if (Date.now() < suppressOutsideCloseUntilRef.current) {
         return;
       }
+
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // Keep picker open while interacting with the portal content on Android/iOS
+      if (target.closest('[data-reaction-picker="true"]')) {
+        return;
+      }
+
+      // Ignore touches on the message bubble itself
+      if (bubbleRef.current?.contains(target)) {
+        return;
+      }
+
       setShowReactionPicker(false);
     };
     
