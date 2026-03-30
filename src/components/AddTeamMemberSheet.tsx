@@ -2581,11 +2581,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
                             {member.name.trim().length >= 2 && bulkMatches.length > 0 && (
                               <div className="space-y-1 rounded-lg border bg-muted/30 p-2">
-                                {bulkMatches.map((result) => (
+                                {bulkMatches.map((result: any) => (
                                   <button
                                     key={result.id}
                                     type="button"
-                                    onClick={() => selectBulkExistingUser(member.id, result)}
+                                    onClick={() => {
+                                      if (result.isPendingInvite && result.id.toString().startsWith("pending-")) {
+                                        // Pending invite without profile — pre-fill name and email
+                                        setBulkMembers(bulkMembers.map(m =>
+                                          m.id === member.id
+                                            ? { ...m, name: result.display_name || "", email: result.invited_email || "", selectedUser: null }
+                                            : m
+                                        ));
+                                      } else {
+                                        selectBulkExistingUser(member.id, result);
+                                      }
+                                    }}
                                     className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-background"
                                   >
                                     <Avatar className="h-8 w-8">
@@ -2594,7 +2605,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                         {result.display_name?.[0]?.toUpperCase() || "?"}
                                       </AvatarFallback>
                                     </Avatar>
-                                    <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                                    <div className="flex-1 flex items-center gap-2">
+                                      <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                                      {result.isPendingInvite && (
+                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-blue-500/30 text-blue-600">Pending</Badge>
+                                      )}
+                                    </div>
                                   </button>
                                 ))}
                                 <p className="px-2 pt-1 text-xs text-muted-foreground">
