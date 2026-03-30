@@ -55,7 +55,7 @@ const eventDotColors: Record<string, string> = {
 function TeamCard({ item, nextEvent, photos, unreadMessages }: { 
   item: TeamOrLeague; 
   nextEvent?: NextEventInfo;
-  photos: string[];
+  photos: { id: string; url: string }[];
   unreadMessages?: number;
 }) {
   const navigate = useNavigate();
