@@ -145,4 +145,7 @@ const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined>
 // Start registration immediately
 window.__swReady = registerServiceWorker();
 
+// Start Web Vitals reporting (samples 25% of page loads)
+initWebVitalsReporter();
+
 createRoot(document.getElementById("root")!).render(<App />);
