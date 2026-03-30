@@ -207,7 +207,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       // Blur the button so its focus/active style doesn't persist after the
       // file picker closes (especially visible on Android WebView).
       (e.currentTarget as HTMLElement)?.blur();
-      openFileInputPicker(fileInputRef.current);
+      fileInputRef.current?.click();
       if (shouldStabilizeIOSLayout) {
         requestAnimationFrame(() => {
           restoreNativeLayout();
