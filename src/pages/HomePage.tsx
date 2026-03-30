@@ -1656,6 +1656,25 @@ export default function HomePage() {
                 placeholder="Choose a role..."
               />
             )}
+            {/* Optional child linking when parent role selected */}
+            {showChildLinker && teamChildren && teamChildren.length > 0 && (
+              <MobileCardSelect
+                value={selectedChildForLink}
+                onValueChange={setSelectedChildForLink}
+                options={[
+                  { value: "", label: "Skip — link later" },
+                  ...teamChildren.map((child) => ({
+                    value: child.id,
+                    label: child.name,
+                  })),
+                ]}
+                label="Link to Your Child (optional)"
+                placeholder="Select your child..."
+                searchable
+                searchPlaceholder="Search children..."
+                emptyMessage="No children found on this team."
+              />
+            )}
           </div>
           <ResponsiveDialogFooter>
             {(hasExistingTeamRole || hasExistingLeagueRole) && (
