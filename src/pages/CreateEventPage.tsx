@@ -130,6 +130,16 @@ export default function CreateEventPage() {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
+  // Convert a bare HH:mm time string to a full ISO timestamp using the event date
+  const timeToTimestamp = (timeStr: string | null | undefined, baseDate: Date): string | null => {
+    if (!timeStr) return null;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    if (isNaN(hours) || isNaN(minutes)) return null;
+    const d = new Date(baseDate);
+    d.setHours(hours, minutes, 0, 0);
+    return d.toISOString();
+  };
+
   const handleDurationChange = (val: string) => {
     setDuration(val);
     if (val && eventDateTime) {
