@@ -1724,13 +1724,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       }
                                     </p>
                                     <div className="flex gap-2 mt-1.5">
-                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                        onClick={() => setSingleChildren(singleChildren.map(c =>
-                                          c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
-                                        ))}
-                                      >
-                                        Link to existing
-                                      </Button>
+                                      {(matches[0] as any).isPending ? (
+                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                          onClick={() => setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, confirmedNew: true } : c
+                                          ))}
+                                        >
+                                          Yes, same child
+                                        </Button>
+                                      ) : (
+                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                          onClick={() => setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
+                                          ))}
+                                        >
+                                          Link to existing
+                                        </Button>
+                                      )}
                                       <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
                                         onClick={() => setSingleChildren(singleChildren.map(c =>
                                           c.id === child.id ? { ...c, confirmedNew: true } : c
