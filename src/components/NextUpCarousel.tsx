@@ -277,14 +277,15 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         if (error) throw error;
         rsvpId = newRsvp?.id || null;
       }
+      // Fire-and-forget: don't block UI for points calculation
       if (status === "going" && rsvpId) {
-        await awardEarlyRsvpPoints({
+        awardEarlyRsvpPoints({
           userId: user!.id,
           eventDate: event.event_date,
           rsvpId,
           clubId: event.club_id,
           clubName: event.clubs.name,
-        });
+        }).catch(console.error);
       }
     },
     onSuccess: () => {
