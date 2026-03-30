@@ -5097,30 +5097,36 @@ export type Database = {
       team_messages: {
         Row: {
           author_id: string
+          club_announcement_name: string | null
           created_at: string
           deleted_at: string | null
           id: string
           image_url: string | null
+          is_club_announcement: boolean
           reply_to_id: string | null
           team_id: string
           text: string
         }
         Insert: {
           author_id: string
+          club_announcement_name?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
           image_url?: string | null
+          is_club_announcement?: boolean
           reply_to_id?: string | null
           team_id: string
           text: string
         }
         Update: {
           author_id?: string
+          club_announcement_name?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
           image_url?: string | null
+          is_club_announcement?: boolean
           reply_to_id?: string | null
           team_id?: string
           text?: string
