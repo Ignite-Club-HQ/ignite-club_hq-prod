@@ -245,7 +245,12 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
                 key={type}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsOpen(true);
+                  if (userReaction) {
+                    // Instantly toggle off the user's own reaction
+                    onReactionClick(type, userReaction.id);
+                  } else {
+                    setIsOpen(true);
+                  }
                 }}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
                   userReaction
