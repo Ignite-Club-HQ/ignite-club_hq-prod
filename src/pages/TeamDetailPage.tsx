@@ -1368,44 +1368,58 @@ export default function TeamDetailPage() {
                               );
                             });
                           })()}
-                          {pendingInvites.flatMap(inv => {
-                            const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
-                            if (!meta?.children) return [];
-                            // Filter out children that already exist as confirmed team members
+                          {(() => {
                             const confirmedChildIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
                             const confirmedChildNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()).filter(Boolean));
-                             return meta.children
-                              .filter(child => {
-                                // Always filter out children already shown in the confirmed list (even if marked pending there)
-                                if (child.child_id && confirmedChildIds.has(child.child_id)) return false;
-                                if (child.name && confirmedChildNames.has(child.name.toLowerCase())) return false;
-                                return true;
-                              })
-                              .map((child, idx) => ({
-                                key: `pending-child-${inv.id}-${idx}`,
-                                name: child.name,
-                                parentLabel: inv.invited_label || inv.invited_email?.split("@")[0] || "Pending Parent",
-                              }));
-                          }).map(pendingChild => (
-                            <Card key={pendingChild.key} className="opacity-70">
-                              <CardContent className="p-3 flex items-center gap-3">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm">
-                                    {pendingChild.name?.charAt(0)?.toUpperCase() || "?"}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1">
-                                  <p className="font-medium text-sm">{pendingChild.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Parent: {pendingChild.parentLabel}
-                                  </p>
-                                </div>
-                                <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
-                                  Pending
-                                </Badge>
-                              </CardContent>
-                            </Card>
-                          ))}
+                            // Deduplicate pending children across invites by normalized name
+                            const seenPendingNames = new Map<string, { name: string; parentLabels: string[] }>();
+                            
+                            for (const inv of pendingInvites) {
+                              const meta = inv.metadata as { children?: { name: string; child_id?: string; existingChildId?: string }[] } | null;
+                              if (!meta?.children) continue;
+                              const parentLabel = inv.invited_label || inv.invited_email?.split("@")[0] || "Pending Parent";
+                              
+                              for (const child of meta.children) {
+                                if (!child.name) continue;
+                                // Skip if already confirmed
+                                if (child.child_id && confirmedChildIds.has(child.child_id)) continue;
+                                if (confirmedChildNames.has(child.name.toLowerCase())) continue;
+                                // Skip if this child references another pending invite's child (linked duplicate)
+                                if (typeof child.existingChildId === 'string' && child.existingChildId.startsWith('pending-')) continue;
+                                
+                                const key = child.name.toLowerCase().trim();
+                                const existing = seenPendingNames.get(key);
+                                if (existing) {
+                                  if (!existing.parentLabels.includes(parentLabel)) {
+                                    existing.parentLabels.push(parentLabel);
+                                  }
+                                } else {
+                                  seenPendingNames.set(key, { name: child.name, parentLabels: [parentLabel] });
+                                }
+                              }
+                            }
+                            
+                            return Array.from(seenPendingNames.entries()).map(([key, { name, parentLabels }]) => (
+                              <Card key={`pending-child-${key}`} className="opacity-70">
+                                <CardContent className="p-3 flex items-center gap-3">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm">
+                                      {name?.charAt(0)?.toUpperCase() || "?"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {parentLabels.length > 1 ? `Parents: ${parentLabels.join(" & ")}` : `Parent: ${parentLabels[0]}`}
+                                    </p>
+                                  </div>
+                                  <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
+                                    Pending
+                                  </Badge>
+                                </CardContent>
+                              </Card>
+                            ));
+                          })()}
                         </div>
                       </div>
                     )}

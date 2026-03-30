@@ -1349,13 +1349,20 @@ export default function HomePage() {
           const name = String(child?.name || "").trim();
           if (!name) return;
 
-          const realChildId = typeof child?.existingChildId === "string" && !child.existingChildId.startsWith("pending-")
+          // Skip children that reference another pending invite (linked duplicates)
+          if (typeof child?.existingChildId === "string" && child.existingChildId.startsWith("pending-")) return;
+
+          const realChildId = typeof child?.existingChildId === "string"
             ? child.existingChildId
             : null;
           const fallbackId = `pending-${invite.id}-${name.toLowerCase()}`;
           const id = realChildId || fallbackId;
 
-          if (!childrenMap.has(id)) {
+          // Also check by name to avoid duplicates across invites
+          const nameKey = name.toLowerCase();
+          const alreadyByName = Array.from(childrenMap.values()).some(c => c.name.toLowerCase() === nameKey);
+
+          if (!childrenMap.has(id) && !alreadyByName) {
             childrenMap.set(id, { id, name });
           }
         });

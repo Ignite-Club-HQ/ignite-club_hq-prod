@@ -243,6 +243,21 @@ export default function TeamChatPage() {
         .filter((m) => m.reply_to_id)
         .map((m) => m.reply_to_id as string);
       const authorIds = [...new Set(messagesToDisplay.map((m) => m.author_id))];
+
+      // Preserve cached reactions when the reactions query fails transiently.
+      const cachedQueryData = queryClient.getQueryData(["team-messages", teamId]) as
+        | { messages?: Message[] }
+        | Message[]
+        | undefined;
+      const cachedMessages = Array.isArray(cachedQueryData)
+        ? cachedQueryData
+        : cachedQueryData?.messages || [];
+      const cachedReactionsByMessage = new Map<string, Message["reactions"]>();
+      cachedMessages.forEach((cachedMessage) => {
+        if (cachedMessage.reactions?.length) {
+          cachedReactionsByMessage.set(cachedMessage.id, cachedMessage.reactions);
+        }
+      });
       
       // Fetch profiles with cache - will return cached data immediately if available, or fetch from DB
       const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
@@ -259,6 +274,10 @@ export default function TeamChatPage() {
         fetchProfilesWithCache(authorIds),
       ]);
 
+      if (reactionsResult.error) {
+        console.warn("[TeamChat] Failed to fetch reactions, keeping cached reactions", reactionsResult.error);
+      }
+
       const replyToMap = new Map(
         (replyToResult.data || []).map((r: any) => [r.id, {
           ...r,
@@ -270,6 +289,9 @@ export default function TeamChatPage() {
       const messages = messagesToDisplay.map((msg: any) => {
         const replyTo = msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null;
         const profile = profilesMap.get(msg.author_id);
+        const reactions = reactionsResult.error
+          ? cachedReactionsByMessage.get(msg.id) || []
+          : reactionsResult.data?.filter((r) => r.team_message_id === msg.id) || [];
         return {
           id: msg.id,
           team_id: msg.team_id,
@@ -281,7 +303,7 @@ export default function TeamChatPage() {
           is_club_announcement: msg.is_club_announcement || false,
           club_announcement_name: msg.club_announcement_name || null,
           profiles: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
-          reactions: reactionsResult.data?.filter((r) => r.team_message_id === msg.id) || [],
+          reactions,
           reply_to: replyTo,
         };
       }) as Message[];
@@ -376,38 +398,20 @@ export default function TeamChatPage() {
         const previousReactions = previousMessage.reactions || [];
         const incomingReactions = message.reactions || [];
 
-        if (previousReactions.length === 0 || incomingReactions.length === 0) {
-          return {
-            ...message,
-            reactions: incomingReactions.length > 0 ? incomingReactions : previousReactions,
-          };
-        }
-
-        const reactionsByUser = new Map<string, typeof incomingReactions[number]>();
-
-        previousReactions.forEach((reaction) => {
-          reactionsByUser.set(reaction.user_id, reaction);
-        });
-
+        // Trust incoming cache state for real reactions (so removals apply instantly),
+        // but keep any local temp reactions not yet confirmed by realtime/DB.
+        const incomingByUser = new Map<string, typeof incomingReactions[number]>();
         incomingReactions.forEach((reaction) => {
-          const previousReaction = reactionsByUser.get(reaction.user_id);
-
-          if (!previousReaction) {
-            reactionsByUser.set(reaction.user_id, reaction);
-            return;
-          }
-
-          if (previousReaction.id.startsWith("temp-") && !reaction.id.startsWith("temp-")) {
-            reactionsByUser.set(reaction.user_id, reaction);
-            return;
-          }
-
-          reactionsByUser.set(reaction.user_id, reaction);
+          incomingByUser.set(reaction.user_id, reaction);
         });
+
+        const tempOnlyFromPrevious = previousReactions.filter(
+          (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
+        );
 
         return {
           ...message,
-          reactions: Array.from(reactionsByUser.values()),
+          reactions: [...incomingReactions, ...tempOnlyFromPrevious],
         };
       });
     });

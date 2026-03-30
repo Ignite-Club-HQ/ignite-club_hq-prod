@@ -102,17 +102,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     // Always close the picker immediately — before any mutation logic
     onOpenChange(false);
 
-    if (isMutating) return;
-
-    const userReaction = reactions.find(
-      (r) => r.user_id === currentUserId && r.reaction_type === type
-    );
-
-    if (userReaction) {
-      onRemove(userReaction.id);
-    } else {
-      onReact(type);
-    }
+    // Don't check isMutating here — let handleReactionClick handle its own guard
+    // using the freshest isPending state from the mutation objects
+    onReact(type);
   };
 
   if (!isOpen || !position) return null;
@@ -245,12 +237,9 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
                 key={type}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (userReaction) {
-                    // Instantly toggle off the user's own reaction
-                    onReactionClick(type, userReaction.id);
-                  } else {
-                    setIsOpen(true);
-                  }
+                  // Always open details popover so users can see who reacted
+                  // and remove their own emoji from there.
+                  setIsOpen(true);
                 }}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
                   userReaction

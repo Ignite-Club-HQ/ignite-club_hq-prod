@@ -275,14 +275,22 @@ export default function GroupChatPage() {
       const hasMore = rawMessages.length > MESSAGES_PER_PAGE;
       const dataToDisplay = hasMore ? rawMessages.slice(0, MESSAGES_PER_PAGE) : rawMessages;
       
-      // Fetch reactions and reply_to data in parallel (profiles fetched separately for faster initial render)
       const messageIds = dataToDisplay.map((m) => m.id);
       const replyToIds = dataToDisplay
         .filter((m) => m.reply_to_id)
         .map((m) => m.reply_to_id as string);
       const authorIds = [...new Set(dataToDisplay.map((m) => m.author_id))];
 
-      // Fetch profiles with cache - will return cached data immediately if available, or fetch from DB
+      // Preserve cached reactions when the reactions query fails transiently
+      const cachedQueryData = queryClient.getQueryData(["group-messages", groupId]) as any;
+      const cachedReactions: MessageReaction[] = cachedQueryData?.reactions || [];
+      const cachedReactionsByMessage = new Map<string, MessageReaction[]>();
+      cachedReactions.forEach((cr) => {
+        const key = cr.group_message_id;
+        if (!cachedReactionsByMessage.has(key)) cachedReactionsByMessage.set(key, []);
+        cachedReactionsByMessage.get(key)!.push(cr);
+      });
+
       const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
         supabase
           .from("message_reactions")
@@ -296,6 +304,10 @@ export default function GroupChatPage() {
           : Promise.resolve({ data: [] as any[] }),
         fetchProfilesWithCache(authorIds),
       ]);
+
+      if (reactionsResult.error) {
+        console.warn("[GroupChat] Failed to fetch reactions, keeping cached reactions", reactionsResult.error);
+      }
 
       const replyToMap = new Map(
         (replyToResult.data || []).map((r: any) => [r.id, {
@@ -331,7 +343,9 @@ export default function GroupChatPage() {
       return {
         messages,
         hasOlderMessages: hasMore,
-        reactions: (reactionsResult.data || []) as MessageReaction[],
+        reactions: reactionsResult.error
+          ? cachedReactions
+          : (reactionsResult.data || []) as MessageReaction[],
       };
     },
     enabled: !!groupId,
