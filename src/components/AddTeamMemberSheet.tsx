@@ -1722,6 +1722,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   Linked to existing child ({child.existingChildParentName || 'existing parent'})
                                 </p>
                               )}
+                              {child.pendingInviteId && !child.existingChildId && (
+                                <p className="text-xs text-blue-600 flex items-center gap-1 pl-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Pending invite (parent: {child.pendingParentName}) — won't create duplicate
+                                </p>
+                              )}
                               {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
                                 <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
                                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -2089,6 +2095,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                 <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
                                   <CheckCircle2 className="h-3 w-3" />
                                   Linked to existing child ({child.existingChildParentName || 'existing parent'})
+                                </p>
+                              )}
+                              {child.pendingInviteId && !child.existingChildId && (
+                                <p className="text-xs text-blue-600 flex items-center gap-1 pl-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Pending invite (parent: {child.pendingParentName}) — won't create duplicate
                                 </p>
                               )}
                               {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
@@ -2527,6 +2539,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             <p className="text-[10px] text-emerald-600 pl-1 flex items-center gap-1">
                               <CheckCircle2 className="h-3 w-3" />
                               Linked to existing child ({child.existingChildParentName || 'existing parent'})
+                            </p>
+                          )}
+                          {child.pendingInviteId && !child.existingChildId && (
+                            <p className="text-[10px] text-blue-600 pl-1 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Pending invite (parent: {child.pendingParentName}) — won't create duplicate
                             </p>
                           )}
                           {!child.existingChildId && !child.confirmedNew && (() => {
