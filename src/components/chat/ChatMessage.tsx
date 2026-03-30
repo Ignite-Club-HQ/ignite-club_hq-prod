@@ -309,8 +309,9 @@ export const ChatMessage = memo(function ChatMessage({
         .eq("id", reactionId);
       if (error) throw error;
     },
-    onMutate: async (reactionId: string) => {
-      await queryClient.cancelQueries({ queryKey });
+    onMutate: (reactionId: string) => {
+      // Do not await cancellation — optimistic removal must feel instant
+      void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
 
       updateReactionMessages((msgs) =>
