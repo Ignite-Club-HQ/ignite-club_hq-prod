@@ -775,7 +775,10 @@ export function AppHeader() {
         </DropdownMenu>
 
         <div className="flex items-center gap-4">
-          <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+          <DropdownMenu open={notificationsOpen} onOpenChange={(open) => {
+              setNotificationsOpen(open);
+              if (open) refetchRecentNotifications();
+            }}>
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="ghost" 
