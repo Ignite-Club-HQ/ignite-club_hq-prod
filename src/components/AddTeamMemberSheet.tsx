@@ -1355,8 +1355,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
         // Add linked_invite_token if this parent is paired with another
         const linkedToken = crossLinks.get(i);
+        const secondParentMeta = member.secondParentName?.trim() && member.secondParentEmail?.trim()
+          ? { second_guardian_name: member.secondParentName.trim(), second_guardian_email: member.secondParentEmail.trim().toLowerCase() }
+          : (member.selectedSecondParent ? { second_guardian_user_id: member.selectedSecondParent.id, second_guardian_name: member.selectedSecondParent.display_name } : {});
         const metadata = childrenMetadata 
-          ? { children: JSON.parse(childrenMetadata), ...(linkedToken ? { linked_invite_token: linkedToken } : {}) }
+          ? { children: JSON.parse(childrenMetadata), ...(linkedToken ? { linked_invite_token: linkedToken } : {}), ...secondParentMeta }
           : null;
 
         // Create pending invite record with children metadata
