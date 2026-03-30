@@ -99,6 +99,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
+    // Always close the picker, even if mutating
+    onOpenChange(false);
+
     if (isMutating) return;
 
     console.log('[ReactionPicker] Emoji tapped:', type, 'currentUserId:', currentUserId);
@@ -113,7 +116,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       console.log('[ReactionPicker] Adding/changing reaction to:', type);
       onReact(type);
     }
-    onOpenChange(false);
   };
 
   if (!isOpen || !position) return null;
