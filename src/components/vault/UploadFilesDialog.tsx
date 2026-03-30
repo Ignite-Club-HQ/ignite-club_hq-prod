@@ -200,7 +200,7 @@ export function UploadFilesDialog({
       void handleNativePhotoPick();
     } else {
       // For non-native: trigger the hidden file input manually
-      openFileInputPicker(fileInputRef.current);
+      fileInputRef.current?.click();
     }
   };
 
