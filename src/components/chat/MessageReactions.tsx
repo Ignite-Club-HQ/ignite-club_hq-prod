@@ -97,13 +97,16 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
+    console.log('[ReactionPicker] Emoji tapped:', type, 'currentUserId:', currentUserId);
     const userReaction = reactions.find(
       (r) => r.user_id === currentUserId && r.reaction_type === type
     );
 
     if (userReaction) {
+      console.log('[ReactionPicker] Removing existing reaction:', userReaction.id);
       onRemove(userReaction.id);
     } else {
+      console.log('[ReactionPicker] Adding/changing reaction to:', type);
       onReact(type);
     }
     onOpenChange(false);
@@ -112,19 +115,33 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   if (!isOpen || !position) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100001] pointer-events-none">
+    <div
+      className="fixed inset-0 z-[100001]"
+      data-reaction-picker="true"
+      onClick={(e) => {
+        e.stopPropagation();
+        console.log('[ReactionPicker] Backdrop tapped - closing');
+        onOpenChange(false);
+      }}
+      onTouchEnd={(e) => {
+        // Only close if the touch target is the backdrop itself, not a child button
+        if (e.target === e.currentTarget) {
+          e.stopPropagation();
+          e.preventDefault();
+          console.log('[ReactionPicker] Backdrop touch - closing');
+          onOpenChange(false);
+        }
+      }}
+    >
       <div
-        className="absolute pointer-events-auto"
-        data-reaction-picker="true"
+        className="absolute"
         style={{
           top: position.top,
           left: position.left,
           width: "min(280px, calc(100vw - 16px))",
         }}
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="bg-popover border rounded-lg p-2 shadow-lg">
           <div className="flex gap-1.5">
@@ -134,50 +151,48 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
               );
 
               return (
-                <Button
+                <button
                   key={type}
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    if (Date.now() - lastTouchReactionAtRef.current < 750) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      return;
-                    }
-                    e.stopPropagation();
-                    handleEmojiClick(type);
-                  }}
+                  type="button"
                   onTouchEnd={(e) => {
-                    lastTouchReactionAtRef.current = Date.now();
                     e.stopPropagation();
                     e.preventDefault();
+                    console.log('[ReactionPicker] Touch on emoji:', type);
                     handleEmojiClick(type);
                   }}
-                  className={`h-9 w-9 p-0 text-lg shrink-0 ${
-                    userHasReaction ? "bg-primary/20" : ""
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    // On desktop, onClick fires. On mobile, onTouchEnd already handled it.
+                    // Only fire if not a touch device (no recent touchend)
+                    if (Date.now() - lastTouchReactionAtRef.current < 750) return;
+                    console.log('[ReactionPicker] Click on emoji:', type);
+                    handleEmojiClick(type);
+                  }}
+                  className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 transition-colors active:bg-accent ${
+                    userHasReaction ? "bg-primary/20" : "hover:bg-accent"
                   }`}
                 >
                   {emoji}
-                </Button>
+                </button>
               );
             })}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full mt-1 text-xs text-muted-foreground"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenChange(false);
-            }}
+          <button
+            type="button"
+            className="w-full mt-1 text-xs text-muted-foreground py-1.5 rounded-md active:bg-accent"
             onTouchEnd={(e) => {
               e.stopPropagation();
               e.preventDefault();
               onOpenChange(false);
             }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenChange(false);
+            }}
           >
             Cancel
-          </Button>
+          </button>
         </div>
       </div>
     </div>,
