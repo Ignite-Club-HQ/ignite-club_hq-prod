@@ -1319,15 +1319,42 @@ export default function HomePage() {
   const { data: teamChildren } = useQuery({
     queryKey: ["team-children-for-link", selectedTeam],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch children assigned to this team
+      const { data: assignedData, error: assignedError } = await supabase
         .from("child_team_assignments")
         .select("child_id, children(id, name)")
         .eq("team_id", selectedTeam);
-      if (error) throw error;
-      return (data || []).map((d: any) => ({
+      if (assignedError) throw assignedError;
+
+      const assignedChildren = (assignedData || []).map((d: any) => ({
         id: d.children?.id || d.child_id,
         name: d.children?.name || "Unknown",
       }));
+
+      // Also fetch children whose parent has a role on this team (but child not yet assigned)
+      const parentIds = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", selectedTeam)
+        .eq("role", "parent");
+      
+      const parentUserIds = (parentIds.data || []).map((r: any) => r.user_id);
+      
+      if (parentUserIds.length > 0) {
+        const { data: parentChildren } = await supabase
+          .from("children")
+          .select("id, name")
+          .in("parent_id", parentUserIds);
+        
+        const assignedIds = new Set(assignedChildren.map(c => c.id));
+        const unassignedChildren = (parentChildren || [])
+          .filter((c: any) => !assignedIds.has(c.id))
+          .map((c: any) => ({ id: c.id, name: c.name }));
+        
+        return [...assignedChildren, ...unassignedChildren];
+      }
+
+      return assignedChildren;
     },
     enabled: !!showChildLinker,
   });
