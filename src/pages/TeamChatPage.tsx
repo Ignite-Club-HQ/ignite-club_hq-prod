@@ -206,7 +206,7 @@ export default function TeamChatPage() {
       // Fetch messages - filter out soft-deleted messages using deleted_at
       const { data: rawMessages, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at, is_club_announcement, club_announcement_name")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
