@@ -356,7 +356,6 @@ export function UploadFilesDialog({
                   onChange={handleInputChange}
                   disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
                 />
-              )}
             </div>
           ) : (
             <div className="space-y-4">
