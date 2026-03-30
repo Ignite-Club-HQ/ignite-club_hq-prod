@@ -56,6 +56,15 @@ interface BulkMember {
     display_name: string | null;
     avatar_url: string | null;
   } | null;
+  // Second guardian fields for parent role
+  secondParentName?: string;
+  secondParentEmail?: string;
+  secondParentSearch?: string;
+  selectedSecondParent?: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
 }
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -376,17 +385,42 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
       const searches = await Promise.all(
         bulkSearchTerms.map(async (term) => {
-          const { data } = await supabase
+          // Search profiles
+          const { data: profileData } = await supabase
             .from("profiles")
             .select("id, display_name, avatar_url")
             .ilike("display_name", `%${term}%`)
             .limit(6);
 
+          const profileResults = (profileData || []).filter(
+            (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
+          );
+
+          // Also search pending invites from other teams in same club
+          const { data: invites } = await supabase
+            .from("pending_invites")
+            .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
+            .eq("club_id", clubId)
+            .eq("status", "pending")
+            .neq("team_id", teamId)
+            .ilike("invited_label", `%${term}%`)
+            .limit(6);
+
+          const profileIds = new Set(profileResults.map(r => r.id));
+          const pendingResults = (invites || [])
+            .map(invite => ({
+              id: invite.invited_user_id || `pending-${invite.id}`,
+              display_name: invite.invited_label,
+              avatar_url: null as string | null,
+              isPendingInvite: true,
+              pendingInviteId: invite.id,
+              invited_email: invite.invited_email,
+            }))
+            .filter(r => !profileIds.has(r.id));
+
           return {
             term,
-            results: (data || []).filter(
-              (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
-            ),
+            results: [...profileResults, ...pendingResults],
           };
         })
       );
@@ -397,6 +431,36 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   });
 
   const bulkSearchMap = new Map(bulkSearchResults.map((entry) => [entry.term, entry.results]));
+
+  // Bulk second parent search
+  const bulkSecondParentTerms = Array.from(
+    new Set(
+      bulkMembers
+        .filter(m => m.role === "parent" && !m.selectedSecondParent && (m.secondParentSearch || "").trim().length >= 2)
+        .map(m => (m.secondParentSearch || "").trim())
+    )
+  );
+
+  const { data: bulkSecondParentResults = [] } = useQuery({
+    queryKey: ["bulk-second-parent-search", bulkSecondParentTerms],
+    queryFn: async () => {
+      if (bulkSecondParentTerms.length === 0) return [];
+      const searches = await Promise.all(
+        bulkSecondParentTerms.map(async (term) => {
+          const { data } = await supabase
+            .from("profiles")
+            .select("id, display_name, avatar_url")
+            .ilike("display_name", `%${term}%`)
+            .limit(5);
+          return { term, results: data || [] };
+        })
+      );
+      return searches;
+    },
+    enabled: open && mode === "bulk" && bulkSecondParentTerms.length > 0,
+  });
+
+  const bulkSecondParentMap = new Map(bulkSecondParentResults.map((entry) => [entry.term, entry.results]));
 
   // Search for second parent (existing users)
   const { data: secondParentSearchResults = [] } = useQuery({
@@ -1201,6 +1265,76 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             }
           }
 
+          // Handle second guardian for bulk parent (existing user flow)
+          if (memberRole === "parent" && validChildren.length > 0) {
+            if (member.selectedSecondParent) {
+              // Add second parent role
+              await supabase.from("user_roles").insert({
+                user_id: member.selectedSecondParent.id,
+                team_id: teamId,
+                club_id: clubId,
+                role: "parent",
+              }).select().maybeSingle();
+
+              // Link as guardian to all children
+              for (const child of validChildren) {
+                const childId = child.existingChildId;
+                if (childId) {
+                  await supabase.from("child_guardians").insert({
+                    child_id: childId,
+                    guardian_id: member.selectedSecondParent.id,
+                  }).select().maybeSingle();
+                }
+              }
+            } else if ((member.secondParentName || "").trim() && (member.secondParentEmail || "").trim()) {
+              // Create a pending invite for the second guardian
+              const spToken = crypto.randomUUID();
+              const childIds = validChildren.map(c => c.existingChildId).filter(Boolean);
+              await supabase.from("pending_invites").insert({
+                team_id: teamId,
+                club_id: clubId,
+                role: "parent" as any,
+                invited_user_id: null,
+                invited_by_user_id: user!.id,
+                invited_label: (member.secondParentName || "").trim(),
+                invited_email: (member.secondParentEmail || "").trim().toLowerCase(),
+                invite_token: spToken,
+                metadata: {
+                  guardian_child_id: childIds[0] || null,
+                  guardian_all_team_ids: [teamId],
+                  invited_by_parent: true,
+                  children: validChildren.map(c => ({ name: c.name.trim(), existingChildId: c.existingChildId || null })),
+                },
+              } as any);
+
+              // Send invite email to second guardian
+              const spLink = `${window.location.origin}/join/p/${spToken}`;
+              try {
+                await supabase.functions.invoke("send-email", {
+                  body: {
+                    to: (member.secondParentEmail || "").trim().toLowerCase(),
+                    subject: `${clubBranding?.name || 'Your club'}: You've been invited as a guardian ⚽`,
+                    template: "team-invite",
+                    senderName: clubBranding?.name || undefined,
+                    replyTo: (clubBranding as any)?.contact_email || undefined,
+                    templateData: {
+                      recipientName: (member.secondParentName || "").trim(),
+                      invitedEmail: (member.secondParentEmail || "").trim().toLowerCase(),
+                      teamName,
+                      clubName: clubBranding?.name || "The Club",
+                      roleName: "Parent",
+                      inviteLink: spLink,
+                      clubLogoUrl: clubBranding?.logo_url || undefined,
+                      childrenNames: validChildren.map(c => c.name.trim()),
+                    },
+                  },
+                });
+              } catch (err) {
+                console.error("[BulkAdd] Failed to send second guardian invite email:", err);
+              }
+            }
+          }
+
           await supabase.from("notifications").insert({
             user_id: member.selectedUser.id,
             type: "membership",
@@ -1221,8 +1355,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
         // Add linked_invite_token if this parent is paired with another
         const linkedToken = crossLinks.get(i);
+        const secondParentMeta = member.secondParentName?.trim() && member.secondParentEmail?.trim()
+          ? { second_guardian_name: member.secondParentName.trim(), second_guardian_email: member.secondParentEmail.trim().toLowerCase() }
+          : (member.selectedSecondParent ? { second_guardian_user_id: member.selectedSecondParent.id, second_guardian_name: member.selectedSecondParent.display_name } : {});
         const metadata = childrenMetadata 
-          ? { children: JSON.parse(childrenMetadata), ...(linkedToken ? { linked_invite_token: linkedToken } : {}) }
+          ? { children: JSON.parse(childrenMetadata), ...(linkedToken ? { linked_invite_token: linkedToken } : {}), ...secondParentMeta }
           : null;
 
         // Create pending invite record with children metadata
@@ -2517,11 +2654,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
                             {member.name.trim().length >= 2 && bulkMatches.length > 0 && (
                               <div className="space-y-1 rounded-lg border bg-muted/30 p-2">
-                                {bulkMatches.map((result) => (
+                                {bulkMatches.map((result: any) => (
                                   <button
                                     key={result.id}
                                     type="button"
-                                    onClick={() => selectBulkExistingUser(member.id, result)}
+                                    onClick={() => {
+                                      if (result.isPendingInvite && result.id.toString().startsWith("pending-")) {
+                                        // Pending invite without profile — pre-fill name and email
+                                        setBulkMembers(bulkMembers.map(m =>
+                                          m.id === member.id
+                                            ? { ...m, name: result.display_name || "", email: result.invited_email || "", selectedUser: null }
+                                            : m
+                                        ));
+                                      } else {
+                                        selectBulkExistingUser(member.id, result);
+                                      }
+                                    }}
                                     className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-background"
                                   >
                                     <Avatar className="h-8 w-8">
@@ -2530,7 +2678,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                         {result.display_name?.[0]?.toUpperCase() || "?"}
                                       </AvatarFallback>
                                     </Avatar>
-                                    <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                                    <div className="flex-1 flex items-center gap-2">
+                                      <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                                      {result.isPendingInvite && (
+                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-blue-500/30 text-blue-600">Pending</Badge>
+                                      )}
+                                    </div>
                                   </button>
                                 ))}
                                 <p className="px-2 pt-1 text-xs text-muted-foreground">
@@ -2711,6 +2864,96 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                           })()}
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Second parent/guardian for bulk parent row */}
+                  {member.role === "parent" && member.children.length > 0 && (
+                    <div className="space-y-2 pl-3 border-l-2 border-blue-500/30">
+                      <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        Second Parent / Guardian (Optional)
+                      </span>
+
+                      {member.selectedSecondParent ? (
+                        <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-2">
+                          <Avatar className="h-7 w-7">
+                            <AvatarImage src={member.selectedSecondParent.avatar_url || undefined} />
+                            <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                              {member.selectedSecondParent.display_name?.[0]?.toUpperCase() || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="text-xs font-medium">{member.selectedSecondParent.display_name}</p>
+                            <p className="text-[10px] text-muted-foreground">Existing user</p>
+                          </div>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => 
+                            setBulkMembers(bulkMembers.map(m => m.id === member.id 
+                              ? { ...m, selectedSecondParent: null, secondParentSearch: "", secondParentName: "", secondParentEmail: "" } : m))
+                          }>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              placeholder="Search or type guardian name..."
+                              value={member.secondParentSearch || member.secondParentName || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setBulkMembers(bulkMembers.map(m => m.id === member.id
+                                  ? { ...m, secondParentSearch: val, secondParentName: val } : m));
+                              }}
+                              className="h-8 text-sm pl-9"
+                            />
+                          </div>
+
+                          {/* Search results for second parent */}
+                          {(() => {
+                            const spSearch = (member.secondParentSearch || "").trim();
+                            const spResults = spSearch.length >= 2 ? (bulkSecondParentMap.get(spSearch) || []) : [];
+                            const filtered = spResults.filter(u => u.id !== member.selectedUser?.id);
+                            if (filtered.length === 0) return null;
+                            return (
+                              <div className="border rounded-md overflow-hidden divide-y max-h-28 overflow-y-auto">
+                                {filtered.map((u) => (
+                                  <button
+                                    key={u.id}
+                                    type="button"
+                                    className="w-full flex items-center gap-2 p-2 hover:bg-accent/50 transition-colors text-left"
+                                    onClick={() => setBulkMembers(bulkMembers.map(m => m.id === member.id
+                                      ? { ...m, selectedSecondParent: u, secondParentName: u.display_name || "", secondParentSearch: "", secondParentEmail: "" } : m))}
+                                  >
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarImage src={u.avatar_url || undefined} />
+                                      <AvatarFallback className="bg-muted text-[10px]">
+                                        {u.display_name?.[0]?.toUpperCase() || "?"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-xs">{u.display_name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
+
+                          {(member.secondParentName || "").trim() && !member.selectedSecondParent && (
+                            <div className="relative">
+                              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                              <Input
+                                type="email"
+                                placeholder="Guardian's email (for invite)"
+                                value={member.secondParentEmail || ""}
+                                onChange={(e) => setBulkMembers(bulkMembers.map(m => m.id === member.id
+                                  ? { ...m, secondParentEmail: e.target.value } : m))}
+                                className="h-8 text-sm pl-9"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
