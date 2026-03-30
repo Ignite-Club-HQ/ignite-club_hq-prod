@@ -190,8 +190,8 @@ export function NextUpHero({ event }: NextUpHeroProps) {
                     variant={isActive ? "default" : "outline"}
                     size="sm"
                     className={`flex-1 gap-1.5 text-sm font-medium ${isActive ? activeClass : ""}`}
-                    disabled={rsvpMutation.isPending}
-                    onClick={() => rsvpMutation.mutate(status)}
+                    disabled={rsvpMutation.isPending || isActive}
+                    onClick={() => !isActive && rsvpMutation.mutate(status)}
                   >
                     {rsvpMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

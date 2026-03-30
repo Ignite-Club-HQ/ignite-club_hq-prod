@@ -380,8 +380,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                           ? inactiveHint
                           : inactiveHint
                     }`}
-                    disabled={rsvpMutation.isPending}
-                    onClick={() => rsvpMutation.mutate(status)}
+                    disabled={rsvpMutation.isPending || isActive}
+                    onClick={() => !isActive && rsvpMutation.mutate(status)}
                   >
                     {rsvpMutation.isPending ? (
                       <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
