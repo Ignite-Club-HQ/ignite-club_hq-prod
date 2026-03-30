@@ -119,6 +119,14 @@ export default function MediaPage() {
 
   // Sync club filter with theme - reset to "all" when theme is cleared
   useEffect(() => {
+    // When deep-linking to a specific photo, clear all filters so it's visible
+    if (highlightedPhotoId) {
+      setSelectedClubId("all");
+      setSelectedTeamId("all");
+      setDateRange({ from: undefined, to: undefined });
+      return;
+    }
+    
     if (urlTeamId) {
       setSelectedTeamId(urlTeamId);
       setShowFilters(true);
@@ -132,22 +140,32 @@ export default function MediaPage() {
       setSelectedClubId("all");
       setSelectedTeamId("all");
     }
-  }, [activeClubFilter, urlTeamId, urlClubId]);
+  }, [activeClubFilter, urlTeamId, urlClubId, highlightedPhotoId]);
 
 
-  // Scroll to highlighted photo when loaded
+  // Scroll to highlighted photo when loaded — retry until element appears
   useEffect(() => {
-    if (highlightedPhotoId && photoRefs.current.has(highlightedPhotoId)) {
+    if (!highlightedPhotoId) return;
+    
+    let attempts = 0;
+    const maxAttempts = 15;
+    
+    const tryScroll = () => {
       const element = photoRefs.current.get(highlightedPhotoId);
       if (element) {
-        setTimeout(() => {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
-          // Auto-expand comments for highlighted photo
-          setExpandedComments(prev => new Set(prev).add(highlightedPhotoId));
-        }, 100);
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        setExpandedComments(prev => new Set(prev).add(highlightedPhotoId));
+        return;
       }
-    }
-  }, [highlightedPhotoId, photoRefs.current.size]);
+      attempts++;
+      if (attempts < maxAttempts) {
+        setTimeout(tryScroll, 300);
+      }
+    };
+    
+    // Start trying after a short delay to let initial render complete
+    setTimeout(tryScroll, 200);
+  }, [highlightedPhotoId]);
 
   // Fast parallel queries - don't block on access check
   const { data: userRoles, isLoading: loadingRoles } = useQuery({

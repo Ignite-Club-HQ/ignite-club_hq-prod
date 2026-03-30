@@ -247,10 +247,7 @@ export function BottomNav() {
         />
       )}
       <nav
-        className={cn(
-          "fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg",
-          navInteractionLocked && "pointer-events-none",
-        )}
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
         style={{
           paddingBottom: navBottomInset,
           ...gpuLayerStyle,
@@ -265,6 +262,11 @@ export function BottomNav() {
               end={to === "/"}
               aria-label={label}
               aria-current={undefined}
+              onClick={(e) => {
+                if (navInteractionLocked) {
+                  e.preventDefault();
+                }
+              }}
               className={({ isActive }) =>
                 cn(
                   "flex flex-col items-center justify-center flex-1 py-2 transition-colors",

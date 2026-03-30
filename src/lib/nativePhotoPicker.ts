@@ -1,14 +1,6 @@
-/**
- * Shared native iOS photo picker logic.
- * Used by profile, club, team, chat, gallery, vault, and other upload flows.
- *
- * NO fallback to HTML file input. If the native picker fails, we retry
- * with increased delays to handle iCloud-optimized photos, then show
- * a user-friendly error asking them to try again.
- */
-import { Capacitor } from "@capacitor/core";
-import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
-import { cameraPhotoToBlob, hasCameraPhotoSource } from "@/lib/binaryUtils";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
+import { FilePicker, type PickedFile } from "@capawesome/capacitor-file-picker";
+import { cameraPhotoToBlob, mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 
 export interface NativePhotoResult {
@@ -18,167 +10,183 @@ export interface NativePhotoResult {
   previewUrl: string;
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Permission warm-up
-// ──────────────────────────────────────────────────────────────────────
-let permissionsReady = false;
-let permissionsPromise: Promise<void> | null = null;
+const isNativeIOS = () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
-/**
- * Ensures photo library permissions are granted before opening the picker.
- * Handles all iOS permission states: prompt, limited, denied, granted.
- *
- * - "granted" / "limited" → ready to pick (limited still allows selection)
- * - "prompt" / "prompt-with-rationale" → request permission
- * - "denied" → throw with actionable message so caller can show a toast
- */
-export async function ensureCameraPermissions(): Promise<void> {
-  if (permissionsReady) return;
-  if (permissionsPromise) return permissionsPromise;
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-  if (!Capacitor.isNativePlatform()) {
-    permissionsReady = true;
-    return;
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  return getReadableUploadError(error) || "unknown error";
+};
+
+const blobFromResponse = async (response: Response, mimeType: string): Promise<Blob> => {
+  const fetchedBlob = await response.blob();
+  if (fetchedBlob.type && fetchedBlob.type !== mimeType) {
+    return fetchedBlob;
   }
 
-  permissionsPromise = (async () => {
+  if (fetchedBlob.size === 0) {
+    throw new Error("Photo data is empty (0 bytes)");
+  }
+
+  if (fetchedBlob.type) {
+    return fetchedBlob;
+  }
+
+  return new Blob([await fetchedBlob.arrayBuffer()], { type: mimeType });
+};
+
+const pickedFileToBlob = async (pickedFile: PickedFile): Promise<NativePhotoResult> => {
+  const mimeType = pickedFile.mimeType || "image/jpeg";
+  const extension = mimeToExtension(mimeType);
+
+  if (pickedFile.data) {
+    const result = await cameraPhotoToBlob({
+      base64String: pickedFile.data,
+      format: extension,
+    });
+
+    return {
+      blob: result.blob,
+      mimeType: result.mimeType || mimeType,
+      extension: result.extension || extension,
+      previewUrl: result.previewUrl,
+    };
+  }
+
+  const sourceCandidates = [
+    pickedFile.path ? Capacitor.convertFileSrc(pickedFile.path) : undefined,
+    pickedFile.path,
+  ].filter((value): value is string => Boolean(value));
+
+  let lastError: unknown;
+
+  for (const sourcePath of [...new Set(sourceCandidates)]) {
     try {
-      const status = await Camera.checkPermissions();
-      console.log("[nativePhotoPicker] Current permissions:", JSON.stringify(status));
-
-      const photoStatus = status.photos;
-
-      // Already granted or limited — both allow photo selection
-      if (photoStatus === "granted" || photoStatus === "limited") {
-        permissionsReady = true;
-        return;
+      console.log("[nativePhotoPicker] Reading picked file:", sourcePath.substring(0, 120));
+      const response = await fetch(sourcePath, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Failed to read selected photo (HTTP ${response.status} ${response.statusText})`);
       }
 
-      // Denied — the OS will NOT show the permission dialog again.
-      // Throw so callers can show a helpful message.
-      if (photoStatus === "denied") {
-        throw new Error(
-          "Photo access is denied. Please go to Settings → Privacy → Photos and enable access for this app."
-        );
-      }
-
-      // prompt / prompt-with-rationale — request permission
-      if (photoStatus === "prompt" || photoStatus === "prompt-with-rationale") {
-        console.log("[nativePhotoPicker] Requesting photo permissions...");
-        const result = await Camera.requestPermissions({ permissions: ["photos"] });
-        console.log("[nativePhotoPicker] Permission result:", JSON.stringify(result));
-
-        // Small delay to let the OS fully register the grant
-        await new Promise((r) => setTimeout(r, 200));
-
-        // Verify the grant
-        const verified = await Camera.checkPermissions();
-        console.log("[nativePhotoPicker] Post-grant verification:", JSON.stringify(verified));
-
-        if (verified.photos === "denied") {
-          throw new Error(
-            "Photo access was denied. Please go to Settings → Privacy → Photos and enable access for this app."
-          );
-        }
-      }
-
-      permissionsReady = true;
-    } catch (err) {
-      // If the error is our own actionable message, re-throw it
-      if (err instanceof Error && err.message.includes("Settings")) {
-        permissionsReady = false;
-        permissionsPromise = null;
-        throw err;
-      }
-      // Non-fatal warm-up error — allow the picker to attempt anyway
-      console.warn("[nativePhotoPicker] Permission warm-up failed (non-fatal):", err);
-      permissionsReady = true;
+      const blob = await blobFromResponse(response, mimeType);
+      return {
+        blob,
+        mimeType: blob.type || mimeType,
+        extension: mimeToExtension(blob.type || mimeType),
+        previewUrl: URL.createObjectURL(blob),
+      };
+    } catch (error) {
+      lastError = error;
+      console.warn("[nativePhotoPicker] Picked file read failed:", getErrorMessage(error));
     }
-  })();
+  }
 
-  return permissionsPromise;
+  throw new Error(
+    lastError
+      ? `Selected photo data is unavailable (${getErrorMessage(lastError)})`
+      : "Selected photo data is unavailable (no readable file path or data)"
+  );
+};
+
+export async function ensureCameraPermissions(): Promise<void> {
+  if (!isNativeIOS()) return;
+  return;
 }
 
-/**
- * Resets the permission cache so the next pick will re-check.
- * Useful after the user returns from Settings.
- */
 export function resetPermissionCache(): void {
-  permissionsReady = false;
-  permissionsPromise = null;
+  return;
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// Photo picking — NO fallback to HTML file input
-// ──────────────────────────────────────────────────────────────────────
-
-const DEFAULT_MAX_WIDTH: number | undefined = undefined;
-
-/**
- * Picks a photo using the native iOS camera picker.
- * Uses URI mode for best iCloud compatibility.
- * Does NOT fall back to HTML file input under any circumstances.
- *
- * On failure, throws an error — callers should show a toast asking the user to try again.
- */
-export async function pickNativePhoto(options?: {
+export interface NativePhotoPickOptions {
   quality?: number;
   width?: number;
   height?: number;
-}): Promise<NativePhotoResult> {
-  const { quality = 80, width, height } = options ?? {};
-  const effectiveWidth = width || DEFAULT_MAX_WIDTH;
+}
 
-  // This will throw with an actionable message if permissions are denied
+/**
+ * Picks a photo using a reliable native iOS image picker.
+ * This avoids the Capacitor Camera photo-library path that can throw
+ * "Error loading image" for iCloud-optimized Photos assets on iOS.
+ *
+ * The options are kept for API compatibility with existing callers.
+ */
+export async function pickNativePhoto(_options?: NativePhotoPickOptions): Promise<NativePhotoResult> {
   await ensureCameraPermissions();
 
-  const photoOptions = {
-    source: CameraSource.Photos,
-    allowEditing: false,
-    quality,
-    ...(effectiveWidth ? { width: effectiveWidth } : {}),
-    ...(height ? { height } : {}),
-  };
+  let pickerDismissed = false;
+  let dismissListener: PluginListenerHandle | null = null;
 
-  let photo: Awaited<ReturnType<typeof Camera.getPhoto>>;
-
-  // Use URI mode — best compatibility with iCloud-optimized photos.
   try {
-    console.log("[nativePhotoPicker] Attempting URI mode");
-    photo = await Camera.getPhoto({
-      ...photoOptions,
-      resultType: CameraResultType.Uri,
+    dismissListener = await FilePicker.addListener("pickerDismissed", () => {
+      pickerDismissed = true;
     });
-  } catch (uriError: unknown) {
-    if (isCancelledSelectionError(uriError)) throw uriError;
-
-    console.warn("[nativePhotoPicker] URI mode failed:", uriError);
-
-    // Reset permission cache in case the failure was permission-related
-    resetPermissionCache();
-
-    // Re-throw with a user-friendly message — NO fallback to file input
-    const msg = getReadableUploadError(uriError);
-    throw new Error(
-      msg || "Could not load the selected photo. Please try again."
-    );
+  } catch (listenerError) {
+    console.warn("[nativePhotoPicker] Could not attach pickerDismissed listener:", listenerError);
   }
 
-  if (!hasCameraPhotoSource(photo)) {
-    throw new Error("No photo selected (missing base64String/webPath/path)");
+  try {
+    console.log("[nativePhotoPicker] Opening native FilePicker image picker");
+    const result = await FilePicker.pickImages({
+      limit: 1,
+      ordered: false,
+      readData: false,
+      skipTranscoding: false,
+    });
+
+    const pickedFile = result.files?.[0];
+    if (!pickedFile) {
+      throw new Error("Picker was cancelled");
+    }
+
+    const converted = await pickedFileToBlob(pickedFile);
+    console.log("[nativePhotoPicker] Native FilePicker → blob OK, size:", converted.blob.size, "mime:", converted.mimeType);
+    return converted;
+  } catch (error: unknown) {
+    if (pickerDismissed || isCancelledSelectionError(error)) {
+      throw new Error("Picker was cancelled");
+    }
+
+    console.warn("[nativePhotoPicker] FilePicker path failed, retrying with data read:", error);
+
+    try {
+      const fallbackResult = await FilePicker.pickImages({
+        limit: 1,
+        ordered: false,
+        readData: true,
+        skipTranscoding: false,
+      });
+
+      const pickedFile = fallbackResult.files?.[0];
+      if (!pickedFile) {
+        throw new Error("Picker was cancelled");
+      }
+
+      const converted = await pickedFileToBlob(pickedFile);
+      console.log("[nativePhotoPicker] FilePicker data read → blob OK, size:", converted.blob.size, "mime:", converted.mimeType);
+      return converted;
+    } catch (fallbackError: unknown) {
+      if (pickerDismissed || isCancelledSelectionError(fallbackError)) {
+        throw new Error("Picker was cancelled");
+      }
+
+      console.error("[nativePhotoPicker] Native FilePicker failed:", fallbackError);
+      await wait(50);
+      throw new Error(
+        getReadableUploadError(fallbackError) ||
+          getReadableUploadError(error) ||
+          "Could not load the selected photo. Please try again."
+      );
+    }
+  } finally {
+    try {
+      await dismissListener?.remove();
+    } catch (removeError) {
+      console.warn("[nativePhotoPicker] Failed to remove picker listener:", removeError);
+    }
   }
-
-  // Convert the photo to a blob — binaryUtils handles retries internally
-  const result = await cameraPhotoToBlob(photo);
-
-  return {
-    blob: result.blob,
-    mimeType: result.mimeType,
-    extension: result.extension,
-    previewUrl: result.previewUrl,
-  };
 }
 
 /** Check if current platform should use native photo picker */
-export const shouldUseNativePicker = () =>
-  Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+export const shouldUseNativePicker = () => isNativeIOS();
