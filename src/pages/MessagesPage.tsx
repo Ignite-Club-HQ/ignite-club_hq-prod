@@ -953,13 +953,19 @@ export default function MessagesPage() {
       teamsToFilter = teamsToFilter.filter((team: any) => activeClubTeamIds.includes(team.id));
     }
     
-    if (!query) return [...teamsToFilter].sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
+    if (!query) {
+      return [...teamsToFilter].sort((a: any, b: any) =>
+        (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" })
+      );
+    }
     return teamsToFilter
       .filter((team: any) =>
         team.name.toLowerCase().includes(query) ||
         team.clubs?.name?.toLowerCase()?.includes(query)
       )
-      .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
+      .sort((a: any, b: any) =>
+        (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" })
+      );
   }, [displayTeams, query, activeClubFilter, activeClubTeamIds]);
 
   const filteredClubs = useMemo(() => {
