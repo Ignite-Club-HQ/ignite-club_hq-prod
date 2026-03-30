@@ -4536,6 +4536,7 @@ export type Database = {
           club_id: string | null
           created_at: string
           id: string
+          metadata: Json | null
           mini_league_id: string | null
           processed_by: string | null
           role: Database["public"]["Enums"]["app_role"]
@@ -4548,6 +4549,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          metadata?: Json | null
           mini_league_id?: string | null
           processed_by?: string | null
           role: Database["public"]["Enums"]["app_role"]
@@ -4560,6 +4562,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          metadata?: Json | null
           mini_league_id?: string | null
           processed_by?: string | null
           role?: Database["public"]["Enums"]["app_role"]
