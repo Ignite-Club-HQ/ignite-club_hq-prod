@@ -248,14 +248,22 @@ export default function ClubChatPage() {
       const hasMore = rawMessages.length > MESSAGES_PER_PAGE;
       const messagesToDisplay = hasMore ? rawMessages.slice(0, MESSAGES_PER_PAGE) : rawMessages;
 
-      // Fetch reactions and reply_to data in parallel (profiles fetched separately for faster initial render)
       const messageIds = messagesToDisplay.map((m) => m.id);
       const replyToIds = messagesToDisplay
         .filter((m) => m.reply_to_id)
         .map((m) => m.reply_to_id as string);
       const authorIds = [...new Set(messagesToDisplay.map((m) => m.author_id))];
 
-      // Fetch profiles with cache - will return cached data immediately if available, or fetch from DB
+      // Preserve cached reactions when the reactions query fails transiently
+      const cachedQueryData = queryClient.getQueryData(["club-messages", clubId]) as any;
+      const cachedMessages: Message[] = Array.isArray(cachedQueryData)
+        ? cachedQueryData
+        : cachedQueryData?.messages || [];
+      const cachedReactionsByMessage = new Map<string, Message["reactions"]>();
+      cachedMessages.forEach((cm) => {
+        if (cm.reactions?.length) cachedReactionsByMessage.set(cm.id, cm.reactions);
+      });
+
       const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
         supabase
           .from("message_reactions")
@@ -270,6 +278,10 @@ export default function ClubChatPage() {
         fetchProfilesWithCache(authorIds),
       ]);
 
+      if (reactionsResult.error) {
+        console.warn("[ClubChat] Failed to fetch reactions, keeping cached reactions", reactionsResult.error);
+      }
+
       const replyToMap = new Map(
         (replyToResult.data || []).map((r: any) => [r.id, {
           ...r,
@@ -281,6 +293,9 @@ export default function ClubChatPage() {
       const messages = messagesToDisplay.map((msg: any) => {
         const replyTo = msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null;
         const profile = profilesMap.get(msg.author_id);
+        const reactions = reactionsResult.error
+          ? cachedReactionsByMessage.get(msg.id) || []
+          : reactionsResult.data?.filter((r) => r.club_message_id === msg.id) || [];
         return {
           id: msg.id,
           club_id: msg.club_id,
@@ -290,7 +305,7 @@ export default function ClubChatPage() {
           reply_to_id: msg.reply_to_id,
           created_at: msg.created_at,
           profiles: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
-          reactions: reactionsResult.data?.filter((r) => r.club_message_id === msg.id) || [],
+          reactions,
           reply_to: replyTo,
         };
       }) as Message[];
