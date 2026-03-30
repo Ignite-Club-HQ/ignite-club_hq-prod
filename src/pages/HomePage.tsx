@@ -1319,42 +1319,49 @@ export default function HomePage() {
   const { data: teamChildren } = useQuery({
     queryKey: ["team-children-for-link", selectedTeam],
     queryFn: async () => {
-      // Fetch children assigned to this team
-      const { data: assignedData, error: assignedError } = await supabase
-        .from("child_team_assignments")
-        .select("child_id, children(id, name)")
-        .eq("team_id", selectedTeam);
+      const [{ data: assignedData, error: assignedError }, { data: pendingInvites, error: pendingError }] = await Promise.all([
+        supabase
+          .from("child_team_assignments")
+          .select("child_id, children(id, name)")
+          .eq("team_id", selectedTeam),
+        supabase
+          .from("pending_invites")
+          .select("id, metadata")
+          .eq("team_id", selectedTeam)
+          .eq("status", "pending"),
+      ]);
+
       if (assignedError) throw assignedError;
+      if (pendingError) throw pendingError;
 
-      const assignedChildren = (assignedData || []).map((d: any) => ({
-        id: d.children?.id || d.child_id,
-        name: d.children?.name || "Unknown",
-      }));
+      const childrenMap = new Map<string, { id: string; name: string }>();
 
-      // Also fetch children whose parent has a role on this team (but child not yet assigned)
-      const parentIds = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("team_id", selectedTeam)
-        .eq("role", "parent");
-      
-      const parentUserIds = (parentIds.data || []).map((r: any) => r.user_id);
-      
-      if (parentUserIds.length > 0) {
-        const { data: parentChildren } = await supabase
-          .from("children")
-          .select("id, name")
-          .in("parent_id", parentUserIds);
-        
-        const assignedIds = new Set(assignedChildren.map(c => c.id));
-        const unassignedChildren = (parentChildren || [])
-          .filter((c: any) => !assignedIds.has(c.id))
-          .map((c: any) => ({ id: c.id, name: c.name }));
-        
-        return [...assignedChildren, ...unassignedChildren];
-      }
+      (assignedData || []).forEach((d: any) => {
+        const id = d.children?.id || d.child_id;
+        const name = d.children?.name || "Unknown";
+        if (id) childrenMap.set(id, { id, name });
+      });
 
-      return assignedChildren;
+      (pendingInvites || []).forEach((invite: any) => {
+        const children = Array.isArray(invite.metadata?.children) ? invite.metadata.children : [];
+
+        children.forEach((child: any) => {
+          const name = String(child?.name || "").trim();
+          if (!name) return;
+
+          const realChildId = typeof child?.existingChildId === "string" && !child.existingChildId.startsWith("pending-")
+            ? child.existingChildId
+            : null;
+          const fallbackId = `pending-${invite.id}-${name.toLowerCase()}`;
+          const id = realChildId || fallbackId;
+
+          if (!childrenMap.has(id)) {
+            childrenMap.set(id, { id, name });
+          }
+        });
+      });
+
+      return Array.from(childrenMap.values()).sort((a, b) => a.name.localeCompare(b.name));
     },
     enabled: !!showChildLinker,
   });
