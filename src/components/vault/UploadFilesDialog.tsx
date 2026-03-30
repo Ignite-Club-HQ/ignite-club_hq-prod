@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, NativePickerLoadError } from "@/lib/nativePhotoPicker";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -180,12 +180,17 @@ export function UploadFilesDialog({
       handleFileSelect(file);
       queueNativeLayoutRecovery([0, 380, 1200]);
     } catch (error) {
-      if (!isCancelledSelectionError(error)) {
+      if (isCancelledSelectionError(error)) {
+        console.log("[UploadFilesDialog] user cancelled");
+      } else if (error instanceof NativePickerLoadError) {
+        console.warn("[UploadFilesDialog] Native picker load error, falling back to file input");
+        toast.error("Couldn't load that photo. Please try selecting again.", { duration: 3000 });
+        setTimeout(() => fileInputRef.current?.click(), 400);
+      } else {
         const errMsg = getReadableUploadError(error);
         console.warn("[UploadFilesDialog] Native picker failed:", errMsg, error);
         toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
-      } else {
-        console.log("[UploadFilesDialog] user cancelled");
+        setTimeout(() => fileInputRef.current?.click(), 400);
       }
     } finally {
       restoreBodyScrollLock();
@@ -333,9 +338,9 @@ export function UploadFilesDialog({
                   </p>
                 </div>
               </div>
-              {/* Hidden file input – only used on non-native paths */}
-              {!shouldUseNativePhotoPicker && (
-                <input
+              {/* Hidden file input – used as primary on non-native, fallback on native */}
+              <input
+                style={{ display: 'none' }}
                   ref={fileInputRef}
                   type="file"
                     accept={
@@ -351,7 +356,6 @@ export function UploadFilesDialog({
                   onChange={handleInputChange}
                   disabled={isUploading || isPickingNativePhoto || isSubmittingUpload}
                 />
-              )}
             </div>
           ) : (
             <div className="space-y-4">

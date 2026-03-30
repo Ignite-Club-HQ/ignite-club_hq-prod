@@ -7,7 +7,7 @@ import { Capacitor } from "@capacitor/core";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, NativePickerLoadError } from "@/lib/nativePhotoPicker";
 import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
 
 interface ChatImageInputProps {
@@ -102,7 +102,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       let result: Awaited<ReturnType<typeof pickNativePhoto>>;
 
       try {
-        // Use shared native picker with resilient Base64 → URI fallback
         result = await pickNativePhoto({ quality: 80 });
         console.log("[ChatImageInput] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
       } catch (pickerError: unknown) {
@@ -112,12 +111,23 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           return;
         }
 
+        // Native picker failed — fall back to HTML file input
+        if (pickerError instanceof NativePickerLoadError) {
+          console.warn("[ChatImageInput] Native picker load error, falling back to file input");
+          restoreBodyScrollLock();
+          restoreNativeLayout();
+          toast.error("Couldn't load that photo. Please try selecting again.", { duration: 3000 });
+          // Trigger HTML file input as fallback
+          setTimeout(() => fileInputRef.current?.click(), 400);
+          return;
+        }
+
         console.warn("[ChatImageInput] Native Camera picker failed:", getReadableUploadError(pickerError), pickerError);
         restoreNativeLayout();
         throw pickerError;
       }
 
-      // Stabilize BottomNav immediately once picker returns, before blob/compression work.
+      // Stabilize BottomNav immediately once picker returns
       requestAnimationFrame(() => {
         restoreNativeLayout();
       });
@@ -131,16 +141,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         throw new Error("Image must be less than 10MB");
       }
 
-      // Use a stable blob URL for preview instead of the capacitor temp path
-      // which can become invalid on iOS shortly after the picker closes
       stablePreviewUrl = URL.createObjectURL(blob);
-
-      // Blur again after picker closes — iOS may re-activate keyboard/accessory bar
       dismissIOSKeyboardAccessory();
-
       setLocalPreview(stablePreviewUrl);
-
-      // Stabilize viewport immediately when the thumbnail appears (before upload completes)
       requestAnimationFrame(restoreNativeLayout);
 
       const skipCompression = !IOS_SAFE_COMPRESSION_MIME_TYPES.has(mimeType);
@@ -171,7 +174,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       restoreBodyScrollLock();
       restoreNativeLayout();
       setUploading(false);
-      // Clear lingering focus/active state on the image button after picker closes
       (document.activeElement as HTMLElement | null)?.blur();
     }
   };

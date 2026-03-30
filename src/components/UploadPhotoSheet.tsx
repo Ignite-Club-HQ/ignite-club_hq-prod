@@ -14,7 +14,7 @@ import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, NativePickerLoadError } from "@/lib/nativePhotoPicker";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
@@ -526,8 +526,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const handleNativePhotoPick = async () => {
     if (!shouldUseNativePhotoPicker || uploading || isPickingNativePhoto) return;
 
-    // CRITICAL: Do NOT set isPickingNativePhoto before pickNativePhoto —
-    // the state update triggers a re-render that breaks the iOS gesture chain.
     console.log("[UploadPhotoSheet] handleNativePhotoPick START");
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
 
@@ -538,7 +536,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       // NOW safe to set state — native picker has closed
       setIsPickingNativePhoto(true);
 
-      // Trigger viewport stabilization immediately after the native picker closes
       requestAnimationFrame(() => {
         restoreNativeLayout();
       });
@@ -552,12 +549,19 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       await addPhotosToSelection([file]);
       restoreNativeLayout();
     } catch (error) {
-      if (!isCancelledSelectionError(error)) {
+      if (isCancelledSelectionError(error)) {
+        console.log("[UploadPhotoSheet] user cancelled");
+      } else if (error instanceof NativePickerLoadError) {
+        console.warn("[UploadPhotoSheet] Native picker load error, falling back to file input");
+        toast.error("Couldn't load that photo. Please try selecting again.", { duration: 3000 });
+        // Fall back to HTML file input
+        setTimeout(() => primaryFileInputRef.current?.click(), 400);
+      } else {
         const errMsg = getReadableUploadError(error);
         console.warn("[UploadPhotoSheet] Native picker failed:", errMsg, error);
         toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
-      } else {
-        console.log("[UploadPhotoSheet] user cancelled");
+        // Also fall back to HTML file input for any native error
+        setTimeout(() => primaryFileInputRef.current?.click(), 400);
       }
     } finally {
       restoreBodyScrollLock();
