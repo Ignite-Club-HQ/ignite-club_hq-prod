@@ -79,7 +79,8 @@ import { ClubTeamSponsorAllocator } from "@/components/ClubTeamSponsorAllocator"
 import { PendingTeamRequests } from "@/components/PendingTeamRequests";
 import { ClubThemeEditor } from "@/components/ClubThemeEditor";
 import { ClubDMSettings } from "@/components/ClubDMSettings";
-import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3 } from "lucide-react";
+import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
@@ -120,6 +121,7 @@ export default function ClubDetailPage() {
   const [folderDescription, setFolderDescription] = useState("");
   const [deletingFolder, setDeletingFolder] = useState<{ id: string; name: string } | null>(null);
   const [folderColor, setFolderColor] = useState("default");
+  const [announcementDialogOpen, setAnnouncementDialogOpen] = useState(false);
 
   const { data: club, isLoading } = useQuery({
     queryKey: ["club", id],
@@ -987,28 +989,9 @@ export default function ClubDetailPage() {
           <div className="flex items-center gap-2">
             {isAdmin && (
               <>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setCreateFolderDialogOpen(true)}>
-                      <FolderPlus className="h-4 w-4 mr-2" />
-                      Manage Folders
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <CreateTeamFolderDialog
-                  open={createFolderDialogOpen}
-                  onOpenChange={setCreateFolderDialogOpen}
-                  onCreateFolder={(name, description, color) => 
-                    createFolderMutation.mutate({ name, description, color })
-                  }
-                  isCreating={createFolderMutation.isPending}
-                  classMode={!!club?.class_mode_enabled}
-                />
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setAnnouncementDialogOpen(true)} title="Send announcement to team chats">
+                  <Megaphone className="h-4 w-4" />
+                </Button>
                 <Link to={`/clubs/${id}/teams/new`}>
                   <Button size="sm">
                     <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
@@ -1897,6 +1880,16 @@ export default function ClubDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {isAdmin && club && teams && user && (
+        <ClubAnnouncementDialog
+          open={announcementDialogOpen}
+          onOpenChange={setAnnouncementDialogOpen}
+          clubName={club.name}
+          clubId={club.id}
+          teams={teams}
+          userId={user.id}
+        />
+      )}
 
     </div>
   );

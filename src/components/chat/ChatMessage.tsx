@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert, Flag } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,7 @@ export interface ChatMessageProps {
   isLastMessage?: boolean;
   isPending?: boolean;
   isSystemMessage?: boolean;
+  isClubAnnouncement?: boolean;
   contextId?: string;
 }
 
@@ -85,6 +86,7 @@ export const ChatMessage = memo(function ChatMessage({
   isLastMessage = false,
   isPending = false,
   isSystemMessage = false,
+  isClubAnnouncement = false,
   contextId,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -97,6 +99,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
@@ -360,9 +363,12 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
 
+  const suppressOutsideCloseUntilRef = useRef(0);
+
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
+      suppressOutsideCloseUntilRef.current = Date.now() + 900;
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 600);
@@ -456,18 +462,24 @@ export const ChatMessage = memo(function ChatMessage({
   useEffect(() => {
     if (!showReactionPicker) return;
     
-    const handleClickOutside = () => {
+    const handleClickOutside = (e: Event) => {
+      // Ignore synthetic touch/click sequence right after long press
+      if (Date.now() < suppressOutsideCloseUntilRef.current) {
+        return;
+      }
       setShowReactionPicker(false);
     };
     
-    // Use setTimeout to avoid immediately closing from the same click that opened it
+    // Use 400ms delay to survive synthetic click events from long press on mobile
     const timer = setTimeout(() => {
       document.addEventListener('click', handleClickOutside);
-    }, 0);
+      document.addEventListener('touchend', handleClickOutside);
+    }, 400);
     
     return () => {
       clearTimeout(timer);
       document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('touchend', handleClickOutside);
     };
   }, [showReactionPicker]);
 
@@ -558,56 +570,26 @@ export const ChatMessage = memo(function ChatMessage({
 
   return (
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""}`}>
-      <Avatar className="h-8 w-8 shrink-0">
-        <AvatarImage src={authorAvatar || undefined} />
-        <AvatarFallback className="text-xs">
-          {displayName.charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
+      {isClubAnnouncement ? (
+        <div className="h-8 w-8 shrink-0 rounded-full bg-primary flex items-center justify-center">
+          <Megaphone className="h-4 w-4 text-primary-foreground" />
+        </div>
+      ) : (
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarImage src={authorAvatar || undefined} />
+          <AvatarFallback className="text-xs">
+            {displayName.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      )}
       <div className={`flex flex-col max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
         {!isOwn && hasName && (
-          <p className="text-xs text-muted-foreground mb-1">{displayName}</p>
+          <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
-        <div className="flex items-start gap-1">
-          {isOwn && showMenu && (
-            <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 min-h-[32px] min-w-[32px]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsDropdownOpen(true);
-                  }}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => e.stopPropagation()}
-                >
-                  <MoreVertical className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="top" collisionPadding={16} className="bg-popover border">
-                {canReply && (
-                  <DropdownMenuItem onClick={handleReply}>
-                    <Reply className="h-4 w-4 mr-2" /> Reply
-                  </DropdownMenuItem>
-                )}
-                {!imageUrl && (
-                  <DropdownMenuItem onClick={handleStartEdit}>
-                    <Pencil className="h-4 w-4 mr-2" /> Edit
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem 
-                  onClick={handleDelete}
-                  className="text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+        <div className="relative">
           <div
+            ref={bubbleRef}
             className={`relative rounded-2xl px-4 py-2 select-none ${
               isOwn
                 ? "bg-primary text-primary-foreground rounded-br-sm"
@@ -640,56 +622,64 @@ export const ChatMessage = memo(function ChatMessage({
               isOpen={showReactionPicker}
               onOpenChange={setShowReactionPicker}
               isOwnMessage={isOwn}
+              anchorRef={bubbleRef}
             />
           </div>
-          {!isOwn && showMenu && (
-            <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 min-h-[32px] min-w-[32px]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsDropdownOpen(true);
-                  }}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => e.stopPropagation()}
-                >
-                  <MoreVertical className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" collisionPadding={16} className="bg-popover border">
-                {canReply && (
-                  <DropdownMenuItem onClick={handleReply}>
-                    <Reply className="h-4 w-4 mr-2" /> Reply
-                  </DropdownMenuItem>
-                )}
-                {canDelete && (
-                  <DropdownMenuItem 
-                    onClick={handleDelete}
-                    className="text-destructive"
+          {showMenu && (
+            <div className={`absolute top-0 ${isOwn ? "right-full mr-1" : "left-full ml-1"}`}>
+              <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 min-h-[32px] min-w-[32px]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDropdownOpen(true);
+                    }}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
                   >
-                    <Trash2 className="h-4 w-4 mr-2" /> Delete
-                  </DropdownMenuItem>
-                )}
-                {!isOwn && !isSystemMessage && (
-                  <DropdownMenuItem 
-                    onClick={() => setShowReportDialog(true)}
-                  >
-                    <Flag className="h-4 w-4 mr-2" /> Report Message
-                  </DropdownMenuItem>
-                )}
-                {!isOwn && !isSystemMessage && (
-                  <DropdownMenuItem 
-                    onClick={() => setShowBlockDialog(true)}
-                    className="text-destructive"
-                  >
-                    <ShieldAlert className="h-4 w-4 mr-2" /> Block User
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    <MoreVertical className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align={isOwn ? "end" : "start"} side="top" collisionPadding={16} className="bg-popover border">
+                  {canReply && (
+                    <DropdownMenuItem onClick={handleReply}>
+                      <Reply className="h-4 w-4 mr-2" /> Reply
+                    </DropdownMenuItem>
+                  )}
+                  {isOwn && !imageUrl && (
+                    <DropdownMenuItem onClick={handleStartEdit}>
+                      <Pencil className="h-4 w-4 mr-2" /> Edit
+                    </DropdownMenuItem>
+                  )}
+                  {canDelete && (
+                    <DropdownMenuItem 
+                      onClick={handleDelete}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  )}
+                  {!isOwn && !isSystemMessage && (
+                    <DropdownMenuItem 
+                      onClick={() => setShowReportDialog(true)}
+                    >
+                      <Flag className="h-4 w-4 mr-2" /> Report Message
+                    </DropdownMenuItem>
+                  )}
+                  {!isOwn && !isSystemMessage && (
+                    <DropdownMenuItem 
+                      onClick={() => setShowBlockDialog(true)}
+                      className="text-destructive"
+                    >
+                      <ShieldAlert className="h-4 w-4 mr-2" /> Block User
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
         {/* Link previews rendered outside the message bubble */}

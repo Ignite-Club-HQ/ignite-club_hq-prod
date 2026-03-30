@@ -1,4 +1,5 @@
-import { memo, useState, useRef, useEffect } from "react";
+import { memo, useEffect, useLayoutEffect, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,6 +28,7 @@ interface MessageReactionsProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   isOwnMessage?: boolean;
+  anchorRef: RefObject<HTMLDivElement>;
 }
 
 export const MessageReactionsPopover = memo(function MessageReactionsPopover({
@@ -37,46 +39,67 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   isOpen,
   onOpenChange,
   isOwnMessage = false,
+  anchorRef,
 }: MessageReactionsProps) {
-  const [position, setPosition] = useState<{ top: number; left: number; showBelow: boolean } | null>(null);
-  const parentRef = useRef<HTMLDivElement>(null);
-  
-  // Calculate fixed position when opening
-  useEffect(() => {
-    if (isOpen && parentRef.current) {
-      const parent = parentRef.current.parentElement;
-      if (parent) {
-        const rect = parent.getBoundingClientRect();
-        const pickerHeight = 100; // approximate height of picker
-        // Account for fixed headers: ensure picker doesn't render behind them
-        const headerSafeZone = 140; // AppHeader + chat header height
-        // Account for bottom nav + input bar
-        const bottomSafeZone = 140;
-        const spaceAbove = rect.top - headerSafeZone;
-        const spaceBelow = window.innerHeight - rect.bottom - bottomSafeZone;
-        // Prefer showing above; only show below if not enough space above
-        const showBelow = spaceAbove < pickerHeight && spaceBelow > spaceAbove;
-        
-        const top = showBelow 
-          ? Math.min(rect.bottom + 4, window.innerHeight - bottomSafeZone - pickerHeight)
-          : Math.max(rect.top - pickerHeight - 4, headerSafeZone);
-        
-        setPosition({
-          top,
-          left: isOwnMessage ? rect.right : rect.left,
-          showBelow,
-        });
-      }
-    } else {
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !anchorRef.current) {
       setPosition(null);
+      return;
     }
-  }, [isOpen, isOwnMessage]);
-  
+
+    const updatePosition = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+
+      const rect = anchor.getBoundingClientRect();
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
+      const rootStyles = getComputedStyle(document.documentElement);
+      const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
+      const pickerWidth = Math.min(280, window.innerWidth - 16);
+      const pickerHeight = 124;
+      const topBoundary = viewportOffsetTop + 72;
+      const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
+      const gap = 12;
+      const spaceAbove = rect.top - topBoundary;
+      const spaceBelow = bottomBoundary - rect.bottom;
+      const showBelow = spaceAbove < pickerHeight && spaceBelow >= pickerHeight + gap;
+
+      const unclampedTop = showBelow
+        ? rect.bottom + gap
+        : rect.top - pickerHeight - gap;
+      const top = Math.max(
+        topBoundary,
+        Math.min(unclampedTop, bottomBoundary - pickerHeight)
+      );
+
+      let left = isOwnMessage ? rect.right - pickerWidth : rect.left;
+      left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
+
+      setPosition({ top, left });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    window.visualViewport?.addEventListener("resize", updatePosition);
+    window.visualViewport?.addEventListener("scroll", updatePosition);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.visualViewport?.removeEventListener("resize", updatePosition);
+      window.visualViewport?.removeEventListener("scroll", updatePosition);
+    };
+  }, [anchorRef, isOpen, isOwnMessage]);
+
   const handleEmojiClick = (type: string) => {
     const userReaction = reactions.find(
       (r) => r.user_id === currentUserId && r.reaction_type === type
     );
-    
+
     if (userReaction) {
       onRemove(userReaction.id);
     } else {
@@ -85,20 +108,16 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     onOpenChange(false);
   };
 
-  // Invisible anchor to measure position
-  if (!isOpen) return <div ref={parentRef} className="hidden" />;
+  if (!isOpen || !position) return null;
 
-  return (
-    <>
-      <div ref={parentRef} className="hidden" />
-      <div 
-        className="fixed z-[100001]"
+  return createPortal(
+    <div className="fixed inset-0 z-[100001] pointer-events-none">
+      <div
+        className="absolute pointer-events-auto"
         style={{
-          top: position?.top ?? 0,
-          ...(isOwnMessage 
-            ? { right: position ? window.innerWidth - position.left : 0 }
-            : { left: position?.left ?? 0 }
-          ),
+          top: position.top,
+          left: position.left,
+          width: "min(280px, calc(100vw - 16px))",
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
@@ -109,6 +128,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
               );
+
               return (
                 <Button
                   key={type}
@@ -140,7 +160,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
           </Button>
         </div>
       </div>
-    </>
+    </div>,
+    document.body
   );
 });
 
