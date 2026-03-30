@@ -104,15 +104,10 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 
     if (isMutating) return;
 
-    const userReaction = reactions.find(
-      (r) => r.user_id === currentUserId && r.reaction_type === type
-    );
-
-    if (userReaction) {
-      onRemove(userReaction.id);
-    } else {
-      onReact(type);
-    }
+    // Always route through onReact which uses getLatestReactions() from cache
+    // This handles both add and toggle-remove via the same path,
+    // avoiding stale reactions prop issues
+    onReact(type);
   };
 
   if (!isOpen || !position) return null;
