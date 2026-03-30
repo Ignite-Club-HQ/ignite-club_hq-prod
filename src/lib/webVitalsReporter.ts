@@ -58,7 +58,6 @@ export function initWebVitalsReporter() {
   if (isNative) return;
 
   onLCP(sendMetric);
-  onFID(sendMetric);
   onCLS(sendMetric);
   onTTFB(sendMetric);
   onINP(sendMetric);
