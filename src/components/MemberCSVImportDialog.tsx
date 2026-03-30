@@ -25,6 +25,7 @@ type TeamRole = "player" | "parent" | "coach" | "team_admin";
 interface ParsedChild {
   name: string;
   yearOfBirth: number | null;
+  shirtNumber: number | null;
 }
 
 interface ParsedMember {
@@ -142,13 +143,16 @@ export function MemberCSVImportDialog({
       const email = values[1]?.trim() || "";
       const roleFromCsv = values[2]?.trim().toLowerCase() || "";
       
-      // Parse children from separate columns: child1_name, child1_yob, child2_name, child2_yob, child3_name, child3_yob
+      // Parse children from separate columns: child1_name, child1_yob, child1_shirt, child2_name, child2_yob, child2_shirt, child3_name, child3_yob, child3_shirt
       const child1Name = values[3]?.trim() || "";
       const child1Yob = values[4]?.trim() || "";
-      const child2Name = values[5]?.trim() || "";
-      const child2Yob = values[6]?.trim() || "";
-      const child3Name = values[7]?.trim() || "";
-      const child3Yob = values[8]?.trim() || "";
+      const child1Shirt = values[5]?.trim() || "";
+      const child2Name = values[6]?.trim() || "";
+      const child2Yob = values[7]?.trim() || "";
+      const child2Shirt = values[8]?.trim() || "";
+      const child3Name = values[9]?.trim() || "";
+      const child3Yob = values[10]?.trim() || "";
+      const child3Shirt = values[11]?.trim() || "";
 
       if (!name) {
         errors.push({ row: rowNum, message: "Name is required" });
@@ -186,7 +190,8 @@ export function MemberCSVImportDialog({
           errors.push({ row: rowNum, message: `Invalid year of birth for child 1: "${child1Yob}"` });
           continue;
         }
-        children.push({ name: child1Name, yearOfBirth: yob });
+        const shirt = child1Shirt ? parseInt(child1Shirt) : null;
+        children.push({ name: child1Name, yearOfBirth: yob, shirtNumber: shirt });
       }
       
       if (child2Name) {
@@ -195,7 +200,8 @@ export function MemberCSVImportDialog({
           errors.push({ row: rowNum, message: `Invalid year of birth for child 2: "${child2Yob}"` });
           continue;
         }
-        children.push({ name: child2Name, yearOfBirth: yob });
+        const shirt = child2Shirt ? parseInt(child2Shirt) : null;
+        children.push({ name: child2Name, yearOfBirth: yob, shirtNumber: shirt });
       }
       
       if (child3Name) {
@@ -204,7 +210,8 @@ export function MemberCSVImportDialog({
           errors.push({ row: rowNum, message: `Invalid year of birth for child 3: "${child3Yob}"` });
           continue;
         }
-        children.push({ name: child3Name, yearOfBirth: yob });
+        const shirt = child3Shirt ? parseInt(child3Shirt) : null;
+        children.push({ name: child3Name, yearOfBirth: yob, shirtNumber: shirt });
       }
 
       // Warn if children specified for non-parent role
@@ -320,13 +327,13 @@ export function MemberCSVImportDialog({
   };
 
   const downloadTemplate = () => {
-    const csvContent = `name,email,role,child1_name,child1_yob,child2_name,child2_yob,child3_name,child3_yob
-John Smith,john@example.com,player,,,,,,
-Jane Doe,jane@example.com,parent,Tommy,2016,Sally,2018,,
-Mike Coach,mike@example.com,coach,,,,,,
-Bob Parent,bob@example.com,parent,Jimmy,2015,,,,
-Lisa Guardian,,parent,Emma,2017,Jack,2019,Lily,2020
-Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
+    const csvContent = `name,email,role,child1_name,child1_yob,child1_shirt,child2_name,child2_yob,child2_shirt,child3_name,child3_yob,child3_shirt
+John Smith,john@example.com,player,,,,,,,,,
+Jane Doe,jane@example.com,parent,Tommy,2016,7,Sally,2018,10,,,
+Mike Coach,mike@example.com,coach,,,,,,,,,
+Bob Parent,bob@example.com,parent,Jimmy,2015,3,,,,,,
+Lisa Guardian,,parent,Emma,2017,5,Jack,2019,8,Lily,2020,
+Second Parent for Emma,parent2@example.com,parent,Emma,2017,5,,,,,,`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -385,10 +392,13 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
                         <Badge variant="secondary" className="text-xs">role</Badge>
                         <Badge variant="secondary" className="text-xs">child1_name</Badge>
                         <Badge variant="secondary" className="text-xs">child1_yob</Badge>
+                        <Badge variant="secondary" className="text-xs">child1_shirt</Badge>
                         <Badge variant="secondary" className="text-xs">child2_name</Badge>
                         <Badge variant="secondary" className="text-xs">child2_yob</Badge>
+                        <Badge variant="secondary" className="text-xs">child2_shirt</Badge>
                         <Badge variant="secondary" className="text-xs">child3_name</Badge>
                         <Badge variant="secondary" className="text-xs">child3_yob</Badge>
+                        <Badge variant="secondary" className="text-xs">child3_shirt</Badge>
                       </div>
                     </div>
                     
@@ -396,9 +406,9 @@ Second Parent for Emma,parent2@example.com,parent,Emma,2017,,,,`;
                       <p><strong>name:</strong> Required - parent/member's full name</p>
                       <p><strong>email:</strong> Optional - for sending invites</p>
                       <p><strong>role:</strong> Optional - player, parent, coach, or team_admin</p>
-                      <p><strong>child1_name, child1_yob:</strong> First child's name and year of birth</p>
-                      <p><strong>child2_name, child2_yob:</strong> Second child (optional)</p>
-                      <p><strong>child3_name, child3_yob:</strong> Third child (optional)</p>
+                      <p><strong>child1_name, child1_yob, child1_shirt:</strong> First child's name, year of birth, and shirt number</p>
+                      <p><strong>child2_name, child2_yob, child2_shirt:</strong> Second child (optional)</p>
+                      <p><strong>child3_name, child3_yob, child3_shirt:</strong> Third child (optional)</p>
                       <p className="text-primary/80 mt-1">💡 Multiple parents can reference the same child by using identical name + year of birth</p>
                     </div>
                   </div>
