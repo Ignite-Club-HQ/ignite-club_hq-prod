@@ -2560,10 +2560,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       Different child
                                     </Button>
                                   </div>
-                                    </Button>
-                                  </div>
                                 </div>
                               </div>
+                            );
                             );
                           })()}
                         </div>
