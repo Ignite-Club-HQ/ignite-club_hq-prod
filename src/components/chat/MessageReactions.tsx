@@ -25,6 +25,7 @@ interface MessageReactionsProps {
   currentUserId?: string;
   onReact: (reactionType: string) => void;
   onRemove: (reactionId: string) => void;
+  isMutating?: boolean;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   isOwnMessage?: boolean;
@@ -36,6 +37,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   currentUserId,
   onReact,
   onRemove,
+  isMutating = false,
   isOpen,
   onOpenChange,
   isOwnMessage = false,
@@ -97,6 +99,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
+    if (isMutating) return;
+
     console.log('[ReactionPicker] Emoji tapped:', type, 'currentUserId:', currentUserId);
     const userReaction = reactions.find(
       (r) => r.user_id === currentUserId && r.reaction_type === type
@@ -154,12 +158,14 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                 <button
                   key={type}
                   type="button"
+                  disabled={isMutating}
                   onTouchStart={(e) => {
                     e.stopPropagation();
                   }}
                   onTouchEnd={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    if (isMutating) return;
                     if (Date.now() - lastTouchReactionAtRef.current < 500) return;
                     lastTouchReactionAtRef.current = Date.now();
                     console.log('[ReactionPicker] Touch on emoji:', type);
@@ -167,6 +173,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   }}
                   onPointerUp={(e) => {
                     e.stopPropagation();
+                    if (isMutating) return;
                     if (Date.now() - lastTouchReactionAtRef.current < 500) return;
                     lastTouchReactionAtRef.current = Date.now();
                     console.log('[ReactionPicker] PointerUp on emoji:', type);
@@ -175,12 +182,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    if (isMutating) return;
                     if (Date.now() - lastTouchReactionAtRef.current < 500) return;
                     lastTouchReactionAtRef.current = Date.now();
                     console.log('[ReactionPicker] Click on emoji:', type);
                     handleEmojiClick(type);
                   }}
-                  className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 transition-colors active:bg-accent ${
+                  className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 transition-colors active:bg-accent disabled:opacity-50 disabled:pointer-events-none ${
                     userHasReaction ? "bg-primary/20" : "hover:bg-accent"
                   }`}
                 >

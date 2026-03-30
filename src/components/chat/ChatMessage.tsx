@@ -398,6 +398,10 @@ export const ChatMessage = memo(function ChatMessage({
   }, []);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
+    if (addReactionMutation.isPending || removeReactionMutation.isPending) {
+      return;
+    }
+
     if (existingReactionId) {
       removeReactionMutation.mutate(existingReactionId);
     } else {
@@ -594,11 +598,12 @@ export const ChatMessage = memo(function ChatMessage({
             <MessageReactionsPopover
               reactions={reactions}
               currentUserId={currentUserId}
-              onReact={(type) => {
-                const existingReaction = reactions.find(r => r.user_id === currentUserId);
-                addReactionMutation.mutate({ reactionType: type, existingReactionId: existingReaction?.id });
+              onReact={(type) => handleReactionClick(type)}
+              onRemove={(reactionId) => {
+                if (addReactionMutation.isPending || removeReactionMutation.isPending) return;
+                removeReactionMutation.mutate(reactionId);
               }}
-              onRemove={(reactionId) => removeReactionMutation.mutate(reactionId)}
+              isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
               isOpen={showReactionPicker}
               onOpenChange={setShowReactionPicker}
               isOwnMessage={isOwn}
