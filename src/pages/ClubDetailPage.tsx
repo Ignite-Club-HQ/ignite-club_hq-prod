@@ -989,7 +989,9 @@ export default function ClubDetailPage() {
           <div className="flex items-center gap-2">
             {isAdmin && (
               <>
-               
+                <Button size="sm" variant="outline" onClick={() => setAnnouncementDialogOpen(true)}>
+                  <Megaphone className="h-4 w-4 mr-1" /> Announce
+                </Button>
                 <Link to={`/clubs/${id}/teams/new`}>
                   <Button size="sm">
                     <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
@@ -1878,6 +1880,16 @@ export default function ClubDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {isAdmin && club && teams && user && (
+        <ClubAnnouncementDialog
+          open={announcementDialogOpen}
+          onOpenChange={setAnnouncementDialogOpen}
+          clubName={club.name}
+          clubId={club.id}
+          teams={teams}
+          userId={user.id}
+        />
+      )}
 
     </div>
   );
