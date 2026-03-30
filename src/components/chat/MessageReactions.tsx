@@ -121,17 +121,19 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     <div
       className="fixed inset-0 z-[100001]"
       data-reaction-picker="true"
+      onTouchStart={(e) => {
+        // Prevent touchstart from reaching document-level listeners
+        e.stopPropagation();
+      }}
       onTouchEnd={(e) => {
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           e.preventDefault();
-          console.log('[ReactionPicker] Backdrop touch - closing');
           onOpenChange(false);
         }
       }}
       onClick={(e) => {
         e.stopPropagation();
-        console.log('[ReactionPicker] Backdrop click - closing');
         onOpenChange(false);
       }}
     >
