@@ -504,11 +504,22 @@ export default function NotificationsPage() {
     if (!relatedId) return;
 
     switch (notification.type) {
+      case "message_reaction":
+        // For reactions, related_id is the container ID (team_id, club_id, group_id, conversation_id)
+        const { data: teamCheck } = await supabase.from("teams").select("id").eq("id", relatedId).maybeSingle();
+        if (teamCheck) { navigate(`/messages/${relatedId}`); break; }
+        const { data: clubCheck } = await supabase.from("clubs").select("id").eq("id", relatedId).maybeSingle();
+        if (clubCheck) { navigate(`/messages/club/${relatedId}`); break; }
+        const { data: groupCheck } = await supabase.from("chat_groups").select("id").eq("id", relatedId).maybeSingle();
+        if (groupCheck) { navigate(`/groups/${relatedId}`); break; }
+        const { data: convCheck } = await supabase.from("direct_conversations").select("id").eq("id", relatedId).maybeSingle();
+        if (convCheck) { navigate(`/messages/dm/${relatedId}`); break; }
+        navigate("/messages");
+        break;
       case "team_message":
       case "message_reply":
-      case "message_reaction":
       case "message_mention":
-        // For replies/reactions/mentions, related_id is the message id - try team first
+        // For replies/mentions, related_id is the message id - try team first
         const { data: teamMessage } = await supabase
           .from("team_messages")
           .select("team_id")
