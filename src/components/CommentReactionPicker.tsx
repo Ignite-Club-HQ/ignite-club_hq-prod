@@ -1,4 +1,5 @@
-import { memo, useRef, useState, useEffect } from "react";
+import { memo, useRef, useState, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 
 const REACTION_EMOJIS = [
@@ -35,34 +36,62 @@ export const CommentReactionPicker = memo(function CommentReactionPicker({
 }: CommentReactionPickerProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isOpen && anchorRef?.current) {
-      const rect = anchorRef.current.getBoundingClientRect();
-      const pickerHeight = 52;
-      const headerSafeZone = 60;
-      const top = rect.top < headerSafeZone + pickerHeight
-        ? rect.bottom + 4
-        : rect.top - pickerHeight - 4;
-      // Clamp left so picker doesn't overflow viewport
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - 280));
-      setPosition({ top, left });
-    } else {
+      const updatePosition = () => {
+        const anchor = anchorRef.current;
+        if (!anchor) return;
+        const rect = anchor.getBoundingClientRect();
+        const pickerHeight = 52;
+        const headerSafeZone = 60;
+        const top = rect.top < headerSafeZone + pickerHeight
+          ? rect.bottom + 4
+          : rect.top - pickerHeight - 4;
+        const left = Math.max(8, Math.min(rect.left, window.innerWidth - 280));
+        setPosition({ top, left });
+      };
+
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
+    }
+
+    if (!isOpen) {
       setPosition(null);
     }
   }, [isOpen, anchorRef]);
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed z-[100001]"
-      style={{ top: position?.top ?? 0, left: position?.left ?? 0 }}
-      onClick={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onTouchEnd={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
+      className="fixed inset-0 z-[100001]"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+      onTouchEnd={(e) => {
+        if (e.target === e.currentTarget) {
+          e.stopPropagation();
+          e.preventDefault();
+          onClose();
+        }
+      }}
     >
-      <div className="bg-popover border rounded-lg p-2 shadow-lg">
+      <div
+        className="fixed"
+        style={{ top: position?.top ?? 0, left: position?.left ?? 0 }}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+       <div className="bg-popover border rounded-lg p-2 shadow-lg">
         <div className="flex gap-1.5">
           {REACTION_EMOJIS.map(({ type, emoji }) => {
             const userHasReaction = reactions.some(
@@ -88,7 +117,9 @@ export const CommentReactionPicker = memo(function CommentReactionPicker({
             );
           })}
         </div>
+       </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 });
