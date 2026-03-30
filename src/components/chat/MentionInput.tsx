@@ -11,7 +11,7 @@ interface MentionInputProps {
   value: string;
   onChange: (value: string) => void;
   onKeyPress?: (e: React.KeyboardEvent) => void;
-  onInputChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onInputChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
