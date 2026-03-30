@@ -376,38 +376,20 @@ export default function TeamChatPage() {
         const previousReactions = previousMessage.reactions || [];
         const incomingReactions = message.reactions || [];
 
-        if (previousReactions.length === 0 || incomingReactions.length === 0) {
-          return {
-            ...message,
-            reactions: incomingReactions.length > 0 ? incomingReactions : previousReactions,
-          };
-        }
-
-        const reactionsByUser = new Map<string, typeof incomingReactions[number]>();
-
-        previousReactions.forEach((reaction) => {
-          reactionsByUser.set(reaction.user_id, reaction);
-        });
-
+        // Trust incoming cache state for real reactions (so removals apply instantly),
+        // but keep any local temp reactions not yet confirmed by realtime/DB.
+        const incomingByUser = new Map<string, typeof incomingReactions[number]>();
         incomingReactions.forEach((reaction) => {
-          const previousReaction = reactionsByUser.get(reaction.user_id);
-
-          if (!previousReaction) {
-            reactionsByUser.set(reaction.user_id, reaction);
-            return;
-          }
-
-          if (previousReaction.id.startsWith("temp-") && !reaction.id.startsWith("temp-")) {
-            reactionsByUser.set(reaction.user_id, reaction);
-            return;
-          }
-
-          reactionsByUser.set(reaction.user_id, reaction);
+          incomingByUser.set(reaction.user_id, reaction);
         });
+
+        const tempOnlyFromPrevious = previousReactions.filter(
+          (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
+        );
 
         return {
           ...message,
-          reactions: Array.from(reactionsByUser.values()),
+          reactions: [...incomingReactions, ...tempOnlyFromPrevious],
         };
       });
     });
