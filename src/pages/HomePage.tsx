@@ -1648,6 +1648,7 @@ export default function HomePage() {
                     }
                     return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
                   })
+                  .sort((a, b) => a.name.localeCompare(b.name))
                   .map((team) => ({
                     value: team.id,
                     label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
@@ -1661,6 +1662,7 @@ export default function HomePage() {
                     }
                     return !selectedClubForTeam || selectedClubForTeam === "all" || league.club_id === selectedClubForTeam;
                   })
+                  .sort((a, b) => a.name.localeCompare(b.name))
                   .map((league) => ({
                     value: `league_${league.id}`,
                     label: activeClubFilter 
