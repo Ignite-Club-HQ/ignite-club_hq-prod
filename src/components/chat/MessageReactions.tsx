@@ -121,6 +121,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="bg-popover border rounded-lg p-2 shadow-lg">
           <div className="flex gap-1.5">
@@ -136,6 +138,11 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
+                    handleEmojiClick(type);
+                  }}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
                     handleEmojiClick(type);
                   }}
                   className={`h-9 w-9 p-0 text-lg shrink-0 ${
