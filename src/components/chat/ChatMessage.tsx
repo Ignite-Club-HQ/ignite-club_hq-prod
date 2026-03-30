@@ -496,9 +496,12 @@ export const ChatMessage = memo(function ChatMessage({
 
   // Close three-dot menu when tapping outside
   useEffect(() => {
-    if (!showMenu || isDropdownOpen) return;
+    if (!showMenu || isDropdownOpen || showReactionPicker) return;
     
-    const handleClickOutside = () => {
+    const handleClickOutside = (e: Event) => {
+      // Never close menu if the touch/click is inside the reaction picker portal
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-reaction-picker="true"]')) return;
       setShowMenu(false);
     };
     
@@ -512,7 +515,7 @@ export const ChatMessage = memo(function ChatMessage({
       document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [showMenu, isDropdownOpen]);
+  }, [showMenu, isDropdownOpen, showReactionPicker]);
 
   // Get display name - never show placeholder text; hide name until profile loads
   const displayName = authorName || "";
