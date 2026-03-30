@@ -232,8 +232,10 @@ export const ChatMessage = memo(function ChatMessage({
 
       return { action: "insert" as const, reaction: insertedReaction };
     },
-    onMutate: async ({ reactionType, existingReaction }) => {
-      await queryClient.cancelQueries({ queryKey });
+    onMutate: ({ reactionType, existingReaction }) => {
+      // Don't block optimistic UI while waiting for query cancellation.
+      // This keeps deselect/removal feeling instant.
+      void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
 
       if (!currentUserId) {
@@ -242,7 +244,6 @@ export const ChatMessage = memo(function ChatMessage({
 
       const shouldRemoveReaction = existingReaction?.reaction_type === reactionType;
       const tempReactionId = shouldRemoveReaction ? null : `temp-${Date.now()}`;
-      console.log('[Reaction] onMutate', { reactionType, shouldRemoveReaction, existingId: existingReaction?.id });
 
       updateReactionMessages((msgs) =>
         msgs.map((msg: any) => {
