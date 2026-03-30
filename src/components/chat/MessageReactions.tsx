@@ -237,12 +237,9 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
                 key={type}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (userReaction) {
-                    // Instantly toggle off the user's own reaction
-                    onReactionClick(type, userReaction.id);
-                  } else {
-                    setIsOpen(true);
-                  }
+                  // Always open details popover so users can see who reacted
+                  // and remove their own emoji from there.
+                  setIsOpen(true);
                 }}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
                   userReaction
