@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Input } from "@/components/ui/input";
+// Input component replaced with native input for WhatsApp-style pill
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { LinkPreview } from "./LinkPreview";
@@ -335,18 +335,18 @@ export function MentionInput({
         </div>
       )}
       
-      <div className="flex items-center gap-1">
+      <div className="flex items-center bg-muted/60 rounded-full px-1 min-h-[44px]">
         {showEmojiPicker && (
           <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
         )}
-        <Input
+        <input
           ref={inputRef}
           value={displayValue}
           onChange={handleDisplayChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={placeholder}
-          className={className}
+          className={`flex-1 bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
         />
       </div>
       

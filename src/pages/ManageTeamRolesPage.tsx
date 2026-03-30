@@ -261,7 +261,7 @@ export default function ManageTeamRolesPage() {
                         <Badge className={roleColors[role.role as AppRole]} variant="secondary">
                           {roleLabels[role.role as AppRole]}
                         </Badge>
-                        {!(userId === user?.id && role.role === "team_admin") && (
+                        {!(userId === user?.id && role.role === "team_admin" && userRoleList.length <= 1) && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-6 w-6">
