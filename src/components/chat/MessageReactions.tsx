@@ -160,14 +160,14 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onTouchEnd={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    if (Date.now() - lastTouchReactionAtRef.current < 500) return;
                     lastTouchReactionAtRef.current = Date.now();
                     console.log('[ReactionPicker] Touch on emoji:', type);
                     handleEmojiClick(type);
                   }}
                   onPointerUp={(e) => {
                     e.stopPropagation();
-                    // Fallback for Android WebView where onTouchEnd may not fire
-                    if (Date.now() - lastTouchReactionAtRef.current < 750) return;
+                    if (Date.now() - lastTouchReactionAtRef.current < 500) return;
                     lastTouchReactionAtRef.current = Date.now();
                     console.log('[ReactionPicker] PointerUp on emoji:', type);
                     handleEmojiClick(type);
@@ -175,7 +175,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    if (Date.now() - lastTouchReactionAtRef.current < 750) return;
+                    if (Date.now() - lastTouchReactionAtRef.current < 500) return;
                     lastTouchReactionAtRef.current = Date.now();
                     console.log('[ReactionPicker] Click on emoji:', type);
                     handleEmojiClick(type);
