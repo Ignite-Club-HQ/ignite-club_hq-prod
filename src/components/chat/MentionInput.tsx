@@ -60,7 +60,11 @@ export function MentionInput({
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
   }, []);
 
-  // Detect URLs in the input
+  // Re-adjust height when value changes (including reset on send)
+  useEffect(() => {
+    adjustHeight();
+  }, [value, adjustHeight]);
+
   const detectedUrls = useMemo(() => {
     const matches = value.match(URL_REGEX) || [];
     return [...new Set(matches)].slice(0, 3); // Max 3 previews
