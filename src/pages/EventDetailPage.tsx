@@ -989,32 +989,7 @@ export default function EventDetailPage() {
         if (error) throw error;
       }
 
-      // Notify event managers about child RSVP change
-      if (event) {
-        const displayName = childName || "A child";
-        const statusLabel = status === "going" ? "is going" : status === "maybe" ? "might go" : "can't go";
-        
-        const roleQuery = event.team_id 
-          ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach"])
-          : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).eq("role", "club_admin");
-        
-        const { data: managers } = await roleQuery;
-        
-        if (managers && managers.length > 0) {
-          const notifications = managers
-            .filter(m => m.user_id !== user?.id)
-            .map(m => ({
-              user_id: m.user_id,
-              type: "rsvp_update",
-              message: `${displayName} ${statusLabel} to ${event.title}`,
-              related_id: id,
-            }));
-          
-          if (notifications.length > 0) {
-            await supabase.from("notifications").insert(notifications);
-          }
-        }
-      }
+      // RSVP notifications are handled by the on_rsvp_notify_admins database trigger
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
