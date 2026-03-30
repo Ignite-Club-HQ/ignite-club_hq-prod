@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, NativePickerLoadError, openFileInputPicker, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -182,18 +182,10 @@ export function UploadFilesDialog({
     } catch (error) {
       if (isCancelledSelectionError(error)) {
         console.log("[UploadFilesDialog] user cancelled");
-      } else if (error instanceof NativePickerLoadError) {
-        console.warn("[UploadFilesDialog] Native picker load error, falling back to file input");
-        toast.error("Couldn't load that photo. Using iOS fallback picker.", { duration: 3000 });
-        const openedFallback = openFileInputPicker(fileInputRef.current);
-        if (!openedFallback) {
-          toast.error("Tap to select photo again.");
-        }
       } else {
         const errMsg = getReadableUploadError(error);
         console.warn("[UploadFilesDialog] Native picker failed:", errMsg, error);
-        toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
-        openFileInputPicker(fileInputRef.current);
+        toast.error(errMsg || "Could not load photo. Please try again.");
       }
     } finally {
       restoreBodyScrollLock();
@@ -208,7 +200,7 @@ export function UploadFilesDialog({
       void handleNativePhotoPick();
     } else {
       // For non-native: trigger the hidden file input manually
-      openFileInputPicker(fileInputRef.current);
+      fileInputRef.current?.click();
     }
   };
 

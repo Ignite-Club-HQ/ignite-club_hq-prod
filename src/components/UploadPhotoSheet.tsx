@@ -14,7 +14,7 @@ import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, NativePickerLoadError, openFileInputPicker, shouldUseNativePicker as shouldUseNativeIOSPicker } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker } from "@/lib/nativePhotoPicker";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
@@ -550,18 +550,10 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     } catch (error) {
       if (isCancelledSelectionError(error)) {
         console.log("[UploadPhotoSheet] user cancelled");
-      } else if (error instanceof NativePickerLoadError) {
-        console.warn("[UploadPhotoSheet] Native picker load error, falling back to file input");
-        toast.error("Couldn't load that photo. Using iOS fallback picker.", { duration: 3000 });
-        const openedFallback = openFileInputPicker(primaryFileInputRef.current);
-        if (!openedFallback) {
-          toast.error("Tap to select photos again.");
-        }
       } else {
         const errMsg = getReadableUploadError(error);
         console.warn("[UploadPhotoSheet] Native picker failed:", errMsg, error);
-        toast.error(`Could not load photo: ${errMsg || "Unknown error"}`);
-        openFileInputPicker(primaryFileInputRef.current);
+        toast.error(errMsg || "Could not load photo. Please try again.");
       }
     } finally {
       restoreBodyScrollLock();
