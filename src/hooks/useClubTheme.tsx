@@ -333,7 +333,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     if (isUserSwitch) {
       console.log('[ClubTheme] User switch detected, clearing theme state');
       setIsUserSwitching(true);
-      // Clear CSS immediately to prevent flash of wrong colors
+      setHasCacheAppliedOnLogin(false);
       const root = document.documentElement;
       root.style.removeProperty("--primary");
       root.style.removeProperty("--primary-foreground");
