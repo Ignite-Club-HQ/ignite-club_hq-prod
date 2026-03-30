@@ -261,6 +261,8 @@ export default function TeamChatPage() {
           image_url: msg.image_url,
           reply_to_id: msg.reply_to_id,
           created_at: msg.created_at,
+          is_club_announcement: msg.is_club_announcement || false,
+          club_announcement_name: msg.club_announcement_name || null,
           profiles: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
           reactions: reactionsResult.data?.filter((r) => r.team_message_id === msg.id) || [],
           reply_to: replyTo,
@@ -1155,8 +1157,8 @@ export default function TeamChatPage() {
                         text={msg.text}
                         imageUrl={msg.image_url}
                         authorId={msg.author_id}
-                        authorName={getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null}
-                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
+                        authorName={msg.is_club_announcement ? (msg.club_announcement_name || "Club") : (getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null)}
+                        authorAvatar={msg.is_club_announcement ? undefined : (getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null)}
                         timestamp={formatMessageDate(msg.created_at)}
                         isOwn={msg.author_id === user?.id}
                         isAdmin={isAdmin || false}
@@ -1176,6 +1178,7 @@ export default function TeamChatPage() {
                         isLastMessage={index === filteredMessages.length - 1}
                         isPending={msg.id.startsWith("queued-")}
                         contextId={teamId || ""}
+                        isClubAnnouncement={msg.is_club_announcement}
                       />
                     </div>
                   </div>
