@@ -131,11 +131,12 @@ export function MentionInput({
     enabled: showSuggestions && mentionSearch.length >= 0,
   });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     const cursorPosition = e.target.selectionStart || 0;
     
     onChange(newValue);
+    adjustHeight();
     
     // Check for @ trigger
     const textBeforeCursor = newValue.slice(0, cursorPosition);
@@ -143,7 +144,6 @@ export function MentionInput({
     
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
-      // Check if there's a space between @ and cursor (means mention was completed or cancelled)
       if (!textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
         setShowSuggestions(true);
         setMentionSearch(textAfterAt);
@@ -236,9 +236,10 @@ export function MentionInput({
     inputRef.current?.focus();
   }, [mentionStartIndex, mentionSearch, value, onChange, displayIndexToRawIndex]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (!showSuggestions || !users || users.length === 0) {
       if (e.key === "Enter" && !e.shiftKey && onKeyPress) {
+        e.preventDefault();
         onKeyPress(e);
       }
       return;
@@ -267,33 +268,29 @@ export function MentionInput({
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  const handleDisplayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDisplayChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newDisplay = e.target.value;
     const cursorPos = e.target.selectionStart || 0;
     
     if (newDisplay === displayValue) return;
     
-    // Convert display value back to raw value
     let newRaw = newDisplay;
     
-    // Restore any mentions that still exist in the new display value
     mentionMap.forEach((rawMention, displayMention) => {
       if (newRaw.includes(displayMention)) {
-        // Only replace the first occurrence to handle duplicates correctly
         newRaw = newRaw.replace(displayMention, rawMention);
       }
     });
     
     onChange(newRaw);
+    adjustHeight();
     
-    // Check for @ trigger
     const textBeforeCursor = newDisplay.slice(0, cursorPos);
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
     
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
       if (!textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
-        // Check if this @ is part of an existing completed mention
         const mentionAtCursor = `@${textAfterAt}`;
         const isExistingMention = mentionMap.has(mentionAtCursor);
         
