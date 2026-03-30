@@ -989,8 +989,8 @@ export default function ClubDetailPage() {
           <div className="flex items-center gap-2">
             {isAdmin && (
               <>
-                <Button size="sm" variant="outline" onClick={() => setAnnouncementDialogOpen(true)}>
-                  <Megaphone className="h-4 w-4 mr-1" /> Announce
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setAnnouncementDialogOpen(true)} title="Send announcement to team chats">
+                  <Megaphone className="h-4 w-4" />
                 </Button>
                 <Link to={`/clubs/${id}/teams/new`}>
                   <Button size="sm">
