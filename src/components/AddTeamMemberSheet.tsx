@@ -2793,6 +2793,95 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       ))}
                     </div>
                   )}
+
+                  {/* Second parent/guardian for bulk parent row */}
+                  {member.role === "parent" && member.children.length > 0 && (
+                    <div className="space-y-2 pl-3 border-l-2 border-blue-500/30">
+                      <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        Second Parent / Guardian (Optional)
+                      </span>
+
+                      {member.selectedSecondParent ? (
+                        <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-2">
+                          <Avatar className="h-7 w-7">
+                            <AvatarImage src={member.selectedSecondParent.avatar_url || undefined} />
+                            <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                              {member.selectedSecondParent.display_name?.[0]?.toUpperCase() || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="text-xs font-medium">{member.selectedSecondParent.display_name}</p>
+                            <p className="text-[10px] text-muted-foreground">Existing user</p>
+                          </div>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => 
+                            setBulkMembers(bulkMembers.map(m => m.id === member.id 
+                              ? { ...m, selectedSecondParent: null, secondParentSearch: "", secondParentName: "", secondParentEmail: "" } : m))
+                          }>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              placeholder="Search or type guardian name..."
+                              value={member.secondParentSearch || member.secondParentName || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setBulkMembers(bulkMembers.map(m => m.id === member.id
+                                  ? { ...m, secondParentSearch: val, secondParentName: val } : m));
+                              }}
+                              className="h-8 text-sm pl-9"
+                            />
+                          </div>
+
+                          {/* Search results for second parent */}
+                          {(() => {
+                            const spSearch = (member.secondParentSearch || "").trim();
+                            const spResults = spSearch.length >= 2 ? (bulkSecondParentMap.get(spSearch) || []) : [];
+                            const filtered = spResults.filter(u => u.id !== member.selectedUser?.id);
+                            if (filtered.length === 0) return null;
+                            return (
+                              <div className="border rounded-md overflow-hidden divide-y max-h-28 overflow-y-auto">
+                                {filtered.map((u) => (
+                                  <button
+                                    key={u.id}
+                                    type="button"
+                                    className="w-full flex items-center gap-2 p-2 hover:bg-accent/50 transition-colors text-left"
+                                    onClick={() => setBulkMembers(bulkMembers.map(m => m.id === member.id
+                                      ? { ...m, selectedSecondParent: u, secondParentName: u.display_name || "", secondParentSearch: "", secondParentEmail: "" } : m))}
+                                  >
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarImage src={u.avatar_url || undefined} />
+                                      <AvatarFallback className="bg-muted text-[10px]">
+                                        {u.display_name?.[0]?.toUpperCase() || "?"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-xs">{u.display_name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
+
+                          {(member.secondParentName || "").trim() && !member.selectedSecondParent && (
+                            <div className="relative">
+                              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                              <Input
+                                type="email"
+                                placeholder="Guardian's email (for invite)"
+                                value={member.secondParentEmail || ""}
+                                onChange={(e) => setBulkMembers(bulkMembers.map(m => m.id === member.id
+                                  ? { ...m, secondParentEmail: e.target.value } : m))}
+                                className="h-8 text-sm pl-9"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                 </div>
                 );
               })}
