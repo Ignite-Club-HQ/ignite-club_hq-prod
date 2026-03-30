@@ -1045,6 +1045,49 @@ export default function ClubDetailPage() {
               ))}
             </div>
 
+            {/* Year level filter chips */}
+            {(() => {
+              const yearLevels = Array.from(
+                new Set(
+                  activeTeams
+                    .filter(t => t.level_age)
+                    .map(t => t.level_age as string)
+                )
+              ).sort((a, b) => {
+                const numA = parseInt(a.replace(/\D/g, '')) || 999;
+                const numB = parseInt(b.replace(/\D/g, '')) || 999;
+                return numA - numB;
+              });
+              if (yearLevels.length <= 1) return null;
+              return (
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                  <button
+                    onClick={() => setYearLevelFilter("all")}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors min-h-[28px] ${
+                      yearLevelFilter === "all"
+                        ? "bg-secondary text-secondary-foreground"
+                        : "bg-muted/50 text-muted-foreground hover:bg-accent"
+                    }`}
+                  >
+                    All Levels
+                  </button>
+                  {yearLevels.map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setYearLevelFilter(yearLevelFilter === level ? "all" : level)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors min-h-[28px] ${
+                        yearLevelFilter === level
+                          ? "bg-secondary text-secondary-foreground"
+                          : "bg-muted/50 text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
