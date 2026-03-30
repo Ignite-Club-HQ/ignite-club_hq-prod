@@ -59,6 +59,7 @@ export interface ChatMessageProps {
   isLastMessage?: boolean;
   isPending?: boolean;
   isSystemMessage?: boolean;
+  isClubAnnouncement?: boolean;
   contextId?: string;
 }
 
@@ -85,6 +86,7 @@ export const ChatMessage = memo(function ChatMessage({
   isLastMessage = false,
   isPending = false,
   isSystemMessage = false,
+  isClubAnnouncement = false,
   contextId,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
