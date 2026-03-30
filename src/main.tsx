@@ -45,6 +45,7 @@ import App from "./App.tsx";
 import "./index.css";
 import { initDeepLinkHandler } from "./lib/deepLinkHandler";
 import { initNotificationLaunchHandler } from "./lib/notificationLaunchHandler";
+import { initWebVitalsReporter } from "./lib/webVitalsReporter";
 
 // Declare global types
 declare global {
