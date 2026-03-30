@@ -277,14 +277,15 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
         if (error) throw error;
         rsvpId = newRsvp?.id || null;
       }
+      // Fire-and-forget: don't block UI for points calculation
       if (status === "going" && rsvpId) {
-        await awardEarlyRsvpPoints({
+        awardEarlyRsvpPoints({
           userId: user!.id,
           eventDate: event.event_date,
           rsvpId,
           clubId: event.club_id,
           clubName: event.clubs.name,
-        });
+        }).catch(console.error);
       }
     },
     onSuccess: () => {
@@ -379,8 +380,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                           ? inactiveHint
                           : inactiveHint
                     }`}
-                    disabled={rsvpMutation.isPending}
-                    onClick={() => rsvpMutation.mutate(status)}
+                    disabled={rsvpMutation.isPending || isActive}
+                    onClick={() => !isActive && rsvpMutation.mutate(status)}
                   >
                     {rsvpMutation.isPending ? (
                       <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />

@@ -187,15 +187,15 @@ export function QuickRSVPDialog({
         rsvpId = newRsvp?.id || null;
       }
 
-      // Award early RSVP points if going and event is 3+ days away
+      // Fire-and-forget: don't block UI for points calculation
       if (status === "going" && rsvpId) {
-        await awardEarlyRsvpPoints({
+        awardEarlyRsvpPoints({
           userId: user!.id,
           eventDate,
           rsvpId,
           clubId,
           clubName,
-        });
+        }).catch(console.error);
       }
     },
     onSuccess: (_data, status) => {
@@ -333,8 +333,8 @@ export function QuickRSVPDialog({
                       variant={myRsvp?.status === option.value ? "default" : "outline"}
                       size="sm"
                       className="flex-1"
-                      onClick={() => handleSelfRsvp(option.value)}
-                      disabled={rsvpMutation.isPending}
+                      onClick={() => myRsvp?.status !== option.value && handleSelfRsvp(option.value)}
+                      disabled={rsvpMutation.isPending || myRsvp?.status === option.value}
                     >
                       {rsvpMutation.isPending && myRsvp?.status !== option.value ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-1" />

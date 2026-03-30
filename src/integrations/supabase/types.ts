@@ -4536,6 +4536,7 @@ export type Database = {
           club_id: string | null
           created_at: string
           id: string
+          metadata: Json | null
           mini_league_id: string | null
           processed_by: string | null
           role: Database["public"]["Enums"]["app_role"]
@@ -4548,6 +4549,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          metadata?: Json | null
           mini_league_id?: string | null
           processed_by?: string | null
           role: Database["public"]["Enums"]["app_role"]
@@ -4560,6 +4562,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          metadata?: Json | null
           mini_league_id?: string | null
           processed_by?: string | null
           role?: Database["public"]["Enums"]["app_role"]
@@ -5809,6 +5812,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      web_vitals: {
+        Row: {
+          connection_type: string | null
+          created_at: string
+          device_memory: number | null
+          id: string
+          metric_name: string
+          metric_value: number
+          page_path: string | null
+          rating: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          connection_type?: string | null
+          created_at?: string
+          device_memory?: number | null
+          id?: string
+          metric_name: string
+          metric_value: number
+          page_path?: string | null
+          rating?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          connection_type?: string | null
+          created_at?: string
+          device_memory?: number | null
+          id?: string
+          metric_name?: string
+          metric_value?: number
+          page_path?: string | null
+          rating?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

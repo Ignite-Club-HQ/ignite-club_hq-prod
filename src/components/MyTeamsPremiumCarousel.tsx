@@ -616,7 +616,18 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold">My Teams</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">My Teams</h2>
+        {onJoinTeam && (
+          <button
+            onClick={onJoinTeam}
+            className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+          >
+            <Plus className="h-3 w-3" />
+            Join a Team
+          </button>
+        )}
+      </div>
       <ScrollArea className="w-full">
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
           {[...items]

@@ -179,6 +179,7 @@ export default function HomePage() {
   const [selectedClubForTeam, setSelectedClubForTeam] = useState<string>("");
   const [selectedClubRole, setSelectedClubRole] = useState<ClubRole>("club_admin");
   const [selectedTeamRole, setSelectedTeamRole] = useState<TeamRole>("player");
+  const [selectedChildForLink, setSelectedChildForLink] = useState<string>("");
   const [selectedLeagueRole, setSelectedLeagueRole] = useState<LeagueRole>("league_admin");
   // Track if user selected a league (prefixed with "league_") or team in the unified dropdown
   const isLeagueSelected = selectedTeam.startsWith("league_");
@@ -1313,6 +1314,58 @@ export default function HomePage() {
     },
   });
 
+  // Fetch children on the selected team for parent linking
+  const showChildLinker = !isLeagueSelected && selectedTeam && selectedTeamRole === "parent";
+  const { data: teamChildren } = useQuery({
+    queryKey: ["team-children-for-link", selectedTeam],
+    queryFn: async () => {
+      const [{ data: assignedData, error: assignedError }, { data: pendingInvites, error: pendingError }] = await Promise.all([
+        supabase
+          .from("child_team_assignments")
+          .select("child_id, children(id, name)")
+          .eq("team_id", selectedTeam),
+        supabase
+          .from("pending_invites")
+          .select("id, metadata")
+          .eq("team_id", selectedTeam)
+          .eq("status", "pending"),
+      ]);
+
+      if (assignedError) throw assignedError;
+      if (pendingError) throw pendingError;
+
+      const childrenMap = new Map<string, { id: string; name: string }>();
+
+      (assignedData || []).forEach((d: any) => {
+        const id = d.children?.id || d.child_id;
+        const name = d.children?.name || "Unknown";
+        if (id) childrenMap.set(id, { id, name });
+      });
+
+      (pendingInvites || []).forEach((invite: any) => {
+        const children = Array.isArray(invite.metadata?.children) ? invite.metadata.children : [];
+
+        children.forEach((child: any) => {
+          const name = String(child?.name || "").trim();
+          if (!name) return;
+
+          const realChildId = typeof child?.existingChildId === "string" && !child.existingChildId.startsWith("pending-")
+            ? child.existingChildId
+            : null;
+          const fallbackId = `pending-${invite.id}-${name.toLowerCase()}`;
+          const id = realChildId || fallbackId;
+
+          if (!childrenMap.has(id)) {
+            childrenMap.set(id, { id, name });
+          }
+        });
+      });
+
+      return Array.from(childrenMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    },
+    enabled: !!showChildLinker,
+  });
+
   // Check if user already has the SPECIFIC role they're requesting in the selected team/league
   const hasExistingTeamRole = !isLeagueSelected && selectedTeam && selectedTeamRole && userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole);
   
@@ -1347,13 +1400,20 @@ export default function HomePage() {
           throw new Error("You already have this role in this team");
         }
         const team = teams?.find((t) => t.id === selectedTeam);
+        const metadata: Record<string, any> = {};
+        if (selectedTeamRole === "parent" && selectedChildForLink) {
+          const child = teamChildren?.find(c => c.id === selectedChildForLink);
+          metadata.child_id = selectedChildForLink;
+          metadata.child_name = child?.name || "";
+        }
         const { error } = await supabase.from("role_requests").insert({
           user_id: user!.id,
           team_id: selectedTeam,
           club_id: team?.club_id,
           role: selectedTeamRole,
           status: "pending",
-        });
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        } as any);
         if (error) throw error;
       }
     },
@@ -1366,6 +1426,7 @@ export default function HomePage() {
       });
       setTeamDialogOpen(false);
       setSelectedTeam("");
+      setSelectedChildForLink("");
       queryClient.invalidateQueries({ queryKey: ["role-requests"] });
     },
     onError: (error: Error) => {
@@ -1558,6 +1619,7 @@ export default function HomePage() {
                 onValueChange={(v) => {
                   setSelectedClubForTeam(v);
                   setSelectedTeam(""); // Reset selection when club changes
+                  setSelectedChildForLink("");
                 }}
                 options={[
                   { value: "all", label: "All clubs" },
@@ -1586,6 +1648,7 @@ export default function HomePage() {
                     }
                     return !selectedClubForTeam || selectedClubForTeam === "all" || team.club_id === selectedClubForTeam;
                   })
+                  .sort((a, b) => a.name.localeCompare(b.name))
                   .map((team) => ({
                     value: team.id,
                     label: activeClubFilter ? team.name : `${team.name} (${team.clubs?.name})`,
@@ -1599,6 +1662,7 @@ export default function HomePage() {
                     }
                     return !selectedClubForTeam || selectedClubForTeam === "all" || league.club_id === selectedClubForTeam;
                   })
+                  .sort((a, b) => a.name.localeCompare(b.name))
                   .map((league) => ({
                     value: `league_${league.id}`,
                     label: activeClubFilter 
@@ -1628,6 +1692,25 @@ export default function HomePage() {
                 options={teamRoleOptions}
                 label="Select Role"
                 placeholder="Choose a role..."
+              />
+            )}
+            {/* Optional child linking when parent role selected */}
+            {showChildLinker && teamChildren && teamChildren.length > 0 && (
+              <MobileCardSelect
+                value={selectedChildForLink || "skip"}
+                onValueChange={(v) => setSelectedChildForLink(v === "skip" ? "" : v)}
+                options={[
+                  { value: "skip", label: "Skip — link later" },
+                  ...teamChildren.map((child) => ({
+                    value: child.id,
+                    label: child.name,
+                  })),
+                ]}
+                label="Link to Your Child (optional)"
+                placeholder="Select your child..."
+                searchable
+                searchPlaceholder="Search children..."
+                emptyMessage="No children found on this team."
               />
             )}
           </div>

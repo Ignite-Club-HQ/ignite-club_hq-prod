@@ -905,43 +905,41 @@ export default function EventDetailPage() {
         rsvpId = newRsvp?.id || null;
       }
 
-      // Award early RSVP points if going and event is 3+ days away
+      // Fire-and-forget: don't block UI for points calculation
       if (status === "going" && rsvpId && event) {
-        await awardEarlyRsvpPoints({
+        awardEarlyRsvpPoints({
           userId: user!.id,
           eventDate: event.event_date,
           rsvpId,
           clubId: event.club_id,
           clubName: event.clubs?.name || "Your club",
-        });
+        }).catch(console.error);
       }
 
-      // Notify event managers about RSVP change
+      // Fire-and-forget: notify event managers about RSVP change
       if (event) {
         const memberName = profile?.display_name || "A member";
         const statusLabel = status === "going" ? "is going" : status === "maybe" ? "might go" : "can't go";
         
-        // Get admins/coaches for this team/event
         const roleQuery = event.team_id 
           ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach"])
           : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).eq("role", "club_admin");
         
-        const { data: managers } = await roleQuery;
-        
-        if (managers && managers.length > 0) {
-          const notifications = managers
-            .filter(m => m.user_id !== user?.id)
-            .map(m => ({
-              user_id: m.user_id,
-              type: "rsvp_update",
-              message: `${memberName} ${statusLabel} to ${event.title}`,
-              related_id: id,
-            }));
-          
-          if (notifications.length > 0) {
-            await supabase.from("notifications").insert(notifications);
+        Promise.resolve(roleQuery).then(({ data: managers }) => {
+          if (managers && managers.length > 0) {
+            const notifications = managers
+              .filter(m => m.user_id !== user?.id)
+              .map(m => ({
+                user_id: m.user_id,
+                type: "rsvp_update",
+                message: `${memberName} ${statusLabel} to ${event.title}`,
+                related_id: id,
+              }));
+            if (notifications.length > 0) {
+              supabase.from("notifications").insert(notifications).then(() => {});
+            }
           }
-        }
+        }).catch(console.error);
       }
     },
     onSuccess: (_data, status) => {
@@ -2233,8 +2231,8 @@ export default function EventDetailPage() {
               key={value}
               variant={myRsvp?.status === value ? "default" : "outline"}
               className="flex flex-col h-auto py-3"
-              onClick={() => rsvpMutation.mutate(value)}
-              disabled={rsvpMutation.isPending}
+              onClick={() => myRsvp?.status !== value && rsvpMutation.mutate(value)}
+              disabled={rsvpMutation.isPending || myRsvp?.status === value}
             >
               <span className="text-lg">{icon}</span>
               <span className="text-xs mt-1">{label}</span>
