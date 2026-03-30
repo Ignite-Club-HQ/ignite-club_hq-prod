@@ -107,6 +107,7 @@ export default function ClubDetailPage() {
   const [displayCount, setDisplayCount] = useState(MEMBERS_PER_PAGE);
   const [teamSearchQuery, setTeamSearchQuery] = useState("");
   const [teamFilter, setTeamFilter] = useState<"all" | "junior" | "senior" | "my">("all");
+  const [yearLevelFilter, setYearLevelFilter] = useState<string>("all");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [showAllTeams, setShowAllTeams] = useState<boolean | null>(null); // null = not yet initialized
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
