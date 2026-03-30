@@ -1366,13 +1366,20 @@ export default function HomePage() {
           throw new Error("You already have this role in this team");
         }
         const team = teams?.find((t) => t.id === selectedTeam);
+        const metadata: Record<string, any> = {};
+        if (selectedTeamRole === "parent" && selectedChildForLink) {
+          const child = teamChildren?.find(c => c.id === selectedChildForLink);
+          metadata.child_id = selectedChildForLink;
+          metadata.child_name = child?.name || "";
+        }
         const { error } = await supabase.from("role_requests").insert({
           user_id: user!.id,
           team_id: selectedTeam,
           club_id: team?.club_id,
           role: selectedTeamRole,
           status: "pending",
-        });
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        } as any);
         if (error) throw error;
       }
     },
