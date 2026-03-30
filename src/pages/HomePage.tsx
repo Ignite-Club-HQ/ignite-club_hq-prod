@@ -1314,6 +1314,24 @@ export default function HomePage() {
     },
   });
 
+  // Fetch children on the selected team for parent linking
+  const showChildLinker = !isLeagueSelected && selectedTeam && selectedTeamRole === "parent";
+  const { data: teamChildren } = useQuery({
+    queryKey: ["team-children-for-link", selectedTeam],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("child_team_assignments")
+        .select("child_id, children(id, name)")
+        .eq("team_id", selectedTeam);
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        id: d.children?.id || d.child_id,
+        name: d.children?.name || "Unknown",
+      }));
+    },
+    enabled: !!showChildLinker,
+  });
+
   // Check if user already has the SPECIFIC role they're requesting in the selected team/league
   const hasExistingTeamRole = !isLeagueSelected && selectedTeam && selectedTeamRole && userRoles?.some(r => r.team_id === selectedTeam && r.role === selectedTeamRole);
   
