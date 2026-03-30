@@ -154,18 +154,29 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                 <button
                   key={type}
                   type="button"
+                  onTouchStart={(e) => {
+                    e.stopPropagation();
+                  }}
                   onTouchEnd={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    lastTouchReactionAtRef.current = Date.now();
                     console.log('[ReactionPicker] Touch on emoji:', type);
+                    handleEmojiClick(type);
+                  }}
+                  onPointerUp={(e) => {
+                    e.stopPropagation();
+                    // Fallback for Android WebView where onTouchEnd may not fire
+                    if (Date.now() - lastTouchReactionAtRef.current < 750) return;
+                    lastTouchReactionAtRef.current = Date.now();
+                    console.log('[ReactionPicker] PointerUp on emoji:', type);
                     handleEmojiClick(type);
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    // On desktop, onClick fires. On mobile, onTouchEnd already handled it.
-                    // Only fire if not a touch device (no recent touchend)
                     if (Date.now() - lastTouchReactionAtRef.current < 750) return;
+                    lastTouchReactionAtRef.current = Date.now();
                     console.log('[ReactionPicker] Click on emoji:', type);
                     handleEmojiClick(type);
                   }}
