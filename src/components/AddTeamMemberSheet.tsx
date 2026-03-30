@@ -226,6 +226,43 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     enabled: open && !!clubId && (selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")),
   });
 
+  // Fetch children from pending invites for this team
+  const { data: pendingInviteChildren = [] } = useQuery({
+    queryKey: ["pending-invite-children", teamId],
+    queryFn: async () => {
+      const { data: invites } = await supabase
+        .from("pending_invites")
+        .select("id, invited_label, metadata")
+        .eq("team_id", teamId)
+        .eq("status", "pending");
+      
+      if (!invites?.length) return [];
+      
+      const pendingChildren: { id: string; name: string; year_of_birth: number | null; parent_name: string; parent_id: string; isPending: true; inviteId: string }[] = [];
+      
+      invites.forEach(invite => {
+        const meta = invite.metadata as any;
+        if (meta?.children && Array.isArray(meta.children)) {
+          meta.children.forEach((child: any) => {
+            if (child.name) {
+              pendingChildren.push({
+                id: `pending-${invite.id}-${child.name}`,
+                name: child.name,
+                year_of_birth: child.yearOfBirth || null,
+                parent_name: invite.invited_label || "Unknown",
+                parent_id: invite.id,
+                isPending: true,
+                inviteId: invite.id,
+              });
+            }
+          });
+        }
+      });
+      
+      return pendingChildren;
+    },
+    enabled: open && !!teamId && (selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")),
+  });
 
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["user-search-team-member", debouncedNameInput],
@@ -304,11 +341,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     u => u.id !== selectedUser?.id
   );
 
-  // Find matching existing children by partial name (case-insensitive)
+  // Find matching existing children by partial name (case-insensitive), including pending invite children
   const findMatchingChildren = (name: string) => {
     if (!name.trim() || name.trim().length < 2) return [];
     const query = name.trim().toLowerCase();
-    return clubChildren.filter(c => c.name.toLowerCase().includes(query)).slice(0, 5);
+    
+    // Search confirmed children
+    const confirmedMatches = clubChildren
+      .filter(c => c.name.toLowerCase().includes(query))
+      .map(c => ({ ...c, isPending: false as const }));
+    
+    // Search pending invite children (exclude those already in confirmed matches by name)
+    const confirmedNames = new Set(confirmedMatches.map(c => c.name.toLowerCase()));
+    const pendingMatches = pendingInviteChildren
+      .filter(c => c.name.toLowerCase().includes(query) && !confirmedNames.has(c.name.toLowerCase()));
+    
+    // Return confirmed first, then pending
+    return [...confirmedMatches, ...pendingMatches].slice(0, 5);
   };
 
   // Create a unique invite token for a pending invite (name-restricted)
@@ -1668,16 +1717,30 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                                   <div className="flex-1">
                                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                                      <strong>{matches[0].name}</strong> already exists (parent: {matches[0].parent_name}). Link to them?
+                                      <strong>{matches[0].name}</strong>{' '}
+                                      {(matches[0] as any).isPending 
+                                        ? <>has a pending invite (parent: {matches[0].parent_name}). Same child?</>
+                                        : <>already exists (parent: {matches[0].parent_name}). Link to them?</>
+                                      }
                                     </p>
                                     <div className="flex gap-2 mt-1.5">
-                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                        onClick={() => setSingleChildren(singleChildren.map(c =>
-                                          c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
-                                        ))}
-                                      >
-                                        Link to existing
-                                      </Button>
+                                      {(matches[0] as any).isPending ? (
+                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                          onClick={() => setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, confirmedNew: true } : c
+                                          ))}
+                                        >
+                                          Yes, same child
+                                        </Button>
+                                      ) : (
+                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                          onClick={() => setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
+                                          ))}
+                                        >
+                                          Link to existing
+                                        </Button>
+                                      )}
                                       <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
                                         onClick={() => setSingleChildren(singleChildren.map(c =>
                                           c.id === child.id ? { ...c, confirmedNew: true } : c
@@ -2023,16 +2086,30 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                                   <div className="flex-1">
                                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                                      <strong>{matches[0].name}</strong> already exists (parent: {matches[0].parent_name}). Link to them?
+                                      <strong>{matches[0].name}</strong>{' '}
+                                      {(matches[0] as any).isPending 
+                                        ? <>has a pending invite (parent: {matches[0].parent_name}). Same child?</>
+                                        : <>already exists (parent: {matches[0].parent_name}). Link to them?</>
+                                      }
                                     </p>
                                     <div className="flex gap-2 mt-1.5">
-                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                        onClick={() => setSingleChildren(singleChildren.map(c =>
-                                          c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
-                                        ))}
-                                      >
-                                        Link to existing
-                                      </Button>
+                                      {(matches[0] as any).isPending ? (
+                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                          onClick={() => setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, confirmedNew: true } : c
+                                          ))}
+                                        >
+                                          Yes, same child
+                                        </Button>
+                                      ) : (
+                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                          onClick={() => setSingleChildren(singleChildren.map(c =>
+                                            c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
+                                          ))}
+                                        >
+                                          Link to existing
+                                        </Button>
+                                      )}
                                       <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
                                         onClick={() => setSingleChildren(singleChildren.map(c =>
                                           c.id === child.id ? { ...c, confirmedNew: true } : c
@@ -2451,16 +2528,30 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                 <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                                 <div className="flex-1">
                                   <p className="text-xs text-amber-700 dark:text-amber-300">
-                                    <strong>{m.name}</strong> already exists (parent: {m.parent_name}). Link to them?
+                                    <strong>{m.name}</strong>{' '}
+                                    {(m as any).isPending 
+                                      ? <>has a pending invite (parent: {m.parent_name}). Same child?</>
+                                      : <>already exists (parent: {m.parent_name}). Link to them?</>
+                                    }
                                   </p>
                                   <div className="flex gap-2 mt-1.5">
-                                    <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                      onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
-                                        ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined } : c)
-                                      } : bm))}
-                                    >
-                                      Link to existing
-                                    </Button>
+                                    {(m as any).isPending ? (
+                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                        onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
+                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true } : c)
+                                        } : bm))}
+                                      >
+                                        Yes, same child
+                                      </Button>
+                                    ) : (
+                                      <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                        onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
+                                          ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined } : c)
+                                        } : bm))}
+                                      >
+                                        Link to existing
+                                      </Button>
+                                    )}
                                     <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
                                       onClick={() => setBulkMembers(bulkMembers.map(bm => bm.id === member.id ? {
                                         ...bm, children: bm.children.map(c => c.id === child.id ? { ...c, confirmedNew: true } : c)
