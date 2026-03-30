@@ -428,13 +428,16 @@ export const ChatMessage = memo(function ChatMessage({
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     if (addReactionMutation.isPending || removeReactionMutation.isPending) {
+      console.log('[Reaction] Blocked by isPending guard', { addPending: addReactionMutation.isPending, removePending: removeReactionMutation.isPending });
       return;
     }
 
     if (existingReactionId) {
       removeReactionMutation.mutate(existingReactionId);
     } else {
-      const existingReaction = getLatestReactions().find((reaction) => reaction.user_id === currentUserId);
+      const latestReactions = getLatestReactions();
+      const existingReaction = latestReactions.find((reaction) => reaction.user_id === currentUserId);
+      console.log('[Reaction] handleReactionClick', { type, existingReaction: existingReaction ? { id: existingReaction.id, type: existingReaction.reaction_type } : null, willToggle: existingReaction?.reaction_type === type });
       addReactionMutation.mutate({ 
         reactionType: type, 
         existingReaction,
