@@ -181,41 +181,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     };
   }, [isOwnMessage, showReactionPicker]);
 
-  // Close menu/reactions on outside tap
-  useEffect(() => {
-    if ((!showMenu && !showReactionPicker) || isDropdownOpen) return;
-
-    const handleClickOutside = (e: Event) => {
-      if (longPressTriggeredRef.current) {
-        longPressTriggeredRef.current = false;
-        return;
-      }
-
-      const target = e.target as Node | null;
-      if (!target) return;
-
-      if (
-        bubbleRef.current?.contains(target) ||
-        pickerRef.current?.contains(target) ||
-        menuButtonWrapperRef.current?.contains(target)
-      ) {
-        return;
-      }
-
-      closeActionUi();
-    };
-
-    const timer = setTimeout(() => {
-      document.addEventListener("touchend", handleClickOutside);
-      document.addEventListener("click", handleClickOutside);
-    }, 320);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("touchend", handleClickOutside);
-      document.removeEventListener("click", handleClickOutside);
-    };
-  }, [showMenu, showReactionPicker, isDropdownOpen, closeActionUi]);
+  // The reaction picker now uses a fullscreen backdrop pattern,
+  // so no document-level outside-click handler is needed here.
 
   useEffect(() => {
     if (!showReactionPicker && !isDropdownOpen) {
@@ -362,17 +329,19 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
           {/* Reaction picker - rendered in portal so it never sits under composer */}
           {showReactionPicker && pickerPosition && createPortal(
-            <div className="fixed inset-0 z-[100001] pointer-events-none">
+            <div
+              className="fixed inset-0 z-[100001]"
+              onClick={(e) => { e.stopPropagation(); setShowReactionPicker(false); setShowMenu(false); }}
+              onTouchEnd={(e) => {
+                if (e.target === e.currentTarget) { e.stopPropagation(); e.preventDefault(); setShowReactionPicker(false); setShowMenu(false); }
+              }}
+            >
               <div
                 ref={pickerRef}
-                className="absolute pointer-events-auto"
-                style={{
-                  top: pickerPosition.top,
-                  left: pickerPosition.left,
-                  width: "min(280px, calc(100vw - 16px))",
-                }}
+                className="absolute"
+                style={{ top: pickerPosition.top, left: pickerPosition.left, width: "min(280px, calc(100vw - 16px))" }}
                 onClick={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
               >
                 <div className="bg-popover border rounded-lg p-2 shadow-lg">
                   <div className="flex gap-1.5">
@@ -382,35 +351,34 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       );
                       const isSelected = userReaction?.reaction_type === emoji;
                       return (
-                        <Button
+                        <button
                           key={emoji}
-                          variant="ghost"
-                          size="sm"
-                          className={`h-9 w-9 p-0 text-lg shrink-0 ${isSelected ? "bg-primary/20" : ""}`}
+                          type="button"
+                          className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 active:bg-accent ${isSelected ? "bg-primary/20" : ""}`}
+                          onTouchEnd={(e) => {
+                            e.stopPropagation(); e.preventDefault();
+                            toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
+                            setShowReactionPicker(false); setShowMenu(false);
+                          }}
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
-                            setShowReactionPicker(false);
-                            setShowMenu(false);
+                            setShowReactionPicker(false); setShowMenu(false);
                           }}
                         >
                           {emoji}
-                        </Button>
+                        </button>
                       );
                     })}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full mt-1 text-xs text-muted-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowReactionPicker(false);
-                      setShowMenu(false);
-                    }}
+                  <button
+                    type="button"
+                    className="w-full mt-1 text-xs text-muted-foreground py-1.5 rounded-md active:bg-accent"
+                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowReactionPicker(false); setShowMenu(false); }}
+                    onClick={(e) => { e.stopPropagation(); setShowReactionPicker(false); setShowMenu(false); }}
                   >
                     Cancel
-                  </Button>
+                  </button>
                 </div>
               </div>
             </div>,
