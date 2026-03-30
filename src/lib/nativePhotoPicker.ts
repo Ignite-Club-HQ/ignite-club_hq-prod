@@ -140,43 +140,67 @@ export async function pickNativePhoto(options?: {
     ...(height ? { height } : {}),
   };
 
-  let photo: Awaited<ReturnType<typeof Camera.getPhoto>>;
-
-  // Use URI mode — best compatibility with iCloud-optimized photos.
+  // ── Strategy 1: URI mode (best for large/iCloud photos) ──
   try {
     console.log("[nativePhotoPicker] Attempting URI mode");
-    photo = await Camera.getPhoto({
+    const photo = await Camera.getPhoto({
       ...photoOptions,
       resultType: CameraResultType.Uri,
     });
-  } catch (uriError: unknown) {
-    if (isCancelledSelectionError(uriError)) throw uriError;
 
-    console.warn("[nativePhotoPicker] URI mode failed:", uriError);
+    if (hasCameraPhotoSource(photo)) {
+      try {
+        const result = await cameraPhotoToBlob(photo);
+        console.log("[nativePhotoPicker] URI mode → blob OK, size:", result.blob.size);
+        return {
+          blob: result.blob,
+          mimeType: result.mimeType,
+          extension: result.extension,
+          previewUrl: result.previewUrl,
+        };
+      } catch (blobError) {
+        console.warn("[nativePhotoPicker] URI mode blob conversion failed:", blobError);
+        // Fall through to Base64 strategy below
+      }
+    }
+  } catch (uriPickerError: unknown) {
+    if (isCancelledSelectionError(uriPickerError)) throw uriPickerError;
+    console.warn("[nativePhotoPicker] URI picker failed:", uriPickerError);
+    // Fall through to Base64 strategy below
+  }
 
-    // Reset permission cache in case the failure was permission-related
+  // ── Strategy 2: Base64 mode (reliable fallback when URI fetch fails) ──
+  try {
+    console.log("[nativePhotoPicker] Attempting Base64 mode fallback");
+    const photo = await Camera.getPhoto({
+      ...photoOptions,
+      resultType: CameraResultType.Base64,
+    });
+
+    if (!photo.base64String) {
+      throw new Error("No base64 data returned from photo picker");
+    }
+
+    console.log("[nativePhotoPicker] Base64 mode returned data, length:", photo.base64String.length);
+    const result = await cameraPhotoToBlob(photo);
+    console.log("[nativePhotoPicker] Base64 mode → blob OK, size:", result.blob.size);
+    return {
+      blob: result.blob,
+      mimeType: result.mimeType,
+      extension: result.extension,
+      previewUrl: result.previewUrl,
+    };
+  } catch (base64Error: unknown) {
+    if (isCancelledSelectionError(base64Error)) throw base64Error;
+
+    console.error("[nativePhotoPicker] Base64 mode also failed:", base64Error);
     resetPermissionCache();
 
-    // Re-throw with a user-friendly message — NO fallback to file input
-    const msg = getReadableUploadError(uriError);
+    const msg = getReadableUploadError(base64Error);
     throw new Error(
       msg || "Could not load the selected photo. Please try again."
     );
   }
-
-  if (!hasCameraPhotoSource(photo)) {
-    throw new Error("No photo selected (missing base64String/webPath/path)");
-  }
-
-  // Convert the photo to a blob — binaryUtils handles retries internally
-  const result = await cameraPhotoToBlob(photo);
-
-  return {
-    blob: result.blob,
-    mimeType: result.mimeType,
-    extension: result.extension,
-    previewUrl: result.previewUrl,
-  };
 }
 
 /** Check if current platform should use native photo picker */
