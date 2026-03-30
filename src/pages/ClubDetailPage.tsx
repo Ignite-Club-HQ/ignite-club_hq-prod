@@ -1033,7 +1033,7 @@ export default function ClubDetailPage() {
               ].map((filter) => (
                 <button
                   key={filter.key}
-                  onClick={() => setTeamFilter(filter.key)}
+                  onClick={() => { setTeamFilter(filter.key); setYearLevelFilter("all"); }}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors min-h-[36px] ${
                     teamFilter === filter.key
                       ? "bg-primary text-primary-foreground"
