@@ -363,13 +363,12 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
 
-  const longPressTriggeredRef = useRef(false);
+  const suppressOutsideCloseUntilRef = useRef(0);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
-    longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
-      longPressTriggeredRef.current = true;
+      suppressOutsideCloseUntilRef.current = Date.now() + 900;
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 600);
@@ -464,9 +463,8 @@ export const ChatMessage = memo(function ChatMessage({
     if (!showReactionPicker) return;
     
     const handleClickOutside = (e: Event) => {
-      // Ignore synthetic clicks triggered by long press touchend
-      if (longPressTriggeredRef.current) {
-        longPressTriggeredRef.current = false;
+      // Ignore synthetic touch/click sequence right after long press
+      if (Date.now() < suppressOutsideCloseUntilRef.current) {
         return;
       }
       setShowReactionPicker(false);
