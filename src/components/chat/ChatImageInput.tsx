@@ -7,7 +7,7 @@ import { Capacitor } from "@capacitor/core";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, NativePickerLoadError, openFileInputPicker, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
 
 interface ChatImageInputProps {
@@ -99,39 +99,8 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
 
     try {
-      let result: Awaited<ReturnType<typeof pickNativePhoto>>;
-
-      try {
-        result = await pickNativePhoto({ quality: 80 });
-        console.log("[ChatImageInput] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
-      } catch (pickerError: unknown) {
-        if (isCancelledSelectionError(pickerError)) {
-          console.log("[ChatImageInput] user cancelled");
-          setLocalPreview(null);
-          return;
-        }
-
-        // Native picker failed — fall back to HTML file input
-        if (pickerError instanceof NativePickerLoadError) {
-          console.warn("[ChatImageInput] Native picker load error, falling back to file input");
-          restoreBodyScrollLock();
-          restoreNativeLayout();
-          toast.error("Couldn't load that photo. Using iOS fallback picker.", { duration: 3000 });
-          const openedFallback = openFileInputPicker(fileInputRef.current);
-          if (!openedFallback) {
-            toast.error("Tap + again to select from Files.");
-          }
-          return;
-        }
-
-        console.warn("[ChatImageInput] Native Camera picker failed:", getReadableUploadError(pickerError), pickerError);
-        const openedFallback = openFileInputPicker(fileInputRef.current);
-        if (openedFallback) {
-          restoreNativeLayout();
-          return;
-        }
-        throw pickerError;
-      }
+      const result = await pickNativePhoto({ quality: 80 });
+      console.log("[ChatImageInput] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
 
       // Stabilize BottomNav immediately once picker returns
       requestAnimationFrame(() => {
@@ -238,7 +207,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       // Blur the button so its focus/active style doesn't persist after the
       // file picker closes (especially visible on Android WebView).
       (e.currentTarget as HTMLElement)?.blur();
-      openFileInputPicker(fileInputRef.current);
+      fileInputRef.current?.click();
       if (shouldStabilizeIOSLayout) {
         requestAnimationFrame(() => {
           restoreNativeLayout();
