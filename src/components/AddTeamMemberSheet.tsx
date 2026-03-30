@@ -1969,7 +1969,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     </div>
                   )}
 
-                  {!isSearching && filteredResults.length > 0 && debouncedNameInput.length >= 2 && (
+                  {!isSearching && (filteredResults.length > 0 || filteredPendingResults.length > 0) && debouncedNameInput.length >= 2 && (
                     <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
                       {filteredResults.map((result) => (
                         <button
@@ -1990,13 +1990,48 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                           <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
                         </button>
                       ))}
+                      {filteredPendingResults.map((result) => (
+                        <button
+                          key={result.pendingInviteId}
+                          type="button"
+                          onClick={() => {
+                            if (result.id.startsWith("pending-")) {
+                              // No profile yet — pre-fill name and email
+                              setNameInput(result.display_name || "");
+                              if (result.invited_email) {
+                                setCustomEmail(result.invited_email);
+                              }
+                            } else {
+                              // Has a profile — select them directly
+                              setSelectedUser({
+                                id: result.id,
+                                display_name: result.display_name,
+                                avatar_url: result.avatar_url,
+                              });
+                              setNameInput("");
+                            }
+                          }}
+                          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
+                        >
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={result.avatar_url || undefined} />
+                            <AvatarFallback className="bg-amber-500/20 text-amber-600 dark:text-amber-400 text-sm">
+                              {result.display_name?.[0]?.toUpperCase() || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                            <span className="text-xs text-muted-foreground">Pending invite (other team)</span>
+                          </div>
+                        </button>
+                      ))}
                       <p className="text-xs text-muted-foreground px-2 pt-1">
                         Or continue typing to add as a new member
                       </p>
                     </div>
                   )}
 
-                  {!isSearching && debouncedNameInput.length >= 2 && filteredResults.length === 0 && (
+                  {!isSearching && debouncedNameInput.length >= 2 && filteredResults.length === 0 && filteredPendingResults.length === 0 && (
                     <p className="text-xs text-muted-foreground py-1">
                       No existing users found — this person will be invited as a new member
                     </p>
