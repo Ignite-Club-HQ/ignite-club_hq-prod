@@ -190,6 +190,16 @@ export default function BroadcastChatPage() {
         .filter((m) => m.reply_to_id)
         .map((m) => m.reply_to_id as string);
 
+      // Preserve cached reactions when the reactions query fails transiently
+      const cachedQueryData = queryClient.getQueryData(["broadcast-messages"]) as any;
+      const cachedMessages: Message[] = Array.isArray(cachedQueryData)
+        ? cachedQueryData
+        : cachedQueryData?.messages || [];
+      const cachedReactionsByMessage = new Map<string, Message["reactions"]>();
+      cachedMessages.forEach((cm) => {
+        if (cm.reactions?.length) cachedReactionsByMessage.set(cm.id, cm.reactions);
+      });
+
       const [reactionsResult, replyToResult] = await Promise.all([
         supabase
           .from("message_reactions")
@@ -202,6 +212,10 @@ export default function BroadcastChatPage() {
               .in("id", replyToIds)
           : Promise.resolve({ data: [] as any[] }),
       ]);
+
+      if (reactionsResult.error) {
+        console.warn("[BroadcastChat] Failed to fetch reactions, keeping cached reactions", reactionsResult.error);
+      }
 
       const replyToMap = new Map(
         (replyToResult.data || []).map((r: any) => [r.id, r])
@@ -216,7 +230,9 @@ export default function BroadcastChatPage() {
           image_url: msg.image_url,
           reply_to_id: msg.reply_to_id,
           created_at: msg.created_at,
-          reactions: reactionsResult.data?.filter((r) => r.broadcast_message_id === msg.id) || [],
+          reactions: reactionsResult.error
+            ? cachedReactionsByMessage.get(msg.id) || []
+            : reactionsResult.data?.filter((r) => r.broadcast_message_id === msg.id) || [],
           reply_to: replyTo,
         };
       }) as Message[];

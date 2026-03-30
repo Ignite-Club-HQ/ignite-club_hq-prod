@@ -205,6 +205,16 @@ export default function DirectMessagePage() {
       const replyToIds = dataToDisplay.filter((m) => m.reply_to_id).map((m) => m.reply_to_id as string);
       const authorIds = [...new Set(dataToDisplay.map((m) => m.author_id))];
 
+      // Preserve cached reactions when the reactions query fails transiently
+      const cachedQueryData = queryClient.getQueryData(["dm-messages", conversationId]) as any;
+      const cachedDmMessages: DirectMessage[] = Array.isArray(cachedQueryData)
+        ? cachedQueryData
+        : cachedQueryData?.messages || [];
+      const cachedReactionsByMessage = new Map<string, DirectMessage["reactions"]>();
+      cachedDmMessages.forEach((cm) => {
+        if (cm.reactions?.length) cachedReactionsByMessage.set(cm.id, cm.reactions);
+      });
+
       const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
         supabase
           .from("message_reactions")
@@ -219,6 +229,10 @@ export default function DirectMessagePage() {
         fetchProfilesWithCache(authorIds),
       ]);
 
+      if (reactionsResult.error) {
+        console.warn("[DM] Failed to fetch reactions, keeping cached reactions", reactionsResult.error);
+      }
+
       const replyToMap = new Map(
         (replyToResult.data || []).map((r: any) => [r.id, {
           ...r,
@@ -229,7 +243,9 @@ export default function DirectMessagePage() {
       const messages = dataToDisplay.map((msg: any) => {
         const replyTo = msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null;
         const profile = profilesMap.get(msg.author_id);
-        const msgReactions = (reactionsResult.data || [])
+        const msgReactions = reactionsResult.error
+          ? cachedReactionsByMessage.get(msg.id) || []
+          : (reactionsResult.data || [])
           .filter((r: any) => r.direct_message_id === msg.id)
           .map((r: any) => ({ id: r.id, user_id: r.user_id, reaction_type: r.reaction_type }));
         return {
