@@ -1,0 +1,1 @@
+UPDATE teams SET level_age = 'U12' WHERE id = 'd4e53ae5-a221-4797-a3b8-65f08b5d34ff';
