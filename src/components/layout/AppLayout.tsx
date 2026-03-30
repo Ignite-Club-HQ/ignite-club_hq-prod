@@ -76,7 +76,7 @@ export function AppLayout() {
       const timer = setTimeout(() => {
         console.log('[AppLayout] Theme loading timeout - proceeding without waiting');
         setThemeTimeout(true);
-      }, 3000); // 3 second timeout for theme loading
+      }, 1500); // 1.5 second timeout for theme loading
       return () => clearTimeout(timer);
     }
   }, [profile, isThemeReady, themeTimeout]);
