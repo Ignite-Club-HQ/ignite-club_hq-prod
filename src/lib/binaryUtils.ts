@@ -92,8 +92,8 @@ export interface CameraPhotoLike {
   format?: string | null;
 }
 
-const NATIVE_READ_RETRY_ATTEMPTS = 4;
-const NATIVE_READ_RETRY_DELAY_MS = 500;
+const NATIVE_READ_RETRY_ATTEMPTS = 5;
+const NATIVE_READ_RETRY_DELAY_MS = 600;
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -136,9 +136,10 @@ const fetchPhotoBlobFromSource = async (
 ): Promise<{ blob: Blob; mimeType: string }> => {
   let lastError: unknown;
 
-  // On native iOS, give iCloud more time to finalize the temp file
+  // On native iOS, give iCloud more time to finalize the temp file.
+  // Optimized photos can take 1-2s to download from iCloud.
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios") {
-    await wait(400);
+    await wait(600);
   }
 
   for (let attempt = 0; attempt <= NATIVE_READ_RETRY_ATTEMPTS; attempt += 1) {

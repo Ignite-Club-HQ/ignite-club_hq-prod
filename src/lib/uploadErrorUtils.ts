@@ -43,5 +43,15 @@ export const getReadableUploadError = (error: unknown): string => {
 
 export const isCancelledSelectionError = (error: unknown): boolean => {
   const message = getReadableUploadError(error).toLowerCase();
-  return message.includes("cancel") || message.includes("cancelled") || message.includes("canceled") || message.includes("user denied");
+  return (
+    message.includes("cancel") ||
+    message.includes("cancelled") ||
+    message.includes("canceled") ||
+    message.includes("user denied") ||
+    message.includes("user rejected") ||
+    message.includes("dismissed") ||
+    message.includes("photos app") ||
+    message.includes("picker was cancelled") ||
+    message.includes("no image selected")
+  );
 };

@@ -138,9 +138,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       setLocalPreview(null);
       onImageUploaded(storageUrl);
     } catch (error: unknown) {
-      const errMsg = getReadableUploadError(error);
-      console.error("[ChatImageInput] Image upload failed:", errMsg, error);
-      toast.error(errMsg || "Failed to upload image");
+      if (isCancelledSelectionError(error)) {
+        console.log("[ChatImageInput] user cancelled photo selection");
+      } else {
+        const errMsg = getReadableUploadError(error);
+        console.error("[ChatImageInput] Image upload failed:", errMsg, error);
+        toast.error(errMsg || "Failed to upload image");
+      }
       setLocalPreview(null);
     } finally {
       if (stablePreviewUrl) {
