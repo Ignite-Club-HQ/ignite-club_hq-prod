@@ -52,7 +52,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 
 
-const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "😮", "😢"];
+const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "👍", "😢"];
 
 interface GroupMessage {
   id: string;
