@@ -925,7 +925,7 @@ export default function EventDetailPage() {
           ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach"])
           : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).eq("role", "club_admin");
         
-        roleQuery.then(({ data: managers }) => {
+        Promise.resolve(roleQuery).then(({ data: managers }) => {
           if (managers && managers.length > 0) {
             const notifications = managers
               .filter(m => m.user_id !== user?.id)
