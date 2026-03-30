@@ -306,6 +306,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   const [lastUserId, setLastUserId] = useState<string | null>(null);
   // Track if we're in the middle of a user switch - prevents isThemeReady from being true prematurely
   const [isUserSwitching, setIsUserSwitching] = useState(false);
+  // Track if cached theme was applied on fresh login - allows instant rendering without waiting for DB
+  const [hasCacheAppliedOnLogin, setHasCacheAppliedOnLogin] = useState(false);
 
   // Counter to force re-read from localStorage (incremented by custom event)
   const [localStorageVersion, setLocalStorageVersion] = useState(0);
