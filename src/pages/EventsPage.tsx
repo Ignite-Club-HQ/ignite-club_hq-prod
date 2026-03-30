@@ -320,7 +320,9 @@ export default function EventsPage() {
         }
       });
       
-      return filteredData as Event[];
+      // Limit recurring series to next 3 upcoming occurrences
+      const { filterRecurringEvents } = await import("@/lib/filterRecurringEvents");
+      return filterRecurringEvents(filteredData) as Event[];
     },
     enabled: !!user && !!userMemberships,
   });

@@ -284,7 +284,11 @@ export default function HomePage() {
         }
       });
       
-      return { memberships, events: filtered as Event[] };
+      // Limit recurring series to next 3 upcoming occurrences
+      const { filterRecurringEvents } = await import("@/lib/filterRecurringEvents");
+      const limited = filterRecurringEvents(filtered);
+      
+      return { memberships, events: limited as Event[] };
     },
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
