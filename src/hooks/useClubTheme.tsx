@@ -306,6 +306,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   const [lastUserId, setLastUserId] = useState<string | null>(null);
   // Track if we're in the middle of a user switch - prevents isThemeReady from being true prematurely
   const [isUserSwitching, setIsUserSwitching] = useState(false);
+  // Track if cached theme was applied on fresh login - allows instant rendering without waiting for DB
+  const [hasCacheAppliedOnLogin, setHasCacheAppliedOnLogin] = useState(false);
 
   // Counter to force re-read from localStorage (incremented by custom event)
   const [localStorageVersion, setLocalStorageVersion] = useState(0);
@@ -331,7 +333,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     if (isUserSwitch) {
       console.log('[ClubTheme] User switch detected, clearing theme state');
       setIsUserSwitching(true);
-      // Clear CSS immediately to prevent flash of wrong colors
+      setHasCacheAppliedOnLogin(false);
       const root = document.documentElement;
       root.style.removeProperty("--primary");
       root.style.removeProperty("--primary-foreground");
@@ -357,6 +359,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       const storedId = localStorage.getItem(getStorageKey(user.id));
       const storedData = localStorage.getItem(getStorageDataKey(user.id));
       
+      let cacheApplied = false;
       if (storedId && storedData) {
         try {
           const parsedData = JSON.parse(storedData) as CachedThemeData;
@@ -369,6 +372,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             setActiveClubThemeState(storedId);
             setCachedThemeData(themeFromCache);
             applyThemeCSS(themeFromCache, getEffectiveTheme() === "dark");
+            cacheApplied = true;
             
             // Preload the logo image so it's ready when the header renders
             if (themeFromCache.logoUrl) {
@@ -379,8 +383,12 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         } catch {
           // Invalid cache, will be populated from DB
         }
+      } else if (!storedId) {
+        // No cached theme for this user = they use Ignite Mode, also instant-ready
+        cacheApplied = true;
       }
       
+      setHasCacheAppliedOnLogin(cacheApplied);
       setHasCheckedDefault(false);
       setHasStartedDbLoad(false);
       setIsLoadingFromDb(true);
@@ -925,6 +933,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   const themeIsReady = !isUserSwitching && (
     (!authLoading && !user?.id) || // No user - no theme to load
     dbLoadComplete || // DB load is complete - theme is authoritative
+    hasCacheAppliedOnLogin || // Fresh login with cached theme applied - render instantly
     (!isLoadingFromDb && hasLocalThemeData && !authLoading) // Have cache AND not loading
   );
   
