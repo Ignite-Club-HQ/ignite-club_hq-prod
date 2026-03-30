@@ -443,7 +443,7 @@ export function AppHeader() {
     },
   });
 
-  const { data: recentNotifications = [] } = useQuery({
+  const { data: recentNotifications = [], refetch: refetchRecentNotifications } = useQuery({
     queryKey: ["recent-notifications", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -457,6 +457,7 @@ export function AppHeader() {
       return data;
     },
     enabled: !!user?.id,
+    staleTime: 0,
   });
 
   const markAsRead = useMutation({
