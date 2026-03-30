@@ -303,10 +303,62 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     enabled: debouncedNameInput.length >= 2,
   });
 
+  // Also search pending invites from other teams in same club
+  const { data: pendingInviteResults = [] } = useQuery({
+    queryKey: ["pending-invite-search", debouncedNameInput, clubId, teamId],
+    queryFn: async () => {
+      if (debouncedNameInput.length < 2) return [];
+      const { data: invites } = await supabase
+        .from("pending_invites")
+        .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
+        .eq("club_id", clubId)
+        .eq("status", "pending")
+        .neq("team_id", teamId)
+        .ilike("invited_label", `%${debouncedNameInput}%`)
+        .limit(8);
+      
+      if (!invites?.length) return [];
+      
+      // For invites that have an invited_user_id, fetch profile data
+      const userIds = invites.filter(i => i.invited_user_id).map(i => i.invited_user_id!);
+      let profileMap = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+      
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, avatar_url")
+          .in("id", userIds);
+        if (profiles) {
+          profiles.forEach(p => profileMap.set(p.id, p));
+        }
+      }
+      
+      return invites.map(invite => ({
+        id: invite.invited_user_id || `pending-${invite.id}`,
+        display_name: invite.invited_user_id 
+          ? (profileMap.get(invite.invited_user_id)?.display_name || invite.invited_label)
+          : invite.invited_label,
+        avatar_url: invite.invited_user_id 
+          ? (profileMap.get(invite.invited_user_id)?.avatar_url || null) 
+          : null,
+        invited_email: invite.invited_email,
+        isPendingInvite: true,
+        pendingInviteId: invite.id,
+      }));
+    },
+    enabled: debouncedNameInput.length >= 2,
+  });
+
   // Filter out existing members — but allow the current user (admin adding themselves as parent)
   // When adding a "parent" role, allow existing members to appear (we're adding a child under them)
   const filteredResults = searchResults.filter(
     u => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
+  );
+
+  // Merge pending invite results, excluding any already in profile results
+  const profileIds = new Set(filteredResults.map(r => r.id));
+  const filteredPendingResults = pendingInviteResults.filter(
+    r => !profileIds.has(r.id)
   );
 
   const bulkSearchTerms = Array.from(
