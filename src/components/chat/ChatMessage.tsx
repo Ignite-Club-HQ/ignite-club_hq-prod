@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert, Flag } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,7 @@ export interface ChatMessageProps {
   isLastMessage?: boolean;
   isPending?: boolean;
   isSystemMessage?: boolean;
+  isClubAnnouncement?: boolean;
   contextId?: string;
 }
 
@@ -85,6 +86,7 @@ export const ChatMessage = memo(function ChatMessage({
   isLastMessage = false,
   isPending = false,
   isSystemMessage = false,
+  isClubAnnouncement = false,
   contextId,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -558,15 +560,21 @@ export const ChatMessage = memo(function ChatMessage({
 
   return (
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""}`}>
-      <Avatar className="h-8 w-8 shrink-0">
-        <AvatarImage src={authorAvatar || undefined} />
-        <AvatarFallback className="text-xs">
-          {displayName.charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
+      {isClubAnnouncement ? (
+        <div className="h-8 w-8 shrink-0 rounded-full bg-primary flex items-center justify-center">
+          <Megaphone className="h-4 w-4 text-primary-foreground" />
+        </div>
+      ) : (
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarImage src={authorAvatar || undefined} />
+          <AvatarFallback className="text-xs">
+            {displayName.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      )}
       <div className={`flex flex-col max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
         {!isOwn && hasName && (
-          <p className="text-xs text-muted-foreground mb-1">{displayName}</p>
+          <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="flex items-start gap-1">

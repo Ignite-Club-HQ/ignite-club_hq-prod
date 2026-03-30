@@ -43,6 +43,8 @@ interface Message {
   image_url: string | null;
   reply_to_id: string | null;
   created_at: string;
+  is_club_announcement?: boolean;
+  club_announcement_name?: string | null;
   profiles: {
     display_name: string | null;
     avatar_url: string | null;
@@ -204,7 +206,7 @@ export default function TeamChatPage() {
       // Fetch messages - filter out soft-deleted messages using deleted_at
       const { data: rawMessages, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at, is_club_announcement, club_announcement_name")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -259,6 +261,8 @@ export default function TeamChatPage() {
           image_url: msg.image_url,
           reply_to_id: msg.reply_to_id,
           created_at: msg.created_at,
+          is_club_announcement: msg.is_club_announcement || false,
+          club_announcement_name: msg.club_announcement_name || null,
           profiles: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
           reactions: reactionsResult.data?.filter((r) => r.team_message_id === msg.id) || [],
           reply_to: replyTo,
@@ -1153,10 +1157,10 @@ export default function TeamChatPage() {
                         text={msg.text}
                         imageUrl={msg.image_url}
                         authorId={msg.author_id}
-                        authorName={getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null}
-                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
+                        authorName={msg.is_club_announcement ? (msg.club_announcement_name || "Club") : (getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null)}
+                        authorAvatar={msg.is_club_announcement ? undefined : (getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null)}
                         timestamp={formatMessageDate(msg.created_at)}
-                        isOwn={msg.author_id === user?.id}
+                        isOwn={msg.is_club_announcement ? false : msg.author_id === user?.id}
                         isAdmin={isAdmin || false}
                         reactions={msg.reactions}
                         currentUserId={user?.id}
@@ -1174,6 +1178,7 @@ export default function TeamChatPage() {
                         isLastMessage={index === filteredMessages.length - 1}
                         isPending={msg.id.startsWith("queued-")}
                         contextId={teamId || ""}
+                        isClubAnnouncement={msg.is_club_announcement}
                       />
                     </div>
                   </div>
