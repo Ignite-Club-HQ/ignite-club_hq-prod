@@ -2076,7 +2076,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                                   <div className="flex-1">
                                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                                      <strong>{matches[0].name}</strong> already exists (parent: {matches[0].parent_name}). Link to them?
+                                      <strong>{matches[0].name}</strong>{' '}
+                                      {(matches[0] as any).isPending 
+                                        ? <>has a pending invite (parent: {matches[0].parent_name}). Same child?</>
+                                        : <>already exists (parent: {matches[0].parent_name}). Link to them?</>
+                                      }
                                     </p>
                                     <div className="flex gap-2 mt-1.5">
                                       <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
@@ -2504,7 +2508,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                 <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                                 <div className="flex-1">
                                   <p className="text-xs text-amber-700 dark:text-amber-300">
-                                    <strong>{m.name}</strong> already exists (parent: {m.parent_name}). Link to them?
+                                    <strong>{m.name}</strong>{' '}
+                                    {(m as any).isPending 
+                                      ? <>has a pending invite (parent: {m.parent_name}). Same child?</>
+                                      : <>already exists (parent: {m.parent_name}). Link to them?</>
+                                    }
                                   </p>
                                   <div className="flex gap-2 mt-1.5">
                                     <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
