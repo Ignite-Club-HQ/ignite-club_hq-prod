@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ClassFieldsSection } from "@/components/ClassFieldsSection";
+import { LevelAgeCombobox } from "@/components/LevelAgeCombobox";
 import { shouldUseNativePicker, pickNativePhoto } from "@/lib/nativePhotoPicker";
 import { isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { mimeToExtension } from "@/lib/binaryUtils";
@@ -303,13 +304,9 @@ export default function EditTeamPage() {
 
           <div className="space-y-2">
             <Label htmlFor="levelAge" className="text-base">Level / Age Group</Label>
-            <Input
-              id="levelAge"
-              placeholder="e.g., Under 12s, Division 2"
+            <LevelAgeCombobox
               value={levelAge}
-              onChange={(e) => setLevelAge(e.target.value)}
-              maxLength={50}
-              className="h-12 text-base"
+              onChange={setLevelAge}
             />
           </div>
 
