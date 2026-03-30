@@ -362,9 +362,13 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
 
+  const longPressTriggeredRef = useRef(false);
+
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
+      longPressTriggeredRef.current = true;
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 600);
