@@ -886,14 +886,14 @@ export default function BroadcastChatPage() {
         <div className="border-t py-4">
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
-          <div className="flex gap-2 items-end">
+          <div className="flex gap-1.5 items-end">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
               disabled={sendMutation.isPending}
             />
             <MentionInput
-              placeholder="Send announcement to all users..."
+              placeholder="Send announcement..."
               value={message}
               onChange={(val) => {
                 setMessage(val);
@@ -903,20 +903,20 @@ export default function BroadcastChatPage() {
               onKeyPress={handleKeyPress}
               disabled={sendMutation.isPending}
             />
-            <Button
-              size="icon"
+            <button
               onClick={() => {
                 stopTyping();
                 handleSend();
               }}
               disabled={(!message.trim() && !imageUrl) || sendMutation.isPending}
+              className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
             >
               {sendMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                <Send className="h-4 w-4" />
+                <Send className="h-5 w-5" />
               )}
-            </Button>
+            </button>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             Contact support@ignuteclubhq.app for technical enquiries
