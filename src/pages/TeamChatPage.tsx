@@ -402,12 +402,6 @@ export default function TeamChatPage() {
             return;
           }
 
-          // If the same server reaction arrives with an older reaction_type from a stale refetch,
-          // keep the already-rendered local/realtime version.
-          if (previousReaction.id === reaction.id && previousReaction.reaction_type !== reaction.reaction_type) {
-            return;
-          }
-
           reactionsByUser.set(reaction.user_id, reaction);
         });
 
