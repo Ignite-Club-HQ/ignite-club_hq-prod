@@ -2231,8 +2231,8 @@ export default function EventDetailPage() {
               key={value}
               variant={myRsvp?.status === value ? "default" : "outline"}
               className="flex flex-col h-auto py-3"
-              onClick={() => rsvpMutation.mutate(value)}
-              disabled={rsvpMutation.isPending}
+              onClick={() => myRsvp?.status !== value && rsvpMutation.mutate(value)}
+              disabled={rsvpMutation.isPending || myRsvp?.status === value}
             >
               <span className="text-lg">{icon}</span>
               <span className="text-xs mt-1">{label}</span>
