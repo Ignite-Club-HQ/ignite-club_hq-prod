@@ -43,6 +43,8 @@ interface Message {
   image_url: string | null;
   reply_to_id: string | null;
   created_at: string;
+  is_club_announcement?: boolean;
+  club_announcement_name?: string | null;
   profiles: {
     display_name: string | null;
     avatar_url: string | null;
