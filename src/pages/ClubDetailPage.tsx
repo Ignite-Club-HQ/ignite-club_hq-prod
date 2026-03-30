@@ -1152,9 +1152,9 @@ export default function ClubDetailPage() {
             return true;
           });
 
-          // Sort alphabetically
+          // Sort alphabetically using natural numeric ordering
           const sortAlpha = (a: typeof activeTeams[0], b: typeof activeTeams[0]) =>
-            (a.name || "").localeCompare(b.name || "");
+            (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" });
           filteredTeams.sort(sortAlpha);
 
           // Group by type when "All" filter is active (and no search)
