@@ -226,6 +226,43 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     enabled: open && !!clubId && (selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")),
   });
 
+  // Fetch children from pending invites for this team
+  const { data: pendingInviteChildren = [] } = useQuery({
+    queryKey: ["pending-invite-children", teamId],
+    queryFn: async () => {
+      const { data: invites } = await supabase
+        .from("pending_invites")
+        .select("id, invited_label, metadata")
+        .eq("team_id", teamId)
+        .eq("status", "pending");
+      
+      if (!invites?.length) return [];
+      
+      const pendingChildren: { id: string; name: string; year_of_birth: number | null; parent_name: string; parent_id: string; isPending: true; inviteId: string }[] = [];
+      
+      invites.forEach(invite => {
+        const meta = invite.metadata as any;
+        if (meta?.children && Array.isArray(meta.children)) {
+          meta.children.forEach((child: any) => {
+            if (child.name) {
+              pendingChildren.push({
+                id: `pending-${invite.id}-${child.name}`,
+                name: child.name,
+                year_of_birth: child.yearOfBirth || null,
+                parent_name: invite.invited_label || "Unknown",
+                parent_id: invite.id,
+                isPending: true,
+                inviteId: invite.id,
+              });
+            }
+          });
+        }
+      });
+      
+      return pendingChildren;
+    },
+    enabled: open && !!teamId && (selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")),
+  });
 
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["user-search-team-member", debouncedNameInput],
@@ -304,11 +341,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     u => u.id !== selectedUser?.id
   );
 
-  // Find matching existing children by partial name (case-insensitive)
+  // Find matching existing children by partial name (case-insensitive), including pending invite children
   const findMatchingChildren = (name: string) => {
     if (!name.trim() || name.trim().length < 2) return [];
     const query = name.trim().toLowerCase();
-    return clubChildren.filter(c => c.name.toLowerCase().includes(query)).slice(0, 5);
+    
+    // Search confirmed children
+    const confirmedMatches = clubChildren
+      .filter(c => c.name.toLowerCase().includes(query))
+      .map(c => ({ ...c, isPending: false as const }));
+    
+    // Search pending invite children (exclude those already in confirmed matches by name)
+    const confirmedNames = new Set(confirmedMatches.map(c => c.name.toLowerCase()));
+    const pendingMatches = pendingInviteChildren
+      .filter(c => c.name.toLowerCase().includes(query) && !confirmedNames.has(c.name.toLowerCase()));
+    
+    // Return confirmed first, then pending
+    return [...confirmedMatches, ...pendingMatches].slice(0, 5);
   };
 
   // Create a unique invite token for a pending invite (name-restricted)
