@@ -99,28 +99,20 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
-    if (isMutating) {
-      console.log('[ReactionPicker] Blocked - mutation in progress');
-      onOpenChange(false);
-      return;
-    }
+    // Always close the picker immediately — before any mutation logic
+    onOpenChange(false);
 
-    console.log('[ReactionPicker] Emoji tapped:', type, 'currentUserId:', currentUserId);
+    if (isMutating) return;
+
     const userReaction = reactions.find(
       (r) => r.user_id === currentUserId && r.reaction_type === type
     );
 
-    // Fire the mutation FIRST (matching GroupChatMessageRow pattern that works)
     if (userReaction) {
-      console.log('[ReactionPicker] Removing existing reaction:', userReaction.id);
       onRemove(userReaction.id);
     } else {
-      console.log('[ReactionPicker] Adding/changing reaction to:', type);
       onReact(type);
     }
-
-    // Close picker AFTER mutation is dispatched
-    onOpenChange(false);
   };
 
   if (!isOpen || !position) return null;
