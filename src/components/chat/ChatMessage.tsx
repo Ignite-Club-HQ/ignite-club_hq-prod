@@ -105,6 +105,7 @@ export const ChatMessage = memo(function ChatMessage({
   const suppressMenuUntilPointerUpRef = useRef(false);
   const ignoreReactionDismissRef = useRef(false);
   const menuClickGuardUntilRef = useRef(0);
+  const reactionPickerCloseGuardUntilRef = useRef(0);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
