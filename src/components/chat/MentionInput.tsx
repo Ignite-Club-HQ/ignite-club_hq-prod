@@ -352,17 +352,31 @@ export function MentionInput({
             <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
           </div>
         )}
-        <textarea
-          ref={inputRef}
-          value={displayValue}
-          onChange={handleDisplayChange}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          placeholder={placeholder}
-          rows={1}
-          className={`flex-1 bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] ${className || ''}`}
-          style={{ maxHeight: '120px', overflowY: 'hidden' }}
-        />
+        <div className="relative flex-1">
+          {/* Highlight overlay for mentions */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 pointer-events-none text-base px-2 py-2.5 leading-[1.4] whitespace-pre-wrap break-words text-transparent overflow-hidden"
+            style={{ maxHeight: '120px' }}
+          >
+            {displayValue.split(/(\b(?:${Array.from(mentionMap.keys()).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\b)/g).map((segment, i) =>
+              mentionMap.has(segment)
+                ? <span key={i} className="bg-primary/15 rounded px-0.5 text-transparent">{segment}</span>
+                : <span key={i}>{segment}</span>
+            )}
+          </div>
+          <textarea
+            ref={inputRef}
+            value={displayValue}
+            onChange={handleDisplayChange}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            placeholder={placeholder}
+            rows={1}
+            className={`w-full bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 ${className || ''}`}
+            style={{ maxHeight: '120px', overflowY: 'hidden' }}
+          />
+        </div>
       </div>
       
       {showSuggestions && users && users.length > 0 && (
