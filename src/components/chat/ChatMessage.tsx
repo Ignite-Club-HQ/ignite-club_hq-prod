@@ -464,10 +464,17 @@ export const ChatMessage = memo(function ChatMessage({
     setEditText(text);
   }, [text]);
 
+  const openActionMenu = useCallback(() => {
+    suppressOutsideCloseUntilRef.current = Date.now() + 500;
+    setShowMenu(true);
+    setShowReactionPicker(false);
+    setIsDropdownOpen(true);
+  }, []);
+
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setShowMenu(true);
-  }, []);
+    openActionMenu();
+  }, [openActionMenu]);
 
   const handleReply = useCallback(() => {
     onReply?.({ id, text, authorName: authorName || null });
@@ -653,16 +660,20 @@ export const ChatMessage = memo(function ChatMessage({
             />
           </div>
           {showMenu && (
-            <div ref={menuContainerRef} className={`absolute top-0 ${isOwn ? "right-full mr-1" : "left-full ml-1"}`}>
+            <div ref={menuContainerRef} className={`absolute top-0 z-[100002] ${isOwn ? "right-full mr-1" : "left-full ml-1"}`}>
               <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 min-h-[32px] min-w-[32px]"
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      openActionMenu();
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setIsDropdownOpen(true);
+                      openActionMenu();
                     }}
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
@@ -670,7 +681,13 @@ export const ChatMessage = memo(function ChatMessage({
                     <MoreVertical className="h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align={isOwn ? "end" : "start"} side="top" collisionPadding={16} className="bg-popover border">
+                <DropdownMenuContent
+                  align={isOwn ? "end" : "start"}
+                  side="top"
+                  collisionPadding={16}
+                  className="z-[100002] bg-popover border"
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                >
                   {canReply && (
                     <DropdownMenuItem onClick={handleReply}>
                       <Reply className="h-4 w-4 mr-2" /> Reply
