@@ -671,6 +671,7 @@ export const ChatMessage = memo(function ChatMessage({
               onOpenChange={setShowReactionPicker}
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
+              ignoreDismissRef={ignoreReactionDismissRef}
             />
           </div>
           {showMenu && (
@@ -687,9 +688,9 @@ export const ChatMessage = memo(function ChatMessage({
                         e.stopPropagation();
                         return;
                       }
+                      ignoreReactionDismissRef.current = true;
                       e.preventDefault();
                       e.stopPropagation();
-                      openActionMenu();
                     }}
                     onClick={(e) => {
                       if (suppressMenuUntilPointerUpRef.current) {
@@ -699,6 +700,12 @@ export const ChatMessage = memo(function ChatMessage({
                       }
                       e.preventDefault();
                       e.stopPropagation();
+                      setShowMenu(true);
+                      setIsDropdownOpen(true);
+                      requestAnimationFrame(() => {
+                        setShowReactionPicker(false);
+                        ignoreReactionDismissRef.current = false;
+                      });
                     }}
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
