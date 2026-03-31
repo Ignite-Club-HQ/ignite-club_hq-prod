@@ -103,12 +103,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
-    // Always close the picker immediately — before any mutation logic
     onOpenChange(false);
-
-    // Don't check isMutating here — let handleReactionClick handle its own guard
-    // using the freshest isPending state from the mutation objects
     onReact(type);
+  };
+
+  const shouldIgnoreDismiss = () => {
+    return !!closeGuardUntilRef && Date.now() < closeGuardUntilRef.current;
   };
 
   if (!isOpen || !position) return null;
