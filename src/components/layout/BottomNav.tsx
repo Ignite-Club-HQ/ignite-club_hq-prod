@@ -27,7 +27,7 @@ export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
   const location = useLocation();
 
-  const { data: userRoles } = useQuery({
+  const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-roles-nav", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
