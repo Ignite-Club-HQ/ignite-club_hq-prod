@@ -1346,6 +1346,11 @@ export default function MessagesPage() {
           <DMConversationsList searchQuery={searchQuery} hasProAccess={hasAnyProAccess} />
         )}
 
+        {/* Contact Club - Pro feature */}
+        {!showSkeletonLoading && (
+          <ContactClubButton clubFilter={activeClubFilter} />
+        )}
+
         {/* Announcements Section */}
         {!showSkeletonLoading && showBroadcast && (
           <>
