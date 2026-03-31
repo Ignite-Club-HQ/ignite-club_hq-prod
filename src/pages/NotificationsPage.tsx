@@ -423,8 +423,13 @@ export default function NotificationsPage() {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Request denied");
     },
-    onError: () => {
-      toast.error("Failed to deny request");
+    onError: (error: Error) => {
+      const msg = error.message?.toLowerCase() || "";
+      if (msg.includes("not authorized")) {
+        toast.error("You don't have permission to deny this request. Only team admins, coaches, and club admins can manage join requests.");
+      } else {
+        toast.error("Failed to deny request. Please try again.");
+      }
     },
   });
 

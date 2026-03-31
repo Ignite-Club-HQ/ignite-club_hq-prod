@@ -171,6 +171,14 @@ export default function ManageRolesPage() {
       queryClient.invalidateQueries({ queryKey: ["club-roles", clubId] });
       toast({ title: "Request processed" });
     },
+    onError: (error: Error) => {
+      const msg = error.message?.toLowerCase() || "";
+      if (msg.includes("not authorized")) {
+        toast({ title: "Permission denied", description: "You don't have permission to manage join requests. Only club admins can approve or deny requests.", variant: "destructive" });
+      } else {
+        toast({ title: "Something went wrong", description: "Failed to process the request. Please try again.", variant: "destructive" });
+      }
+    },
   });
 
   if (loadingClub) {
