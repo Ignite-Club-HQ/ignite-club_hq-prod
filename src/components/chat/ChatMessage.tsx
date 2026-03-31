@@ -102,6 +102,7 @@ export const ChatMessage = memo(function ChatMessage({
   const bubbleRef = useRef<HTMLDivElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
   const suppressMenuUntilPointerUpRef = useRef(false);
+  const ignoreReactionDismissRef = useRef(false);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
