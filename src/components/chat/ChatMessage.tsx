@@ -737,15 +737,13 @@ export const ChatMessage = memo(function ChatMessage({
                     e.preventDefault();
                     e.stopPropagation();
                     if (suppressMenuUntilPointerUpRef.current) return;
-                    menuClickGuardUntilRef.current = Date.now() + 600;
+                    guardDismiss();
                     ignoreReactionDismissRef.current = true;
-                    reactionPickerCloseGuardUntilRef.current = Number.MAX_SAFE_INTEGER;
                     setShowReactionPicker(false);
                     setShowMenu(true);
                     setIsDropdownOpen(true);
                     requestAnimationFrame(() => {
                       ignoreReactionDismissRef.current = false;
-                      reactionPickerCloseGuardUntilRef.current = 0;
                     });
                   }}
                   onClick={(e) => {
