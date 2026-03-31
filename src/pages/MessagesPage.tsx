@@ -24,6 +24,7 @@ import ChatGroupCard from "@/components/chat/ChatGroupCard";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { DMConversationsList } from "@/components/chat/DMConversationsList";
 import { NewMessageMenu } from "@/components/chat/NewMessageMenu";
+import { ContactClubButton } from "@/components/ContactClubButton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1343,6 +1344,11 @@ export default function MessagesPage() {
         {/* Direct Messages Section - Pro feature */}
         {!showSkeletonLoading && hasAnyProAccess && (
           <DMConversationsList searchQuery={searchQuery} hasProAccess={hasAnyProAccess} />
+        )}
+
+        {/* Contact Club - Pro feature */}
+        {!showSkeletonLoading && (
+          <ContactClubButton clubFilter={activeClubFilter} />
         )}
 
         {/* Announcements Section */}
