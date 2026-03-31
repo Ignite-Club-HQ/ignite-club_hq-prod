@@ -968,7 +968,7 @@ export default function ClubChatPage() {
       setMessage("");
       setEditingMessage(null);
       queryClient.invalidateQueries({ queryKey: queryKeyMemo });
-      toast({ title: "Message updated" });
+      // silent success
     },
     onError: () => toast({ title: "Failed to update message", variant: "destructive" }),
   });

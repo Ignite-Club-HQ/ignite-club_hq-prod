@@ -361,7 +361,7 @@ export default function ClubAdminChatPage() {
       setMessage("");
       setEditingMessage(null);
       queryClient.invalidateQueries({ queryKey });
-      toast.success("Message updated");
+      // silent success
     },
     onError: () => toast.error("Failed to update message"),
   });

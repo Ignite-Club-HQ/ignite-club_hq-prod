@@ -585,7 +585,7 @@ export default function DirectMessagePage() {
       setMessage("");
       setEditingMessage(null);
       queryClient.invalidateQueries({ queryKey: dmQueryKey });
-      toast.success("Message updated");
+      // silent success
     },
     onError: () => toast.error("Failed to update message"),
   });

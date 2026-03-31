@@ -975,7 +975,7 @@ export default function GroupChatPage() {
       setMessage("");
       setEditingMessage(null);
       queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
-      toast.success("Message updated");
+      // silent success
     },
     onError: () => {
       toast.error("Failed to update message");
