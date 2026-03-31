@@ -984,7 +984,7 @@ export default function ClubDetailPage() {
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">{club?.class_mode_enabled ? "Classes" : "Teams"}</h2>
-            {activeTeams && <Badge variant="secondary" className="font-semibold text-secondary-foreground">{activeTeams.length}</Badge>}
+            {activeTeams && <Badge className="font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{activeTeams.length}</Badge>}
           </div>
           <div className="flex items-center gap-2">
             {isAdmin && (
@@ -1250,7 +1250,7 @@ export default function ClubDetailPage() {
               <div className="flex items-center gap-2">
                 <Archive className="h-5 w-5 text-amber-600" />
                 <span className="text-lg font-semibold text-amber-800 dark:text-amber-300">Archived Teams</span>
-                <Badge variant="secondary" className="ml-2 font-semibold text-secondary-foreground">{archivedTeams.length}</Badge>
+                <Badge className="ml-2 font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{archivedTeams.length}</Badge>
               </div>
             </AccordionTrigger>
             <AccordionContent>
@@ -1313,7 +1313,7 @@ export default function ClubDetailPage() {
               <div className="flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-primary" />
                 <span className="text-lg font-semibold">Mini Leagues</span>
-                {miniLeagues.length > 0 && <Badge variant="secondary" className="ml-2 font-semibold text-secondary-foreground">{miniLeagues.length}</Badge>}
+                {miniLeagues.length > 0 && <Badge className="ml-2 font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{miniLeagues.length}</Badge>}
               </div>
             </AccordionTrigger>
             <AccordionContent>
@@ -1435,7 +1435,7 @@ export default function ClubDetailPage() {
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
                 <span className="text-lg font-semibold">{club?.class_mode_enabled ? "Members" : "Club Members"}</span>
-                {!isMembersLoading && <Badge variant="secondary" className="ml-2 font-semibold text-secondary-foreground">{Object.keys(clubMembers).length}</Badge>}
+                {!isMembersLoading && <Badge className="ml-2 font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{Object.keys(clubMembers).length}</Badge>}
               </div>
             </AccordionTrigger>
             <AccordionContent>
