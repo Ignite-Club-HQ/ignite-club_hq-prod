@@ -164,12 +164,24 @@ interface FCMToken {
   updated_at: string;
 }
 
+// Get native app version info
+async function getAppVersion(): Promise<{ version: string; build: string } | null> {
+  try {
+    const { App } = await import('@capacitor/app');
+    const info = await App.getInfo();
+    return { version: info.version, build: info.build };
+  } catch {
+    return null;
+  }
+}
+
 // Store FCM token in database
 async function saveFCMToken(userId: string, token: string): Promise<boolean> {
   console.log('[NativePush] Saving FCM token for user:', userId);
   
   try {
     const platform = getPlatform();
+    const versionInfo = await getAppVersion();
     
     // IMPORTANT: Use security definer RPC to remove this token from other users.
     // Direct .delete() is blocked by RLS since users can't delete other users' rows.
@@ -186,6 +198,8 @@ async function saveFCMToken(userId: string, token: string): Promise<boolean> {
           user_id: userId,
           token,
           platform,
+          app_version: versionInfo?.version ?? null,
+          build_number: versionInfo?.build ?? null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id,token' }
