@@ -85,7 +85,8 @@ export function useNotificationNudge(userId: string | undefined, context: string
     setIsDismissed(true);
   }, [userId, context]);
 
-  const shouldShowNudge = hasPushEnabled === false && !isDismissed;
+  // Never show nudge while still loading — prevents false flash
+  const shouldShowNudge = !isLoading && hasPushEnabled === false && !isDismissed;
 
   return { shouldShowNudge, hasPushEnabled, dismiss };
 }
