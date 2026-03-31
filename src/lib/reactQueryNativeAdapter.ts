@@ -4,41 +4,38 @@ import { Capacitor } from '@capacitor/core';
 /**
  * Configures React Query's onlineManager and focusManager for Capacitor
  * native environments where browser events don't fire reliably.
+ * Uses @capacitor/network for accurate connectivity detection and
+ * @capacitor/app for app foreground/background state.
  */
 export function setupReactQueryNativeAdapter() {
   if (!Capacitor.isNativePlatform()) return;
 
-  // --- Online Manager ---
-  // Listen for browser online/offline events (works in most webviews)
-  // and also reconcile on app resume
+  // --- Online Manager via Capacitor Network plugin ---
   onlineManager.setEventListener((setOnline) => {
-    const onlineHandler = () => setOnline(true);
-    const offlineHandler = () => setOnline(false);
-
-    window.addEventListener('online', onlineHandler);
-    window.addEventListener('offline', offlineHandler);
-
-    // Set initial state
-    setOnline(navigator.onLine);
+    const listenerPromise = import('@capacitor/network').then(({ Network }) => {
+      // Set initial state
+      Network.getStatus().then((status) => setOnline(status.connected));
+      // Listen for changes
+      return Network.addListener('networkStatusChange', (status) => {
+        setOnline(status.connected);
+      });
+    });
 
     return () => {
-      window.removeEventListener('online', onlineHandler);
-      window.removeEventListener('offline', offlineHandler);
+      listenerPromise.then((listener) => listener.remove());
     };
   });
 
-  // --- Focus Manager ---
-  // Use Capacitor App plugin to detect app resume/foreground
+  // --- Focus Manager via Capacitor App plugin ---
   import('@capacitor/app').then(({ App }) => {
-    App.addListener('appStateChange', ({ isActive }) => {
-      focusManager.setFocused(isActive);
-    });
+    focusManager.setEventListener((handleFocus) => {
+      const listenerPromise = App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) handleFocus();
+      });
 
-    // Also listen to visibilitychange as a fallback
-    focusManager.setEventListener((setFocused) => {
-      const handler = () => setFocused(document.visibilityState === 'visible');
-      document.addEventListener('visibilitychange', handler);
-      return () => document.removeEventListener('visibilitychange', handler);
+      return () => {
+        listenerPromise.then((listener) => listener.remove());
+      };
     });
   });
 }
