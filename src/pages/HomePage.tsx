@@ -1554,6 +1554,8 @@ export default function HomePage() {
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <UpcomingClassesWidget />
 
+      {/* Contact Club - quick DM to club admin (Pro only) */}
+      <ContactClubButton clubFilter={activeClubFilter} compact />
 
 
       <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
