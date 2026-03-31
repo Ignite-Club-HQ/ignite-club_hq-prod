@@ -17,6 +17,7 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
+import { EditingBanner } from "@/components/chat/EditingBanner";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";

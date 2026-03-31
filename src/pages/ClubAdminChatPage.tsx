@@ -9,6 +9,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
+import { EditingBanner } from "@/components/chat/EditingBanner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
