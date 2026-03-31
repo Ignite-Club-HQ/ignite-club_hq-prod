@@ -101,6 +101,7 @@ export const ChatMessage = memo(function ChatMessage({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
+  const suppressMenuUntilPointerUpRef = useRef(false);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
@@ -405,6 +406,7 @@ export const ChatMessage = memo(function ChatMessage({
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       suppressOutsideCloseUntilRef.current = Date.now() + 900;
+      suppressMenuUntilPointerUpRef.current = true;
       setIsDropdownOpen(false);
       setShowMenu(true);
       setShowReactionPicker(true);
@@ -501,10 +503,19 @@ export const ChatMessage = memo(function ChatMessage({
   }, [showReactionPicker]);
 
   useEffect(() => {
+    const clearSuppressedMenuGesture = () => {
+      suppressMenuUntilPointerUpRef.current = false;
+    };
+
+    window.addEventListener('pointerup', clearSuppressedMenuGesture, true);
+    window.addEventListener('pointercancel', clearSuppressedMenuGesture, true);
+
     return () => {
       if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
       }
+      window.removeEventListener('pointerup', clearSuppressedMenuGesture, true);
+      window.removeEventListener('pointercancel', clearSuppressedMenuGesture, true);
     };
   }, []);
 
@@ -669,11 +680,21 @@ export const ChatMessage = memo(function ChatMessage({
                     size="icon"
                     className="h-8 w-8 min-h-[32px] min-w-[32px]"
                     onPointerDown={(e) => {
+                      if (suppressMenuUntilPointerUpRef.current) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
                       e.preventDefault();
                       e.stopPropagation();
                       openActionMenu();
                     }}
                     onClick={(e) => {
+                      if (suppressMenuUntilPointerUpRef.current) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
                       e.preventDefault();
                       e.stopPropagation();
                     }}
