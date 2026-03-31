@@ -125,13 +125,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           e.preventDefault();
-          if (ignoreDismissRef?.current) return;
+          if (ignoreDismissRef?.current || shouldIgnoreDismiss()) return;
           onOpenChange(false);
         }
       }}
       onClick={(e) => {
         e.stopPropagation();
-        if (ignoreDismissRef?.current) return;
+        if (ignoreDismissRef?.current || shouldIgnoreDismiss()) return;
         onOpenChange(false);
       }}
     >
