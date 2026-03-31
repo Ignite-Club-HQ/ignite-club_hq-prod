@@ -501,7 +501,7 @@ export const ChatMessage = memo(function ChatMessage({
 
   const handleMenuOpenChange = useCallback((open: boolean) => {
     setIsDropdownOpen(open);
-    if (!open && !showReactionPicker) {
+    if (!open && !showReactionPicker && Date.now() > menuClickGuardUntilRef.current) {
       setShowMenu(false);
     }
   }, [showReactionPicker]);
