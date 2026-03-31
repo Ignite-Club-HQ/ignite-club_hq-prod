@@ -1029,6 +1029,7 @@ export default function DirectMessagePage() {
           onCancel={() => setReplyTo(null)}
         />
       )}
+      {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
 
       {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (

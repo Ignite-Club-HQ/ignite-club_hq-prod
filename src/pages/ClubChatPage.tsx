@@ -1233,6 +1233,7 @@ export default function ClubChatPage() {
         <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
+          {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
           <div className="flex gap-1.5 items-end">
             <ChatImageInput
               imageUrl={imageUrl}

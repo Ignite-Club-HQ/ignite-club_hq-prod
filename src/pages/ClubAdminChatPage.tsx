@@ -628,6 +628,7 @@ export default function ClubAdminChatPage() {
           onCancel={() => setReplyTo(null)}
         />
       )}
+      {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
 
       {/* Input area */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
