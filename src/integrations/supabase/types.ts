@@ -6017,6 +6017,10 @@ export type Database = {
       }
     }
     Functions: {
+      approve_role_request: {
+        Args: { p_request_id: string }
+        Returns: undefined
+      }
       can_access_chat_group: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
@@ -6064,6 +6068,7 @@ export type Database = {
         Args: { encrypted_data: string }
         Returns: string
       }
+      deny_role_request: { Args: { p_request_id: string }; Returns: undefined }
       encrypt_sensitive_data: { Args: { data: string }; Returns: string }
       extract_mentioned_user_ids: {
         Args: { message_text: string }

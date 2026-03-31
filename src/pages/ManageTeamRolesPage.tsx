@@ -148,31 +148,10 @@ export default function ManageTeamRolesPage() {
   });
 
   const handleRequestMutation = useMutation({
-    mutationFn: async ({ requestId, approved, request }: { requestId: string; approved: boolean; request: any }) => {
-      const { error: updateError } = await supabase
-        .from("role_requests")
-        .update({ status: approved ? "approved" : "denied", processed_by: user!.id })
-        .eq("id", requestId);
-      if (updateError) throw updateError;
-
-      if (approved) {
-        const { error: roleError } = await supabase.from("user_roles").insert({
-          user_id: request.user_id,
-          role: request.role,
-          club_id: team?.club_id,
-          team_id: request.team_id,
-        });
-        if (roleError) throw roleError;
-      }
-
-      await supabase.from("notifications").insert({
-        user_id: request.user_id,
-        type: "role_request_" + (approved ? "approved" : "denied"),
-        message: approved
-          ? `Your request to become ${roleLabels[request.role as AppRole]} has been approved!`
-          : `Your request to become ${roleLabels[request.role as AppRole]} has been denied.`,
-        related_id: teamId,
-      });
+    mutationFn: async ({ requestId, approved }: { requestId: string; approved: boolean; request: any }) => {
+      const rpcName = approved ? "approve_role_request" : "deny_role_request";
+      const { error } = await supabase.rpc(rpcName, { p_request_id: requestId });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-role-requests", teamId] });

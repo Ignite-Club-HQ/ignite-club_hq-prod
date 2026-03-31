@@ -288,7 +288,7 @@ export default function NotificationsPage() {
 
   const approveRequest = useMutation({
     mutationFn: async (requestId: string) => {
-      // Get the request details first with team/club info
+      // Get the request details for email sending
       const { data: request, error: fetchError } = await supabase
         .from("role_requests")
         .select(`
@@ -303,82 +303,28 @@ export default function NotificationsPage() {
         throw new Error("Request not found");
       }
 
-      if (request.status !== "pending") {
-        throw new Error("Request already processed");
-      }
+      // Use the secure RPC to approve (handles role insert, notifications, child linking)
+      const { error } = await supabase.rpc("approve_role_request", { p_request_id: requestId });
+      if (error) throw error;
 
-      // Check if role already exists
-      let query = supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", request.user_id)
-        .eq("role", request.role);
-      
-      if (request.club_id) {
-        query = query.eq("club_id", request.club_id);
-      } else {
-        query = query.is("club_id", null);
-      }
-      
-      if (request.team_id) {
-        query = query.eq("team_id", request.team_id);
-      } else {
-        query = query.is("team_id", null);
-      }
-
-      const { data: existingRole } = await query.maybeSingle();
-
-      // Only insert if role doesn't exist
-      if (!existingRole) {
-        const { error: roleError } = await supabase.from("user_roles").insert({
-          user_id: request.user_id,
-          role: request.role as AppRole,
-          club_id: request.club_id,
-          team_id: request.team_id,
-        });
-
-        if (roleError) throw roleError;
-      }
-
-      // Update the request status
-      const { error: updateError } = await supabase
-        .from("role_requests")
-        .update({ status: "approved", processed_by: user!.id })
-        .eq("id", requestId);
-
-      if (updateError) throw updateError;
-
-      // Get context info for notifications
+      // Send email notification (best-effort, after RPC succeeded)
       const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
       const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
-      
       const teamName = teamData?.name;
       const clubName = teamData?.clubs?.name || clubData?.name || "the club";
       const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
       const entityName = teamName || clubName;
-      const relatedId = request.team_id || request.club_id;
       const roleName = request.role.replace("_", " ");
 
-      // Create in-app notification for the requester
-      await supabase.from("notifications").insert({
-        user_id: request.user_id,
-        type: "join_request_approved",
-        message: `Your request to join ${entityName} as ${roleName} has been approved!`,
-        related_id: relatedId,
-      });
-
-      // Get requester's profile for email
       const { data: requesterProfile } = await supabase
         .from("profiles")
         .select("display_name")
         .eq("id", request.user_id)
         .single();
 
-      // Get requester's email
       const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
       const userEmail = emailData?.[0]?.email;
       
-      // Send email notification if we can get the email (via edge function)
       if (userEmail) {
         const teamLink = request.team_id 
           ? `/teams/${request.team_id}` 
@@ -413,7 +359,7 @@ export default function NotificationsPage() {
 
   const denyRequest = useMutation({
     mutationFn: async (requestId: string) => {
-      // Get the request details first with team/club info
+      // Get request details for email
       const { data: request, error: fetchError } = await supabase
         .from("role_requests")
         .select(`
@@ -428,44 +374,28 @@ export default function NotificationsPage() {
         throw new Error("Request not found");
       }
 
-      const { error } = await supabase
-        .from("role_requests")
-        .update({ status: "denied", processed_by: user!.id })
-        .eq("id", requestId);
-
+      // Use the secure RPC to deny
+      const { error } = await supabase.rpc("deny_role_request", { p_request_id: requestId });
       if (error) throw error;
 
-      // Get context info for notifications
+      // Send email notification (best-effort)
       const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
       const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
-      
       const teamName = teamData?.name;
       const clubName = teamData?.clubs?.name || clubData?.name || "the club";
       const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
       const entityName = teamName || clubName;
-      const relatedId = request.team_id || request.club_id;
       const roleName = request.role.replace("_", " ");
 
-      // Create in-app notification for the requester
-      await supabase.from("notifications").insert({
-        user_id: request.user_id,
-        type: "join_request_denied",
-        message: `Your request to join ${entityName} as ${roleName} was not approved`,
-        related_id: relatedId,
-      });
-
-      // Get requester's profile for email
       const { data: requesterProfile } = await supabase
         .from("profiles")
         .select("display_name")
         .eq("id", request.user_id)
         .single();
 
-      // Get requester's email
       const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
       const userEmail = emailData?.[0]?.email;
       
-      // Send email notification if we can get the email
       if (userEmail) {
         await supabase.functions.invoke("send-email", {
           body: {
