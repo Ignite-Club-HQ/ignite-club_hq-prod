@@ -111,7 +111,7 @@ export function ContactClubButton({ clubFilter, compact = false }: ContactClubBu
       {contactableClubs.map(club => (
         <button
           key={`contact-${club.id}`}
-          onClick={() => handleContactClub(club.id, club.admin_user_id!)}
+          onClick={() => handleContactClub(club.id)}
           disabled={isContacting === club.id}
           className="w-full text-left"
         >
