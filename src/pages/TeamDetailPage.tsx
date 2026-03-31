@@ -1345,6 +1345,27 @@ export default function TeamDetailPage() {
                                         </p>
                                       ) : null}
                                     </div>
+                                    {(isAdmin || isClubAdmin) && isPending && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0"
+                                        aria-label={`Link ${child.name} to a parent`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Find pending invite IDs for this child
+                                          const inviteIds = pendingInvites
+                                            .filter(inv => {
+                                              const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
+                                              return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
+                                            })
+                                            .map(inv => inv.id);
+                                          setLinkChildToParent({ childName: child.name, existingChildId: child.id, pendingInviteIds: inviteIds });
+                                        }}
+                                      >
+                                        <UserPlus className="h-4 w-4 text-orange-400" />
+                                      </Button>
+                                    )}
                                     {(isAdmin || isClubAdmin) && !isPending && (
                                       <Button
                                         variant="ghost"
