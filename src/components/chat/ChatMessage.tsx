@@ -418,14 +418,15 @@ export const ChatMessage = memo(function ChatMessage({
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       longPressGestureActiveRef.current = true;
-      suppressOutsideCloseUntilRef.current = Date.now() + 900;
-      reactionPickerCloseGuardUntilRef.current = Number.MAX_SAFE_INTEGER;
       suppressMenuUntilPointerUpRef.current = true;
+      guardDismiss();
       setIsDropdownOpen(false);
       setShowMenu(true);
-      setShowReactionPicker(true);
+      requestAnimationFrame(() => {
+        setShowReactionPicker(true);
+      });
     }, 600);
-  }, [id, messageType]);
+  }, [guardDismiss, id, messageType]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current && touchStartPos.current) {
@@ -450,9 +451,9 @@ export const ChatMessage = memo(function ChatMessage({
 
     requestAnimationFrame(() => {
       longPressGestureActiveRef.current = false;
-      reactionPickerCloseGuardUntilRef.current = 0;
+      guardDismiss();
     });
-  }, []);
+  }, [guardDismiss]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     if (addReactionMutation.isPending || removeReactionMutation.isPending) {
