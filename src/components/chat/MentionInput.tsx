@@ -177,6 +177,19 @@ export function MentionInput({
     return map;
   }, [value]);
 
+  // Split display value into segments with mention highlights
+  const highlightedSegments = useMemo(() => {
+    const mentionNames = Array.from(mentionMap.keys());
+    if (mentionNames.length === 0) return [{ text: displayValue, isMention: false }];
+    const escaped = mentionNames.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`(${escaped.join('|')})`, 'g');
+    const parts = displayValue.split(regex);
+    return parts.map(part => ({
+      text: part,
+      isMention: mentionMap.has(part),
+    }));
+  }, [displayValue, mentionMap]);
+
   const displayValue = useMemo(() => rawToDisplay(value), [value, rawToDisplay]);
 
   // Convert display index to raw index
