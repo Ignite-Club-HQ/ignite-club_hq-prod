@@ -10,7 +10,6 @@ export const MESSAGE_NOTIFICATION_TYPES = [
   'group_message',
   'broadcast',
   'message_reply',
-  'message_reaction',
   'message_mention',
   'direct_message'
 ] as const;

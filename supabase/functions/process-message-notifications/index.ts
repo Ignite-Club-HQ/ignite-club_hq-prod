@@ -307,15 +307,30 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[NOTIFY] ${recipientUserIds.length} recipients for ${messageType} message`);
+    // Pre-extract mentioned user IDs so we can exclude them from the regular
+    // notification fan-out (they'll receive a more specific mention notification instead)
+    const mentionRegex = /@\[[^\]]+\]\(([a-f0-9-]{36})\)/gi;
+    const mentionedIds: string[] = [];
+    let match;
+    while ((match = mentionRegex.exec(messageText || '')) !== null) {
+      if (match[1] && match[1] !== authorId) {
+        mentionedIds.push(match[1]);
+      }
+    }
+    const uniqueMentionedIds = new Set(mentionedIds);
+
+    // Remove mentioned users from the regular recipient list to avoid duplicate notifications
+    const filteredRecipientIds = recipientUserIds.filter(id => !uniqueMentionedIds.has(id));
+
+    console.log(`[NOTIFY] ${filteredRecipientIds.length} recipients (${uniqueMentionedIds.size} mentioned separately) for ${messageType} message`);
 
     // Batch insert notifications with skip_push=true (in chunks of 500)
     const BATCH_SIZE = 500;
     let notificationsInserted = 0;
     const insertedNotificationIds: Array<{ userId: string; id: string }> = [];
 
-    for (let i = 0; i < recipientUserIds.length; i += BATCH_SIZE) {
-      const batch = recipientUserIds.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < filteredRecipientIds.length; i += BATCH_SIZE) {
+      const batch = filteredRecipientIds.slice(i, i + BATCH_SIZE);
       const notificationRows = batch.map(userId => ({
         user_id: userId,
         type: notificationType,
@@ -386,17 +401,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Handle @mentions
-    const mentionRegex = /@\[[^\]]+\]\(([a-f0-9-]{36})\)/gi;
-    const mentionedIds: string[] = [];
-    let match;
-    while ((match = mentionRegex.exec(messageText || '')) !== null) {
-      if (match[1] && match[1] !== authorId) {
-        mentionedIds.push(match[1]);
-      }
-    }
-
-    for (const mentionedId of [...new Set(mentionedIds)]) {
+    // Handle @mentions (mentionedIds already extracted above)
+    for (const mentionedId of [...uniqueMentionedIds]) {
       let isMuted = false;
       if (muteChatId && muteChatType) {
         const { data: muteCheck } = await supabase

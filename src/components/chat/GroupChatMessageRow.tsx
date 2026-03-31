@@ -227,7 +227,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           {msg.reply_to && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded mb-1 border-l-2 border-primary">
               <span className="font-medium">{msg.reply_to.author?.display_name || "..."}: </span>
-              <span className="line-clamp-1">{msg.reply_to.text}</span>
+              <span className="line-clamp-1">{msg.reply_to.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</span>
             </div>
           )}
 
@@ -333,8 +333,13 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           {showReactionPicker && pickerPosition && createPortal(
             <div
               className="fixed inset-0 z-[100001]"
+              data-reaction-picker="true"
               onTouchStart={(e) => { e.stopPropagation(); }}
-              onClick={(e) => { e.stopPropagation(); setShowReactionPicker(false); setShowMenu(false); }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  e.stopPropagation(); setShowReactionPicker(false); setShowMenu(false);
+                }
+              }}
               onTouchEnd={(e) => {
                 if (e.target === e.currentTarget) { e.stopPropagation(); e.preventDefault(); setShowReactionPicker(false); setShowMenu(false); }
               }}
@@ -346,6 +351,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 onClick={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
               >
                 <div className="bg-popover border rounded-lg p-2 shadow-lg">
                   <div className="flex gap-1.5">

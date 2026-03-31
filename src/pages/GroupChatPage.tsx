@@ -1026,6 +1026,7 @@ export default function GroupChatPage() {
   // Toggle reaction mutation with optimistic updates
   // Rule: One reaction per user per message. Clicking same emoji removes it, different emoji replaces it.
   const toggleReactionMutation = useMutation({
+    retry: 1,
     mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
       if (!user) return { action: 'none' as const };
       
@@ -1081,11 +1082,16 @@ export default function GroupChatPage() {
         }).select().maybeSingle();
         
         if (error) {
+          // Handle unique constraint conflict (23505) - reaction already exists
+          if (error.code === '23505') {
+            console.warn('[Reaction] Duplicate reaction, treating as success');
+            return { action: 'added' as const, reaction: null };
+          }
           console.error('[Reaction] Insert error:', error);
           throw error;
         }
         console.log('[Reaction] Insert success:', data);
-        return { action: 'added' as const, reaction: data };
+        return { action: 'added' as const, reaction: data ?? { id: `server-${Date.now()}`, user_id: user.id, reaction_type: reactionType, group_message_id: messageId } };
       }
     },
     onMutate: async ({ messageId, reactionType }) => {
@@ -1287,7 +1293,7 @@ export default function GroupChatPage() {
       toast.success("Group deleted");
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
-      navigate(-1);
+      navigate("/messages");
     },
     onError: () => toast.error("Failed to delete group"),
   });
@@ -1300,7 +1306,7 @@ export default function GroupChatPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-muted-foreground">Chat group not found</p>
-        <Button variant="outline" onClick={() => navigate(-1)}>
+        <Button variant="outline" onClick={() => navigate("/messages")}>
           Go Back
         </Button>
       </div>
@@ -1312,7 +1318,7 @@ export default function GroupChatPage() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
