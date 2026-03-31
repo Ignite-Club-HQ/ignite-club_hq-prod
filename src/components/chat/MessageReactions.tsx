@@ -6,11 +6,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 
 const REACTION_EMOJIS = [
+  { type: "thumbsup", emoji: "👍" },
   { type: "like", emoji: "❤️" },
   { type: "fire", emoji: "🔥" },
   { type: "clap", emoji: "👏" },
   { type: "laugh", emoji: "😂" },
-  { type: "thumbsup", emoji: "👍" },
   { type: "sad", emoji: "😢" },
 ];
 

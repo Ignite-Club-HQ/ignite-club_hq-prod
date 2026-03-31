@@ -35,24 +35,42 @@ export interface NativePhotoPickOptions {
   height?: number;
 }
 
+const buildBaseOptions = (options?: NativePhotoPickOptions) => ({
+  source: CameraSource.Photos,
+  quality: options?.quality ?? 90,
+  correctOrientation: true,
+  presentationStyle: "fullscreen" as const,
+  ...(typeof options?.width === "number" ? { width: options.width } : {}),
+  ...(typeof options?.height === "number" ? { height: options.height } : {}),
+});
+
+const isIOSPhotoLoadFailure = (error: unknown) => {
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes("error loading image") ||
+    message.includes("loading image") ||
+    message.includes("selected photo data is unavailable")
+  );
+};
+
+const getNativePhotoLoadError = (error: unknown) => {
+  if (isIOSPhotoLoadFailure(error)) {
+    return "That photo isn't fully available on this iPhone yet. Open it once in Photos or choose another image and try again.";
+  }
+
+  return getReadableUploadError(error) || "Could not load the selected photo. Please try again.";
+};
+
 /**
  * Picks a photo using the Capacitor Camera plugin on iOS.
- * Uses Base64 result type first (most reliable for iCloud-optimized photos),
- * falls back to URI if Base64 fails.
+ * Uses Base64 result type only because URI fallback re-opens the picker and
+ * tends to fail the same way for iCloud-optimized assets.
  */
 export async function pickNativePhoto(options?: NativePhotoPickOptions): Promise<NativePhotoResult> {
   await ensureCameraPermissions();
 
-  const baseOptions = {
-    source: CameraSource.Photos,
-    quality: options?.quality ?? 90,
-    width: options?.width ?? 1920,
-    height: options?.height ?? 1920,
-    correctOrientation: true,
-    presentationStyle: "fullscreen" as const,
-  };
+  const baseOptions = buildBaseOptions(options);
 
-  // Strategy 1: Base64 mode — most reliable on iOS, avoids temp file issues
   try {
     console.log("[nativePhotoPicker] Trying Camera plugin with Base64 result type");
     const photo = await Camera.getPhoto({
@@ -68,40 +86,13 @@ export async function pickNativePhoto(options?: NativePhotoPickOptions): Promise
     const result = await cameraPhotoToBlob(photo);
     console.log("[nativePhotoPicker] Base64 strategy → blob OK, size:", result.blob.size, "mime:", result.mimeType);
     return result;
-  } catch (base64Error: unknown) {
-    if (isCancelledSelectionError(base64Error)) {
+  } catch (error: unknown) {
+    if (isCancelledSelectionError(error)) {
       throw new Error("Picker was cancelled");
     }
-    console.warn("[nativePhotoPicker] Base64 strategy failed:", getErrorMessage(base64Error));
-  }
-
-  // Strategy 2: URI mode — fallback
-  try {
-    console.log("[nativePhotoPicker] Trying Camera plugin with URI result type");
-    const photo = await Camera.getPhoto({
-      ...baseOptions,
-      resultType: CameraResultType.Uri,
-    });
-
-    if (!hasCameraPhotoSource(photo)) {
-      console.warn("[nativePhotoPicker] URI photo has no source:", describeCameraPhotoSource(photo));
-      throw new Error("No photo data returned from Camera plugin (URI)");
-    }
-
-    const result = await cameraPhotoToBlob(photo);
-    console.log("[nativePhotoPicker] URI strategy → blob OK, size:", result.blob.size, "mime:", result.mimeType);
-    return result;
-  } catch (uriError: unknown) {
-    if (isCancelledSelectionError(uriError)) {
-      throw new Error("Picker was cancelled");
-    }
-
-    console.error("[nativePhotoPicker] Both strategies failed. URI error:", getErrorMessage(uriError));
+    console.error("[nativePhotoPicker] Base64 strategy failed:", getErrorMessage(error));
     await wait(50);
-    throw new Error(
-      getReadableUploadError(uriError) ||
-        "Could not load the selected photo. Please try again."
-    );
+    throw new Error(getNativePhotoLoadError(error));
   }
 }
 
