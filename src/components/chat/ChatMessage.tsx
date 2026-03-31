@@ -101,6 +101,7 @@ export const ChatMessage = memo(function ChatMessage({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
+  const suppressMenuUntilPointerUpRef = useRef(false);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
