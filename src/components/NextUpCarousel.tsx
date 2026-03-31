@@ -222,12 +222,12 @@ function HouseholdRsvpSummary({ eventId, userId, currentStatus }: { eventId: str
 }
 
 function AttendeeAvatars({ eventId, eventType }: { eventId: string; eventType?: string }) {
-  const { data: goingRsvps } = useRsvpSummary(eventId, eventType);
+  const { data: summary } = useRsvpSummary(eventId, eventType);
 
-  if (!goingRsvps || goingRsvps.length === 0) return null;
+  if (!summary || summary.totalCount === 0) return null;
 
-  const visible = goingRsvps.slice(0, 3);
-  const remaining = goingRsvps.length - 3;
+  const visible = summary.avatars.slice(0, 3);
+  const remaining = summary.totalCount - visible.length;
 
   return (
     <div className="flex items-center gap-1.5">
