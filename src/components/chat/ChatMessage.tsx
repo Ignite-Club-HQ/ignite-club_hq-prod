@@ -527,6 +527,28 @@ export const ChatMessage = memo(function ChatMessage({
     };
   }, []);
 
+  // Position the portalled menu trigger next to the bubble
+  useLayoutEffect(() => {
+    if (!showMenu || !bubbleRef.current) {
+      setMenuPosition(null);
+      return;
+    }
+    const updatePos = () => {
+      const rect = bubbleRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const top = rect.top;
+      const left = isOwn ? rect.left - 36 : rect.right + 4;
+      setMenuPosition({ top, left });
+    };
+    updatePos();
+    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("resize", updatePos);
+    return () => {
+      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("resize", updatePos);
+    };
+  }, [showMenu, isOwn]);
+
   // The reaction picker now uses a fullscreen backdrop (in MessageReactionsPopover),
   // so no document-level outside-click handler is needed here.
 
