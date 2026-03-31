@@ -259,7 +259,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     key={index}
                     className="font-semibold"
                   >
-                    @{part.content}
+                    {part.content}
                   </span>
                 );
               }

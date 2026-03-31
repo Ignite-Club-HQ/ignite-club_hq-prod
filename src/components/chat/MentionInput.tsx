@@ -295,7 +295,7 @@ export function MentionInput({
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
       if (!textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
-        const mentionAtCursor = `@${textAfterAt}`;
+        const mentionAtCursor = textAfterAt;
         const isExistingMention = mentionMap.has(mentionAtCursor);
         
         if (!isExistingMention) {
