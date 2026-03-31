@@ -164,7 +164,7 @@ export function MentionInput({
 
   // Convert raw value (with IDs) to display value (without IDs)
   const rawToDisplay = useCallback((raw: string) => {
-    return raw.replace(/@\[([^\]]+)\]\([^)]+\)/g, '@$1');
+    return raw.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1');
   }, []);
 
   // Store mapping of display mentions to raw mentions
@@ -172,7 +172,7 @@ export function MentionInput({
     const map = new Map<string, string>();
     const matches = value.matchAll(/@\[([^\]]+)\]\(([^)]+)\)/g);
     for (const match of matches) {
-      map.set(`@${match[1]}`, match[0]);
+      map.set(match[1], match[0]);
     }
     return map;
   }, [value]);
@@ -197,8 +197,8 @@ export function MentionInput({
       dispIdx += beforeMention.length;
       rawIdx += beforeMention.length;
       
-      // The mention displays as @Name (match[1].length + 1 for @)
-      const displayMentionLen = match[1].length + 1;
+      // The mention displays as Name (no @ prefix)
+      const displayMentionLen = match[1].length;
       const rawMentionLen = match[0].length;
       
       if (dispIdx + displayMentionLen > displayIdx) {
@@ -295,7 +295,7 @@ export function MentionInput({
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
       if (!textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
-        const mentionAtCursor = `@${textAfterAt}`;
+        const mentionAtCursor = textAfterAt;
         const isExistingMention = mentionMap.has(mentionAtCursor);
         
         if (!isExistingMention) {
