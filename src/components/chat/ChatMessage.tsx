@@ -554,6 +554,9 @@ export const ChatMessage = memo(function ChatMessage({
       if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
       }
+      if (contextMenuResetTimerRef.current) {
+        clearTimeout(contextMenuResetTimerRef.current);
+      }
       window.removeEventListener('pointerup', clearSuppressedMenuGesture, true);
       window.removeEventListener('pointercancel', clearSuppressedMenuGesture, true);
     };
