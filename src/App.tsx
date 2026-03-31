@@ -230,7 +230,8 @@ const App = () => {
                   <Route path="/messages" element={<MessagesPage />} />
                   <Route path="/messages/broadcast" element={<BroadcastChatPage />} />
                   <Route path="/messages/club/:clubId" element={<ClubChatPage />} />
-                  <Route path="/messages/dm/:conversationId" element={<DirectMessagePage />} />
+                   <Route path="/messages/dm/:conversationId" element={<DirectMessagePage />} />
+                   <Route path="/messages/club-admin/:conversationId" element={<ClubAdminChatPage />} />
                   <Route path="/messages/welcome" element={<WelcomeMessagePage />} />
                   <Route path="/messages/:teamId" element={<TeamChatPage />} />
                   <Route path="/groups/:groupId" element={<GroupChatPage />} />
