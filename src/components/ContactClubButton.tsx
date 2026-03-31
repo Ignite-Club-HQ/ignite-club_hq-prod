@@ -67,16 +67,27 @@ export function ContactClubButton({ clubFilter, compact = false }: ContactClubBu
 
       if (proClubIds.length === 0) return [];
 
-      // Fetch club info + admin user
+      // Fetch club info
       const { data: clubs } = await supabase
         .from("clubs")
-        .select("id, name, logo_url, admin_user_id")
+        .select("id, name, logo_url")
         .in("id", proClubIds);
 
       if (!clubs?.length) return [];
 
-      // Filter out clubs where the user IS the admin (no need to contact yourself)
-      return clubs.filter(c => c.admin_user_id && c.admin_user_id !== user!.id);
+      // Check if user is a club_admin for any of these clubs - if so, exclude those
+      const { data: adminRoles } = await supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .eq("role", "club_admin")
+        .in("club_id", proClubIds);
+
+      const adminClubIds = new Set((adminRoles || []).map(r => r.club_id));
+
+      // Also check via team membership for club_admin roles
+      // Filter out clubs where user is a club_admin (no need to contact yourself)
+      return clubs.filter(c => !adminClubIds.has(c.id));
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
