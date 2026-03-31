@@ -51,6 +51,7 @@ export interface ChatMessageProps {
   queryKey: string[];
   replyToMessage?: ReplyToMessage | null;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
+  onEdit?: (message: { id: string; text: string }) => void;
   searchQuery?: string;
   readFrontierReaders?: ReaderInfo[];
   readCount?: number;
