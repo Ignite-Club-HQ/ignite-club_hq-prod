@@ -798,7 +798,7 @@ export default function TeamChatPage() {
             return {
               ...(old || {}),
               messages: existingMessages.map(m =>
-                m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m
+                m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url, is_club_announcement: updated.is_club_announcement ?? m.is_club_announcement, club_announcement_name: updated.club_announcement_name ?? m.club_announcement_name } : m
               ),
             };
           });
