@@ -2244,6 +2244,18 @@ export default function TeamDetailPage() {
           teamIds={[id]}
         />
       )}
+      {linkChildToParent && id && team && (
+        <LinkChildToParentSheet
+          open={!!linkChildToParent}
+          onOpenChange={(open) => { if (!open) setLinkChildToParent(null); }}
+          childName={linkChildToParent.childName}
+          existingChildId={linkChildToParent.existingChildId}
+          pendingInviteIds={linkChildToParent.pendingInviteIds}
+          teamId={id}
+          clubId={team.club_id || (team.clubs as any)?.id || ""}
+          members={members}
+        />
+      )}
     </div>
   );
 }
