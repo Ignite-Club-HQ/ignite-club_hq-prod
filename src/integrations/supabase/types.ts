@@ -979,6 +979,93 @@ export type Database = {
           },
         ]
       }
+      club_admin_conversations: {
+        Row: {
+          club_id: string
+          created_at: string
+          id: string
+          member_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          id?: string
+          member_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          id?: string
+          member_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_admin_conversations_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_admin_conversations_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_admin_messages: {
+        Row: {
+          author_id: string
+          conversation_id: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          image_url: string | null
+          reply_to_id: string | null
+          text: string
+        }
+        Insert: {
+          author_id: string
+          conversation_id: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          image_url?: string | null
+          reply_to_id?: string | null
+          text?: string
+        }
+        Update: {
+          author_id?: string
+          conversation_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          image_url?: string | null
+          reply_to_id?: string | null
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_admin_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "club_admin_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_admin_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "club_admin_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_dm_settings: {
         Row: {
           allowed_roles: string[]
@@ -2919,6 +3006,7 @@ export type Database = {
       message_reactions: {
         Row: {
           broadcast_message_id: string | null
+          club_admin_message_id: string | null
           club_message_id: string | null
           created_at: string
           direct_message_id: string | null
@@ -2930,6 +3018,7 @@ export type Database = {
         }
         Insert: {
           broadcast_message_id?: string | null
+          club_admin_message_id?: string | null
           club_message_id?: string | null
           created_at?: string
           direct_message_id?: string | null
@@ -2941,6 +3030,7 @@ export type Database = {
         }
         Update: {
           broadcast_message_id?: string | null
+          club_admin_message_id?: string | null
           club_message_id?: string | null
           created_at?: string
           direct_message_id?: string | null
@@ -2956,6 +3046,13 @@ export type Database = {
             columns: ["broadcast_message_id"]
             isOneToOne: false
             referencedRelation: "broadcast_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reactions_club_admin_message_id_fkey"
+            columns: ["club_admin_message_id"]
+            isOneToOne: false
+            referencedRelation: "club_admin_messages"
             referencedColumns: ["id"]
           },
           {
@@ -6002,6 +6099,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_or_create_club_admin_conversation: {
+        Args: { p_club_id: string }
+        Returns: string
+      }
       get_or_create_dm_conversation: {
         Args: { other_user_id: string }
         Returns: string
@@ -6100,6 +6201,10 @@ export type Database = {
       }
       is_child_guardian: {
         Args: { _child_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_club_admin_conversation_participant: {
+        Args: { p_conversation_id: string }
         Returns: boolean
       }
       is_club_chat_author_visible: {
