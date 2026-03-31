@@ -283,12 +283,13 @@ export default function MessagesPage() {
   const { data: adminClubs } = useQuery({
     queryKey: ["admin-clubs", user?.id],
     queryFn: async () => {
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user!.id)
         .eq("role", "club_admin");
 
+      if (rolesError) throw rolesError;
       if (!roles || roles.length === 0) return [];
 
       const clubIds = roles.map((r) => r.club_id).filter(Boolean);
@@ -300,6 +301,7 @@ export default function MessagesPage() {
       return data as Club[];
     },
     enabled: !!user,
+    retry: 3,
     placeholderData: cachedData?.adminClubs,
   });
 
