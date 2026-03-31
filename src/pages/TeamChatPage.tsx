@@ -1019,7 +1019,7 @@ export default function TeamChatPage() {
       setMessage("");
       setEditingMessage(null);
       queryClient.invalidateQueries({ queryKey: queryKeyMemo });
-      toast.success("Message updated");
+      // silent success
     },
     onError: () => toast.error("Failed to update message"),
   });
