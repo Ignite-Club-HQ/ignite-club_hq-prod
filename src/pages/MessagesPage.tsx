@@ -444,7 +444,7 @@ export default function MessagesPage() {
       const teams = data as Team[];
       
       // Fetch latest messages for all teams in parallel
-      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
+      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
       
       await Promise.all(
         teams.map(async (team) => {
@@ -458,9 +458,10 @@ export default function MessagesPage() {
           
           if (msgData) {
             let authorName = "";
+            const isAnnouncement = !!(msgData.is_club_announcement && msgData.club_announcement_name);
             // For club announcements, use the club name
-            if (msgData.is_club_announcement && msgData.club_announcement_name) {
-              authorName = msgData.club_announcement_name;
+            if (isAnnouncement) {
+              authorName = msgData.club_announcement_name!;
             } else if (msgData.author_id) {
               const { data: profile } = await supabase
                 .from("profiles")
@@ -476,6 +477,7 @@ export default function MessagesPage() {
               author: authorName,
               created_at: msgData.created_at,
               image_url: msgData.image_url,
+              is_announcement: isAnnouncement,
             };
           }
         })
