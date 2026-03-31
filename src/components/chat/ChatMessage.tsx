@@ -669,12 +669,13 @@ export const ChatMessage = memo(function ChatMessage({
                     size="icon"
                     className="h-8 w-8 min-h-[32px] min-w-[32px]"
                     onPointerDown={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       openActionMenu();
                     }}
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
-                      openActionMenu();
                     }}
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
