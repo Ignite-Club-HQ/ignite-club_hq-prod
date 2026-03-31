@@ -164,7 +164,7 @@ export function MentionInput({
 
   // Convert raw value (with IDs) to display value (without IDs)
   const rawToDisplay = useCallback((raw: string) => {
-    return raw.replace(/@\[([^\]]+)\]\([^)]+\)/g, '@$1');
+    return raw.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1');
   }, []);
 
   // Store mapping of display mentions to raw mentions
@@ -172,12 +172,25 @@ export function MentionInput({
     const map = new Map<string, string>();
     const matches = value.matchAll(/@\[([^\]]+)\]\(([^)]+)\)/g);
     for (const match of matches) {
-      map.set(`@${match[1]}`, match[0]);
+      map.set(match[1], match[0]);
     }
     return map;
   }, [value]);
 
   const displayValue = useMemo(() => rawToDisplay(value), [value, rawToDisplay]);
+
+  // Split display value into segments with mention highlights
+  const highlightedSegments = useMemo(() => {
+    const mentionNames = Array.from(mentionMap.keys());
+    if (mentionNames.length === 0) return [{ text: displayValue, isMention: false }];
+    const escaped = mentionNames.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`(${escaped.join('|')})`, 'g');
+    const parts = displayValue.split(regex);
+    return parts.map(part => ({
+      text: part,
+      isMention: mentionMap.has(part),
+    }));
+  }, [displayValue, mentionMap]);
 
   // Convert display index to raw index
   const displayIndexToRawIndex = useCallback((displayIdx: number) => {
@@ -197,8 +210,8 @@ export function MentionInput({
       dispIdx += beforeMention.length;
       rawIdx += beforeMention.length;
       
-      // The mention displays as @Name (match[1].length + 1 for @)
-      const displayMentionLen = match[1].length + 1;
+      // The mention displays as Name (no @ prefix)
+      const displayMentionLen = match[1].length;
       const rawMentionLen = match[0].length;
       
       if (dispIdx + displayMentionLen > displayIdx) {
@@ -295,7 +308,7 @@ export function MentionInput({
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
       if (!textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
-        const mentionAtCursor = `@${textAfterAt}`;
+        const mentionAtCursor = textAfterAt;
         const isExistingMention = mentionMap.has(mentionAtCursor);
         
         if (!isExistingMention) {
@@ -352,17 +365,31 @@ export function MentionInput({
             <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
           </div>
         )}
-        <textarea
-          ref={inputRef}
-          value={displayValue}
-          onChange={handleDisplayChange}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          placeholder={placeholder}
-          rows={1}
-          className={`flex-1 bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] ${className || ''}`}
-          style={{ maxHeight: '120px', overflowY: 'hidden' }}
-        />
+        <div className="relative flex-1">
+          {/* Highlight overlay for mentions */}
+           <div
+            aria-hidden="true"
+            className="absolute inset-0 pointer-events-none text-base px-2 py-2.5 leading-[1.4] whitespace-pre-wrap break-words text-transparent overflow-hidden"
+            style={{ maxHeight: '120px' }}
+          >
+            {highlightedSegments.map((seg, i) =>
+              seg.isMention
+                ? <span key={i} className="bg-primary/15 rounded px-0.5 text-transparent">{seg.text}</span>
+                : <span key={i}>{seg.text}</span>
+            )}
+          </div>
+          <textarea
+            ref={inputRef}
+            value={displayValue}
+            onChange={handleDisplayChange}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            placeholder={placeholder}
+            rows={1}
+            className={`w-full bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 ${className || ''}`}
+            style={{ maxHeight: '120px', overflowY: 'hidden' }}
+          />
+        </div>
       </div>
       
       {showSuggestions && users && users.length > 0 && (
