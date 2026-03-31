@@ -369,7 +369,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                     )}
                     {(isOwnMessage || isAdmin) && (
                       <DropdownMenuItem
-                        onClick={() => { deleteMessageMutation.mutate(msg.id); closeActionUi(); }}
+                        onClick={() => { setShowDeleteConfirm(true); closeActionUi(); }}
                         className="text-destructive"
                       >
                         <Trash2 className="h-4 w-4 mr-2" /> Delete
