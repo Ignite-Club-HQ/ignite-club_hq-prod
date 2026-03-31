@@ -574,6 +574,32 @@ export default function DirectMessagePage() {
       }
     },
   });
+  const updateMessageMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingMessage) return;
+      const { error } = await supabase.from("direct_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setMessage("");
+      setEditingMessage(null);
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("Message updated");
+    },
+    onError: () => toast.error("Failed to update message"),
+  });
+
+  const handleEdit = useCallback((msg: { id: string; text: string }) => {
+    setEditingMessage(msg);
+    setMessage(msg.text);
+    setReplyTo(null);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setMessage("");
+  }, []);
+
   const handleSend = () => {
     if (!message.trim()) return;
     // Allow sending if canDM is true OR if we're still checking (give benefit of doubt for existing conversations)

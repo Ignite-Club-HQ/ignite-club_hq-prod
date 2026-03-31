@@ -1008,12 +1008,40 @@ export default function TeamChatPage() {
     },
   });
 
+  const updateMessageMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingMessage) return;
+      const { error } = await supabase.from("team_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setMessage("");
+      setEditingMessage(null);
+      queryClient.invalidateQueries({ queryKey: queryKeyMemo });
+      toast.success("Message updated");
+    },
+    onError: () => toast.error("Failed to update message"),
+  });
+
   const handleSend = () => {
     if (!message.trim() && !imageUrl) return;
+    if (editingMessage) {
+      updateMessageMutation.mutate();
+      return;
+    }
     sendMessageMutation.mutate({ text: message.trim(), image_url: imageUrl, reply_to_id: replyingTo?.id || null });
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleEdit = useCallback((msg: { id: string; text: string }) => {
+    setEditingMessage(msg);
+    setMessage(msg.text);
+    setReplyingTo(null);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setMessage("");
+  }, []);
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();

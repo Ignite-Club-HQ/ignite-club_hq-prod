@@ -350,8 +350,38 @@ export default function ClubAdminChatPage() {
     },
   });
 
+  const updateMessageMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingMessage) return;
+      const { error } = await supabase.from("club_admin_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setMessage("");
+      setEditingMessage(null);
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("Message updated");
+    },
+    onError: () => toast.error("Failed to update message"),
+  });
+
+  const handleEdit = useCallback((msg: { id: string; text: string }) => {
+    setEditingMessage(msg);
+    setMessage(msg.text);
+    setReplyTo(null);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setMessage("");
+  }, []);
+
   const handleSend = () => {
     if (!message.trim()) return;
+    if (editingMessage) {
+      updateMessageMutation.mutate();
+      return;
+    }
     sendMessageMutation.mutate({
       text: message.trim(),
       replyToId: replyTo?.id || null,
