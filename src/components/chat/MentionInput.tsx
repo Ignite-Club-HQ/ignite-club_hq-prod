@@ -172,7 +172,7 @@ export function MentionInput({
     const map = new Map<string, string>();
     const matches = value.matchAll(/@\[([^\]]+)\]\(([^)]+)\)/g);
     for (const match of matches) {
-      map.set(`@${match[1]}`, match[0]);
+      map.set(match[1], match[0]);
     }
     return map;
   }, [value]);
