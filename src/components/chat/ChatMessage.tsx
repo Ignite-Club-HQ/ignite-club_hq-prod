@@ -468,13 +468,14 @@ export const ChatMessage = memo(function ChatMessage({
     suppressOutsideCloseUntilRef.current = Date.now() + 500;
     setShowMenu(true);
     setShowReactionPicker(false);
-    setIsDropdownOpen(true);
   }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    openActionMenu();
-  }, [openActionMenu]);
+    setShowMenu(true);
+    setShowReactionPicker(false);
+    setIsDropdownOpen(true);
+  }, []);
 
   const handleReply = useCallback(() => {
     onReply?.({ id, text, authorName: authorName || null });
