@@ -104,6 +104,7 @@ export const ChatMessage = memo(function ChatMessage({
   const menuContainerRef = useRef<HTMLDivElement>(null);
   const suppressMenuUntilPointerUpRef = useRef(false);
   const ignoreReactionDismissRef = useRef(false);
+  const menuClickGuardUntilRef = useRef(0);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
@@ -500,7 +501,7 @@ export const ChatMessage = memo(function ChatMessage({
 
   const handleMenuOpenChange = useCallback((open: boolean) => {
     setIsDropdownOpen(open);
-    if (!open && !showReactionPicker) {
+    if (!open && !showReactionPicker && Date.now() > menuClickGuardUntilRef.current) {
       setShowMenu(false);
     }
   }, [showReactionPicker]);
@@ -709,12 +710,11 @@ export const ChatMessage = memo(function ChatMessage({
                     }
                     e.preventDefault();
                     e.stopPropagation();
+                    menuClickGuardUntilRef.current = Date.now() + 600;
+                    setShowReactionPicker(false);
+                    ignoreReactionDismissRef.current = false;
                     setShowMenu(true);
                     setIsDropdownOpen(true);
-                    requestAnimationFrame(() => {
-                      setShowReactionPicker(false);
-                      ignoreReactionDismissRef.current = false;
-                    });
                   }}
                   onTouchStart={(e) => e.stopPropagation()}
                   onTouchEnd={(e) => e.stopPropagation()}
