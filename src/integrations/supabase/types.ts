@@ -3088,6 +3088,7 @@ export type Database = {
       message_reads: {
         Row: {
           broadcast_message_id: string | null
+          club_admin_message_id: string | null
           club_message_id: string | null
           direct_message_id: string | null
           group_message_id: string | null
@@ -3098,6 +3099,7 @@ export type Database = {
         }
         Insert: {
           broadcast_message_id?: string | null
+          club_admin_message_id?: string | null
           club_message_id?: string | null
           direct_message_id?: string | null
           group_message_id?: string | null
@@ -3108,6 +3110,7 @@ export type Database = {
         }
         Update: {
           broadcast_message_id?: string | null
+          club_admin_message_id?: string | null
           club_message_id?: string | null
           direct_message_id?: string | null
           group_message_id?: string | null
@@ -3122,6 +3125,13 @@ export type Database = {
             columns: ["broadcast_message_id"]
             isOneToOne: false
             referencedRelation: "broadcast_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_reads_club_admin_message_id_fkey"
+            columns: ["club_admin_message_id"]
+            isOneToOne: false
+            referencedRelation: "club_admin_messages"
             referencedColumns: ["id"]
           },
           {
