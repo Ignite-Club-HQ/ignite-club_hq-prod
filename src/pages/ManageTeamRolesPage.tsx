@@ -158,6 +158,14 @@ export default function ManageTeamRolesPage() {
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
       toast({ title: "Request processed" });
     },
+    onError: (error: Error) => {
+      const msg = error.message?.toLowerCase() || "";
+      if (msg.includes("not authorized")) {
+        toast({ title: "Permission denied", description: "You don't have permission to manage join requests. Only team admins, coaches, and club admins can approve or deny requests.", variant: "destructive" });
+      } else {
+        toast({ title: "Something went wrong", description: "Failed to process the request. Please try again.", variant: "destructive" });
+      }
+    },
   });
 
   if (loadingTeam) {
