@@ -48,7 +48,7 @@ export interface ChatMessageProps {
   isAdmin?: boolean;
   reactions?: Reaction[];
   currentUserId?: string;
-  messageType: "team" | "club" | "broadcast" | "group" | "dm";
+  messageType: "team" | "club" | "broadcast" | "group" | "dm" | "club_admin";
   queryKey: string[];
   replyToMessage?: ReplyToMessage | null;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
