@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 
-const LONG_PRESS_DISMISS_GUARD_MS = 425;
+const LONG_PRESS_DISMISS_GUARD_MS = 800;
 
 type GuardableEvent = {
   preventDefault?: () => void;
