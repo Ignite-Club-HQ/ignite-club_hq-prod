@@ -4,6 +4,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { MoreVertical, Pencil, Trash2, Reply, Clock } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,6 +78,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
@@ -358,7 +369,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                     )}
                     {(isOwnMessage || isAdmin) && (
                       <DropdownMenuItem
-                        onClick={() => { deleteMessageMutation.mutate(msg.id); closeActionUi(); }}
+                        onClick={() => { setShowDeleteConfirm(true); closeActionUi(); }}
                         className="text-destructive"
                       >
                         <Trash2 className="h-4 w-4 mr-2" /> Delete
@@ -484,6 +495,22 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           )}
         </div>
       </div>
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This message will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { deleteMessageMutation.mutate(msg.id); setShowDeleteConfirm(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });

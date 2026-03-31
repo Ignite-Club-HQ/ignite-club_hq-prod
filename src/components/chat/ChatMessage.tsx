@@ -1,6 +1,16 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MoreVertical, Pencil, Trash2, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,6 +106,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [showReadReceipts, setShowReadReceipts] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
@@ -493,7 +504,12 @@ export const ChatMessage = memo(function ChatMessage({
   }, [onEdit, id, text]);
 
   const handleDelete = useCallback(() => {
+    setShowDeleteConfirm(true);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
     deleteMessageMutation.mutate();
+    setShowDeleteConfirm(false);
   }, [deleteMessageMutation]);
 
   const handleShowReactions = useCallback(() => {
@@ -764,6 +780,22 @@ export const ChatMessage = memo(function ChatMessage({
           messageType={messageType === "dm" ? "direct" : messageType}
         />
       )}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This message will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });
