@@ -489,8 +489,8 @@ export const ChatMessage = memo(function ChatMessage({
   }, [onReply, id, text, authorName]);
 
   const handleStartEdit = useCallback(() => {
-    setIsEditing(true);
-  }, []);
+    onEdit?.({ id, text });
+  }, [onEdit, id, text]);
 
   const handleDelete = useCallback(() => {
     deleteMessageMutation.mutate();
