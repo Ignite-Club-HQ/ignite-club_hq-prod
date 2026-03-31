@@ -1,6 +1,16 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MoreVertical, Pencil, Trash2, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
