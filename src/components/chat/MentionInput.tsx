@@ -359,9 +359,9 @@ export function MentionInput({
         </div>
       )}
       
-      <div className="flex items-end bg-muted/60 rounded-[22px] px-1 min-h-[44px] transition-all duration-150">
+      <div className="flex items-center bg-muted/60 rounded-[22px] px-1 min-h-[44px] transition-all duration-150">
         {showEmojiPicker && (
-          <div className="flex items-end h-[44px] pb-[7px]">
+          <div className="flex items-center self-end mb-[7px]">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
           </div>
         )}
