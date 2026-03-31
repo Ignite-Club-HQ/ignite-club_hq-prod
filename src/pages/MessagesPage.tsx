@@ -861,8 +861,8 @@ export default function MessagesPage() {
   // Track if fresh data is still loading (for skeleton states)
   const isLoadingFreshData = !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess || isLoadingClubProStatus);
 
-  // Show skeleton loading UI instead of blocking PageLoading when we have cache
-  const showSkeletonLoading = isLoadingFreshData && !hasCachedData && !teams?.length && !memberClubs?.length;
+  // Show skeleton loading UI when fresh data is loading and we have nothing to show yet
+  const showSkeletonLoading = isLoadingFreshData && !hasCachedData;
 
   // Determine which data to display (prefer fresh, fallback to cached)
   const displayTeams = teams || cachedData?.teams || [];
