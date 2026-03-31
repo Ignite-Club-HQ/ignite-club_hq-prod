@@ -718,7 +718,6 @@ export const ChatMessage = memo(function ChatMessage({
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
               ignoreDismissRef={ignoreReactionDismissRef}
-              closeGuardUntilRef={reactionPickerCloseGuardUntilRef}
             />
           </div>
         </div>
