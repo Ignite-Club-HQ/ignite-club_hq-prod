@@ -266,15 +266,17 @@ export default function MessagesPage() {
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("id")
         .eq("user_id", user!.id)
         .eq("role", "app_admin")
         .maybeSingle();
+      if (error) throw error;
       return !!data;
     },
     enabled: !!user,
+    retry: 3,
   });
 
   // Get clubs where user is admin
