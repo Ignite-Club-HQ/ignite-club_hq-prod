@@ -49,7 +49,7 @@ export async function pickNativePhoto(options?: NativePhotoPickOptions): Promise
     width: options?.width ?? 1920,
     height: options?.height ?? 1920,
     correctOrientation: true,
-    presentationStyle: "popover" as const,
+    presentationStyle: "fullscreen" as const,
   };
 
   // Strategy 1: Base64 mode — most reliable on iOS, avoids temp file issues
