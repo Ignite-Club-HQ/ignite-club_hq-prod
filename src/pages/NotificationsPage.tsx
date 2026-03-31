@@ -353,7 +353,12 @@ export default function NotificationsPage() {
       toast.success("Request approved");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to approve request");
+      const msg = error.message?.toLowerCase() || "";
+      if (msg.includes("not authorized")) {
+        toast.error("You don't have permission to approve this request. Only team admins, coaches, and club admins can approve join requests.");
+      } else {
+        toast.error("Failed to approve request. Please try again.");
+      }
     },
   });
 
