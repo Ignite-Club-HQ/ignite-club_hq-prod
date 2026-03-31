@@ -359,7 +359,7 @@ export default function NotificationsPage() {
 
   const denyRequest = useMutation({
     mutationFn: async (requestId: string) => {
-      // Get the request details first with team/club info
+      // Get request details for email
       const { data: request, error: fetchError } = await supabase
         .from("role_requests")
         .select(`
@@ -374,44 +374,28 @@ export default function NotificationsPage() {
         throw new Error("Request not found");
       }
 
-      const { error } = await supabase
-        .from("role_requests")
-        .update({ status: "denied", processed_by: user!.id })
-        .eq("id", requestId);
-
+      // Use the secure RPC to deny
+      const { error } = await supabase.rpc("deny_role_request", { p_request_id: requestId });
       if (error) throw error;
 
-      // Get context info for notifications
+      // Send email notification (best-effort)
       const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
       const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
-      
       const teamName = teamData?.name;
       const clubName = teamData?.clubs?.name || clubData?.name || "the club";
       const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
       const entityName = teamName || clubName;
-      const relatedId = request.team_id || request.club_id;
       const roleName = request.role.replace("_", " ");
 
-      // Create in-app notification for the requester
-      await supabase.from("notifications").insert({
-        user_id: request.user_id,
-        type: "join_request_denied",
-        message: `Your request to join ${entityName} as ${roleName} was not approved`,
-        related_id: relatedId,
-      });
-
-      // Get requester's profile for email
       const { data: requesterProfile } = await supabase
         .from("profiles")
         .select("display_name")
         .eq("id", request.user_id)
         .single();
 
-      // Get requester's email
       const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
       const userEmail = emailData?.[0]?.email;
       
-      // Send email notification if we can get the email
       if (userEmail) {
         await supabase.functions.invoke("send-email", {
           body: {
