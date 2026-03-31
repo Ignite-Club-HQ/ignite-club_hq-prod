@@ -718,7 +718,7 @@ workflows:
             echo "ERROR: package.json version is empty"
             exit 1
           fi
-          if [ "$APP_VERSION" = "1.1.0" ] || [ "$APP_VERSION" = "1.2.0" ] || [ "$APP_VERSION" = "1.2.1" ]; then
+          if [ "$APP_VERSION" = "1.1.0" ] || [ "$APP_VERSION" = "1.2.0" ] || [ "$APP_VERSION" = "1.2.1" ] || [ "$APP_VERSION" = "1.2.2" ]; then
             echo "ERROR: package.json version $APP_VERSION has already been published — bump it before deploying"
             exit 1
           fi
