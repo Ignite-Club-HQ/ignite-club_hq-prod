@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, memo } from "react";
+import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { createPortal } from "react-dom";
 import { removeMessageFromCache } from "@/lib/messageCache";
 import { MessageContent } from "./MessageContent";
 import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReactions";
@@ -103,6 +104,7 @@ export const ChatMessage = memo(function ChatMessage({
   const menuContainerRef = useRef<HTMLDivElement>(null);
   const suppressMenuUntilPointerUpRef = useRef(false);
   const ignoreReactionDismissRef = useRef(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
@@ -674,90 +676,97 @@ export const ChatMessage = memo(function ChatMessage({
               ignoreDismissRef={ignoreReactionDismissRef}
             />
           </div>
-          {showMenu && (
-            <div ref={menuContainerRef} className={`absolute top-0 z-[100002] ${isOwn ? "right-full mr-1" : "left-full ml-1"}`}>
-              <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 min-h-[32px] min-w-[32px]"
-                    onPointerDown={(e) => {
-                      if (suppressMenuUntilPointerUpRef.current) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-                      ignoreReactionDismissRef.current = true;
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onClick={(e) => {
-                      if (suppressMenuUntilPointerUpRef.current) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowMenu(true);
-                      setIsDropdownOpen(true);
-                      requestAnimationFrame(() => {
-                        setShowReactionPicker(false);
-                        ignoreReactionDismissRef.current = false;
-                      });
-                    }}
-                    onTouchStart={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => e.stopPropagation()}
-                  >
-                    <MoreVertical className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align={isOwn ? "end" : "start"}
-                  side="top"
-                  collisionPadding={16}
-                  className="z-[100002] bg-popover border"
-                  onCloseAutoFocus={(e) => e.preventDefault()}
-                >
-                  {canReply && (
-                    <DropdownMenuItem onClick={handleReply}>
-                      <Reply className="h-4 w-4 mr-2" /> Reply
-                    </DropdownMenuItem>
-                  )}
-                  {isOwn && !imageUrl && (
-                    <DropdownMenuItem onClick={handleStartEdit}>
-                      <Pencil className="h-4 w-4 mr-2" /> Edit
-                    </DropdownMenuItem>
-                  )}
-                  {canDelete && (
-                    <DropdownMenuItem 
-                      onClick={handleDelete}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" /> Delete
-                    </DropdownMenuItem>
-                  )}
-                  {!isOwn && !isSystemMessage && (
-                    <DropdownMenuItem 
-                      onClick={() => setShowReportDialog(true)}
-                    >
-                      <Flag className="h-4 w-4 mr-2" /> Report Message
-                    </DropdownMenuItem>
-                  )}
-                  {!isOwn && !isSystemMessage && (
-                    <DropdownMenuItem 
-                      onClick={() => setShowBlockDialog(true)}
-                      className="text-destructive"
-                    >
-                      <ShieldAlert className="h-4 w-4 mr-2" /> Block User
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
         </div>
+        {/* Portalled menu trigger - renders above reaction picker backdrop */}
+        {showMenu && menuPosition && createPortal(
+          <div
+            ref={menuContainerRef}
+            className="fixed z-[100002]"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+            data-menu-trigger="true"
+          >
+            <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
+                  onPointerDown={(e) => {
+                    if (suppressMenuUntilPointerUpRef.current) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return;
+                    }
+                    ignoreReactionDismissRef.current = true;
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    if (suppressMenuUntilPointerUpRef.current) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return;
+                    }
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowMenu(true);
+                    setIsDropdownOpen(true);
+                    requestAnimationFrame(() => {
+                      setShowReactionPicker(false);
+                      ignoreReactionDismissRef.current = false;
+                    });
+                  }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align={isOwn ? "end" : "start"}
+                side="top"
+                collisionPadding={16}
+                className="z-[100003] bg-popover border"
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
+                {canReply && (
+                  <DropdownMenuItem onClick={handleReply}>
+                    <Reply className="h-4 w-4 mr-2" /> Reply
+                  </DropdownMenuItem>
+                )}
+                {isOwn && !imageUrl && (
+                  <DropdownMenuItem onClick={handleStartEdit}>
+                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                  </DropdownMenuItem>
+                )}
+                {canDelete && (
+                  <DropdownMenuItem 
+                    onClick={handleDelete}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  </DropdownMenuItem>
+                )}
+                {!isOwn && !isSystemMessage && (
+                  <DropdownMenuItem 
+                    onClick={() => setShowReportDialog(true)}
+                  >
+                    <Flag className="h-4 w-4 mr-2" /> Report Message
+                  </DropdownMenuItem>
+                )}
+                {!isOwn && !isSystemMessage && (
+                  <DropdownMenuItem 
+                    onClick={() => setShowBlockDialog(true)}
+                    className="text-destructive"
+                  >
+                    <ShieldAlert className="h-4 w-4 mr-2" /> Block User
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>,
+          document.body
+        )}
         {/* Link previews rendered outside the message bubble */}
         <MessageContent text={text} previewsOnly />
         
