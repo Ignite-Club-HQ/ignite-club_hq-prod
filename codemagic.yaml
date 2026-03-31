@@ -718,12 +718,12 @@ workflows:
             echo "ERROR: package.json version is empty"
             exit 1
           fi
-          if [ "$APP_VERSION" = "1.1.0" ] || [ "$APP_VERSION" = "1.2.0" ] || [ "$APP_VERSION" = "1.2.1" ]; then
+          if [ "$APP_VERSION" = "1.1.0" ] || [ "$APP_VERSION" = "1.2.0" ] || [ "$APP_VERSION" = "1.2.1" ] || [ "$APP_VERSION" = "1.2.2" ]; then
             echo "ERROR: package.json version $APP_VERSION has already been published — bump it before deploying"
             exit 1
           fi
 
-          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number 6758928691 || echo 0)
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number 6758928691 2>/dev/null || app-store-connect get-latest-testflight-build-number 6758928691 2>/dev/null || echo 0)
           if ! echo "$LATEST_BUILD_NUMBER" | grep -Eq '^[0-9]+$'; then
             echo "WARNING: invalid latest build number '$LATEST_BUILD_NUMBER', defaulting to 0"
             LATEST_BUILD_NUMBER=0
@@ -732,20 +732,15 @@ workflows:
           echo "=== Next build number: $NEXT_BUILD_NUMBER ==="
 
           PROJECT_FILE="$ROOT_DIR/ios/App/App.xcodeproj/project.pbxproj"
-          export APP_VERSION NEXT_BUILD_NUMBER PROJECT_FILE
-          ruby << 'RUBY_SCRIPT'
-          project_file = ENV.fetch('PROJECT_FILE')
-          app_version = ENV.fetch('APP_VERSION')
-          build_number = ENV.fetch('NEXT_BUILD_NUMBER')
+          sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $APP_VERSION;/g" "$PROJECT_FILE"
+          sed -i '' "s/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $NEXT_BUILD_NUMBER;/g" "$PROJECT_FILE"
+          echo "=== Project file versions after patch ==="
+          grep -n "MARKETING_VERSION =\|CURRENT_PROJECT_VERSION =" "$PROJECT_FILE"
 
-          content = File.read(project_file)
-          content.gsub!(/MARKETING_VERSION = [^;]+;/, "MARKETING_VERSION = #{app_version};")
-          content.gsub!(/CURRENT_PROJECT_VERSION = [^;]+;/, "CURRENT_PROJECT_VERSION = #{build_number};")
-          File.write(project_file, content)
-
-          puts "=== Patched MARKETING_VERSION to #{app_version} ==="
-          puts "=== Patched CURRENT_PROJECT_VERSION to #{build_number} ==="
-          RUBY_SCRIPT
+          cat > "$ROOT_DIR/.codemagic-ios-version.env" <<EOF
+          APP_VERSION=$APP_VERSION
+          NEXT_BUILD_NUMBER=$NEXT_BUILD_NUMBER
+          EOF
 
           cd "$ROOT_DIR/ios/App"
           RESOLVED_MARKETING_VERSION=$(xcodebuild -project App.xcodeproj -scheme App -showBuildSettings | awk '/MARKETING_VERSION/ {print $3; exit}')
@@ -813,7 +808,9 @@ workflows:
           RUBY_SCRIPT
       - name: Build iOS Release
         script: |
+          set -euo pipefail
           cd ios/App
+          source ../../.codemagic-ios-version.env
           xcodebuild -project App.xcodeproj \
             -scheme App \
             -configuration Release \
@@ -824,8 +821,20 @@ workflows:
 
           ARCHIVE_PLIST="build/App.xcarchive/Products/Applications/App.app/Info.plist"
           echo "=== Archived app version check ==="
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$ARCHIVE_PLIST"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$ARCHIVE_PLIST"
+          ARCHIVED_MARKETING_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$ARCHIVE_PLIST")
+          ARCHIVED_BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$ARCHIVE_PLIST")
+          echo "$ARCHIVED_MARKETING_VERSION"
+          echo "$ARCHIVED_BUILD_NUMBER"
+
+          if [ "$ARCHIVED_MARKETING_VERSION" != "$APP_VERSION" ]; then
+            echo "ERROR: Archived CFBundleShortVersionString ($ARCHIVED_MARKETING_VERSION) does not match package.json version ($APP_VERSION)"
+            exit 1
+          fi
+
+          if [ "$ARCHIVED_BUILD_NUMBER" != "$NEXT_BUILD_NUMBER" ]; then
+            echo "ERROR: Archived CFBundleVersion ($ARCHIVED_BUILD_NUMBER) does not match expected build number ($NEXT_BUILD_NUMBER)"
+            exit 1
+          fi
       - name: Export IPA
         script: |
           cd ios/App
