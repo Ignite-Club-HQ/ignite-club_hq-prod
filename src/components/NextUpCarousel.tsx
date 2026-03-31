@@ -111,21 +111,35 @@ function useRsvpSummary(eventId: string, eventType?: string) {
   return useQuery({
     queryKey: ["rsvp-summary", eventId, eventType],
     queryFn: async () => {
-      let query = supabase
+      // First get the total count
+      let countQuery = supabase
+        .from("rsvps")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", eventId)
+        .eq("status", "going");
+      
+      if (!isSocial) {
+        countQuery = countQuery.not("child_id", "is", null);
+      }
+      
+      const { count } = await countQuery;
+
+      // Then get a few for avatars
+      let avatarQuery = supabase
         .from("rsvps")
         .select("id, status, user_id")
         .eq("event_id", eventId)
         .eq("status", "going");
       
       if (!isSocial) {
-        query = query.not("child_id", "is", null);
+        avatarQuery = avatarQuery.not("child_id", "is", null);
       }
       
-      const { data: rsvps, error } = await query.limit(10);
+      const { data: rsvps, error } = await avatarQuery.limit(5);
       if (error) throw error;
-      if (!rsvps || rsvps.length === 0) return [];
+      if (!rsvps || rsvps.length === 0) return { avatars: [], totalCount: 0 };
 
-      const userIds = rsvps.map(r => r.user_id);
+      const userIds = [...new Set(rsvps.map(r => r.user_id))];
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
@@ -136,10 +150,13 @@ function useRsvpSummary(eventId: string, eventType?: string) {
         return acc;
       }, {} as Record<string, { id: string; display_name: string | null; avatar_url: string | null }>);
 
-      return rsvps.map(r => ({
-        ...r,
-        profile: profileMap[r.user_id] || null,
-      }));
+      return {
+        avatars: rsvps.map(r => ({
+          ...r,
+          profile: profileMap[r.user_id] || null,
+        })),
+        totalCount: count || rsvps.length,
+      };
     },
   });
 }
