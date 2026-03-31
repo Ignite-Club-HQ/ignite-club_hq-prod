@@ -21,7 +21,7 @@ export const ReplyPreview = memo(function ReplyPreview({ replyingTo, onCancel }:
           Replying to {replyingTo.authorName || "message"}
         </p>
         <p className="text-xs text-muted-foreground truncate">
-          {replyingTo.text}
+          {replyingTo.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}
         </p>
       </div>
       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 hover:bg-destructive/10" onClick={onCancel}>
@@ -47,7 +47,7 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isO
       <p className="text-muted-foreground font-medium truncate">
         {replyToMessage.authorName || ""}
       </p>
-      <p className="text-muted-foreground/70 truncate">{replyToMessage.text}</p>
+      <p className="text-muted-foreground/70 truncate">{replyToMessage.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</p>
     </div>
   );
 });
