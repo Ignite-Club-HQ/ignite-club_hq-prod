@@ -602,6 +602,10 @@ export default function DirectMessagePage() {
 
   const handleSend = () => {
     if (!message.trim()) return;
+    if (editingMessage) {
+      updateMessageMutation.mutate();
+      return;
+    }
     // Allow sending if canDM is true OR if we're still checking (give benefit of doubt for existing conversations)
     // The server-side RLS will still enforce the actual permission
     if (canDM === false && !checkingCanDM) {
