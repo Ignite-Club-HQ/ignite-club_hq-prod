@@ -1238,6 +1238,7 @@ export default function MessagesPage() {
                           author={lastMessage?.author}
                           hasUnread={hasUnread}
                           fallback={team.clubs?.name || "Team chat"}
+                          isAnnouncement={lastMessage?.is_announcement}
                         />
                       </p>
                     </div>
