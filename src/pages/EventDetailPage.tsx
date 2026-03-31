@@ -2431,9 +2431,9 @@ export default function EventDetailPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-primary">
                   <span>✅</span>
-                  <span>Going ({goingRsvps.length})</span>
+                  <span>Going ({goingRsvps.length + (eventGuests?.length || 0)})</span>
                 </div>
-                {goingRsvps.length === 0 ? (
+                {goingRsvps.length === 0 && (!eventGuests || eventGuests.length === 0) ? (
                   <p className="text-muted-foreground text-sm pl-6">No one yet</p>
                 ) : (
                   <div className="space-y-1 pl-6">
@@ -2457,6 +2457,21 @@ export default function EventDetailPage() {
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
                       />
+                    ))}
+                    {/* Show event guests in the going list */}
+                    {eventGuests?.map((guest: any) => (
+                      <div key={guest.id} className="flex items-center gap-3 py-1.5">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-muted text-muted-foreground text-sm">
+                            {guest.guest_name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{guest.guest_name}</p>
+                          <p className="text-xs text-muted-foreground">Guest of {guest.added_by_name}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">Guest</Badge>
+                      </div>
                     ))}
                   </div>
                 )}
