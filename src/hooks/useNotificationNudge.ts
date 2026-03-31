@@ -11,12 +11,15 @@ const NUDGE_COOLDOWN_DAYS = 7;
  * Returns dismissal handlers with a 7-day cooldown.
  */
 export function useNotificationNudge(userId: string | undefined, context: string = "general") {
+  // Start as null (loading) — never show nudge while loading
   const [hasPushEnabled, setHasPushEnabled] = useState<boolean | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) {
       setHasPushEnabled(null);
+      setIsLoading(false);
       return;
     }
 
@@ -27,14 +30,24 @@ export function useNotificationNudge(userId: string | undefined, context: string
       if (elapsed < NUDGE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000) {
         setIsDismissed(true);
         setHasPushEnabled(true); // Don't show nudge
+        setIsLoading(false);
         return;
       }
       // Cooldown expired, remove
       localStorage.removeItem(dismissKey);
     }
 
-    const checkPush = async () => {
+    // Delay check slightly to ensure auth session is fully settled
+    const timer = setTimeout(async () => {
       try {
+        // Verify we have an active session before querying
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session) {
+          setHasPushEnabled(null);
+          setIsLoading(false);
+          return;
+        }
+
         const isNative = Capacitor.isNativePlatform();
 
         if (isNative) {
@@ -55,11 +68,14 @@ export function useNotificationNudge(userId: string | undefined, context: string
           setHasPushEnabled(!error && data && data.length > 0);
         }
       } catch {
-        setHasPushEnabled(null);
+        // On error, assume enabled to avoid false nudges
+        setHasPushEnabled(true);
+      } finally {
+        setIsLoading(false);
       }
-    };
+    }, 500);
 
-    checkPush();
+    return () => clearTimeout(timer);
   }, [userId, context]);
 
   const dismiss = useCallback(() => {
@@ -69,7 +85,8 @@ export function useNotificationNudge(userId: string | undefined, context: string
     setIsDismissed(true);
   }, [userId, context]);
 
-  const shouldShowNudge = hasPushEnabled === false && !isDismissed;
+  // Never show nudge while still loading — prevents false flash
+  const shouldShowNudge = !isLoading && hasPushEnabled === false && !isDismissed;
 
   return { shouldShowNudge, hasPushEnabled, dismiss };
 }
