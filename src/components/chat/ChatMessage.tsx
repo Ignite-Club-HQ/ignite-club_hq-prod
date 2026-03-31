@@ -405,6 +405,13 @@ export const ChatMessage = memo(function ChatMessage({
   });
 
   const suppressOutsideCloseUntilRef = useRef(0);
+  const guardDismiss = useCallback((duration = 350) => {
+    const until = Date.now() + duration;
+    dismissGuardUntilRef.current = until;
+    suppressOutsideCloseUntilRef.current = until;
+  }, []);
+
+  const canDismiss = useCallback(() => Date.now() > dismissGuardUntilRef.current, []);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
