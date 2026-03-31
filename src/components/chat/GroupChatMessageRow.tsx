@@ -22,6 +22,7 @@ import { MessageContent } from "./MessageContent";
 import { MessageReadAvatars } from "./MessageReadAvatars";
 import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
+import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
 
 interface GroupMessage {
   id: string;
@@ -82,24 +83,30 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
-  const releaseGuardRef = useRef(false);
-  const ignoreNextContextMenuRef = useRef(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const {
+    armDismissGuard,
+    clearDismissGuard,
+    consumeContextMenuGuard,
+    preventIfGuarded,
+  } = useLongPressDismissGuard();
 
   const showActionTrigger = showMenu || showReactionPicker || isDropdownOpen;
 
   const closeActionUi = useCallback(() => {
+    clearDismissGuard();
     setShowMenu(false);
     setShowReactionPicker(false);
     setIsDropdownOpen(false);
-  }, []);
+  }, [clearDismissGuard]);
 
   const closeReactionPicker = useCallback(() => {
+    clearDismissGuard();
     setShowReactionPicker(false);
     if (!isDropdownOpen) {
       setShowMenu(false);
     }
-  }, [isDropdownOpen]);
+  }, [clearDismissGuard, isDropdownOpen]);
 
   const handleDropdownOpenChange = useCallback((open: boolean) => {
     setIsDropdownOpen(open);
@@ -109,23 +116,23 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   }, []);
 
   const openActionMenu = useCallback(() => {
+    clearDismissGuard();
     setShowReactionPicker(false);
     setShowMenu(true);
     setIsDropdownOpen(true);
-  }, []);
+  }, [clearDismissGuard]);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
       longPressTriggeredRef.current = true;
-      releaseGuardRef.current = true;
-      ignoreNextContextMenuRef.current = true;
+      armDismissGuard();
       setIsDropdownOpen(false);
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 600);
-  }, []);
+  }, [armDismissGuard]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current && touchStartPos.current) {
@@ -158,35 +165,26 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    if (ignoreNextContextMenuRef.current) {
-      ignoreNextContextMenuRef.current = false;
+    if (consumeContextMenuGuard()) {
       return;
     }
     setShowMenu(true);
     setShowReactionPicker(true);
-  }, []);
+  }, [consumeContextMenuGuard]);
 
   useEffect(() => {
-    const clearReleaseGuards = () => {
-      releaseGuardRef.current = false;
-      ignoreNextContextMenuRef.current = false;
-    };
-
     const handlePointerCancel = () => {
       longPressTriggeredRef.current = false;
-      releaseGuardRef.current = false;
-      ignoreNextContextMenuRef.current = false;
+      clearDismissGuard();
     };
 
-    window.addEventListener("pointerdown", clearReleaseGuards, true);
     window.addEventListener("pointercancel", handlePointerCancel, true);
 
     return () => {
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
-      window.removeEventListener("pointerdown", clearReleaseGuards, true);
       window.removeEventListener("pointercancel", handlePointerCancel, true);
     };
-  }, []);
+  }, [clearDismissGuard]);
 
   useLayoutEffect(() => {
     if (!showReactionPicker || !bubbleRef.current) {
@@ -336,15 +334,13 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       size="icon"
                       className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
                       onPointerDown={(e) => {
+                        if (preventIfGuarded(e)) return;
                         e.stopPropagation();
-                        if (releaseGuardRef.current) {
-                          e.preventDefault();
-                        }
                       }}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (releaseGuardRef.current) return;
+                        if (preventIfGuarded(e)) return;
                         openActionMenu();
                       }}
                       onTouchStart={(e) => e.stopPropagation()}
@@ -423,12 +419,14 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               data-reaction-picker="true"
               onTouchStart={(e) => { e.stopPropagation(); }}
               onClick={(e) => {
+                if (preventIfGuarded(e)) return;
                 if (e.target === e.currentTarget) {
                   e.stopPropagation();
                   closeReactionPicker();
                 }
               }}
               onTouchEnd={(e) => {
+                if (preventIfGuarded(e)) return;
                 if (e.target === e.currentTarget) {
                   e.stopPropagation();
                   e.preventDefault();
@@ -457,12 +455,14 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                           type="button"
                           className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 active:bg-accent ${isSelected ? "bg-primary/20" : ""}`}
                           onTouchEnd={(e) => {
+                            if (preventIfGuarded(e)) return;
                             e.stopPropagation();
                             e.preventDefault();
                             toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
                             closeActionUi();
                           }}
                           onClick={(e) => {
+                            if (preventIfGuarded(e)) return;
                             e.stopPropagation();
                             toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
                             closeActionUi();
@@ -477,11 +477,13 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                     type="button"
                     className="w-full mt-1 text-xs text-muted-foreground py-1.5 rounded-md active:bg-accent"
                     onTouchEnd={(e) => {
+                      if (preventIfGuarded(e)) return;
                       e.stopPropagation();
                       e.preventDefault();
                       closeActionUi();
                     }}
                     onClick={(e) => {
+                      if (preventIfGuarded(e)) return;
                       e.stopPropagation();
                       closeActionUi();
                     }}

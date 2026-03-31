@@ -29,6 +29,7 @@ import { MessageReadAvatars } from "./MessageReadAvatars";
 import { MessageReadIndicator } from "./MessageReadIndicator";
 import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
+import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
 import { toast } from "sonner";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
@@ -111,11 +112,15 @@ export const ChatMessage = memo(function ChatMessage({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const longPressTriggeredRef = useRef(false);
-  const releaseGuardRef = useRef(false);
-  const ignoreNextContextMenuRef = useRef(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
+  const {
+    armDismissGuard,
+    clearDismissGuard,
+    consumeContextMenuGuard,
+    preventIfGuarded,
+  } = useLongPressDismissGuard();
 
 
   const getMessageIdField = () => {
@@ -397,17 +402,17 @@ export const ChatMessage = memo(function ChatMessage({
   });
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       longPressTriggeredRef.current = true;
-      releaseGuardRef.current = true;
-      ignoreNextContextMenuRef.current = true;
+      armDismissGuard();
       setIsDropdownOpen(false);
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 600);
-  }, [id, messageType]);
+  }, [armDismissGuard, id, messageType]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current && touchStartPos.current) {
@@ -446,8 +451,7 @@ export const ChatMessage = memo(function ChatMessage({
 
     // Clear all action UI and release guards immediately so the picker cannot reopen
     // from a delayed onOpenChange/onTouchEnd sequence after reaction selection.
-    releaseGuardRef.current = false;
-    ignoreNextContextMenuRef.current = false;
+    clearDismissGuard();
     setShowReactionPicker(false);
     setShowMenu(false);
     setIsDropdownOpen(false);
@@ -468,32 +472,33 @@ export const ChatMessage = memo(function ChatMessage({
       reactionType: type,
       existingReaction,
     });
-  }, [addReactionMutation, removeReactionMutation, getLatestReactions, currentUserId]);
+  }, [addReactionMutation, clearDismissGuard, removeReactionMutation, getLatestReactions, currentUserId]);
 
   const closeReactionPicker = useCallback(() => {
+    clearDismissGuard();
     setShowReactionPicker(false);
     if (!isDropdownOpen) {
       setShowMenu(false);
     }
-  }, [isDropdownOpen]);
+  }, [clearDismissGuard, isDropdownOpen]);
 
 
 
 
   const openActionMenu = useCallback(() => {
+    clearDismissGuard();
     setShowReactionPicker(false);
     setShowMenu(true);
     setIsDropdownOpen(true);
-  }, []);
+  }, [clearDismissGuard]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    if (ignoreNextContextMenuRef.current) {
-      ignoreNextContextMenuRef.current = false;
+    if (consumeContextMenuGuard()) {
       return;
     }
     openActionMenu();
-  }, [openActionMenu]);
+  }, [consumeContextMenuGuard, openActionMenu]);
 
   const handleReply = useCallback(() => {
     onReply?.({ id, text, authorName: authorName || null });
@@ -525,28 +530,20 @@ export const ChatMessage = memo(function ChatMessage({
   }, []);
 
   useEffect(() => {
-    const clearReleaseGuards = () => {
-      releaseGuardRef.current = false;
-      ignoreNextContextMenuRef.current = false;
-    };
-
     const handlePointerCancel = () => {
       longPressTriggeredRef.current = false;
-      releaseGuardRef.current = false;
-      ignoreNextContextMenuRef.current = false;
+      clearDismissGuard();
     };
 
-    window.addEventListener('pointerdown', clearReleaseGuards, true);
     window.addEventListener('pointercancel', handlePointerCancel, true);
 
     return () => {
       if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
       }
-      window.removeEventListener('pointerdown', clearReleaseGuards, true);
       window.removeEventListener('pointercancel', handlePointerCancel, true);
     };
-  }, []);
+  }, [clearDismissGuard]);
 
   useLayoutEffect(() => {
     if (!showMenu || !bubbleRef.current) {
@@ -633,6 +630,7 @@ export const ChatMessage = memo(function ChatMessage({
               }}
               isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
               isOpen={showReactionPicker}
+              preventIfGuarded={preventIfGuarded}
               onOpenChange={(open) => {
                 if (open) {
                   setShowReactionPicker(true);
@@ -659,15 +657,13 @@ export const ChatMessage = memo(function ChatMessage({
                   size="icon"
                   className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
                   onPointerDown={(e) => {
+                    if (preventIfGuarded(e)) return;
                     e.stopPropagation();
-                    if (releaseGuardRef.current) {
-                      e.preventDefault();
-                    }
                   }}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    if (releaseGuardRef.current) return;
+                    if (preventIfGuarded(e)) return;
                     openActionMenu();
                   }}
                   onTouchStart={(e) => e.stopPropagation()}

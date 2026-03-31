@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from "react";
+import { memo, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ interface MessageReactionsProps {
   onOpenChange: (open: boolean) => void;
   isOwnMessage?: boolean;
   anchorRef: RefObject<HTMLDivElement>;
+  preventIfGuarded?: (event?: { preventDefault?: () => void; stopPropagation?: () => void }) => boolean;
 }
 
 export const MessageReactionsPopover = memo(function MessageReactionsPopover({
@@ -42,6 +43,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   onOpenChange,
   isOwnMessage = false,
   anchorRef,
+  preventIfGuarded,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
@@ -113,12 +115,14 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         e.stopPropagation();
       }}
       onClick={(e) => {
+        if (preventIfGuarded?.(e)) return;
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           onOpenChange(false);
         }
       }}
       onTouchEnd={(e) => {
+        if (preventIfGuarded?.(e)) return;
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           e.preventDefault();
@@ -150,6 +154,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   key={type}
                   type="button"
                   onTouchEnd={(e) => {
+                    if (preventIfGuarded?.(e)) return;
                     e.stopPropagation();
                     e.preventDefault();
                     if (Date.now() - lastTouchReactionAtRef.current < 500) return;
@@ -157,6 +162,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     handleEmojiClick(type);
                   }}
                   onClick={(e) => {
+                    if (preventIfGuarded?.(e)) return;
                     e.stopPropagation();
                     e.preventDefault();
                     if (Date.now() - lastTouchReactionAtRef.current < 500) return;
@@ -178,11 +184,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
             type="button"
             className="w-full mt-1 text-xs text-muted-foreground py-1.5 rounded-md active:bg-accent"
             onTouchEnd={(e) => {
+              if (preventIfGuarded?.(e)) return;
               e.stopPropagation();
               e.preventDefault();
               onOpenChange(false);
             }}
             onClick={(e) => {
+              if (preventIfGuarded?.(e)) return;
               e.stopPropagation();
               onOpenChange(false);
             }}
