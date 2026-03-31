@@ -61,10 +61,15 @@ export function StatusBarManager() {
     }
 
     const handleViewportResume = () => {
-      queueIOSRecovery();
+      if (isNativeIOS) {
+        queueIOSRecovery();
+      } else if (isNativePlatform) {
+        // Android: re-sync status bar when tab/app becomes visible again
+        refreshStatusBar();
+      }
     };
 
-    if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
+    if (isNativePlatform && typeof document !== 'undefined' && typeof window !== 'undefined') {
       window.addEventListener('focus', handleViewportResume);
       window.addEventListener('pageshow', handleViewportResume);
       document.addEventListener('visibilitychange', handleViewportResume);
@@ -85,7 +90,7 @@ export function StatusBarManager() {
       appListener?.remove();
       keyboardShowListener?.remove();
       cancelIOSRecovery?.();
-      if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
+      if (isNativePlatform && typeof document !== 'undefined' && typeof window !== 'undefined') {
         window.removeEventListener('focus', handleViewportResume);
         window.removeEventListener('pageshow', handleViewportResume);
         document.removeEventListener('visibilitychange', handleViewportResume);
