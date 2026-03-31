@@ -401,17 +401,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Handle @mentions
-    const mentionRegex = /@\[[^\]]+\]\(([a-f0-9-]{36})\)/gi;
-    const mentionedIds: string[] = [];
-    let match;
-    while ((match = mentionRegex.exec(messageText || '')) !== null) {
-      if (match[1] && match[1] !== authorId) {
-        mentionedIds.push(match[1]);
-      }
-    }
-
-    for (const mentionedId of [...new Set(mentionedIds)]) {
+    // Handle @mentions (mentionedIds already extracted above)
+    for (const mentionedId of [...uniqueMentionedIds]) {
       let isMuted = false;
       if (muteChatId && muteChatType) {
         const { data: muteCheck } = await supabase
