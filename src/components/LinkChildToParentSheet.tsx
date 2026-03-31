@@ -55,61 +55,15 @@ export default function LinkChildToParentSheet({
 
   const linkMutation = useMutation({
     mutationFn: async (parentId: string) => {
-      let childId = existingChildId;
-
-      if (childId) {
-        // Child exists — update parent_id to the selected parent
-        const { error } = await supabase
-          .from("children")
-          .update({ parent_id: parentId })
-          .eq("id", childId);
-        if (error) throw error;
-      } else {
-        // Create child record owned by the selected parent
-        const { data: newChild, error: createErr } = await supabase
-          .from("children")
-          .insert({ name: childName, parent_id: parentId })
-          .select("id")
-          .single();
-        if (createErr) throw createErr;
-        childId = newChild.id;
-
-        // Assign child to team
-        const { error: assignErr } = await supabase
-          .from("child_team_assignments")
-          .insert({ child_id: childId, team_id: teamId });
-        if (assignErr) throw assignErr;
-      }
-
-      // Ensure parent has a parent role on this team
-      const { data: existingRole } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", parentId)
-        .eq("team_id", teamId)
-        .eq("role", "parent")
-        .maybeSingle();
-
-      if (!existingRole) {
-        await supabase.from("user_roles").insert({
-          user_id: parentId,
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent",
-        });
-      }
-
-      // Mark all related pending invites as accepted
-      if (pendingInviteIds.length > 0) {
-        await supabase
-          .from("pending_invites")
-          .update({
-            status: "accepted",
-            accepted_at: new Date().toISOString(),
-            invited_user_id: parentId,
-          })
-          .in("id", pendingInviteIds);
-      }
+      const { error } = await supabase.rpc("admin_link_child_to_parent", {
+        p_child_name: childName,
+        p_existing_child_id: existingChildId || null,
+        p_parent_user_id: parentId,
+        p_team_id: teamId,
+        p_club_id: clubId,
+        p_pending_invite_ids: pendingInviteIds,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       toast({

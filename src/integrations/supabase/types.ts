@@ -6017,6 +6017,17 @@ export type Database = {
       }
     }
     Functions: {
+      admin_link_child_to_parent: {
+        Args: {
+          p_child_name: string
+          p_club_id: string
+          p_existing_child_id: string
+          p_parent_user_id: string
+          p_pending_invite_ids: string[]
+          p_team_id: string
+        }
+        Returns: undefined
+      }
       approve_role_request: {
         Args: { p_request_id: string }
         Returns: undefined
