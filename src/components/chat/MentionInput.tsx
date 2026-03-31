@@ -164,7 +164,7 @@ export function MentionInput({
 
   // Convert raw value (with IDs) to display value (without IDs)
   const rawToDisplay = useCallback((raw: string) => {
-    return raw.replace(/@\[([^\]]+)\]\([^)]+\)/g, '@$1');
+    return raw.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1');
   }, []);
 
   // Store mapping of display mentions to raw mentions
