@@ -680,11 +680,21 @@ export const ChatMessage = memo(function ChatMessage({
                     size="icon"
                     className="h-8 w-8 min-h-[32px] min-w-[32px]"
                     onPointerDown={(e) => {
+                      if (suppressMenuUntilPointerUpRef.current) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
                       e.preventDefault();
                       e.stopPropagation();
                       openActionMenu();
                     }}
                     onClick={(e) => {
+                      if (suppressMenuUntilPointerUpRef.current) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
                       e.preventDefault();
                       e.stopPropagation();
                     }}
