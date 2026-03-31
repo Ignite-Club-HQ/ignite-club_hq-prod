@@ -294,6 +294,34 @@ export default function EventDetailPage() {
     enabled: !!id,
   });
 
+  // Fetch event guests for attending count and RSVP list
+  const { data: eventGuests } = useQuery({
+    queryKey: ["event-guests", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_guests")
+        .select("*")
+        .eq("event_id", id!);
+      if (error) throw error;
+      
+      // Fetch adder profiles
+      const adderIds = [...new Set(data.map(g => g.added_by))];
+      let adderMap: Record<string, string> = {};
+      if (adderIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", adderIds);
+        if (profiles) {
+          adderMap = Object.fromEntries(profiles.map(p => [p.id, p.display_name || "A member"]));
+        }
+      }
+      
+      return data.map(g => ({ ...g, added_by_name: adderMap[g.added_by] || "A member" }));
+    },
+    enabled: !!id,
+  });
+
   // Populate form with existing RSVP data
   const myRsvp = rsvps?.find((r) => r.user_id === user?.id && !r.child_id);
   
