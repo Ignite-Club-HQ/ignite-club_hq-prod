@@ -142,9 +142,9 @@ export function useMessageReads(
 
     const fetchReadCounts = async () => {
       // Fetch reads (no join - message_reads has no FK to profiles)
-      const { data, error } = await supabase
+      const { data, error } = await (supabase
         .from("message_reads")
-        .select(`${messageIdField}, user_id`)
+        .select(`${messageIdField}, user_id`) as any)
         .in(messageIdField, messageIds);
 
       if (error) {
