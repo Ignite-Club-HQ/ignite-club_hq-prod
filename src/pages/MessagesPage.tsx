@@ -448,16 +448,18 @@ export default function MessagesPage() {
         teams.map(async (team) => {
           const { data: msgData } = await supabase
             .from("team_messages")
-            .select("text, created_at, image_url, author_id")
+            .select("text, created_at, image_url, author_id, is_club_announcement, club_announcement_name")
             .eq("team_id", team.id)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
           
           if (msgData) {
-            // Fetch author profile - start with empty string, will be populated from DB
             let authorName = "";
-            if (msgData.author_id) {
+            // For club announcements, use the club name
+            if (msgData.is_club_announcement && msgData.club_announcement_name) {
+              authorName = msgData.club_announcement_name;
+            } else if (msgData.author_id) {
               const { data: profile } = await supabase
                 .from("profiles")
                 .select("display_name")
