@@ -529,9 +529,6 @@ export const ChatMessage = memo(function ChatMessage({
     const clearSuppressedMenuGesture = () => {
       suppressMenuUntilPointerUpRef.current = false;
       ignoreReactionDismissRef.current = false;
-      if (!longPressGestureActiveRef.current) {
-        reactionPickerCloseGuardUntilRef.current = 0;
-      }
     };
 
     window.addEventListener('pointerup', clearSuppressedMenuGesture, true);
