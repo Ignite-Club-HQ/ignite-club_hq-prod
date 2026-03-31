@@ -24,6 +24,7 @@ import ChatGroupCard from "@/components/chat/ChatGroupCard";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { DMConversationsList } from "@/components/chat/DMConversationsList";
 import { NewMessageMenu } from "@/components/chat/NewMessageMenu";
+import { ContactClubButton } from "@/components/ContactClubButton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,13 +86,15 @@ const MessagePreview = ({
   imageUrl, 
   author,
   hasUnread,
-  fallback 
+  fallback,
+  isAnnouncement,
 }: { 
   text?: string; 
   imageUrl?: string | null; 
   author?: string;
   hasUnread?: boolean;
   fallback: string;
+  isAnnouncement?: boolean;
 }) => {
   const hasText = text && text.trim();
   const isImageOnly = !hasText && imageUrl;
@@ -114,7 +117,7 @@ const MessagePreview = ({
       {hasTextAndImage && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       )}
-      {author && <span className="font-medium">{getFirstName(author)}:</span>}
+      {author && <span className="font-medium">{isAnnouncement ? author : getFirstName(author)}:</span>}
       <span className="truncate">{displayText ?? (isImageOnly ? "Image" : fallback)}</span>
     </span>
   );
@@ -441,22 +444,25 @@ export default function MessagesPage() {
       const teams = data as Team[];
       
       // Fetch latest messages for all teams in parallel
-      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
+      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
       
       await Promise.all(
         teams.map(async (team) => {
           const { data: msgData } = await supabase
             .from("team_messages")
-            .select("text, created_at, image_url, author_id")
+            .select("text, created_at, image_url, author_id, is_club_announcement, club_announcement_name")
             .eq("team_id", team.id)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
           
           if (msgData) {
-            // Fetch author profile - start with empty string, will be populated from DB
             let authorName = "";
-            if (msgData.author_id) {
+            const isAnnouncement = !!(msgData.is_club_announcement && msgData.club_announcement_name);
+            // For club announcements, use the club name
+            if (isAnnouncement) {
+              authorName = msgData.club_announcement_name!;
+            } else if (msgData.author_id) {
               const { data: profile } = await supabase
                 .from("profiles")
                 .select("display_name")
@@ -471,6 +477,7 @@ export default function MessagesPage() {
               author: authorName,
               created_at: msgData.created_at,
               image_url: msgData.image_url,
+              is_announcement: isAnnouncement,
             };
           }
         })
@@ -1231,6 +1238,7 @@ export default function MessagesPage() {
                           author={lastMessage?.author}
                           hasUnread={hasUnread}
                           fallback={team.clubs?.name || "Team chat"}
+                          isAnnouncement={(lastMessage as any)?.is_announcement}
                         />
                       </p>
                     </div>
@@ -1343,6 +1351,11 @@ export default function MessagesPage() {
         {/* Direct Messages Section - Pro feature */}
         {!showSkeletonLoading && hasAnyProAccess && (
           <DMConversationsList searchQuery={searchQuery} hasProAccess={hasAnyProAccess} />
+        )}
+
+        {/* Contact Club - Pro feature */}
+        {!showSkeletonLoading && (
+          <ContactClubButton clubFilter={activeClubFilter} />
         )}
 
         {/* Announcements Section */}

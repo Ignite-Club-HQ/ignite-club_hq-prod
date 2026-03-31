@@ -24,7 +24,7 @@ async function batchDeleteByDate(
   label: string,
   extraFilters?: (query: any) => any,
 ): Promise<number> {
-  const BATCH_SIZE = 500;
+  const BATCH_SIZE = 2000;
   let totalDeleted = 0;
 
   while (true) {

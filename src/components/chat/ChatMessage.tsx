@@ -48,7 +48,7 @@ export interface ChatMessageProps {
   isAdmin?: boolean;
   reactions?: Reaction[];
   currentUserId?: string;
-  messageType: "team" | "club" | "broadcast" | "group" | "dm";
+  messageType: "team" | "club" | "broadcast" | "group" | "dm" | "club_admin";
   queryKey: string[];
   replyToMessage?: ReplyToMessage | null;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
@@ -111,6 +111,7 @@ export const ChatMessage = memo(function ChatMessage({
       case "broadcast": return "broadcast_message_id";
       case "group": return "group_message_id";
       case "dm": return "direct_message_id";
+      case "club_admin": return "club_admin_message_id";
     }
   };
 
@@ -121,6 +122,7 @@ export const ChatMessage = memo(function ChatMessage({
       case "broadcast": return "broadcast_messages";
       case "group": return "group_messages";
       case "dm": return "direct_messages";
+      case "club_admin": return "club_admin_messages";
     }
   };
   

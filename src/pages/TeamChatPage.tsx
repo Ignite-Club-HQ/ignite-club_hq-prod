@@ -742,6 +742,9 @@ export default function TeamChatPage() {
                     if (m.id !== newMsg.id) return m;
                     return {
                       ...m,
+                      // Don't overwrite club announcement metadata
+                      is_club_announcement: m.is_club_announcement || newMsg.is_club_announcement || false,
+                      club_announcement_name: m.club_announcement_name || newMsg.club_announcement_name || null,
                       profiles: profileData 
                         ? { display_name: profileData.display_name, avatar_url: profileData.avatar_url }
                         : m.profiles,
@@ -795,7 +798,7 @@ export default function TeamChatPage() {
             return {
               ...(old || {}),
               messages: existingMessages.map(m =>
-                m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m
+                m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url, is_club_announcement: updated.is_club_announcement ?? m.is_club_announcement, club_announcement_name: updated.club_announcement_name ?? m.club_announcement_name } : m
               ),
             };
           });
