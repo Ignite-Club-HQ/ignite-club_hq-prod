@@ -66,6 +66,7 @@ import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
+import LinkChildToParentSheet from "@/components/LinkChildToParentSheet";
 import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import PlayerPositionSheet from "@/components/PlayerPositionSheet";
@@ -113,6 +114,7 @@ export default function TeamDetailPage() {
   // Long-press position editor state
   const [positionSheetPlayer, setPositionSheetPlayer] = useState<{ id: string; name: string; type: "member" | "child" } | null>(null);
   const [inviteParentChild, setInviteParentChild] = useState<{ childId: string; childName: string } | null>(null);
+  const [linkChildToParent, setLinkChildToParent] = useState<{ childName: string; existingChildId?: string; pendingInviteIds: string[] } | null>(null);
   
   // Handle admin invite dialog from team creation flow
   const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string } | null;
@@ -1343,6 +1345,27 @@ export default function TeamDetailPage() {
                                         </p>
                                       ) : null}
                                     </div>
+                                    {(isAdmin || isClubAdmin) && isPending && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0"
+                                        aria-label={`Link ${child.name} to a parent`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          // Find pending invite IDs for this child
+                                          const inviteIds = pendingInvites
+                                            .filter(inv => {
+                                              const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
+                                              return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
+                                            })
+                                            .map(inv => inv.id);
+                                          setLinkChildToParent({ childName: child.name, existingChildId: child.id, pendingInviteIds: inviteIds });
+                                        }}
+                                      >
+                                        <UserPlus className="h-4 w-4 text-orange-400" />
+                                      </Button>
+                                    )}
                                     {(isAdmin || isClubAdmin) && !isPending && (
                                       <Button
                                         variant="ghost"
@@ -1372,7 +1395,7 @@ export default function TeamDetailPage() {
                             const confirmedChildIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
                             const confirmedChildNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()).filter(Boolean));
                             // Deduplicate pending children across invites by normalized name
-                            const seenPendingNames = new Map<string, { name: string; parentLabels: string[] }>();
+                            const seenPendingNames = new Map<string, { name: string; parentLabels: string[]; inviteIds: string[] }>();
                             
                             for (const inv of pendingInvites) {
                               const meta = inv.metadata as { children?: { name: string; child_id?: string; existingChildId?: string }[] } | null;
@@ -1393,13 +1416,16 @@ export default function TeamDetailPage() {
                                   if (!existing.parentLabels.includes(parentLabel)) {
                                     existing.parentLabels.push(parentLabel);
                                   }
+                                  if (!existing.inviteIds.includes(inv.id)) {
+                                    existing.inviteIds.push(inv.id);
+                                  }
                                 } else {
-                                  seenPendingNames.set(key, { name: child.name, parentLabels: [parentLabel] });
+                                  seenPendingNames.set(key, { name: child.name, parentLabels: [parentLabel], inviteIds: [inv.id] });
                                 }
                               }
                             }
                             
-                            return Array.from(seenPendingNames.entries()).map(([key, { name, parentLabels }]) => (
+                            return Array.from(seenPendingNames.entries()).map(([key, { name, parentLabels, inviteIds }]) => (
                               <Card key={`pending-child-${key}`} className="opacity-70">
                                 <CardContent className="p-3 flex items-center gap-3">
                                   <Avatar className="h-8 w-8">
@@ -1413,6 +1439,20 @@ export default function TeamDetailPage() {
                                       {parentLabels.length > 1 ? `Parents: ${parentLabels.join(" & ")}` : `Parent: ${parentLabels[0]}`}
                                     </p>
                                   </div>
+                                  {(isAdmin || isClubAdmin) && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 shrink-0"
+                                      aria-label={`Link ${name} to a parent`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds });
+                                      }}
+                                    >
+                                      <UserPlus className="h-4 w-4 text-orange-400" />
+                                    </Button>
+                                  )}
                                   <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
                                     Pending
                                   </Badge>
@@ -2202,6 +2242,18 @@ export default function TeamDetailPage() {
           childId={inviteParentChild.childId}
           childName={inviteParentChild.childName}
           teamIds={[id]}
+        />
+      )}
+      {linkChildToParent && id && team && (
+        <LinkChildToParentSheet
+          open={!!linkChildToParent}
+          onOpenChange={(open) => { if (!open) setLinkChildToParent(null); }}
+          childName={linkChildToParent.childName}
+          existingChildId={linkChildToParent.existingChildId}
+          pendingInviteIds={linkChildToParent.pendingInviteIds}
+          teamId={id}
+          clubId={team.club_id || (team.clubs as any)?.id || ""}
+          members={members}
         />
       )}
     </div>
