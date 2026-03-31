@@ -730,13 +730,16 @@ export const ChatMessage = memo(function ChatMessage({
                     e.preventDefault();
                     e.stopPropagation();
                     if (suppressMenuUntilPointerUpRef.current) return;
-                    // Fire the menu open on pointerdown so it beats the backdrop teardown
                     menuClickGuardUntilRef.current = Date.now() + 600;
                     ignoreReactionDismissRef.current = true;
+                    reactionPickerCloseGuardUntilRef.current = Number.MAX_SAFE_INTEGER;
                     setShowReactionPicker(false);
-                    ignoreReactionDismissRef.current = false;
                     setShowMenu(true);
                     setIsDropdownOpen(true);
+                    requestAnimationFrame(() => {
+                      ignoreReactionDismissRef.current = false;
+                      reactionPickerCloseGuardUntilRef.current = 0;
+                    });
                   }}
                   onClick={(e) => {
                     // Prevent any default; action already handled on pointerdown
