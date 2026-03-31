@@ -527,6 +527,28 @@ export const ChatMessage = memo(function ChatMessage({
     };
   }, []);
 
+  // Position the portalled menu trigger next to the bubble
+  useLayoutEffect(() => {
+    if (!showMenu || !bubbleRef.current) {
+      setMenuPosition(null);
+      return;
+    }
+    const updatePos = () => {
+      const rect = bubbleRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const top = rect.top;
+      const left = isOwn ? rect.left - 36 : rect.right + 4;
+      setMenuPosition({ top, left });
+    };
+    updatePos();
+    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("resize", updatePos);
+    return () => {
+      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("resize", updatePos);
+    };
+  }, [showMenu, isOwn]);
+
   // The reaction picker now uses a fullscreen backdrop (in MessageReactionsPopover),
   // so no document-level outside-click handler is needed here.
 
@@ -697,31 +719,24 @@ export const ChatMessage = memo(function ChatMessage({
                   size="icon"
                   className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
                   onPointerDown={(e) => {
-                    if (suppressMenuUntilPointerUpRef.current) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      return;
-                    }
-                    ignoreReactionDismissRef.current = true;
                     e.preventDefault();
                     e.stopPropagation();
-                  }}
-                  onClick={(e) => {
-                    if (suppressMenuUntilPointerUpRef.current) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      return;
-                    }
-                    e.preventDefault();
-                    e.stopPropagation();
+                    if (suppressMenuUntilPointerUpRef.current) return;
+                    // Fire the menu open on pointerdown so it beats the backdrop teardown
                     menuClickGuardUntilRef.current = Date.now() + 600;
+                    ignoreReactionDismissRef.current = true;
                     setShowReactionPicker(false);
                     ignoreReactionDismissRef.current = false;
                     setShowMenu(true);
                     setIsDropdownOpen(true);
                   }}
+                  onClick={(e) => {
+                    // Prevent any default; action already handled on pointerdown
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
                   onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); }}
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
