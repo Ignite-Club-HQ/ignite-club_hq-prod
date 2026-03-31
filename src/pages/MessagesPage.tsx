@@ -86,13 +86,15 @@ const MessagePreview = ({
   imageUrl, 
   author,
   hasUnread,
-  fallback 
+  fallback,
+  isAnnouncement,
 }: { 
   text?: string; 
   imageUrl?: string | null; 
   author?: string;
   hasUnread?: boolean;
   fallback: string;
+  isAnnouncement?: boolean;
 }) => {
   const hasText = text && text.trim();
   const isImageOnly = !hasText && imageUrl;
@@ -115,7 +117,7 @@ const MessagePreview = ({
       {hasTextAndImage && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       )}
-      {author && <span className="font-medium">{getFirstName(author)}:</span>}
+      {author && <span className="font-medium">{isAnnouncement ? author : getFirstName(author)}:</span>}
       <span className="truncate">{displayText ?? (isImageOnly ? "Image" : fallback)}</span>
     </span>
   );
