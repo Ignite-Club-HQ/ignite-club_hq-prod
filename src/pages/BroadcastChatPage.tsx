@@ -977,7 +977,7 @@ export default function BroadcastChatPage() {
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-          <div className="flex gap-1.5 items-end">
+          <div className="flex gap-1.5 items-center">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
