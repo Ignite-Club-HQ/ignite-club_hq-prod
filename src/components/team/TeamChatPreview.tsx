@@ -16,7 +16,7 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
     queryFn: async () => {
       const { data } = await supabase
         .from("team_messages")
-        .select("id, text, created_at, author_id")
+        .select("id, text, created_at, author_id, is_club_announcement, club_announcement_name")
         .eq("team_id", teamId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -24,6 +24,14 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
         .maybeSingle();
       
       if (!data) return null;
+
+      // For club announcements, use the club name instead of the author's profile
+      if (data.is_club_announcement && data.club_announcement_name) {
+        return {
+          ...data,
+          authorName: data.club_announcement_name,
+        };
+      }
 
       // Get author profile
       const { data: profile } = await supabase
