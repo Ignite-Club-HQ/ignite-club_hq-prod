@@ -342,23 +342,8 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
 
-  const editMessageMutation = useMutation({
-    mutationFn: async (newText: string) => {
-      const { error } = await supabase
-        .from(getTableName())
-        .update({ text: newText })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-      setIsEditing(false);
-      toast.success("Message updated");
-    },
-    onError: () => {
-      toast.error("Failed to update message");
-    },
-  });
+
+
 
   const deleteMessageMutation = useMutation({
     mutationFn: async () => {
