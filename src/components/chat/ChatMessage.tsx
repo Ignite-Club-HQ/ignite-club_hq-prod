@@ -560,66 +560,9 @@ export const ChatMessage = memo(function ChatMessage({
   const displayName = authorName || "";
   const hasName = !!authorName;
 
-  // Handle inserting emoji at cursor position
-  const inputRef = useRef<HTMLInputElement>(null);
-  
-  const handleEditEmojiSelect = useCallback((emoji: string) => {
-    const input = inputRef.current;
-    if (input) {
-      const start = input.selectionStart || editText.length;
-      const end = input.selectionEnd || editText.length;
-      const newText = editText.slice(0, start) + emoji + editText.slice(end);
-      setEditText(newText);
-      // Set cursor position after emoji
-      requestAnimationFrame(() => {
-        input.focus();
-        input.setSelectionRange(start + emoji.length, start + emoji.length);
-      });
-    } else {
-      setEditText(prev => prev + emoji);
-    }
-  }, [editText]);
 
   // Hide messages from blocked users (after all hooks)
   if (!isOwn && isBlocked(authorId)) return null;
-
-  if (isEditing) {
-    return (
-      <div className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}>
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarImage src={authorAvatar || undefined} />
-          <AvatarFallback className="text-xs">
-            {displayName.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 max-w-[75%]">
-          <div className="flex items-center gap-1">
-            <Input
-              ref={inputRef}
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              className="flex-1"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSaveEdit();
-                if (e.key === "Escape") {
-                  setIsEditing(false);
-                  setEditText(text);
-                }
-              }}
-            />
-            <EmojiPicker onEmojiSelect={handleEditEmojiSelect} />
-            <Button size="icon" variant="ghost" onClick={handleSaveEdit}>
-              <Check className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={handleCancelEdit}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""}`}>
