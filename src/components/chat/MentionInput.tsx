@@ -386,7 +386,7 @@ export function MentionInput({
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
-            className={`w-full bg-transparent border-none outline-none text-base px-2 pt-[11px] pb-[9px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 ${className || ''}`}
+            className={`w-full bg-transparent border-none outline-none text-base px-2 pt-[13px] pb-[7px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 ${className || ''}`}
             style={{ maxHeight: '120px', overflowY: 'hidden' }}
           />
         </div>
