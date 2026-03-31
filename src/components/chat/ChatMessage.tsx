@@ -653,7 +653,7 @@ export const ChatMessage = memo(function ChatMessage({
             />
           </div>
           {showMenu && (
-            <div className={`absolute top-0 ${isOwn ? "right-full mr-1" : "left-full ml-1"}`}>
+            <div ref={menuContainerRef} className={`absolute top-0 ${isOwn ? "right-full mr-1" : "left-full ml-1"}`}>
               <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
                 <DropdownMenuTrigger asChild>
                   <Button
