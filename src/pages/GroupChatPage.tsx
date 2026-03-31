@@ -1026,6 +1026,7 @@ export default function GroupChatPage() {
   // Toggle reaction mutation with optimistic updates
   // Rule: One reaction per user per message. Clicking same emoji removes it, different emoji replaces it.
   const toggleReactionMutation = useMutation({
+    retry: 1,
     mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
       if (!user) return { action: 'none' as const };
       
