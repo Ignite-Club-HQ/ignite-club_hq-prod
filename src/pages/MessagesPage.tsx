@@ -308,13 +308,15 @@ export default function MessagesPage() {
   // Fetch member clubs with their latest messages in a single query
   const { data: memberClubsWithMessages, isLoading: memberClubsLoading } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
+    retry: 3,
     queryFn: async () => {
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user!.id)
         .not("club_id", "is", null);
 
+      if (rolesError) throw rolesError;
       if (!roles || roles.length === 0) return { clubs: [] as Club[], latestMessages: {} };
 
       const clubIds = [...new Set(roles.map((r) => r.club_id).filter(Boolean))];
