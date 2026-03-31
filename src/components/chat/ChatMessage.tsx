@@ -79,6 +79,7 @@ export const ChatMessage = memo(function ChatMessage({
   queryKey,
   replyToMessage,
   onReply,
+  onEdit,
   searchQuery,
   readFrontierReaders = [],
   readCount = 0,
