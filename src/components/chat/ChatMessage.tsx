@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { createPortal } from "react-dom";
 import { removeMessageFromCache } from "@/lib/messageCache";
 import { MessageContent } from "./MessageContent";
 import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReactions";
