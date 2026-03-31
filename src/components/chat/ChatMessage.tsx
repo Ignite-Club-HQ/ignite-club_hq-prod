@@ -513,16 +513,17 @@ export const ChatMessage = memo(function ChatMessage({
   }, [deleteMessageMutation]);
 
   const handleShowReactions = useCallback(() => {
-    reactionPickerCloseGuardUntilRef.current = Date.now() + 250;
+    guardDismiss();
     setShowReactionPicker(true);
-  }, []);
+  }, [guardDismiss]);
 
   const handleMenuOpenChange = useCallback((open: boolean) => {
+    if (!canDismiss()) return;
     setIsDropdownOpen(open);
-    if (!open && !showReactionPicker && Date.now() > menuClickGuardUntilRef.current) {
+    if (!open && !showReactionPicker) {
       setShowMenu(false);
     }
-  }, [showReactionPicker]);
+  }, [canDismiss, showReactionPicker]);
 
   useEffect(() => {
     const clearSuppressedMenuGesture = () => {
