@@ -1306,7 +1306,7 @@ export default function GroupChatPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-muted-foreground">Chat group not found</p>
-        <Button variant="outline" onClick={() => navigate(-1)}>
+        <Button variant="outline" onClick={() => navigate("/messages")}>
           Go Back
         </Button>
       </div>
