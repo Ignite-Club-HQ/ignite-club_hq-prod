@@ -21,7 +21,7 @@ export const ReplyPreview = memo(function ReplyPreview({ replyingTo, onCancel }:
           Replying to {replyingTo.authorName || "message"}
         </p>
         <p className="text-xs text-muted-foreground truncate">
-          {replyingTo.text}
+          {replyingTo.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}
         </p>
       </div>
       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 hover:bg-destructive/10" onClick={onCancel}>
