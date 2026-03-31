@@ -512,6 +512,8 @@ export const ChatMessage = memo(function ChatMessage({
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('[data-reaction-picker="true"]')) return;
       if (target?.closest?.('[role="menu"]')) return;
+      // Don't close if tapping the three-dots menu button itself
+      if (menuContainerRef.current?.contains(target as Node)) return;
       setShowMenu(false);
     };
     
