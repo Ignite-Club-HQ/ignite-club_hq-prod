@@ -505,6 +505,14 @@ export const ChatMessage = memo(function ChatMessage({
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    if (ignoreNextContextMenuRef.current) {
+      ignoreNextContextMenuRef.current = false;
+      if (contextMenuResetTimerRef.current) {
+        clearTimeout(contextMenuResetTimerRef.current);
+        contextMenuResetTimerRef.current = null;
+      }
+      return;
+    }
     openActionMenu();
   }, [openActionMenu]);
 
