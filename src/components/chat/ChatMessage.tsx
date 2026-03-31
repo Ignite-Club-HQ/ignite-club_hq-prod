@@ -406,7 +406,6 @@ export const ChatMessage = memo(function ChatMessage({
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       suppressOutsideCloseUntilRef.current = Date.now() + 900;
       setShowMenu(true);
-      setIsDropdownOpen(true);
       setShowReactionPicker(true);
     }, 600);
   }, [id, messageType]);
