@@ -38,6 +38,8 @@ export function BottomNav() {
       return data;
     },
     enabled: !!user,
+    retry: 3,
+    staleTime: 5 * 60 * 1000,
   });
 
   const isAppAdmin = userRoles?.some((r) => r.role === "app_admin");
