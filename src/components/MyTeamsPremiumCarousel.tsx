@@ -647,6 +647,21 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     );
   }
 
+  const createClubCard = showCreateClub ? (
+    <Card
+      className="min-w-[200px] max-w-[200px] snap-start cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all shrink-0"
+      onClick={() => navigate("/clubs", { state: { fromCreateClub: true } })}
+    >
+      <CardContent className="p-4 flex flex-col items-center justify-center gap-2 h-full text-center">
+        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+          <Building2 className="h-5 w-5 text-primary" />
+        </div>
+        <p className="text-sm font-medium">Create a Club</p>
+        <p className="text-[11px] text-muted-foreground leading-tight">Start a new organisation</p>
+      </CardContent>
+    </Card>
+  ) : null;
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -665,23 +680,17 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
           {[...items]
             .sort((a, b) => {
-              // Always keep teams ahead of mini leagues
               if (a.type !== b.type) return a.type === "team" ? -1 : 1;
-              // Within the same type, admin/coach entries first
               if (a.canManage !== b.canManage) return a.canManage ? -1 : 1;
-              // Then items with upcoming events
               const aHasEvent = !!nextEvents[a.id];
               const bHasEvent = !!nextEvents[b.id];
               if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
-              // Then items with unread messages
               const aUnread = unreadCounts[a.id] || 0;
               const bUnread = unreadCounts[b.id] || 0;
               if (aUnread !== bUnread) return bUnread - aUnread;
-              // Then items with photos (activity)
               const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
               const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
               if (aHasPhotos !== bHasPhotos) return aHasPhotos ? -1 : 1;
-              // Then alphabetical
               return a.name.localeCompare(b.name);
             })
             .map((item) => (
@@ -694,6 +703,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
             />
           ))}
           {addTeamCard}
+          {createClubCard}
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
