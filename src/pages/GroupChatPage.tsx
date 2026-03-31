@@ -1081,11 +1081,16 @@ export default function GroupChatPage() {
         }).select().maybeSingle();
         
         if (error) {
+          // Handle unique constraint conflict (23505) - reaction already exists
+          if (error.code === '23505') {
+            console.warn('[Reaction] Duplicate reaction, treating as success');
+            return { action: 'added' as const, reaction: null };
+          }
           console.error('[Reaction] Insert error:', error);
           throw error;
         }
         console.log('[Reaction] Insert success:', data);
-        return { action: 'added' as const, reaction: data };
+        return { action: 'added' as const, reaction: data ?? { id: `server-${Date.now()}`, user_id: user.id, reaction_type: reactionType, group_message_id: messageId } };
       }
     },
     onMutate: async ({ messageId, reactionType }) => {
