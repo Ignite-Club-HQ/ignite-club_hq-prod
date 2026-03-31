@@ -405,6 +405,7 @@ export const ChatMessage = memo(function ChatMessage({
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       suppressOutsideCloseUntilRef.current = Date.now() + 900;
       setShowMenu(true);
+      setIsDropdownOpen(true);
       setShowReactionPicker(true);
     }, 600);
   }, [id, messageType]);
@@ -507,9 +508,10 @@ export const ChatMessage = memo(function ChatMessage({
     if (!showMenu || isDropdownOpen || showReactionPicker) return;
     
     const handleClickOutside = (e: Event) => {
-      // Never close menu if the touch/click is inside the reaction picker portal
+      if (Date.now() < suppressOutsideCloseUntilRef.current) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('[data-reaction-picker="true"]')) return;
+      if (target?.closest?.('[role="menu"]')) return;
       setShowMenu(false);
     };
     
