@@ -504,7 +504,12 @@ export const ChatMessage = memo(function ChatMessage({
   }, [onEdit, id, text]);
 
   const handleDelete = useCallback(() => {
+    setShowDeleteConfirm(true);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
     deleteMessageMutation.mutate();
+    setShowDeleteConfirm(false);
   }, [deleteMessageMutation]);
 
   const handleShowReactions = useCallback(() => {
