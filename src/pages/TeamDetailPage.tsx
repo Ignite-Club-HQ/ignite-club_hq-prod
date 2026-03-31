@@ -1395,7 +1395,7 @@ export default function TeamDetailPage() {
                             const confirmedChildIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
                             const confirmedChildNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()).filter(Boolean));
                             // Deduplicate pending children across invites by normalized name
-                            const seenPendingNames = new Map<string, { name: string; parentLabels: string[] }>();
+                            const seenPendingNames = new Map<string, { name: string; parentLabels: string[]; inviteIds: string[] }>();
                             
                             for (const inv of pendingInvites) {
                               const meta = inv.metadata as { children?: { name: string; child_id?: string; existingChildId?: string }[] } | null;
@@ -1416,13 +1416,16 @@ export default function TeamDetailPage() {
                                   if (!existing.parentLabels.includes(parentLabel)) {
                                     existing.parentLabels.push(parentLabel);
                                   }
+                                  if (!existing.inviteIds.includes(inv.id)) {
+                                    existing.inviteIds.push(inv.id);
+                                  }
                                 } else {
-                                  seenPendingNames.set(key, { name: child.name, parentLabels: [parentLabel] });
+                                  seenPendingNames.set(key, { name: child.name, parentLabels: [parentLabel], inviteIds: [inv.id] });
                                 }
                               }
                             }
                             
-                            return Array.from(seenPendingNames.entries()).map(([key, { name, parentLabels }]) => (
+                            return Array.from(seenPendingNames.entries()).map(([key, { name, parentLabels, inviteIds }]) => (
                               <Card key={`pending-child-${key}`} className="opacity-70">
                                 <CardContent className="p-3 flex items-center gap-3">
                                   <Avatar className="h-8 w-8">
@@ -1436,6 +1439,20 @@ export default function TeamDetailPage() {
                                       {parentLabels.length > 1 ? `Parents: ${parentLabels.join(" & ")}` : `Parent: ${parentLabels[0]}`}
                                     </p>
                                   </div>
+                                  {(isAdmin || isClubAdmin) && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 shrink-0"
+                                      aria-label={`Link ${name} to a parent`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds });
+                                      }}
+                                    >
+                                      <UserPlus className="h-4 w-4 text-orange-400" />
+                                    </Button>
+                                  )}
                                   <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
                                     Pending
                                   </Badge>
