@@ -9,6 +9,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
+import { EditingBanner } from "@/components/chat/EditingBanner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -54,6 +55,7 @@ export default function ClubAdminChatPage() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -349,8 +351,38 @@ export default function ClubAdminChatPage() {
     },
   });
 
+  const updateMessageMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingMessage) return;
+      const { error } = await supabase.from("club_admin_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setMessage("");
+      setEditingMessage(null);
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("Message updated");
+    },
+    onError: () => toast.error("Failed to update message"),
+  });
+
+  const handleEdit = useCallback((msg: { id: string; text: string }) => {
+    setEditingMessage(msg);
+    setMessage(msg.text);
+    setReplyTo(null);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setMessage("");
+  }, []);
+
   const handleSend = () => {
     if (!message.trim()) return;
+    if (editingMessage) {
+      updateMessageMutation.mutate();
+      return;
+    }
     sendMessageMutation.mutate({
       text: message.trim(),
       replyToId: replyTo?.id || null,
@@ -596,6 +628,7 @@ export default function ClubAdminChatPage() {
           onCancel={() => setReplyTo(null)}
         />
       )}
+      {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
 
       {/* Input area */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />

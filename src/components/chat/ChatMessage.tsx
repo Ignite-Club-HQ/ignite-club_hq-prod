@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { EmojiPicker } from "./EmojiPicker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +51,7 @@ export interface ChatMessageProps {
   queryKey: string[];
   replyToMessage?: ReplyToMessage | null;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
+  onEdit?: (message: { id: string; text: string }) => void;
   searchQuery?: string;
   readFrontierReaders?: ReaderInfo[];
   readCount?: number;
@@ -80,6 +79,7 @@ export const ChatMessage = memo(function ChatMessage({
   queryKey,
   replyToMessage,
   onReply,
+  onEdit,
   searchQuery,
   readFrontierReaders = [],
   readCount = 0,
@@ -91,8 +91,6 @@ export const ChatMessage = memo(function ChatMessage({
   contextId,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(text);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showReadReceipts, setShowReadReceipts] = useState(false);
@@ -344,23 +342,8 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
 
-  const editMessageMutation = useMutation({
-    mutationFn: async (newText: string) => {
-      const { error } = await supabase
-        .from(getTableName())
-        .update({ text: newText })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-      setIsEditing(false);
-      toast.success("Message updated");
-    },
-    onError: () => {
-      toast.error("Failed to update message");
-    },
-  });
+
+
 
   const deleteMessageMutation = useMutation({
     mutationFn: async () => {
@@ -483,19 +466,8 @@ export const ChatMessage = memo(function ChatMessage({
     }
   }, [isDropdownOpen]);
 
-  const handleSaveEdit = useCallback(() => {
-    if (editText.trim() && editText !== text) {
-      editMessageMutation.mutate(editText.trim());
-    } else {
-      setIsEditing(false);
-      setEditText(text);
-    }
-  }, [editText, text, editMessageMutation]);
 
-  const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
-    setEditText(text);
-  }, [text]);
+
 
   const openActionMenu = useCallback(() => {
     setShowReactionPicker(false);
@@ -517,8 +489,8 @@ export const ChatMessage = memo(function ChatMessage({
   }, [onReply, id, text, authorName]);
 
   const handleStartEdit = useCallback(() => {
-    setIsEditing(true);
-  }, []);
+    onEdit?.({ id, text });
+  }, [onEdit, id, text]);
 
   const handleDelete = useCallback(() => {
     deleteMessageMutation.mutate();
@@ -588,66 +560,9 @@ export const ChatMessage = memo(function ChatMessage({
   const displayName = authorName || "";
   const hasName = !!authorName;
 
-  // Handle inserting emoji at cursor position
-  const inputRef = useRef<HTMLInputElement>(null);
-  
-  const handleEditEmojiSelect = useCallback((emoji: string) => {
-    const input = inputRef.current;
-    if (input) {
-      const start = input.selectionStart || editText.length;
-      const end = input.selectionEnd || editText.length;
-      const newText = editText.slice(0, start) + emoji + editText.slice(end);
-      setEditText(newText);
-      // Set cursor position after emoji
-      requestAnimationFrame(() => {
-        input.focus();
-        input.setSelectionRange(start + emoji.length, start + emoji.length);
-      });
-    } else {
-      setEditText(prev => prev + emoji);
-    }
-  }, [editText]);
 
   // Hide messages from blocked users (after all hooks)
   if (!isOwn && isBlocked(authorId)) return null;
-
-  if (isEditing) {
-    return (
-      <div className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}>
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarImage src={authorAvatar || undefined} />
-          <AvatarFallback className="text-xs">
-            {displayName.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 max-w-[75%]">
-          <div className="flex items-center gap-1">
-            <Input
-              ref={inputRef}
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              className="flex-1"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSaveEdit();
-                if (e.key === "Escape") {
-                  setIsEditing(false);
-                  setEditText(text);
-                }
-              }}
-            />
-            <EmojiPicker onEmojiSelect={handleEditEmojiSelect} />
-            <Button size="icon" variant="ghost" onClick={handleSaveEdit}>
-              <Check className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={handleCancelEdit}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""}`}>
