@@ -106,6 +106,8 @@ export const ChatMessage = memo(function ChatMessage({
   const ignoreReactionDismissRef = useRef(false);
   const dismissGuardUntilRef = useRef(0);
   const longPressGestureActiveRef = useRef(false);
+  const ignoreNextContextMenuRef = useRef(false);
+  const contextMenuResetTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
@@ -418,6 +420,12 @@ export const ChatMessage = memo(function ChatMessage({
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       longPressGestureActiveRef.current = true;
+      ignoreNextContextMenuRef.current = true;
+      if (contextMenuResetTimerRef.current) clearTimeout(contextMenuResetTimerRef.current);
+      contextMenuResetTimerRef.current = setTimeout(() => {
+        ignoreNextContextMenuRef.current = false;
+        contextMenuResetTimerRef.current = null;
+      }, 1200);
       suppressMenuUntilPointerUpRef.current = true;
       guardDismiss();
       setIsDropdownOpen(false);
@@ -452,6 +460,11 @@ export const ChatMessage = memo(function ChatMessage({
     requestAnimationFrame(() => {
       longPressGestureActiveRef.current = false;
       guardDismiss();
+      if (contextMenuResetTimerRef.current) clearTimeout(contextMenuResetTimerRef.current);
+      contextMenuResetTimerRef.current = setTimeout(() => {
+        ignoreNextContextMenuRef.current = false;
+        contextMenuResetTimerRef.current = null;
+      }, 400);
     });
   }, [guardDismiss]);
 
@@ -497,6 +510,14 @@ export const ChatMessage = memo(function ChatMessage({
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    if (ignoreNextContextMenuRef.current) {
+      ignoreNextContextMenuRef.current = false;
+      if (contextMenuResetTimerRef.current) {
+        clearTimeout(contextMenuResetTimerRef.current);
+        contextMenuResetTimerRef.current = null;
+      }
+      return;
+    }
     openActionMenu();
   }, [openActionMenu]);
 
@@ -537,6 +558,9 @@ export const ChatMessage = memo(function ChatMessage({
     return () => {
       if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
+      }
+      if (contextMenuResetTimerRef.current) {
+        clearTimeout(contextMenuResetTimerRef.current);
       }
       window.removeEventListener('pointerup', clearSuppressedMenuGesture, true);
       window.removeEventListener('pointercancel', clearSuppressedMenuGesture, true);
