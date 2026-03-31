@@ -1293,7 +1293,7 @@ export default function GroupChatPage() {
       toast.success("Group deleted");
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
-      navigate(-1);
+      navigate("/messages");
     },
     onError: () => toast.error("Failed to delete group"),
   });
