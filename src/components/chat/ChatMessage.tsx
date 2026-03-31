@@ -100,6 +100,7 @@ export const ChatMessage = memo(function ChatMessage({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const menuContainerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
@@ -405,7 +406,6 @@ export const ChatMessage = memo(function ChatMessage({
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       suppressOutsideCloseUntilRef.current = Date.now() + 900;
       setShowMenu(true);
-      setIsDropdownOpen(true);
       setShowReactionPicker(true);
     }, 600);
   }, [id, messageType]);
@@ -512,6 +512,8 @@ export const ChatMessage = memo(function ChatMessage({
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('[data-reaction-picker="true"]')) return;
       if (target?.closest?.('[role="menu"]')) return;
+      // Don't close if tapping the three-dots menu button itself
+      if (menuContainerRef.current?.contains(target as Node)) return;
       setShowMenu(false);
     };
     
@@ -651,7 +653,7 @@ export const ChatMessage = memo(function ChatMessage({
             />
           </div>
           {showMenu && (
-            <div className={`absolute top-0 ${isOwn ? "right-full mr-1" : "left-full ml-1"}`}>
+            <div ref={menuContainerRef} className={`absolute top-0 ${isOwn ? "right-full mr-1" : "left-full ml-1"}`}>
               <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
                 <DropdownMenuTrigger asChild>
                   <Button
