@@ -1808,12 +1808,6 @@ export default function HomePage() {
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   {(userClubs[0] as any)?.points_display_name || 'Reward Points'}
                 </span>
-                {showProBadge && (
-                  <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
-                    <Lock className="h-2.5 w-2.5 mr-0.5" />
-                    Pro
-                  </Badge>
-                )}
               </div>
 
               {/* Primary: progress to next reward */}
