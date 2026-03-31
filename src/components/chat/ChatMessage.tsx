@@ -411,6 +411,7 @@ export const ChatMessage = memo(function ChatMessage({
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       suppressOutsideCloseUntilRef.current = Date.now() + 900;
+      reactionPickerCloseGuardUntilRef.current = Date.now() + 250;
       suppressMenuUntilPointerUpRef.current = true;
       setIsDropdownOpen(false);
       setShowMenu(true);
