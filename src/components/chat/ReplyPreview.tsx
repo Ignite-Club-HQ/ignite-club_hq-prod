@@ -47,7 +47,7 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isO
       <p className="text-muted-foreground font-medium truncate">
         {replyToMessage.authorName || ""}
       </p>
-      <p className="text-muted-foreground/70 truncate">{replyToMessage.text}</p>
+      <p className="text-muted-foreground/70 truncate">{replyToMessage.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</p>
     </div>
   );
 });

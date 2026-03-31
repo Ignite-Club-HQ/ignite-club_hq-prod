@@ -227,7 +227,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           {msg.reply_to && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded mb-1 border-l-2 border-primary">
               <span className="font-medium">{msg.reply_to.author?.display_name || "..."}: </span>
-              <span className="line-clamp-1">{msg.reply_to.text}</span>
+              <span className="line-clamp-1">{msg.reply_to.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</span>
             </div>
           )}
 
