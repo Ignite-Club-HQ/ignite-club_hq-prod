@@ -101,13 +101,9 @@ export const ChatMessage = memo(function ChatMessage({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
-  const menuContainerRef = useRef<HTMLDivElement>(null);
-  const suppressMenuUntilPointerUpRef = useRef(false);
-  const ignoreReactionDismissRef = useRef(false);
-  const dismissGuardUntilRef = useRef(0);
-  const longPressGestureActiveRef = useRef(false);
+  const longPressTriggeredRef = useRef(false);
+  const releaseGuardRef = useRef(false);
   const ignoreNextContextMenuRef = useRef(false);
-  const contextMenuResetTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
@@ -406,35 +402,18 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
 
-  const suppressOutsideCloseUntilRef = useRef(0);
-  const guardDismiss = useCallback((duration = 350) => {
-    const until = Date.now() + duration;
-    dismissGuardUntilRef.current = until;
-    suppressOutsideCloseUntilRef.current = until;
-  }, []);
-
-  const canDismiss = useCallback(() => Date.now() > dismissGuardUntilRef.current, []);
-
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
-      longPressGestureActiveRef.current = true;
+      longPressTriggeredRef.current = true;
+      releaseGuardRef.current = true;
       ignoreNextContextMenuRef.current = true;
-      if (contextMenuResetTimerRef.current) clearTimeout(contextMenuResetTimerRef.current);
-      contextMenuResetTimerRef.current = setTimeout(() => {
-        ignoreNextContextMenuRef.current = false;
-        contextMenuResetTimerRef.current = null;
-      }, 1200);
-      suppressMenuUntilPointerUpRef.current = true;
-      guardDismiss();
       setIsDropdownOpen(false);
       setShowMenu(true);
-      requestAnimationFrame(() => {
-        setShowReactionPicker(true);
-      });
+      setShowReactionPicker(true);
     }, 600);
-  }, [guardDismiss, id, messageType]);
+  }, [id, messageType]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current && touchStartPos.current) {
@@ -448,25 +427,22 @@ export const ChatMessage = memo(function ChatMessage({
     }
   }, []);
 
-  const handleLongPressEnd = useCallback(() => {
+  const handleLongPressEnd = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
     touchStartPos.current = null;
 
-    if (!longPressGestureActiveRef.current) return;
+    if (!longPressTriggeredRef.current) return;
+
+    e.preventDefault();
+    e.stopPropagation();
 
     requestAnimationFrame(() => {
-      longPressGestureActiveRef.current = false;
-      guardDismiss();
-      if (contextMenuResetTimerRef.current) clearTimeout(contextMenuResetTimerRef.current);
-      contextMenuResetTimerRef.current = setTimeout(() => {
-        ignoreNextContextMenuRef.current = false;
-        contextMenuResetTimerRef.current = null;
-      }, 400);
+      longPressTriggeredRef.current = false;
     });
-  }, [guardDismiss]);
+  }, []);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     if (addReactionMutation.isPending || removeReactionMutation.isPending) {
@@ -502,20 +478,15 @@ export const ChatMessage = memo(function ChatMessage({
   }, [text]);
 
   const openActionMenu = useCallback(() => {
-    guardDismiss();
     setShowReactionPicker(false);
     setShowMenu(true);
     setIsDropdownOpen(true);
-  }, [guardDismiss]);
+  }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     if (ignoreNextContextMenuRef.current) {
       ignoreNextContextMenuRef.current = false;
-      if (contextMenuResetTimerRef.current) {
-        clearTimeout(contextMenuResetTimerRef.current);
-        contextMenuResetTimerRef.current = null;
-      }
       return;
     }
     openActionMenu();
@@ -534,45 +505,47 @@ export const ChatMessage = memo(function ChatMessage({
   }, [deleteMessageMutation]);
 
   const handleShowReactions = useCallback(() => {
-    guardDismiss();
+    setShowMenu(true);
     setShowReactionPicker(true);
-  }, [guardDismiss]);
+  }, []);
 
   const handleMenuOpenChange = useCallback((open: boolean) => {
-    if (!canDismiss()) return;
     setIsDropdownOpen(open);
-    if (!open && !showReactionPicker) {
+    if (!open) {
       setShowMenu(false);
     }
-  }, [canDismiss, showReactionPicker]);
+  }, []);
 
   useEffect(() => {
-    const clearSuppressedMenuGesture = () => {
-      suppressMenuUntilPointerUpRef.current = false;
-      ignoreReactionDismissRef.current = false;
+    const clearReleaseGuards = () => {
+      releaseGuardRef.current = false;
+      ignoreNextContextMenuRef.current = false;
     };
 
-    window.addEventListener('pointerup', clearSuppressedMenuGesture, true);
-    window.addEventListener('pointercancel', clearSuppressedMenuGesture, true);
+    const handlePointerCancel = () => {
+      longPressTriggeredRef.current = false;
+      releaseGuardRef.current = false;
+      ignoreNextContextMenuRef.current = false;
+    };
+
+    window.addEventListener('pointerdown', clearReleaseGuards, true);
+    window.addEventListener('pointercancel', handlePointerCancel, true);
 
     return () => {
       if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
       }
-      if (contextMenuResetTimerRef.current) {
-        clearTimeout(contextMenuResetTimerRef.current);
-      }
-      window.removeEventListener('pointerup', clearSuppressedMenuGesture, true);
-      window.removeEventListener('pointercancel', clearSuppressedMenuGesture, true);
+      window.removeEventListener('pointerdown', clearReleaseGuards, true);
+      window.removeEventListener('pointercancel', handlePointerCancel, true);
     };
   }, []);
 
-  // Position the portalled menu trigger next to the bubble
   useLayoutEffect(() => {
     if (!showMenu || !bubbleRef.current) {
       setMenuPosition(null);
       return;
     }
+
     const updatePos = () => {
       const rect = bubbleRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -580,42 +553,16 @@ export const ChatMessage = memo(function ChatMessage({
       const left = isOwn ? rect.left - 36 : rect.right + 4;
       setMenuPosition({ top, left });
     };
+
     updatePos();
     window.addEventListener("scroll", updatePos, true);
     window.addEventListener("resize", updatePos);
+
     return () => {
       window.removeEventListener("scroll", updatePos, true);
       window.removeEventListener("resize", updatePos);
     };
   }, [showMenu, isOwn]);
-
-  // The reaction picker now uses a fullscreen backdrop (in MessageReactionsPopover),
-  // so no document-level outside-click handler is needed here.
-
-  // Close three-dot menu when tapping outside
-  useEffect(() => {
-    if (!showMenu || isDropdownOpen || showReactionPicker) return;
-    
-    const handleClickOutside = (e: Event) => {
-      if (!canDismiss()) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.closest?.('[data-reaction-picker="true"]')) return;
-      if (target?.closest?.('[role="menu"]')) return;
-      if (menuContainerRef.current?.contains(target as Node)) return;
-      setShowMenu(false);
-    };
-    
-    const timer = setTimeout(() => {
-      document.addEventListener('touchstart', handleClickOutside);
-      document.addEventListener('click', handleClickOutside);
-    }, 0);
-    
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('touchstart', handleClickOutside);
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [showMenu, isDropdownOpen, showReactionPicker]);
 
   // Get display name - never show placeholder text; hide name until profile loads
   const displayName = authorName || "";
@@ -736,19 +683,20 @@ export const ChatMessage = memo(function ChatMessage({
               isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
               isOpen={showReactionPicker}
               onOpenChange={(open) => {
-                if (!open && !canDismiss()) return;
+                if (!open && releaseGuardRef.current) return;
                 setShowReactionPicker(open);
+                if (!open && !isDropdownOpen) {
+                  setShowMenu(false);
+                }
               }}
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
-              ignoreDismissRef={ignoreReactionDismissRef}
             />
           </div>
         </div>
         {/* Portalled menu trigger - renders above reaction picker backdrop */}
         {showMenu && menuPosition && createPortal(
           <div
-            ref={menuContainerRef}
             className="fixed z-[100002]"
             style={{ top: menuPosition.top, left: menuPosition.left }}
             data-menu-trigger="true"
@@ -760,25 +708,18 @@ export const ChatMessage = memo(function ChatMessage({
                   size="icon"
                   className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
                   onPointerDown={(e) => {
-                    e.preventDefault();
                     e.stopPropagation();
-                    if (suppressMenuUntilPointerUpRef.current) return;
-                    guardDismiss();
-                    ignoreReactionDismissRef.current = true;
-                    setShowReactionPicker(false);
-                    setShowMenu(true);
-                    setIsDropdownOpen(true);
-                    requestAnimationFrame(() => {
-                      ignoreReactionDismissRef.current = false;
-                    });
+                    if (releaseGuardRef.current) {
+                      e.preventDefault();
+                    }
                   }}
                   onClick={(e) => {
-                    // Prevent any default; action already handled on pointerdown
                     e.preventDefault();
                     e.stopPropagation();
+                    if (releaseGuardRef.current) return;
+                    openActionMenu();
                   }}
                   onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); }}
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>
