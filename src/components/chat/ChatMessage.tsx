@@ -705,11 +705,11 @@ export const ChatMessage = memo(function ChatMessage({
               isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
               isOpen={showReactionPicker}
               onOpenChange={(open) => {
-                if (!open && releaseGuardRef.current) return;
-                setShowReactionPicker(open);
-                if (!open && !isDropdownOpen) {
-                  setShowMenu(false);
+                if (open) {
+                  setShowReactionPicker(true);
+                  return;
                 }
+                closeReactionPicker();
               }}
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
