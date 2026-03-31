@@ -683,19 +683,20 @@ export const ChatMessage = memo(function ChatMessage({
               isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
               isOpen={showReactionPicker}
               onOpenChange={(open) => {
-                if (!open && !canDismiss()) return;
+                if (!open && releaseGuardRef.current) return;
                 setShowReactionPicker(open);
+                if (!open && !isDropdownOpen) {
+                  setShowMenu(false);
+                }
               }}
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
-              ignoreDismissRef={ignoreReactionDismissRef}
             />
           </div>
         </div>
         {/* Portalled menu trigger - renders above reaction picker backdrop */}
         {showMenu && menuPosition && createPortal(
           <div
-            ref={menuContainerRef}
             className="fixed z-[100002]"
             style={{ top: menuPosition.top, left: menuPosition.left }}
             data-menu-trigger="true"
@@ -707,25 +708,18 @@ export const ChatMessage = memo(function ChatMessage({
                   size="icon"
                   className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
                   onPointerDown={(e) => {
-                    e.preventDefault();
                     e.stopPropagation();
-                    if (suppressMenuUntilPointerUpRef.current) return;
-                    guardDismiss();
-                    ignoreReactionDismissRef.current = true;
-                    setShowReactionPicker(false);
-                    setShowMenu(true);
-                    setIsDropdownOpen(true);
-                    requestAnimationFrame(() => {
-                      ignoreReactionDismissRef.current = false;
-                    });
+                    if (releaseGuardRef.current) {
+                      e.preventDefault();
+                    }
                   }}
                   onClick={(e) => {
-                    // Prevent any default; action already handled on pointerdown
                     e.preventDefault();
                     e.stopPropagation();
+                    if (releaseGuardRef.current) return;
+                    openActionMenu();
                   }}
                   onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); }}
                 >
                   <MoreVertical className="h-3 w-3" />
                 </Button>

@@ -30,7 +30,6 @@ interface MessageReactionsProps {
   onOpenChange: (open: boolean) => void;
   isOwnMessage?: boolean;
   anchorRef: RefObject<HTMLDivElement>;
-  ignoreDismissRef?: MutableRefObject<boolean>;
 }
 
 export const MessageReactionsPopover = memo(function MessageReactionsPopover({
@@ -43,7 +42,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   onOpenChange,
   isOwnMessage = false,
   anchorRef,
-  ignoreDismissRef,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
@@ -105,29 +103,21 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     onReact(type);
   };
 
-
   if (!isOpen || !position) return null;
 
   return createPortal(
     <div
       className="fixed inset-0 z-[100001]"
       data-reaction-picker="true"
-      onTouchStart={(e) => {
-        // Prevent touchstart from reaching document-level listeners
+      onPointerDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        e.preventDefault();
         e.stopPropagation();
-      }}
-      onTouchEnd={(e) => {
-        if (e.target === e.currentTarget) {
-          e.stopPropagation();
-          e.preventDefault();
-          if (ignoreDismissRef?.current) return;
-          onOpenChange(false);
-        }
+        onOpenChange(false);
       }}
       onClick={(e) => {
+        e.preventDefault();
         e.stopPropagation();
-        if (ignoreDismissRef?.current) return;
-        onOpenChange(false);
       }}
     >
       <div
@@ -138,7 +128,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
           width: "min(280px, calc(100vw - 16px))",
         }}
         onClick={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="bg-popover border rounded-lg p-2 shadow-lg">
