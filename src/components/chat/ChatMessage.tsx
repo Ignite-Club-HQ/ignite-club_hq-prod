@@ -405,6 +405,7 @@ export const ChatMessage = memo(function ChatMessage({
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       suppressOutsideCloseUntilRef.current = Date.now() + 900;
+      setIsDropdownOpen(false);
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 600);
@@ -466,16 +467,15 @@ export const ChatMessage = memo(function ChatMessage({
 
   const openActionMenu = useCallback(() => {
     suppressOutsideCloseUntilRef.current = Date.now() + 500;
-    setShowMenu(true);
     setShowReactionPicker(false);
+    setShowMenu(true);
+    setIsDropdownOpen(true);
   }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setShowMenu(true);
-    setShowReactionPicker(false);
-    setIsDropdownOpen(true);
-  }, []);
+    openActionMenu();
+  }, [openActionMenu]);
 
   const handleReply = useCallback(() => {
     onReply?.({ id, text, authorName: authorName || null });
@@ -669,12 +669,13 @@ export const ChatMessage = memo(function ChatMessage({
                     size="icon"
                     className="h-8 w-8 min-h-[32px] min-w-[32px]"
                     onPointerDown={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       openActionMenu();
                     }}
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
-                      openActionMenu();
                     }}
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
