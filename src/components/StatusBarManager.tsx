@@ -90,7 +90,7 @@ export function StatusBarManager() {
       appListener?.remove();
       keyboardShowListener?.remove();
       cancelIOSRecovery?.();
-      if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
+      if (isNativePlatform && typeof document !== 'undefined' && typeof window !== 'undefined') {
         window.removeEventListener('focus', handleViewportResume);
         window.removeEventListener('pageshow', handleViewportResume);
         document.removeEventListener('visibilitychange', handleViewportResume);
