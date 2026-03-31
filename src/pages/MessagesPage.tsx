@@ -266,27 +266,30 @@ export default function MessagesPage() {
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("id")
         .eq("user_id", user!.id)
         .eq("role", "app_admin")
         .maybeSingle();
+      if (error) throw error;
       return !!data;
     },
     enabled: !!user,
+    retry: 3,
   });
 
   // Get clubs where user is admin
   const { data: adminClubs } = useQuery({
     queryKey: ["admin-clubs", user?.id],
     queryFn: async () => {
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user!.id)
         .eq("role", "club_admin");
 
+      if (rolesError) throw rolesError;
       if (!roles || roles.length === 0) return [];
 
       const clubIds = roles.map((r) => r.club_id).filter(Boolean);
@@ -298,19 +301,22 @@ export default function MessagesPage() {
       return data as Club[];
     },
     enabled: !!user,
+    retry: 3,
     placeholderData: cachedData?.adminClubs,
   });
 
   // Fetch member clubs with their latest messages in a single query
   const { data: memberClubsWithMessages, isLoading: memberClubsLoading } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
+    retry: 3,
     queryFn: async () => {
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("club_id")
         .eq("user_id", user!.id)
         .not("club_id", "is", null);
 
+      if (rolesError) throw rolesError;
       if (!roles || roles.length === 0) return { clubs: [] as Club[], latestMessages: {} };
 
       const clubIds = [...new Set(roles.map((r) => r.club_id).filter(Boolean))];
@@ -408,6 +414,7 @@ export default function MessagesPage() {
   // Fetch teams with their latest messages in a single query for efficiency
   const { data: teamsWithMessages, isLoading: teamsLoading } = useQuery({
     queryKey: ["my-teams-with-messages", user?.id],
+    retry: 3,
     queryFn: async () => {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
