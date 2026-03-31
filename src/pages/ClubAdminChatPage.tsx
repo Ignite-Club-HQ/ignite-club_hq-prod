@@ -634,7 +634,7 @@ export default function ClubAdminChatPage() {
       {/* Input area */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
       <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
-        <div className="flex gap-1.5 items-end">
+        <div className="flex gap-1.5 items-center">
           <MentionInput
             value={message}
             onChange={setMessage}
