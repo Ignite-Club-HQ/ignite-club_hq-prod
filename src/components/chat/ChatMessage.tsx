@@ -711,7 +711,10 @@ export const ChatMessage = memo(function ChatMessage({
               }}
               isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
               isOpen={showReactionPicker}
-              onOpenChange={setShowReactionPicker}
+              onOpenChange={(open) => {
+                if (!open && !canDismiss()) return;
+                setShowReactionPicker(open);
+              }}
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
               ignoreDismissRef={ignoreReactionDismissRef}
