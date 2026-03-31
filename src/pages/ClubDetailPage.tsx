@@ -1250,7 +1250,7 @@ export default function ClubDetailPage() {
               <div className="flex items-center gap-2">
                 <Archive className="h-5 w-5 text-amber-600" />
                 <span className="text-lg font-semibold text-amber-800 dark:text-amber-300">Archived Teams</span>
-                <Badge variant="secondary" className="ml-2 font-semibold text-secondary-foreground">{archivedTeams.length}</Badge>
+                <Badge className="ml-2 font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{archivedTeams.length}</Badge>
               </div>
             </AccordionTrigger>
             <AccordionContent>
