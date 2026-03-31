@@ -257,7 +257,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 return (
                   <span
                     key={index}
-                    className="font-semibold underline decoration-1 underline-offset-2"
+                    className="font-semibold"
                   >
                     {part.content}
                   </span>
