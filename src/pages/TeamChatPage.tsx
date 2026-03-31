@@ -1042,6 +1042,8 @@ export default function TeamChatPage() {
     setEditingMessage(null);
     setMessage("");
   }, []);
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
