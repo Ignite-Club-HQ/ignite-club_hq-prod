@@ -105,6 +105,7 @@ export const ChatMessage = memo(function ChatMessage({
   const suppressMenuUntilPointerUpRef = useRef(false);
   const ignoreReactionDismissRef = useRef(false);
   const menuClickGuardUntilRef = useRef(0);
+  const reactionPickerCloseGuardUntilRef = useRef(0);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
@@ -410,6 +411,7 @@ export const ChatMessage = memo(function ChatMessage({
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       suppressOutsideCloseUntilRef.current = Date.now() + 900;
+      reactionPickerCloseGuardUntilRef.current = Date.now() + 250;
       suppressMenuUntilPointerUpRef.current = true;
       setIsDropdownOpen(false);
       setShowMenu(true);
@@ -496,6 +498,7 @@ export const ChatMessage = memo(function ChatMessage({
   }, [deleteMessageMutation]);
 
   const handleShowReactions = useCallback(() => {
+    reactionPickerCloseGuardUntilRef.current = Date.now() + 250;
     setShowReactionPicker(true);
   }, []);
 
@@ -675,6 +678,7 @@ export const ChatMessage = memo(function ChatMessage({
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
               ignoreDismissRef={ignoreReactionDismissRef}
+              closeGuardUntilRef={reactionPickerCloseGuardUntilRef}
             />
           </div>
         </div>

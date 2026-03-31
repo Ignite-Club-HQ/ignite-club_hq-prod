@@ -31,6 +31,7 @@ interface MessageReactionsProps {
   isOwnMessage?: boolean;
   anchorRef: RefObject<HTMLDivElement>;
   ignoreDismissRef?: MutableRefObject<boolean>;
+  closeGuardUntilRef?: MutableRefObject<number>;
 }
 
 export const MessageReactionsPopover = memo(function MessageReactionsPopover({
@@ -44,6 +45,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   isOwnMessage = false,
   anchorRef,
   ignoreDismissRef,
+  closeGuardUntilRef,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
@@ -101,12 +103,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
-    // Always close the picker immediately — before any mutation logic
     onOpenChange(false);
-
-    // Don't check isMutating here — let handleReactionClick handle its own guard
-    // using the freshest isPending state from the mutation objects
     onReact(type);
+  };
+
+  const shouldIgnoreDismiss = () => {
+    return !!closeGuardUntilRef && Date.now() < closeGuardUntilRef.current;
   };
 
   if (!isOpen || !position) return null;
@@ -123,13 +125,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           e.preventDefault();
-          if (ignoreDismissRef?.current) return;
+          if (ignoreDismissRef?.current || shouldIgnoreDismiss()) return;
           onOpenChange(false);
         }
       }}
       onClick={(e) => {
         e.stopPropagation();
-        if (ignoreDismissRef?.current) return;
+        if (ignoreDismissRef?.current || shouldIgnoreDismiss()) return;
         onOpenChange(false);
       }}
     >
