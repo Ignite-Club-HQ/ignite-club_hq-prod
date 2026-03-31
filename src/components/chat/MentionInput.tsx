@@ -177,6 +177,8 @@ export function MentionInput({
     return map;
   }, [value]);
 
+  const displayValue = useMemo(() => rawToDisplay(value), [value, rawToDisplay]);
+
   // Split display value into segments with mention highlights
   const highlightedSegments = useMemo(() => {
     const mentionNames = Array.from(mentionMap.keys());
@@ -189,8 +191,6 @@ export function MentionInput({
       isMention: mentionMap.has(part),
     }));
   }, [displayValue, mentionMap]);
-
-  const displayValue = useMemo(() => rawToDisplay(value), [value, rawToDisplay]);
 
   // Convert display index to raw index
   const displayIndexToRawIndex = useCallback((displayIdx: number) => {
