@@ -483,57 +483,93 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [fetchProfile, queryClient]);
 
-  // SAFARI PWA FIX: Refresh session when app resumes from background
-  // Safari's WKWebView can lose connection state when backgrounded, causing auth to appear stale
-  // This ensures the session is validated and refreshed when the user returns
+  // SESSION RECOVERY: Refresh session when app resumes from background
+  // Android WebView can corrupt localStorage tokens when the process is killed,
+  // causing "token is malformed" errors. Safari PWA can also lose connection state.
+  // This handler MUST NOT depend on session state - after WebView recreate, state is null.
   useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && session?.user) {
-        console.log('[Auth] App resumed - validating session');
-        try {
-          // Try to refresh the session to ensure it's still valid
-          const { data, error } = await supabase.auth.getSession();
-          if (error) {
-            console.error('[Auth] Session validation failed on resume:', error);
-            // Don't immediately sign out - the token might just need refresh
-            const { error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError) {
-              console.error('[Auth] Token refresh failed on resume:', refreshError);
-              // Only now consider the session invalid - but still don't force logout
-              // Let the user continue until their next API call fails
-            }
-          } else if (!data.session) {
-            console.warn('[Auth] No session found on resume - attempting refresh before clearing');
-            // On native apps, getSession can transiently return null on resume
-            // Try refreshing before clearing state to avoid unnecessary redirects
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError || !refreshData.session) {
-              console.warn('[Auth] Session refresh also failed on resume - session expired');
-              setUser(null);
-              setSession(null);
-              setProfile(null);
-              setCachedProfile(null);
-              setInitialized(true);
-            } else {
-              console.log('[Auth] Session recovered via refresh on resume');
-              setSession(refreshData.session);
-              setUser(refreshData.session.user);
-            }
-          } else {
-            // Session is valid - update state to be safe
-            setSession(data.session);
-            setUser(data.session.user);
-          }
-        } catch (err) {
-          console.error('[Auth] Error validating session on resume:', err);
-          // Network error - don't log out, user might just be offline
+    const isNative = typeof (window as any).Capacitor !== 'undefined' && 
+                     (window as any).Capacitor?.isNativePlatform?.();
+    let lastResumeCheck = 0;
+
+    const recoverSession = async (source: string) => {
+      // Debounce: don't re-check within 3 seconds
+      const now = Date.now();
+      if (now - lastResumeCheck < 3000) return;
+      lastResumeCheck = now;
+
+      console.log(`[Auth] ${source} - attempting session recovery`);
+      try {
+        // Step 1: Try refreshSession FIRST - this uses the refresh_token which is
+        // more resilient than the access_token that may be corrupted/malformed.
+        // On Android, getSession() can return a malformed access_token from localStorage
+        // that was corrupted when the OS killed the WebView process.
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (!refreshError && refreshData.session) {
+          console.log(`[Auth] ${source} - session recovered via refresh`);
+          setSession(refreshData.session);
+          setUser(refreshData.session.user);
+          return;
         }
+
+        // Step 2: If refresh failed, try getSession as fallback
+        // (it might work if the access token is still valid)
+        const { data, error } = await supabase.auth.getSession();
+        if (!error && data.session) {
+          console.log(`[Auth] ${source} - session valid from getSession`);
+          setSession(data.session);
+          setUser(data.session.user);
+          return;
+        }
+
+        // Step 3: Both failed - check if we HAD a session (cached profile exists)
+        // If so, the session truly expired. If not, user was never logged in.
+        const cachedProfileStr = localStorage.getItem('ignite_profile_cache');
+        if (cachedProfileStr) {
+          console.warn(`[Auth] ${source} - session unrecoverable, clearing state`);
+          setUser(null);
+          setSession(null);
+          setProfile(null);
+          setCachedProfile(null);
+          setInitialized(true);
+        } else {
+          console.log(`[Auth] ${source} - no prior session to recover`);
+        }
+      } catch (err) {
+        console.error(`[Auth] ${source} - error during recovery (possibly offline):`, err);
+        // Network error - don't log out, user might just be offline
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        recoverSession('visibilitychange');
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [session?.user?.id]);
+
+    // Native apps: also listen for Capacitor App resume event
+    // This fires more reliably than visibilitychange on Android
+    let resumeListener: { remove: () => Promise<void> } | null = null;
+    if (isNative) {
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('resume', () => {
+          recoverSession('capacitor-resume');
+        }).then(listener => {
+          resumeListener = listener;
+        }).catch(err => {
+          console.warn('[Auth] Failed to attach resume listener:', err);
+        });
+      }).catch(() => {});
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      resumeListener?.remove().catch(() => {});
+    };
+  }, []);
 
   // Real-time notifications subscription and push registration
   useEffect(() => {

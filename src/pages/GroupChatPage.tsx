@@ -52,7 +52,7 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 
 
-const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "👍", "😢"];
+const REACTION_EMOJIS = ["👍", "❤️", "🔥", "👏", "😂", "😢"];
 
 interface GroupMessage {
   id: string;
@@ -975,7 +975,7 @@ export default function GroupChatPage() {
       setMessage("");
       setEditingMessage(null);
       queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
-      toast.success("Message updated");
+      // silent success
     },
     onError: () => {
       toast.error("Failed to update message");

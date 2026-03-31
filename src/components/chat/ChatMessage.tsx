@@ -1,10 +1,18 @@
-import { useState, useRef, useEffect, useCallback, memo } from "react";
+import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, X, Check, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { EmojiPicker } from "./EmojiPicker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { createPortal } from "react-dom";
 import { removeMessageFromCache } from "@/lib/messageCache";
 import { MessageContent } from "./MessageContent";
 import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReactions";
@@ -52,6 +61,7 @@ export interface ChatMessageProps {
   queryKey: string[];
   replyToMessage?: ReplyToMessage | null;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
+  onEdit?: (message: { id: string; text: string }) => void;
   searchQuery?: string;
   readFrontierReaders?: ReaderInfo[];
   readCount?: number;
@@ -79,6 +89,7 @@ export const ChatMessage = memo(function ChatMessage({
   queryKey,
   replyToMessage,
   onReply,
+  onEdit,
   searchQuery,
   readFrontierReaders = [],
   readCount = 0,
@@ -90,16 +101,19 @@ export const ChatMessage = memo(function ChatMessage({
   contextId,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(text);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showReadReceipts, setShowReadReceipts] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const longPressTriggeredRef = useRef(false);
+  const releaseGuardRef = useRef(false);
+  const ignoreNextContextMenuRef = useRef(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
@@ -339,23 +353,8 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
 
-  const editMessageMutation = useMutation({
-    mutationFn: async (newText: string) => {
-      const { error } = await supabase
-        .from(getTableName())
-        .update({ text: newText })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-      setIsEditing(false);
-      toast.success("Message updated");
-    },
-    onError: () => {
-      toast.error("Failed to update message");
-    },
-  });
+
+
 
   const deleteMessageMutation = useMutation({
     mutationFn: async () => {
@@ -397,13 +396,14 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
 
-  const suppressOutsideCloseUntilRef = useRef(0);
-
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
-      suppressOutsideCloseUntilRef.current = Date.now() + 900;
+      longPressTriggeredRef.current = true;
+      releaseGuardRef.current = true;
+      ignoreNextContextMenuRef.current = true;
+      setIsDropdownOpen(false);
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 600);
@@ -413,7 +413,6 @@ export const ChatMessage = memo(function ChatMessage({
     if (longPressTimer.current && touchStartPos.current) {
       const dx = e.touches[0].clientX - touchStartPos.current.x;
       const dy = e.touches[0].clientY - touchStartPos.current.y;
-      // Cancel long press if finger moved more than 10px (scrolling)
       if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
         clearTimeout(longPressTimer.current);
         longPressTimer.current = null;
@@ -422,12 +421,21 @@ export const ChatMessage = memo(function ChatMessage({
     }
   }, []);
 
-  const handleLongPressEnd = useCallback(() => {
+  const handleLongPressEnd = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
     touchStartPos.current = null;
+
+    if (!longPressTriggeredRef.current) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    requestAnimationFrame(() => {
+      longPressTriggeredRef.current = false;
+    });
   }, []);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
@@ -436,159 +444,141 @@ export const ChatMessage = memo(function ChatMessage({
       return;
     }
 
+    // Clear all action UI and release guards immediately so the picker cannot reopen
+    // from a delayed onOpenChange/onTouchEnd sequence after reaction selection.
+    releaseGuardRef.current = false;
+    ignoreNextContextMenuRef.current = false;
+    setShowReactionPicker(false);
+    setShowMenu(false);
+    setIsDropdownOpen(false);
+
     if (existingReactionId) {
       removeReactionMutation.mutate(existingReactionId);
-    } else {
-      const latestReactions = getLatestReactions();
-      const existingReaction = latestReactions.find((reaction) => reaction.user_id === currentUserId);
-      console.log('[Reaction] handleReactionClick', { type, existingReaction: existingReaction ? { id: existingReaction.id, type: existingReaction.reaction_type } : null, willToggle: existingReaction?.reaction_type === type });
-      addReactionMutation.mutate({ 
-        reactionType: type, 
-        existingReaction,
-      });
+      return;
     }
+
+    const latestReactions = getLatestReactions();
+    const existingReaction = latestReactions.find((reaction) => reaction.user_id === currentUserId);
+    console.log('[Reaction] handleReactionClick', {
+      type,
+      existingReaction: existingReaction ? { id: existingReaction.id, type: existingReaction.reaction_type } : null,
+      willToggle: existingReaction?.reaction_type === type,
+    });
+    addReactionMutation.mutate({
+      reactionType: type,
+      existingReaction,
+    });
   }, [addReactionMutation, removeReactionMutation, getLatestReactions, currentUserId]);
 
-  const handleSaveEdit = useCallback(() => {
-    if (editText.trim() && editText !== text) {
-      editMessageMutation.mutate(editText.trim());
-    } else {
-      setIsEditing(false);
-      setEditText(text);
+  const closeReactionPicker = useCallback(() => {
+    setShowReactionPicker(false);
+    if (!isDropdownOpen) {
+      setShowMenu(false);
     }
-  }, [editText, text, editMessageMutation]);
+  }, [isDropdownOpen]);
 
-  const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
-    setEditText(text);
-  }, [text]);
+
+
+
+  const openActionMenu = useCallback(() => {
+    setShowReactionPicker(false);
+    setShowMenu(true);
+    setIsDropdownOpen(true);
+  }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setShowMenu(true);
-  }, []);
+    if (ignoreNextContextMenuRef.current) {
+      ignoreNextContextMenuRef.current = false;
+      return;
+    }
+    openActionMenu();
+  }, [openActionMenu]);
 
   const handleReply = useCallback(() => {
     onReply?.({ id, text, authorName: authorName || null });
   }, [onReply, id, text, authorName]);
 
   const handleStartEdit = useCallback(() => {
-    setIsEditing(true);
-  }, []);
+    onEdit?.({ id, text });
+  }, [onEdit, id, text]);
 
   const handleDelete = useCallback(() => {
+    setShowDeleteConfirm(true);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
     deleteMessageMutation.mutate();
+    setShowDeleteConfirm(false);
   }, [deleteMessageMutation]);
 
   const handleShowReactions = useCallback(() => {
+    setShowMenu(true);
     setShowReactionPicker(true);
   }, []);
 
   const handleMenuOpenChange = useCallback((open: boolean) => {
     setIsDropdownOpen(open);
-    if (!open && !showReactionPicker) {
+    if (!open) {
       setShowMenu(false);
     }
-  }, [showReactionPicker]);
+  }, []);
 
   useEffect(() => {
+    const clearReleaseGuards = () => {
+      releaseGuardRef.current = false;
+      ignoreNextContextMenuRef.current = false;
+    };
+
+    const handlePointerCancel = () => {
+      longPressTriggeredRef.current = false;
+      releaseGuardRef.current = false;
+      ignoreNextContextMenuRef.current = false;
+    };
+
+    window.addEventListener('pointerdown', clearReleaseGuards, true);
+    window.addEventListener('pointercancel', handlePointerCancel, true);
+
     return () => {
       if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
       }
+      window.removeEventListener('pointerdown', clearReleaseGuards, true);
+      window.removeEventListener('pointercancel', handlePointerCancel, true);
     };
   }, []);
 
-  // The reaction picker now uses a fullscreen backdrop (in MessageReactionsPopover),
-  // so no document-level outside-click handler is needed here.
+  useLayoutEffect(() => {
+    if (!showMenu || !bubbleRef.current) {
+      setMenuPosition(null);
+      return;
+    }
 
-  // Close three-dot menu when tapping outside
-  useEffect(() => {
-    if (!showMenu || isDropdownOpen || showReactionPicker) return;
-    
-    const handleClickOutside = (e: Event) => {
-      // Never close menu if the touch/click is inside the reaction picker portal
-      const target = e.target as HTMLElement | null;
-      if (target?.closest?.('[data-reaction-picker="true"]')) return;
-      setShowMenu(false);
+    const updatePos = () => {
+      const rect = bubbleRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const top = rect.top;
+      const left = isOwn ? rect.left - 36 : rect.right + 4;
+      setMenuPosition({ top, left });
     };
-    
-    const timer = setTimeout(() => {
-      document.addEventListener('touchstart', handleClickOutside);
-      document.addEventListener('click', handleClickOutside);
-    }, 0);
-    
+
+    updatePos();
+    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("resize", updatePos);
+
     return () => {
-      clearTimeout(timer);
-      document.removeEventListener('touchstart', handleClickOutside);
-      document.removeEventListener('click', handleClickOutside);
+      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("resize", updatePos);
     };
-  }, [showMenu, isDropdownOpen, showReactionPicker]);
+  }, [showMenu, isOwn]);
 
   // Get display name - never show placeholder text; hide name until profile loads
   const displayName = authorName || "";
   const hasName = !!authorName;
 
-  // Handle inserting emoji at cursor position
-  const inputRef = useRef<HTMLInputElement>(null);
-  
-  const handleEditEmojiSelect = useCallback((emoji: string) => {
-    const input = inputRef.current;
-    if (input) {
-      const start = input.selectionStart || editText.length;
-      const end = input.selectionEnd || editText.length;
-      const newText = editText.slice(0, start) + emoji + editText.slice(end);
-      setEditText(newText);
-      // Set cursor position after emoji
-      requestAnimationFrame(() => {
-        input.focus();
-        input.setSelectionRange(start + emoji.length, start + emoji.length);
-      });
-    } else {
-      setEditText(prev => prev + emoji);
-    }
-  }, [editText]);
 
   // Hide messages from blocked users (after all hooks)
   if (!isOwn && isBlocked(authorId)) return null;
-
-  if (isEditing) {
-    return (
-      <div className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}>
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarImage src={authorAvatar || undefined} />
-          <AvatarFallback className="text-xs">
-            {displayName.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 max-w-[75%]">
-          <div className="flex items-center gap-1">
-            <Input
-              ref={inputRef}
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              className="flex-1"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSaveEdit();
-                if (e.key === "Escape") {
-                  setIsEditing(false);
-                  setEditText(text);
-                }
-              }}
-            />
-            <EmojiPicker onEmojiSelect={handleEditEmojiSelect} />
-            <Button size="icon" variant="ghost" onClick={handleSaveEdit}>
-              <Check className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="ghost" onClick={handleCancelEdit}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""}`}>
@@ -643,68 +633,93 @@ export const ChatMessage = memo(function ChatMessage({
               }}
               isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
               isOpen={showReactionPicker}
-              onOpenChange={setShowReactionPicker}
+              onOpenChange={(open) => {
+                if (open) {
+                  setShowReactionPicker(true);
+                  return;
+                }
+                closeReactionPicker();
+              }}
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
             />
           </div>
-          {showMenu && (
-            <div className={`absolute top-0 ${isOwn ? "right-full mr-1" : "left-full ml-1"}`}>
-              <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 min-h-[32px] min-w-[32px]"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsDropdownOpen(true);
-                    }}
-                    onTouchStart={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => e.stopPropagation()}
-                  >
-                    <MoreVertical className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align={isOwn ? "end" : "start"} side="top" collisionPadding={16} className="bg-popover border">
-                  {canReply && (
-                    <DropdownMenuItem onClick={handleReply}>
-                      <Reply className="h-4 w-4 mr-2" /> Reply
-                    </DropdownMenuItem>
-                  )}
-                  {isOwn && !imageUrl && (
-                    <DropdownMenuItem onClick={handleStartEdit}>
-                      <Pencil className="h-4 w-4 mr-2" /> Edit
-                    </DropdownMenuItem>
-                  )}
-                  {canDelete && (
-                    <DropdownMenuItem 
-                      onClick={handleDelete}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" /> Delete
-                    </DropdownMenuItem>
-                  )}
-                  {!isOwn && !isSystemMessage && (
-                    <DropdownMenuItem 
-                      onClick={() => setShowReportDialog(true)}
-                    >
-                      <Flag className="h-4 w-4 mr-2" /> Report Message
-                    </DropdownMenuItem>
-                  )}
-                  {!isOwn && !isSystemMessage && (
-                    <DropdownMenuItem 
-                      onClick={() => setShowBlockDialog(true)}
-                      className="text-destructive"
-                    >
-                      <ShieldAlert className="h-4 w-4 mr-2" /> Block User
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
         </div>
+        {/* Portalled menu trigger - renders above reaction picker backdrop */}
+        {showMenu && menuPosition && createPortal(
+          <div
+            className="fixed z-[100002]"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+            data-menu-trigger="true"
+          >
+            <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    if (releaseGuardRef.current) {
+                      e.preventDefault();
+                    }
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (releaseGuardRef.current) return;
+                    openActionMenu();
+                  }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align={isOwn ? "end" : "start"}
+                side="top"
+                collisionPadding={16}
+                className="z-[100003] bg-popover border"
+                onCloseAutoFocus={(e) => e.preventDefault()}
+              >
+                {canReply && (
+                  <DropdownMenuItem onClick={handleReply}>
+                    <Reply className="h-4 w-4 mr-2" /> Reply
+                  </DropdownMenuItem>
+                )}
+                {isOwn && !imageUrl && (
+                  <DropdownMenuItem onClick={handleStartEdit}>
+                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                  </DropdownMenuItem>
+                )}
+                {canDelete && (
+                  <DropdownMenuItem 
+                    onClick={handleDelete}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  </DropdownMenuItem>
+                )}
+                {!isOwn && !isSystemMessage && (
+                  <DropdownMenuItem 
+                    onClick={() => setShowReportDialog(true)}
+                  >
+                    <Flag className="h-4 w-4 mr-2" /> Report Message
+                  </DropdownMenuItem>
+                )}
+                {!isOwn && !isSystemMessage && (
+                  <DropdownMenuItem 
+                    onClick={() => setShowBlockDialog(true)}
+                    className="text-destructive"
+                  >
+                    <ShieldAlert className="h-4 w-4 mr-2" /> Block User
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>,
+          document.body
+        )}
         {/* Link previews rendered outside the message bubble */}
         <MessageContent text={text} previewsOnly />
         
@@ -765,6 +780,22 @@ export const ChatMessage = memo(function ChatMessage({
           messageType={messageType === "dm" ? "direct" : messageType}
         />
       )}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This message will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });

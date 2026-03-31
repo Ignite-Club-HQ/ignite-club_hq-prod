@@ -4,6 +4,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { MoreVertical, Pencil, Trash2, Reply, Clock } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -67,12 +77,16 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const [showReadReceipts, setShowReadReceipts] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
+  const releaseGuardRef = useRef(false);
+  const ignoreNextContextMenuRef = useRef(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const menuButtonWrapperRef = useRef<HTMLDivElement>(null);
+
+  const showActionTrigger = showMenu || showReactionPicker || isDropdownOpen;
 
   const closeActionUi = useCallback(() => {
     setShowMenu(false);
@@ -80,18 +94,34 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     setIsDropdownOpen(false);
   }, []);
 
-  const handleDropdownOpenChange = useCallback((open: boolean) => {
-    setIsDropdownOpen(open);
-    if (!open && !showReactionPicker) {
+  const closeReactionPicker = useCallback(() => {
+    setShowReactionPicker(false);
+    if (!isDropdownOpen) {
       setShowMenu(false);
     }
-  }, [showReactionPicker]);
+  }, [isDropdownOpen]);
+
+  const handleDropdownOpenChange = useCallback((open: boolean) => {
+    setIsDropdownOpen(open);
+    if (!open) {
+      setShowMenu(false);
+    }
+  }, []);
+
+  const openActionMenu = useCallback(() => {
+    setShowReactionPicker(false);
+    setShowMenu(true);
+    setIsDropdownOpen(true);
+  }, []);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
       longPressTriggeredRef.current = true;
+      releaseGuardRef.current = true;
+      ignoreNextContextMenuRef.current = true;
+      setIsDropdownOpen(false);
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 600);
@@ -109,23 +139,52 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     }
   }, []);
 
-  const handleLongPressEnd = useCallback(() => {
+  const handleLongPressEnd = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
     touchStartPos.current = null;
+
+    if (!longPressTriggeredRef.current) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    requestAnimationFrame(() => {
+      longPressTriggeredRef.current = false;
+    });
   }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    if (ignoreNextContextMenuRef.current) {
+      ignoreNextContextMenuRef.current = false;
+      return;
+    }
     setShowMenu(true);
     setShowReactionPicker(true);
   }, []);
 
   useEffect(() => {
+    const clearReleaseGuards = () => {
+      releaseGuardRef.current = false;
+      ignoreNextContextMenuRef.current = false;
+    };
+
+    const handlePointerCancel = () => {
+      longPressTriggeredRef.current = false;
+      releaseGuardRef.current = false;
+      ignoreNextContextMenuRef.current = false;
+    };
+
+    window.addEventListener("pointerdown", clearReleaseGuards, true);
+    window.addEventListener("pointercancel", handlePointerCancel, true);
+
     return () => {
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      window.removeEventListener("pointerdown", clearReleaseGuards, true);
+      window.removeEventListener("pointercancel", handlePointerCancel, true);
     };
   }, []);
 
@@ -184,14 +243,30 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     };
   }, [isOwnMessage, showReactionPicker]);
 
-  // The reaction picker now uses a fullscreen backdrop pattern,
-  // so no document-level outside-click handler is needed here.
-
-  useEffect(() => {
-    if (!showReactionPicker && !isDropdownOpen) {
-      setShowMenu(false);
+  useLayoutEffect(() => {
+    if (!showActionTrigger || !bubbleRef.current) {
+      setMenuPosition(null);
+      return;
     }
-  }, [showReactionPicker, isDropdownOpen]);
+
+    const updatePosition = () => {
+      const rect = bubbleRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuPosition({
+        top: rect.top,
+        left: isOwnMessage ? rect.left - 36 : rect.right + 4,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [isOwnMessage, showActionTrigger]);
 
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
@@ -248,28 +323,42 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               <MessageContent text={msg.text} />
             </div>
 
-            {showMenu && (
+            {showActionTrigger && menuPosition && createPortal(
               <div
-                ref={menuButtonWrapperRef}
-                className={`absolute top-0 ${isOwnMessage ? "right-full mr-1" : "left-full ml-1"}`}
+                className="fixed z-[100002]"
+                style={{ top: menuPosition.top, left: menuPosition.left }}
+                data-menu-trigger="true"
               >
                 <DropdownMenu open={isDropdownOpen} onOpenChange={handleDropdownOpenChange}>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
+                      className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
+                      onPointerDown={(e) => {
                         e.stopPropagation();
-                        setIsDropdownOpen(true);
+                        if (releaseGuardRef.current) {
+                          e.preventDefault();
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (releaseGuardRef.current) return;
+                        openActionMenu();
                       }}
                       onTouchStart={(e) => e.stopPropagation()}
-                      onTouchEnd={(e) => e.stopPropagation()}
                     >
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreVertical className="h-3 w-3" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align={isOwnMessage ? "end" : "start"} side="top" collisionPadding={16} className="bg-popover border">
+                  <DropdownMenuContent
+                    align={isOwnMessage ? "end" : "start"}
+                    side="top"
+                    collisionPadding={16}
+                    className="z-[100003] bg-popover border"
+                    onCloseAutoFocus={(e) => e.preventDefault()}
+                  >
                     <DropdownMenuItem onClick={() => { handleReply(msg); closeActionUi(); }}>
                       <Reply className="h-4 w-4 mr-2" /> Reply
                     </DropdownMenuItem>
@@ -280,7 +369,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                     )}
                     {(isOwnMessage || isAdmin) && (
                       <DropdownMenuItem
-                        onClick={() => { deleteMessageMutation.mutate(msg.id); closeActionUi(); }}
+                        onClick={() => { setShowDeleteConfirm(true); closeActionUi(); }}
                         className="text-destructive"
                       >
                         <Trash2 className="h-4 w-4 mr-2" /> Delete
@@ -288,11 +377,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
 
-          {/* Read indicator */}
           {isOwnMessage && frontierReaders.length > 0 ? (
             <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
               <MessageReadAvatars readers={frontierReaders} isOwn={true} />
@@ -319,7 +408,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             />
           )}
 
-          {/* Always-visible reaction badges with popover */}
           {messageReactions.length > 0 && (
             <GroupReactionBadges
               messageReactions={messageReactions}
@@ -329,7 +417,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             />
           )}
 
-          {/* Reaction picker - rendered in portal so it never sits under composer */}
           {showReactionPicker && pickerPosition && createPortal(
             <div
               className="fixed inset-0 z-[100001]"
@@ -337,15 +424,19 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               onTouchStart={(e) => { e.stopPropagation(); }}
               onClick={(e) => {
                 if (e.target === e.currentTarget) {
-                  e.stopPropagation(); setShowReactionPicker(false); setShowMenu(false);
+                  e.stopPropagation();
+                  closeReactionPicker();
                 }
               }}
               onTouchEnd={(e) => {
-                if (e.target === e.currentTarget) { e.stopPropagation(); e.preventDefault(); setShowReactionPicker(false); setShowMenu(false); }
+                if (e.target === e.currentTarget) {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  closeReactionPicker();
+                }
               }}
             >
               <div
-                ref={pickerRef}
                 className="absolute"
                 style={{ top: pickerPosition.top, left: pickerPosition.left, width: "min(280px, calc(100vw - 16px))" }}
                 onClick={(e) => e.stopPropagation()}
@@ -366,14 +457,15 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                           type="button"
                           className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 active:bg-accent ${isSelected ? "bg-primary/20" : ""}`}
                           onTouchEnd={(e) => {
-                            e.stopPropagation(); e.preventDefault();
+                            e.stopPropagation();
+                            e.preventDefault();
                             toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
-                            setShowReactionPicker(false); setShowMenu(false);
+                            closeActionUi();
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
-                            setShowReactionPicker(false); setShowMenu(false);
+                            closeActionUi();
                           }}
                         >
                           {emoji}
@@ -384,8 +476,15 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                   <button
                     type="button"
                     className="w-full mt-1 text-xs text-muted-foreground py-1.5 rounded-md active:bg-accent"
-                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowReactionPicker(false); setShowMenu(false); }}
-                    onClick={(e) => { e.stopPropagation(); setShowReactionPicker(false); setShowMenu(false); }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      closeActionUi();
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeActionUi();
+                    }}
                   >
                     Cancel
                   </button>
@@ -396,11 +495,26 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           )}
         </div>
       </div>
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This message will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { deleteMessageMutation.mutate(msg.id); setShowDeleteConfirm(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });
 
-// Sub-component for interactive reaction badges with popover
 function GroupReactionBadges({
   messageReactions,
   userId,
@@ -430,7 +544,6 @@ function GroupReactionBadges({
     enabled: openType !== null && allUserIds.length > 0,
   });
 
-  // Group by reaction_type
   const grouped = messageReactions.reduce((acc: any, r: any) => {
     if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
     acc[r.reaction_type].push(r);
@@ -454,12 +567,7 @@ function GroupReactionBadges({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (userReaction) {
-                    // Instant toggle-off
-                    toggleReactionMutation.mutate({ messageId, reactionType: type });
-                  } else {
-                    setOpenType(type);
-                  }
+                  setOpenType(openType === type ? null : type);
                 }}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
                   userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"

@@ -17,6 +17,7 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
+import { EditingBanner } from "@/components/chat/EditingBanner";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -69,6 +70,7 @@ export default function ClubChatPage() {
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
+  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -956,10 +958,40 @@ export default function ClubChatPage() {
     },
    });
 
+  const updateMessageMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingMessage) return;
+      const { error } = await supabase.from("club_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setMessage("");
+      setEditingMessage(null);
+      queryClient.invalidateQueries({ queryKey: queryKeyMemo });
+      // silent success
+    },
+    onError: () => toast({ title: "Failed to update message", variant: "destructive" }),
+  });
+
   const handleSend = () => {
     if (!message.trim() && !imageUrl) return;
+    if (editingMessage) {
+      updateMessageMutation.mutate();
+      return;
+    }
     sendMutation.mutate({ text: message.trim(), image_url: imageUrl, reply_to_id: replyingTo?.id || null });
   };
+
+  const handleEdit = useCallback((msg: { id: string; text: string }) => {
+    setEditingMessage(msg);
+    setMessage(msg.text);
+    setReplyingTo(null);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setMessage("");
+  }, []);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1177,6 +1209,7 @@ export default function ClubChatPage() {
                             : null
                         }
                         onReply={handleReply}
+                        onEdit={handleEdit}
                         searchQuery={searchQuery}
                         readFrontierReaders={readFrontier[msg.id] || []}
                         readCount={readCounts[msg.id] || 0}
@@ -1201,6 +1234,7 @@ export default function ClubChatPage() {
         <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
+          {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
           <div className="flex gap-1.5 items-end">
             <ChatImageInput
               imageUrl={imageUrl}

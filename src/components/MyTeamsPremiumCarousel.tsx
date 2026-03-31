@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image, MessageCircle } from "lucide-react";
+import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image, MessageCircle, Building2, Search, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
@@ -590,45 +591,76 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     </Card>
   ) : null;
 
-  // Empty state: show add team as a larger primary card
+  const showCreateClub = !activeClubFilter;
+
+  // Empty state: onboarding with clear paths
   if (items.length === 0) {
-    if (!addTeamCard) return null;
     return (
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">My Teams</h2>
-        <Card
-          className="cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all"
-          onClick={() => onCreateTeam?.()}
-        >
-          <CardContent className="p-6 flex flex-col items-center justify-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <Users className="h-6 w-6 text-primary" />
-            </div>
-            <div className="text-center space-y-1">
-              <p className="text-sm font-medium">No teams yet</p>
-              <p className="text-xs text-muted-foreground">Join an existing team or create a new one</p>
-            </div>
-            {onJoinTeam && onCreateTeam && (
-              <div className="flex gap-4 mt-1">
-                <button
-                  className="text-sm text-primary font-medium hover:underline"
-                  onClick={(e) => { e.stopPropagation(); onJoinTeam(); }}
-                >
-                  Join team
-                </button>
-                <button
-                  className="text-sm text-primary font-medium hover:underline"
-                  onClick={(e) => { e.stopPropagation(); onCreateTeam(); }}
-                >
-                  Create team
-                </button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold">Get Started</h2>
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Welcome to Ignite! Clubs are your organisation (e.g. your sports club), and teams sit inside them. Here's how to get going:
+          </p>
+        </div>
+
+        <div className="grid gap-3">
+          {/* Create a Club */}
+          {showCreateClub && (
+            <Card
+              className="cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all"
+              onClick={() => navigate("/clubs", { state: { fromCreateClub: true } })}
+            >
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <Building2 className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Create a Club</p>
+                  <p className="text-xs text-muted-foreground">Set up your organisation and start adding teams</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Join a Team */}
+          {onJoinTeam && (
+            <Card
+              className="cursor-pointer border border-dashed border-muted-foreground/20 bg-card/50 hover:border-muted-foreground/40 hover:bg-accent/30 transition-all"
+              onClick={onJoinTeam}
+            >
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <Search className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Join a Team</p>
+                  <p className="text-xs text-muted-foreground">Search for an existing team or use an invite link</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </section>
     );
   }
+
+  const createClubCard = showCreateClub ? (
+    <Card
+      className="min-w-[200px] max-w-[200px] snap-start cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all shrink-0"
+      onClick={() => navigate("/clubs", { state: { fromCreateClub: true } })}
+    >
+      <CardContent className="p-4 flex flex-col items-center justify-center gap-2 h-full text-center">
+        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+          <Building2 className="h-5 w-5 text-primary" />
+        </div>
+        <p className="text-sm font-medium">Create a Club</p>
+        <p className="text-[11px] text-muted-foreground leading-tight">Start a new organisation</p>
+      </CardContent>
+    </Card>
+  ) : null;
 
   return (
     <section className="space-y-3">
@@ -648,23 +680,17 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
           {[...items]
             .sort((a, b) => {
-              // Always keep teams ahead of mini leagues
               if (a.type !== b.type) return a.type === "team" ? -1 : 1;
-              // Within the same type, admin/coach entries first
               if (a.canManage !== b.canManage) return a.canManage ? -1 : 1;
-              // Then items with upcoming events
               const aHasEvent = !!nextEvents[a.id];
               const bHasEvent = !!nextEvents[b.id];
               if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
-              // Then items with unread messages
               const aUnread = unreadCounts[a.id] || 0;
               const bUnread = unreadCounts[b.id] || 0;
               if (aUnread !== bUnread) return bUnread - aUnread;
-              // Then items with photos (activity)
               const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
               const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
               if (aHasPhotos !== bHasPhotos) return aHasPhotos ? -1 : 1;
-              // Then alphabetical
               return a.name.localeCompare(b.name);
             })
             .map((item) => (
@@ -677,6 +703,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
             />
           ))}
           {addTeamCard}
+          {createClubCard}
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>

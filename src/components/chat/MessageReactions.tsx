@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -99,12 +99,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
-    // Always close the picker immediately — before any mutation logic
-    onOpenChange(false);
-
-    // Don't check isMutating here — let handleReactionClick handle its own guard
-    // using the freshest isPending state from the mutation objects
     onReact(type);
+    onOpenChange(false);
   };
 
   if (!isOpen || !position) return null;
@@ -114,8 +110,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       className="fixed inset-0 z-[100001]"
       data-reaction-picker="true"
       onTouchStart={(e) => {
-        // Prevent touchstart from reaching document-level listeners
         e.stopPropagation();
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          e.stopPropagation();
+          onOpenChange(false);
+        }
       }}
       onTouchEnd={(e) => {
         if (e.target === e.currentTarget) {
@@ -123,10 +124,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
           e.preventDefault();
           onOpenChange(false);
         }
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpenChange(false);
       }}
     >
       <div
@@ -138,6 +135,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="bg-popover border rounded-lg p-2 shadow-lg">
@@ -165,6 +163,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     lastTouchReactionAtRef.current = Date.now();
                     handleEmojiClick(type);
                   }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                   className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 transition-colors active:bg-accent ${
                     userHasReaction ? "bg-primary/20" : "hover:bg-accent"
                   }`}
@@ -186,6 +186,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
               e.stopPropagation();
               onOpenChange(false);
             }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             Cancel
           </button>

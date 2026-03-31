@@ -10,6 +10,7 @@ import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
+import { EditingBanner } from "@/components/chat/EditingBanner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -71,6 +72,7 @@ export default function DirectMessagePage() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -573,8 +575,38 @@ export default function DirectMessagePage() {
       }
     },
   });
+  const updateMessageMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingMessage) return;
+      const { error } = await supabase.from("direct_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setMessage("");
+      setEditingMessage(null);
+      queryClient.invalidateQueries({ queryKey: dmQueryKey });
+      // silent success
+    },
+    onError: () => toast.error("Failed to update message"),
+  });
+
+  const handleEdit = useCallback((msg: { id: string; text: string }) => {
+    setEditingMessage(msg);
+    setMessage(msg.text);
+    setReplyTo(null);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setMessage("");
+  }, []);
+
   const handleSend = () => {
     if (!message.trim()) return;
+    if (editingMessage) {
+      updateMessageMutation.mutate();
+      return;
+    }
     // Allow sending if canDM is true OR if we're still checking (give benefit of doubt for existing conversations)
     // The server-side RLS will still enforce the actual permission
     if (canDM === false && !checkingCanDM) {
@@ -980,6 +1012,7 @@ export default function DirectMessagePage() {
                           : null
                       }
                       onReply={isIgniteSupportConversation ? undefined : () => setReplyTo(msg)}
+                      onEdit={handleEdit}
                     />
                   </div>
                 </div>
@@ -997,6 +1030,7 @@ export default function DirectMessagePage() {
           onCancel={() => setReplyTo(null)}
         />
       )}
+      {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
 
       {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
