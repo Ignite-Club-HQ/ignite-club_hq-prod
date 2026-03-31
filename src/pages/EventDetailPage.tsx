@@ -294,6 +294,34 @@ export default function EventDetailPage() {
     enabled: !!id,
   });
 
+  // Fetch event guests for attending count and RSVP list
+  const { data: eventGuests } = useQuery({
+    queryKey: ["event-guests", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_guests")
+        .select("*")
+        .eq("event_id", id!);
+      if (error) throw error;
+      
+      // Fetch adder profiles
+      const adderIds = [...new Set(data.map(g => g.added_by))];
+      let adderMap: Record<string, string> = {};
+      if (adderIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", adderIds);
+        if (profiles) {
+          adderMap = Object.fromEntries(profiles.map(p => [p.id, p.display_name || "A member"]));
+        }
+      }
+      
+      return data.map(g => ({ ...g, added_by_name: adderMap[g.added_by] || "A member" }));
+    },
+    enabled: !!id,
+  });
+
   // Populate form with existing RSVP data
   const myRsvp = rsvps?.find((r) => r.user_id === user?.id && !r.child_id);
   
@@ -2067,7 +2095,7 @@ export default function EventDetailPage() {
           )}
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 text-primary" />
-            <span>{rsvps?.filter(r => r.status === "going" && (event.type === "social" ? true : r.child_id != null)).length || 0} attending</span>
+            <span>{rsvps ? `${rsvps.filter(r => r.status === "going" && (event.type === "social" ? true : r.child_id != null)).length + (eventGuests?.length || 0)} attending` : 'Loading...'}</span>
           </div>
           {/* Price for social events */}
           {event.type === "social" && eventPrice && eventPrice > 0 && (
@@ -2403,9 +2431,9 @@ export default function EventDetailPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-primary">
                   <span>✅</span>
-                  <span>Going ({goingRsvps.length})</span>
+                  <span>Going ({goingRsvps.length + (eventGuests?.length || 0)})</span>
                 </div>
-                {goingRsvps.length === 0 ? (
+                {goingRsvps.length === 0 && (!eventGuests || eventGuests.length === 0) ? (
                   <p className="text-muted-foreground text-sm pl-6">No one yet</p>
                 ) : (
                   <div className="space-y-1 pl-6">
@@ -2429,6 +2457,21 @@ export default function EventDetailPage() {
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
                       />
+                    ))}
+                    {/* Show event guests in the going list */}
+                    {eventGuests?.map((guest: any) => (
+                      <div key={guest.id} className="flex items-center gap-3 py-1.5">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-muted text-muted-foreground text-sm">
+                            {guest.guest_name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{guest.guest_name}</p>
+                          <p className="text-xs text-muted-foreground">Guest of {guest.added_by_name}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">Guest</Badge>
+                      </div>
                     ))}
                   </div>
                 )}

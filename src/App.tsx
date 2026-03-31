@@ -93,7 +93,12 @@ const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
 const PayFeesPage = lazy(() => import("./pages/PayFeesPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
+
 const queryClient = new QueryClient();
+
+// Configure React Query to refetch on reconnect/resume in native apps
+setupReactQueryNativeAdapter();
 
 // Loading fallback component - uses CSS variables to respect current theme
 const PageLoader = () => (
