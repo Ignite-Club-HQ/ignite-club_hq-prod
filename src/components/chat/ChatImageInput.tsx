@@ -302,7 +302,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           type="button"
           onClick={handleImageButtonClick}
           disabled={disabled || uploading}
-          className="flex items-center justify-center h-10 w-10 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
         >
           {uploading ? (
             <Loader2 className="h-5 w-5 animate-spin" />
