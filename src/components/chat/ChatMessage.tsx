@@ -781,7 +781,7 @@ export const ChatMessage = memo(function ChatMessage({
         />
       )}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent className="z-[100010]">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete message?</AlertDialogTitle>
             <AlertDialogDescription>
