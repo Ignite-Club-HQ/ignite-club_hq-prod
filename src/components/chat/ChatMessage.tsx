@@ -460,6 +460,11 @@ export const ChatMessage = memo(function ChatMessage({
     requestAnimationFrame(() => {
       longPressGestureActiveRef.current = false;
       guardDismiss();
+      if (contextMenuResetTimerRef.current) clearTimeout(contextMenuResetTimerRef.current);
+      contextMenuResetTimerRef.current = setTimeout(() => {
+        ignoreNextContextMenuRef.current = false;
+        contextMenuResetTimerRef.current = null;
+      }, 400);
     });
   }, [guardDismiss]);
 
