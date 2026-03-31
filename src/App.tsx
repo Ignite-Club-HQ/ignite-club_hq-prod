@@ -48,6 +48,7 @@ const BroadcastChatPage = lazy(() => import("./pages/BroadcastChatPage"));
 const ClubChatPage = lazy(() => import("./pages/ClubChatPage"));
 const GroupChatPage = lazy(() => import("./pages/GroupChatPage"));
 const DirectMessagePage = lazy(() => import("./pages/DirectMessagePage"));
+const ClubAdminChatPage = lazy(() => import("./pages/ClubAdminChatPage"));
 const WelcomeMessagePage = lazy(() => import("./pages/WelcomeMessagePage"));
 const MediaPage = lazy(() => import("./pages/MediaPage"));
 const VaultPage = lazy(() => import("./pages/VaultPage"));
