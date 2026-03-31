@@ -2423,6 +2423,8 @@ export type Database = {
       }
       fcm_tokens: {
         Row: {
+          app_version: string | null
+          build_number: string | null
           created_at: string
           id: string
           platform: string
@@ -2431,6 +2433,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          app_version?: string | null
+          build_number?: string | null
           created_at?: string
           id?: string
           platform: string
@@ -2439,6 +2443,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          app_version?: string | null
+          build_number?: string | null
           created_at?: string
           id?: string
           platform?: string
