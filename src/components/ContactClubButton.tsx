@@ -82,17 +82,17 @@ export function ContactClubButton({ clubFilter, compact = false }: ContactClubBu
     staleTime: 5 * 60 * 1000,
   });
 
-  const handleContactClub = async (clubId: string, adminUserId: string) => {
+  const handleContactClub = async (clubId: string) => {
     if (isContacting) return;
     setIsContacting(clubId);
 
     try {
       const { data: conversationId, error } = await supabase
-        .rpc("get_or_create_dm_conversation", { other_user_id: adminUserId });
+        .rpc("get_or_create_club_admin_conversation", { p_club_id: clubId });
 
       if (error) throw error;
 
-      navigate(`/messages/dm/${conversationId}`);
+      navigate(`/messages/club-admin/${conversationId}`);
     } catch (err: any) {
       toast({
         title: "Unable to contact club",
@@ -111,7 +111,7 @@ export function ContactClubButton({ clubFilter, compact = false }: ContactClubBu
       {contactableClubs.map(club => (
         <button
           key={`contact-${club.id}`}
-          onClick={() => handleContactClub(club.id, club.admin_user_id!)}
+          onClick={() => handleContactClub(club.id)}
           disabled={isContacting === club.id}
           className="w-full text-left"
         >

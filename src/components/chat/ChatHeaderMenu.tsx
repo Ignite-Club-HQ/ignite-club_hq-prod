@@ -23,7 +23,7 @@ import {
 import { BellRing } from "lucide-react";
 
 interface ChatHeaderMenuProps {
-  chatType: "team" | "club" | "group" | "dm";
+  chatType: "team" | "club" | "group" | "dm" | "club_admin";
   chatId: string;
   onSearchOpen: () => void;
   onMembersOpen?: () => void;

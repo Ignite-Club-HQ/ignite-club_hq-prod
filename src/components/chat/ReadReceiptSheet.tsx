@@ -10,7 +10,7 @@ import { Check, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 
-type MessageType = "team" | "club" | "broadcast" | "group" | "dm";
+type MessageType = "team" | "club" | "broadcast" | "group" | "dm" | "club_admin";
 
 const MESSAGE_ID_FIELDS: Record<MessageType, string> = {
   team: "team_message_id",
@@ -18,6 +18,7 @@ const MESSAGE_ID_FIELDS: Record<MessageType, string> = {
   group: "group_message_id",
   broadcast: "broadcast_message_id",
   dm: "direct_message_id",
+  club_admin: "club_admin_message_id",
 };
 
 interface ReadReceiptSheetProps {
