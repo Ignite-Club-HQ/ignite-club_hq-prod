@@ -367,15 +367,15 @@ export function MentionInput({
         )}
         <div className="relative flex-1">
           {/* Highlight overlay for mentions */}
-          <div
+           <div
             aria-hidden="true"
             className="absolute inset-0 pointer-events-none text-base px-2 py-2.5 leading-[1.4] whitespace-pre-wrap break-words text-transparent overflow-hidden"
             style={{ maxHeight: '120px' }}
           >
-            {displayValue.split(/(\b(?:${Array.from(mentionMap.keys()).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\b)/g).map((segment, i) =>
-              mentionMap.has(segment)
-                ? <span key={i} className="bg-primary/15 rounded px-0.5 text-transparent">{segment}</span>
-                : <span key={i}>{segment}</span>
+            {highlightedSegments.map((seg, i) =>
+              seg.isMention
+                ? <span key={i} className="bg-primary/15 rounded px-0.5 text-transparent">{seg.text}</span>
+                : <span key={i}>{seg.text}</span>
             )}
           </div>
           <textarea
