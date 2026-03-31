@@ -24,6 +24,7 @@ import ChatGroupCard from "@/components/chat/ChatGroupCard";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { DMConversationsList } from "@/components/chat/DMConversationsList";
 import { NewMessageMenu } from "@/components/chat/NewMessageMenu";
+import { ContactClubButton } from "@/components/ContactClubButton";
 import {
   AlertDialog,
   AlertDialogAction,
