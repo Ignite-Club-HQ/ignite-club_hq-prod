@@ -298,6 +298,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
   // Fetch teams & leagues
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["my-teams-premium", user?.id, activeClubFilter],
+    retry: 3,
     queryFn: async () => {
       if (!user) return [];
 

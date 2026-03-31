@@ -38,11 +38,12 @@ export function MyTeamsScroll() {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("team_id, club_id, role")
         .eq("user_id", user.id);
 
+      if (rolesError) throw rolesError;
       if (!roles) return [];
 
       const teamIds = [...new Set(roles.filter(r => r.team_id).map(r => r.team_id))] as string[];
