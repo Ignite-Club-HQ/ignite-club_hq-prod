@@ -498,6 +498,7 @@ export const ChatMessage = memo(function ChatMessage({
   }, [deleteMessageMutation]);
 
   const handleShowReactions = useCallback(() => {
+    reactionPickerCloseGuardUntilRef.current = Date.now() + 250;
     setShowReactionPicker(true);
   }, []);
 
