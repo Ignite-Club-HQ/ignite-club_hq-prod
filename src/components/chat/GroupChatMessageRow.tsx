@@ -502,7 +502,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         </div>
       </div>
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[100010]">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete message?</AlertDialogTitle>
             <AlertDialogDescription>
