@@ -172,6 +172,16 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
         p_user_id: userId,
       });
       
+      // Get app version info
+      let appVersion: string | null = null;
+      let buildNumber: string | null = null;
+      try {
+        const { App } = await import('@capacitor/app');
+        const info = await App.getInfo();
+        appVersion = info.version;
+        buildNumber = info.build;
+      } catch {}
+      
       // Use 'as any' since table may not be in generated types yet
       await supabase
         .from('fcm_tokens' as any)
@@ -180,6 +190,8 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
             user_id: userId,
             token,
             platform,
+            app_version: appVersion,
+            build_number: buildNumber,
             updated_at: new Date().toISOString(),
           },
           {
