@@ -99,8 +99,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   }, [anchorRef, isOpen, isOwnMessage]);
 
   const handleEmojiClick = (type: string) => {
-    onOpenChange(false);
     onReact(type);
+    onOpenChange(false);
   };
 
   if (!isOpen || !position) return null;
@@ -109,15 +109,21 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     <div
       className="fixed inset-0 z-[100001]"
       data-reaction-picker="true"
-      onPointerDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        e.preventDefault();
+      onTouchStart={(e) => {
         e.stopPropagation();
-        onOpenChange(false);
       }}
       onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        if (e.target === e.currentTarget) {
+          e.stopPropagation();
+          onOpenChange(false);
+        }
+      }}
+      onTouchEnd={(e) => {
+        if (e.target === e.currentTarget) {
+          e.stopPropagation();
+          e.preventDefault();
+          onOpenChange(false);
+        }
       }}
     >
       <div
@@ -128,6 +134,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
           width: "min(280px, calc(100vw - 16px))",
         }}
         onClick={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="bg-popover border rounded-lg p-2 shadow-lg">
@@ -155,6 +163,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                     lastTouchReactionAtRef.current = Date.now();
                     handleEmojiClick(type);
                   }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                   className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 transition-colors active:bg-accent ${
                     userHasReaction ? "bg-primary/20" : "hover:bg-accent"
                   }`}
@@ -176,6 +186,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
               e.stopPropagation();
               onOpenChange(false);
             }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             Cancel
           </button>
