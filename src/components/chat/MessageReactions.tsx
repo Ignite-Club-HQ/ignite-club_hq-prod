@@ -105,9 +105,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     onReact(type);
   };
 
-  const shouldIgnoreDismiss = () => {
-    return !!closeGuardUntilRef && Date.now() < closeGuardUntilRef.current;
-  };
 
   if (!isOpen || !position) return null;
 
