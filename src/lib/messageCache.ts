@@ -116,7 +116,7 @@ export function addMessageToCache(
 
 // Remove a message from cache (for deletion)
 export function removeMessageFromCache(
-  type: "team" | "club" | "group" | "broadcast" | "dm",
+  type: "team" | "club" | "group" | "broadcast" | "dm" | "club_admin",
   targetId: string,
   messageId: string
 ): void {
