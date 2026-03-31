@@ -450,22 +450,30 @@ export const ChatMessage = memo(function ChatMessage({
       return;
     }
 
-    // Dismiss picker and menu immediately after selecting a reaction
+    // Clear all action UI and release guards immediately so the picker cannot reopen
+    // from a delayed onOpenChange/onTouchEnd sequence after reaction selection.
+    releaseGuardRef.current = false;
+    ignoreNextContextMenuRef.current = false;
     setShowReactionPicker(false);
     setShowMenu(false);
     setIsDropdownOpen(false);
 
     if (existingReactionId) {
       removeReactionMutation.mutate(existingReactionId);
-    } else {
-      const latestReactions = getLatestReactions();
-      const existingReaction = latestReactions.find((reaction) => reaction.user_id === currentUserId);
-      console.log('[Reaction] handleReactionClick', { type, existingReaction: existingReaction ? { id: existingReaction.id, type: existingReaction.reaction_type } : null, willToggle: existingReaction?.reaction_type === type });
-      addReactionMutation.mutate({ 
-        reactionType: type, 
-        existingReaction,
-      });
+      return;
     }
+
+    const latestReactions = getLatestReactions();
+    const existingReaction = latestReactions.find((reaction) => reaction.user_id === currentUserId);
+    console.log('[Reaction] handleReactionClick', {
+      type,
+      existingReaction: existingReaction ? { id: existingReaction.id, type: existingReaction.reaction_type } : null,
+      willToggle: existingReaction?.reaction_type === type,
+    });
+    addReactionMutation.mutate({
+      reactionType: type,
+      existingReaction,
+    });
   }, [addReactionMutation, removeReactionMutation, getLatestReactions, currentUserId]);
 
   const handleSaveEdit = useCallback(() => {
