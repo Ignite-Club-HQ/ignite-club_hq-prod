@@ -682,6 +682,7 @@ export function AppHeader() {
           }
           return;
         case "rsvp":
+        case "rsvp_update":
         case "rsvp_updated":
           navigate(`/events/${relatedId}`);
           return;
