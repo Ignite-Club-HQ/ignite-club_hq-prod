@@ -477,8 +477,6 @@ export const ChatMessage = memo(function ChatMessage({
   }, [addReactionMutation, removeReactionMutation, getLatestReactions, currentUserId]);
 
   const closeReactionPicker = useCallback(() => {
-    releaseGuardRef.current = false;
-    ignoreNextContextMenuRef.current = false;
     setShowReactionPicker(false);
     if (!isDropdownOpen) {
       setShowMenu(false);
