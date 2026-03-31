@@ -71,6 +71,7 @@ export default function DirectMessagePage() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");

@@ -54,6 +54,7 @@ export default function ClubAdminChatPage() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
