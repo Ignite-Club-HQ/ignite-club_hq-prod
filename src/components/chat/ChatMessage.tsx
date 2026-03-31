@@ -710,12 +710,11 @@ export const ChatMessage = memo(function ChatMessage({
                     }
                     e.preventDefault();
                     e.stopPropagation();
+                    menuClickGuardUntilRef.current = Date.now() + 600;
+                    setShowReactionPicker(false);
+                    ignoreReactionDismissRef.current = false;
                     setShowMenu(true);
                     setIsDropdownOpen(true);
-                    requestAnimationFrame(() => {
-                      setShowReactionPicker(false);
-                      ignoreReactionDismissRef.current = false;
-                    });
                   }}
                   onTouchStart={(e) => e.stopPropagation()}
                   onTouchEnd={(e) => e.stopPropagation()}
