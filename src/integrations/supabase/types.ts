@@ -6102,6 +6102,10 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      is_club_chat_author_visible: {
+        Args: { _profile_id: string; _viewer_id: string }
+        Returns: boolean
+      }
       is_club_member: {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
@@ -6120,6 +6124,14 @@ export type Database = {
       }
       is_parent_of_child: {
         Args: { _child_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_photo_commenter_visible: {
+        Args: { _profile_id: string; _viewer_id: string }
+        Returns: boolean
+      }
+      is_photo_uploader_visible: {
+        Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
       is_team_member: {
