@@ -197,8 +197,8 @@ export function MentionInput({
       dispIdx += beforeMention.length;
       rawIdx += beforeMention.length;
       
-      // The mention displays as @Name (match[1].length + 1 for @)
-      const displayMentionLen = match[1].length + 1;
+      // The mention displays as Name (no @ prefix)
+      const displayMentionLen = match[1].length;
       const rawMentionLen = match[0].length;
       
       if (dispIdx + displayMentionLen > displayIdx) {
