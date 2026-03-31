@@ -27,7 +27,7 @@ export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
   const location = useLocation();
 
-  const { data: userRoles } = useQuery({
+  const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-roles-nav", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -44,7 +44,7 @@ export function BottomNav() {
 
   const isAppAdmin = userRoles?.some((r) => r.role === "app_admin");
 
-  const { data: hasProAccess } = useQuery({
+  const { data: hasProAccess, isLoading: isLoadingProAccess } = useQuery({
     queryKey: ["user-has-pro-access-nav", user?.id],
     queryFn: async () => {
       const clubIds = (userRoles?.filter((r) => r.club_id).map((r) => r.club_id) as string[] | undefined) || [];
@@ -101,11 +101,13 @@ export function BottomNav() {
 
       return false;
     },
-    enabled: !!user && !!userRoles,
+    enabled: !!user && !!userRoles && userRoles.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
-  const isLoadingAccess = !userRoles || hasProAccess === undefined;
-  const showProLock = !isLoadingAccess && !hasProAccess && !isAppAdmin;
+  // Don't show lock while roles or pro access are still loading — assume unlocked to prevent flash
+  const isLoadingAccess = isLoadingRoles || (!!userRoles && userRoles.length > 0 && isLoadingProAccess);
+  const showProLock = !isLoadingAccess && hasProAccess === false && !isAppAdmin;
 
   const isNativePlatform = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
