@@ -64,12 +64,14 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
     await StatusBar.show();
 
     if (theme === 'dark') {
-      await StatusBar.setStyle({ style: Style.Dark });
+      // Dark theme: light (white) status bar icons on dark background
+      await StatusBar.setStyle({ style: Style.Light });
       if (platform === 'android') {
         await StatusBar.setBackgroundColor({ color: '#0f1512' });
       }
     } else {
-      await StatusBar.setStyle({ style: Style.Light });
+      // Light theme: dark (black) status bar icons on light background
+      await StatusBar.setStyle({ style: Style.Dark });
       if (platform === 'android') {
         await StatusBar.setBackgroundColor({ color: '#f5f7f6' });
       }
