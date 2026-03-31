@@ -91,8 +91,6 @@ export const ChatMessage = memo(function ChatMessage({
   contextId,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(text);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showReadReceipts, setShowReadReceipts] = useState(false);
