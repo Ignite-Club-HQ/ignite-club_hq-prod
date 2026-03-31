@@ -420,6 +420,12 @@ export const ChatMessage = memo(function ChatMessage({
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       longPressGestureActiveRef.current = true;
+      ignoreNextContextMenuRef.current = true;
+      if (contextMenuResetTimerRef.current) clearTimeout(contextMenuResetTimerRef.current);
+      contextMenuResetTimerRef.current = setTimeout(() => {
+        ignoreNextContextMenuRef.current = false;
+        contextMenuResetTimerRef.current = null;
+      }, 1200);
       suppressMenuUntilPointerUpRef.current = true;
       guardDismiss();
       setIsDropdownOpen(false);
