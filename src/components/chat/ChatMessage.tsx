@@ -506,6 +506,7 @@ export const ChatMessage = memo(function ChatMessage({
   useEffect(() => {
     const clearSuppressedMenuGesture = () => {
       suppressMenuUntilPointerUpRef.current = false;
+      ignoreReactionDismissRef.current = false;
     };
 
     window.addEventListener('pointerup', clearSuppressedMenuGesture, true);
