@@ -158,10 +158,14 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     e.preventDefault();
     e.stopPropagation();
 
+    // Re-arm the dismiss guard from finger-lift so it covers iOS Safari's
+    // delayed synthetic click event (~300-500ms after touchend)
+    armDismissGuard();
+
     requestAnimationFrame(() => {
       longPressTriggeredRef.current = false;
     });
-  }, []);
+  }, [armDismissGuard]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

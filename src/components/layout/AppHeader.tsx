@@ -478,9 +478,9 @@ export function AppHeader() {
 
   const handleNotificationClick = async (notification: typeof recentNotifications[0]) => {
     try {
-      // Mark as read first
+      // Mark as read first - use mutateAsync to ensure it completes before navigation
       if (!notification.is_read) {
-        markAsRead.mutate(notification.id);
+        await markAsRead.mutateAsync(notification.id);
       }
 
       const relatedId = notification.related_id;
@@ -682,6 +682,7 @@ export function AppHeader() {
           }
           return;
         case "rsvp":
+        case "rsvp_update":
         case "rsvp_updated":
           navigate(`/events/${relatedId}`);
           return;
