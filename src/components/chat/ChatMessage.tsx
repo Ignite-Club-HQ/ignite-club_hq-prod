@@ -104,8 +104,7 @@ export const ChatMessage = memo(function ChatMessage({
   const menuContainerRef = useRef<HTMLDivElement>(null);
   const suppressMenuUntilPointerUpRef = useRef(false);
   const ignoreReactionDismissRef = useRef(false);
-  const menuClickGuardUntilRef = useRef(0);
-  const reactionPickerCloseGuardUntilRef = useRef(0);
+  const dismissGuardUntilRef = useRef(0);
   const longPressGestureActiveRef = useRef(false);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
@@ -406,20 +405,28 @@ export const ChatMessage = memo(function ChatMessage({
   });
 
   const suppressOutsideCloseUntilRef = useRef(0);
+  const guardDismiss = useCallback((duration = 350) => {
+    const until = Date.now() + duration;
+    dismissGuardUntilRef.current = until;
+    suppressOutsideCloseUntilRef.current = until;
+  }, []);
+
+  const canDismiss = useCallback(() => Date.now() > dismissGuardUntilRef.current, []);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       longPressGestureActiveRef.current = true;
-      suppressOutsideCloseUntilRef.current = Date.now() + 900;
-      reactionPickerCloseGuardUntilRef.current = Number.MAX_SAFE_INTEGER;
       suppressMenuUntilPointerUpRef.current = true;
+      guardDismiss();
       setIsDropdownOpen(false);
       setShowMenu(true);
-      setShowReactionPicker(true);
+      requestAnimationFrame(() => {
+        setShowReactionPicker(true);
+      });
     }, 600);
-  }, [id, messageType]);
+  }, [guardDismiss, id, messageType]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current && touchStartPos.current) {
@@ -444,9 +451,9 @@ export const ChatMessage = memo(function ChatMessage({
 
     requestAnimationFrame(() => {
       longPressGestureActiveRef.current = false;
-      reactionPickerCloseGuardUntilRef.current = 0;
+      guardDismiss();
     });
-  }, []);
+  }, [guardDismiss]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     if (addReactionMutation.isPending || removeReactionMutation.isPending) {
@@ -482,11 +489,11 @@ export const ChatMessage = memo(function ChatMessage({
   }, [text]);
 
   const openActionMenu = useCallback(() => {
-    suppressOutsideCloseUntilRef.current = Date.now() + 500;
+    guardDismiss();
     setShowReactionPicker(false);
     setShowMenu(true);
     setIsDropdownOpen(true);
-  }, []);
+  }, [guardDismiss]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -506,24 +513,22 @@ export const ChatMessage = memo(function ChatMessage({
   }, [deleteMessageMutation]);
 
   const handleShowReactions = useCallback(() => {
-    reactionPickerCloseGuardUntilRef.current = Date.now() + 250;
+    guardDismiss();
     setShowReactionPicker(true);
-  }, []);
+  }, [guardDismiss]);
 
   const handleMenuOpenChange = useCallback((open: boolean) => {
+    if (!canDismiss()) return;
     setIsDropdownOpen(open);
-    if (!open && !showReactionPicker && Date.now() > menuClickGuardUntilRef.current) {
+    if (!open && !showReactionPicker) {
       setShowMenu(false);
     }
-  }, [showReactionPicker]);
+  }, [canDismiss, showReactionPicker]);
 
   useEffect(() => {
     const clearSuppressedMenuGesture = () => {
       suppressMenuUntilPointerUpRef.current = false;
       ignoreReactionDismissRef.current = false;
-      if (!longPressGestureActiveRef.current) {
-        reactionPickerCloseGuardUntilRef.current = 0;
-      }
     };
 
     window.addEventListener('pointerup', clearSuppressedMenuGesture, true);
@@ -568,11 +573,10 @@ export const ChatMessage = memo(function ChatMessage({
     if (!showMenu || isDropdownOpen || showReactionPicker) return;
     
     const handleClickOutside = (e: Event) => {
-      if (Date.now() < suppressOutsideCloseUntilRef.current) return;
+      if (!canDismiss()) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('[data-reaction-picker="true"]')) return;
       if (target?.closest?.('[role="menu"]')) return;
-      // Don't close if tapping the three-dots menu button itself
       if (menuContainerRef.current?.contains(target as Node)) return;
       setShowMenu(false);
     };
@@ -707,11 +711,13 @@ export const ChatMessage = memo(function ChatMessage({
               }}
               isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
               isOpen={showReactionPicker}
-              onOpenChange={setShowReactionPicker}
+              onOpenChange={(open) => {
+                if (!open && !canDismiss()) return;
+                setShowReactionPicker(open);
+              }}
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
               ignoreDismissRef={ignoreReactionDismissRef}
-              closeGuardUntilRef={reactionPickerCloseGuardUntilRef}
             />
           </div>
         </div>
@@ -733,15 +739,13 @@ export const ChatMessage = memo(function ChatMessage({
                     e.preventDefault();
                     e.stopPropagation();
                     if (suppressMenuUntilPointerUpRef.current) return;
-                    menuClickGuardUntilRef.current = Date.now() + 600;
+                    guardDismiss();
                     ignoreReactionDismissRef.current = true;
-                    reactionPickerCloseGuardUntilRef.current = Number.MAX_SAFE_INTEGER;
                     setShowReactionPicker(false);
                     setShowMenu(true);
                     setIsDropdownOpen(true);
                     requestAnimationFrame(() => {
                       ignoreReactionDismissRef.current = false;
-                      reactionPickerCloseGuardUntilRef.current = 0;
                     });
                   }}
                   onClick={(e) => {

@@ -31,7 +31,6 @@ interface MessageReactionsProps {
   isOwnMessage?: boolean;
   anchorRef: RefObject<HTMLDivElement>;
   ignoreDismissRef?: MutableRefObject<boolean>;
-  closeGuardUntilRef?: MutableRefObject<number>;
 }
 
 export const MessageReactionsPopover = memo(function MessageReactionsPopover({
@@ -45,7 +44,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   isOwnMessage = false,
   anchorRef,
   ignoreDismissRef,
-  closeGuardUntilRef,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
@@ -107,9 +105,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     onReact(type);
   };
 
-  const shouldIgnoreDismiss = () => {
-    return !!closeGuardUntilRef && Date.now() < closeGuardUntilRef.current;
-  };
 
   if (!isOpen || !position) return null;
 
@@ -125,13 +120,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           e.preventDefault();
-          if (ignoreDismissRef?.current || shouldIgnoreDismiss()) return;
+          if (ignoreDismissRef?.current) return;
           onOpenChange(false);
         }
       }}
       onClick={(e) => {
         e.stopPropagation();
-        if (ignoreDismissRef?.current || shouldIgnoreDismiss()) return;
+        if (ignoreDismissRef?.current) return;
         onOpenChange(false);
       }}
     >
