@@ -369,7 +369,7 @@ export function MentionInput({
           {/* Highlight overlay for mentions */}
            <div
             aria-hidden="true"
-            className="absolute inset-0 pointer-events-none text-base px-2 py-2.5 leading-[1.4] whitespace-pre-wrap break-words text-transparent overflow-hidden"
+            className="absolute inset-0 pointer-events-none text-base px-2 pt-[11px] pb-[9px] leading-[1.4] whitespace-pre-wrap break-words text-transparent overflow-hidden"
             style={{ maxHeight: '120px' }}
           >
             {highlightedSegments.map((seg, i) =>
@@ -386,7 +386,7 @@ export function MentionInput({
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
-            className={`w-full bg-transparent border-none outline-none text-base px-2 py-2.5 placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 ${className || ''}`}
+            className={`w-full bg-transparent border-none outline-none text-base px-2 pt-[11px] pb-[9px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 ${className || ''}`}
             style={{ maxHeight: '120px', overflowY: 'hidden' }}
           />
         </div>
