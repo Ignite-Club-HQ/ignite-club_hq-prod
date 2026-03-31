@@ -466,19 +466,8 @@ export const ChatMessage = memo(function ChatMessage({
     }
   }, [isDropdownOpen]);
 
-  const handleSaveEdit = useCallback(() => {
-    if (editText.trim() && editText !== text) {
-      editMessageMutation.mutate(editText.trim());
-    } else {
-      setIsEditing(false);
-      setEditText(text);
-    }
-  }, [editText, text, editMessageMutation]);
 
-  const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
-    setEditText(text);
-  }, [text]);
+
 
   const openActionMenu = useCallback(() => {
     setShowReactionPicker(false);
