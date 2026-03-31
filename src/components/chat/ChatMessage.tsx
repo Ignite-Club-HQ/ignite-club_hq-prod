@@ -438,10 +438,14 @@ export const ChatMessage = memo(function ChatMessage({
     e.preventDefault();
     e.stopPropagation();
 
+    // Re-arm the dismiss guard from finger-lift so it covers iOS Safari's
+    // delayed synthetic click event (~300-500ms after touchend)
+    armDismissGuard();
+
     requestAnimationFrame(() => {
       longPressTriggeredRef.current = false;
     });
-  }, []);
+  }, [armDismissGuard]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     if (addReactionMutation.isPending || removeReactionMutation.isPending) {
