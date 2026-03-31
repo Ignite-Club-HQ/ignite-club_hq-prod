@@ -450,6 +450,11 @@ export const ChatMessage = memo(function ChatMessage({
       return;
     }
 
+    // Dismiss picker and menu immediately after selecting a reaction
+    setShowReactionPicker(false);
+    setShowMenu(false);
+    setIsDropdownOpen(false);
+
     if (existingReactionId) {
       removeReactionMutation.mutate(existingReactionId);
     } else {
