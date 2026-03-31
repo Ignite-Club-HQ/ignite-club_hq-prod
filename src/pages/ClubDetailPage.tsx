@@ -984,7 +984,7 @@ export default function ClubDetailPage() {
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">{club?.class_mode_enabled ? "Classes" : "Teams"}</h2>
-            {activeTeams && <Badge variant="secondary" className="font-semibold text-foreground">{activeTeams.length}</Badge>}
+            {activeTeams && <Badge variant="secondary" className="font-semibold text-secondary-foreground">{activeTeams.length}</Badge>}
           </div>
           <div className="flex items-center gap-2">
             {isAdmin && (
