@@ -1405,6 +1405,28 @@ export default function HomePage() {
           status: "pending",
         });
         if (error) throw error;
+
+        // Notify league admins and club admins
+        const { data: leagueAdmins } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", league.club_id)
+          .in("role", ["league_admin", "club_admin"]);
+
+        const adminIds = new Set<string>();
+        leagueAdmins?.forEach(a => adminIds.add(a.user_id));
+        // Remove the requester from notifications
+        adminIds.delete(user!.id);
+
+        if (adminIds.size > 0) {
+          const notifications = Array.from(adminIds).map((userId) => ({
+            user_id: userId,
+            type: "role_request",
+            message: `New role request: Someone wants to join ${league.name} as ${selectedLeagueRole.replace("_", " ")}`,
+            related_id: actualLeagueId,
+          }));
+          await supabase.from("notifications").insert(notifications);
+        }
       } else {
         // Handle team join request
         // Double-check on submit - only block if they already have this specific role
@@ -1427,6 +1449,34 @@ export default function HomePage() {
           metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
         } as any);
         if (error) throw error;
+
+        // Notify team admins, coaches, and club admins
+        const { data: teamAdmins } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("team_id", selectedTeam)
+          .in("role", ["team_admin", "coach"]);
+
+        const { data: clubAdmins } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("club_id", team?.club_id)
+          .eq("role", "club_admin");
+
+        const adminIds = new Set<string>();
+        teamAdmins?.forEach(a => adminIds.add(a.user_id));
+        clubAdmins?.forEach(a => adminIds.add(a.user_id));
+        adminIds.delete(user!.id);
+
+        if (adminIds.size > 0) {
+          const notifications = Array.from(adminIds).map((userId) => ({
+            user_id: userId,
+            type: "role_request",
+            message: `New role request: Someone wants to join ${team?.name} as ${selectedTeamRole.replace("_", " ")}`,
+            related_id: selectedTeam,
+          }));
+          await supabase.from("notifications").insert(notifications);
+        }
       }
     },
     onSuccess: () => {
