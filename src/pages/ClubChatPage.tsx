@@ -1209,6 +1209,7 @@ export default function ClubChatPage() {
                             : null
                         }
                         onReply={handleReply}
+                        onEdit={handleEdit}
                         searchQuery={searchQuery}
                         readFrontierReaders={readFrontier[msg.id] || []}
                         readCount={readCounts[msg.id] || 0}

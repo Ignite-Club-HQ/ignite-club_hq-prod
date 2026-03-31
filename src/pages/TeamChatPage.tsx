@@ -1222,6 +1222,7 @@ export default function TeamChatPage() {
                             : null
                         }
                         onReply={handleReply}
+                        onEdit={handleEdit}
                         searchQuery={searchQuery}
                         readFrontierReaders={readFrontier[msg.id] || []}
                         readCount={readCounts[msg.id] || 0}

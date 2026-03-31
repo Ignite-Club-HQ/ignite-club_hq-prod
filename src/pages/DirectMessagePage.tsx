@@ -1012,6 +1012,7 @@ export default function DirectMessagePage() {
                           : null
                       }
                       onReply={isIgniteSupportConversation ? undefined : () => setReplyTo(msg)}
+                      onEdit={handleEdit}
                     />
                   </div>
                 </div>
