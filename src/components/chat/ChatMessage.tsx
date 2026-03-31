@@ -503,10 +503,19 @@ export const ChatMessage = memo(function ChatMessage({
   }, [showReactionPicker]);
 
   useEffect(() => {
+    const clearSuppressedMenuGesture = () => {
+      suppressMenuUntilPointerUpRef.current = false;
+    };
+
+    window.addEventListener('pointerup', clearSuppressedMenuGesture, true);
+    window.addEventListener('pointercancel', clearSuppressedMenuGesture, true);
+
     return () => {
       if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
       }
+      window.removeEventListener('pointerup', clearSuppressedMenuGesture, true);
+      window.removeEventListener('pointercancel', clearSuppressedMenuGesture, true);
     };
   }, []);
 
