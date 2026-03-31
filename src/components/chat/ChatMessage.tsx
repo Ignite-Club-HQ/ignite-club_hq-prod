@@ -476,6 +476,15 @@ export const ChatMessage = memo(function ChatMessage({
     });
   }, [addReactionMutation, removeReactionMutation, getLatestReactions, currentUserId]);
 
+  const closeReactionPicker = useCallback(() => {
+    releaseGuardRef.current = false;
+    ignoreNextContextMenuRef.current = false;
+    setShowReactionPicker(false);
+    if (!isDropdownOpen) {
+      setShowMenu(false);
+    }
+  }, [isDropdownOpen]);
+
   const handleSaveEdit = useCallback(() => {
     if (editText.trim() && editText !== text) {
       editMessageMutation.mutate(editText.trim());
@@ -696,11 +705,11 @@ export const ChatMessage = memo(function ChatMessage({
               isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
               isOpen={showReactionPicker}
               onOpenChange={(open) => {
-                if (!open && releaseGuardRef.current) return;
-                setShowReactionPicker(open);
-                if (!open && !isDropdownOpen) {
-                  setShowMenu(false);
+                if (open) {
+                  setShowReactionPicker(true);
+                  return;
                 }
+                closeReactionPicker();
               }}
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
