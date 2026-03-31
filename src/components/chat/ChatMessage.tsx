@@ -100,6 +100,7 @@ export const ChatMessage = memo(function ChatMessage({
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const menuContainerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
