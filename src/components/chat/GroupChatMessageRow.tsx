@@ -78,6 +78,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
