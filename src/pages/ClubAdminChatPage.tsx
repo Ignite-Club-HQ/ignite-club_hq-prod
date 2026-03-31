@@ -611,6 +611,7 @@ export default function ClubAdminChatPage() {
                             : null
                         }
                         onReply={() => setReplyTo(msg)}
+                        onEdit={handleEdit}
                       />
                     </div>
                   </div>

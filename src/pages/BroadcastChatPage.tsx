@@ -953,6 +953,7 @@ export default function BroadcastChatPage() {
                             : null
                         }
                         onReply={isAppAdmin ? handleReply : undefined}
+                        onEdit={handleEdit}
                         searchQuery={searchQuery}
                         readFrontierReaders={readFrontier[msg.id] || []}
                         readCount={readCounts[msg.id] || 0}
