@@ -1293,7 +1293,7 @@ export default function GroupChatPage() {
       toast.success("Group deleted");
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
-      navigate(-1);
+      navigate("/messages");
     },
     onError: () => toast.error("Failed to delete group"),
   });
@@ -1306,7 +1306,7 @@ export default function GroupChatPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-muted-foreground">Chat group not found</p>
-        <Button variant="outline" onClick={() => navigate(-1)}>
+        <Button variant="outline" onClick={() => navigate("/messages")}>
           Go Back
         </Button>
       </div>
@@ -1318,7 +1318,7 @@ export default function GroupChatPage() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
