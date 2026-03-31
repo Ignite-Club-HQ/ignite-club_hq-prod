@@ -454,12 +454,7 @@ function GroupReactionBadges({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (userReaction) {
-                    // Instant toggle-off
-                    toggleReactionMutation.mutate({ messageId, reactionType: type });
-                  } else {
-                    setOpenType(type);
-                  }
+                  setOpenType(openType === type ? null : type);
                 }}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
                   userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
