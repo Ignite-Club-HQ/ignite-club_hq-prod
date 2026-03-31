@@ -489,11 +489,11 @@ export const ChatMessage = memo(function ChatMessage({
   }, [text]);
 
   const openActionMenu = useCallback(() => {
-    suppressOutsideCloseUntilRef.current = Date.now() + 500;
+    guardDismiss();
     setShowReactionPicker(false);
     setShowMenu(true);
     setIsDropdownOpen(true);
-  }, []);
+  }, [guardDismiss]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
