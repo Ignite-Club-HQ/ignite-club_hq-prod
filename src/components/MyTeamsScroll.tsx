@@ -35,6 +35,7 @@ export function MyTeamsScroll() {
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["my-teams-leagues-scroll", user?.id, activeClubFilter],
+    retry: 3,
     queryFn: async () => {
       if (!user) return [];
 
