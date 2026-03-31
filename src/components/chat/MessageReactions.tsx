@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ interface MessageReactionsProps {
   onOpenChange: (open: boolean) => void;
   isOwnMessage?: boolean;
   anchorRef: RefObject<HTMLDivElement>;
+  ignoreDismissRef?: MutableRefObject<boolean>;
 }
 
 export const MessageReactionsPopover = memo(function MessageReactionsPopover({
@@ -42,6 +43,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   onOpenChange,
   isOwnMessage = false,
   anchorRef,
+  ignoreDismissRef,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
@@ -121,11 +123,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           e.preventDefault();
+          if (ignoreDismissRef?.current) return;
           onOpenChange(false);
         }
       }}
       onClick={(e) => {
         e.stopPropagation();
+        if (ignoreDismissRef?.current) return;
         onOpenChange(false);
       }}
     >

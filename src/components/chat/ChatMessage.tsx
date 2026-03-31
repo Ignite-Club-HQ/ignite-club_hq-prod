@@ -102,6 +102,7 @@ export const ChatMessage = memo(function ChatMessage({
   const bubbleRef = useRef<HTMLDivElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
   const suppressMenuUntilPointerUpRef = useRef(false);
+  const ignoreReactionDismissRef = useRef(false);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
 
@@ -505,6 +506,7 @@ export const ChatMessage = memo(function ChatMessage({
   useEffect(() => {
     const clearSuppressedMenuGesture = () => {
       suppressMenuUntilPointerUpRef.current = false;
+      ignoreReactionDismissRef.current = false;
     };
 
     window.addEventListener('pointerup', clearSuppressedMenuGesture, true);
@@ -669,6 +671,7 @@ export const ChatMessage = memo(function ChatMessage({
               onOpenChange={setShowReactionPicker}
               isOwnMessage={isOwn}
               anchorRef={bubbleRef}
+              ignoreDismissRef={ignoreReactionDismissRef}
             />
           </div>
           {showMenu && (
@@ -685,9 +688,9 @@ export const ChatMessage = memo(function ChatMessage({
                         e.stopPropagation();
                         return;
                       }
+                      ignoreReactionDismissRef.current = true;
                       e.preventDefault();
                       e.stopPropagation();
-                      openActionMenu();
                     }}
                     onClick={(e) => {
                       if (suppressMenuUntilPointerUpRef.current) {
@@ -697,6 +700,12 @@ export const ChatMessage = memo(function ChatMessage({
                       }
                       e.preventDefault();
                       e.stopPropagation();
+                      setShowMenu(true);
+                      setIsDropdownOpen(true);
+                      requestAnimationFrame(() => {
+                        setShowReactionPicker(false);
+                        ignoreReactionDismissRef.current = false;
+                      });
                     }}
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
