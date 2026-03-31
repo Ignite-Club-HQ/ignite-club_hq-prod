@@ -2067,7 +2067,7 @@ export default function EventDetailPage() {
           )}
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 text-primary" />
-            <span>{rsvps?.filter(r => r.status === "going" && (event.type === "social" ? true : r.child_id != null)).length || 0} attending</span>
+            <span>{rsvps ? `${rsvps.filter(r => r.status === "going" && (event.type === "social" ? true : r.child_id != null)).length} attending` : 'Loading...'}</span>
           </div>
           {/* Price for social events */}
           {event.type === "social" && eventPrice && eventPrice > 0 && (
