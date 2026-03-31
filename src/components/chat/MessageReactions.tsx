@@ -31,7 +31,6 @@ interface MessageReactionsProps {
   isOwnMessage?: boolean;
   anchorRef: RefObject<HTMLDivElement>;
   ignoreDismissRef?: MutableRefObject<boolean>;
-  closeGuardUntilRef?: MutableRefObject<number>;
 }
 
 export const MessageReactionsPopover = memo(function MessageReactionsPopover({
@@ -45,7 +44,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   isOwnMessage = false,
   anchorRef,
   ignoreDismissRef,
-  closeGuardUntilRef,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
