@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Flame } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Flame, Search } from "lucide-react";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
@@ -876,15 +876,12 @@ export default function BroadcastChatPage() {
           <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
         </div>
         <div className="flex items-center shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)}>
+            <Search className="h-4 w-4" />
+          </Button>
           <ChatHeaderMenu
-            chatType="club"
-            chatId="broadcast"
-            onSearchOpen={() => setSearchOpen(true)}
-            showMembers={false}
-            showMute={false}
             onRefresh={handleManualRefresh}
             isRefreshing={isAnyRefreshing}
-            isNativePlatform={isNativePlatform}
           />
         </div>
       </div>

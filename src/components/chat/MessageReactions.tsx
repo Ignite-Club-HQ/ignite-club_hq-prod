@@ -45,7 +45,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   anchorRef,
   preventIfGuarded,
 }: MessageReactionsProps) {
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
 
   useLayoutEffect(() => {
@@ -63,11 +63,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
       const rootStyles = getComputedStyle(document.documentElement);
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-      const pickerWidth = Math.min(280, window.innerWidth - 16);
-      const pickerHeight = 124;
+      const minPickerWidth = 244;
+      const pickerWidth = Math.max(minPickerWidth, Math.min(rect.width, 320));
+      const pickerHeight = 44;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 12;
+      const gap = 0;
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
       const showBelow = spaceAbove < pickerHeight && spaceBelow >= pickerHeight + gap;
@@ -83,7 +84,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       let left = isOwnMessage ? rect.right - pickerWidth : rect.left;
       left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
 
-      setPosition({ top, left });
+      setPosition({ top, left, width: pickerWidth });
     };
 
     updatePosition();
@@ -135,15 +136,15 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         style={{
           top: position.top,
           left: position.left,
-          width: "min(280px, calc(100vw - 16px))",
+          width: position.width,
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="bg-popover border rounded-lg p-2 shadow-lg">
-          <div className="flex gap-1.5">
+        <div className="dark:bg-popover/90 bg-muted/90 backdrop-blur-md dark:border dark:border-border/20 border border-black/[0.03] rounded-2xl px-1.5 py-1 shadow-none dark:shadow-sm animate-in fade-in slide-in-from-bottom-1 duration-100">
+          <div className="flex justify-around">
             {REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
@@ -171,8 +172,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   }}
                   onTouchStart={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
-                  className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 transition-colors active:bg-accent ${
-                    userHasReaction ? "bg-primary/20" : "hover:bg-accent"
+                  className={`inline-flex items-center justify-center h-9 w-9 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 ${
+                    userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
                   }`}
                 >
                   {emoji}
@@ -180,25 +181,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
               );
             })}
           </div>
-          <button
-            type="button"
-            className="w-full mt-1 text-xs text-muted-foreground py-1.5 rounded-md active:bg-accent"
-            onTouchEnd={(e) => {
-              if (preventIfGuarded?.(e)) return;
-              e.stopPropagation();
-              e.preventDefault();
-              onOpenChange(false);
-            }}
-            onClick={(e) => {
-              if (preventIfGuarded?.(e)) return;
-              e.stopPropagation();
-              onOpenChange(false);
-            }}
-            onTouchStart={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            Cancel
-          </button>
         </div>
       </div>
     </div>,

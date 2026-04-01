@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Search } from "lucide-react";
 import { SecureAvatar } from "@/components/SecureAvatar";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1118,25 +1119,29 @@ export default function TeamChatPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <SecureAvatar 
-          src={team.logo_url || team.clubs?.logo_url} 
-          fallback={team.name?.charAt(0)?.toUpperCase() || "T"}
-          className="h-10 w-10"
-          fallbackClassName="bg-secondary text-secondary-foreground"
-        />
-        <div className="flex-1 min-w-0">
-          <h1 className="font-semibold truncate">{team.name}</h1>
-          <p className="text-xs text-muted-foreground truncate">{team.clubs?.name}</p>
-        </div>
+        <button
+          className="flex items-center gap-3 flex-1 min-w-0 active:opacity-70 transition-opacity"
+          onClick={() => setMembersOpen(true)}
+        >
+          <SecureAvatar 
+            src={team.logo_url || team.clubs?.logo_url} 
+            fallback={team.name?.charAt(0)?.toUpperCase() || "T"}
+            className="h-10 w-10"
+            fallbackClassName="bg-secondary text-secondary-foreground"
+          />
+          <div className="flex-1 min-w-0 text-left">
+            <h1 className="font-semibold truncate">{team.name}</h1>
+            <p className="text-xs text-muted-foreground truncate">{team.clubs?.name}</p>
+          </div>
+        </button>
         <div className="flex items-center shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)}>
+            <Search className="h-4 w-4" />
+          </Button>
+          <ChatMuteButton chatType="team" chatId={teamId!} />
           <ChatHeaderMenu
-            chatType="team"
-            chatId={teamId!}
-            onSearchOpen={() => setSearchOpen(true)}
-            onMembersOpen={() => setMembersOpen(true)}
             onRefresh={handleManualRefresh}
             isRefreshing={isAnyRefreshing}
-            isNativePlatform={isNativePlatform}
           />
           <ChatMembersSheet
             chatType="team"
