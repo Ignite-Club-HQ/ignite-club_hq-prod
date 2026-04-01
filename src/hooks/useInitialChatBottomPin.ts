@@ -43,7 +43,7 @@ export function useInitialChatBottomPin({
     const snapToBottom = () => {
       const target = scrollContainerRef.current;
       if (!target) return;
-      target.scrollTop = target.scrollHeight;
+      target.scrollTop = Math.max(0, target.scrollHeight - target.clientHeight);
     };
 
     snapToBottom();
