@@ -1,5 +1,7 @@
 import { RefObject, useEffect } from "react";
 
+import { scrollChatToBottom } from "@/lib/chatScroll";
+
 interface UseChatAutoScrollToLatestOptions {
   scrollContainerRef: RefObject<HTMLElement>;
   enabled?: boolean;
@@ -19,9 +21,7 @@ export function useChatAutoScrollToLatest({
 
     const scrollToLatest = () => {
       requestAnimationFrame(() => {
-        const el = scrollContainerRef.current;
-        if (!el) return;
-        el.scrollTop = el.scrollHeight;
+        scrollChatToBottom(scrollContainerRef.current);
       });
     };
 

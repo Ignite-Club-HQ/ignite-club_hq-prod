@@ -34,6 +34,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -101,14 +102,7 @@ export default function BroadcastChatPage() {
   
   // Scroll to bottom helper - retries until content is ready
   const scrollToBottom = useCallback(() => {
-    if (!scrollAreaRef.current) return;
-    
-    const el = scrollAreaRef.current;
-    const doScroll = () => {
-      if (el.scrollHeight > el.clientHeight) {
-        el.scrollTop = el.scrollHeight;
-      }
-    };
+    const doScroll = () => scrollChatToBottom(scrollAreaRef.current);
     
     doScroll();
     setTimeout(doScroll, 50);
