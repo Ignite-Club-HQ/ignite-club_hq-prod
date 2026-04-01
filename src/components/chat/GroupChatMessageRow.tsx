@@ -179,8 +179,15 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
+    } else if (gestureModeRef.current === "press" && touchStartPos.current) {
+      // Short tap — open action sheet only
+      e.preventDefault();
+      e.stopPropagation();
+      setShowMenu(true);
+      setShowActionSheet(true);
     }
 
+    touchStartPos.current = null;
     gestureModeRef.current = "idle";
   }, [armDismissGuard, swipeToReplyHandlers]);
 
