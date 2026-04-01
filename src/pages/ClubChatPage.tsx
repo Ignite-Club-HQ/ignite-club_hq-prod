@@ -108,6 +108,7 @@ export default function ClubChatPage() {
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const chatHeight = useChatViewportHeight();
   
   // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
