@@ -566,7 +566,7 @@ export const ChatMessage = memo(function ChatMessage({
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 bg-black/[0.12] dark:bg-black/[0.12] bg-black/[0.22] z-[99999] pointer-events-none animate-fade-in"
+          className="fixed inset-0 dark:bg-black/[0.12] bg-black/[0.28] z-[99999] pointer-events-none animate-fade-in"
           style={{ animationDuration: '120ms' }}
         />,
         document.body
