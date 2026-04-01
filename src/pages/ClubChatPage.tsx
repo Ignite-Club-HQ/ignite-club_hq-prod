@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Building2, Search } from "lucide-react";
@@ -110,6 +111,7 @@ export default function ClubChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
   const chatHeight = useChatViewportHeight();
+  const isKeyboardOpen = useKeyboardOpen();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   
   // Scroll to bottom helper
@@ -1177,7 +1179,7 @@ export default function ClubChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >
-            <div className="space-y-4 p-4 pb-28">
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "1rem" : "7rem" }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />
