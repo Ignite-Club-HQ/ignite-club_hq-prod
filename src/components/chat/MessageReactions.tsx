@@ -173,7 +173,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onTouchStart={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                   className={`inline-flex items-center justify-center h-9 w-9 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 ${
-                    userHasReaction ? "bg-primary/20" : "hover:bg-accent"
+                    userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
                   }`}
                 >
                   {emoji}
