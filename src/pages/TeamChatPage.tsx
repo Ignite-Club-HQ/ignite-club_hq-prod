@@ -130,22 +130,13 @@ export default function TeamChatPage() {
     scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
   }, []);
 
-  // Scroll to bottom when keyboard opens (viewport shrinks)
+  // Scroll to bottom when keyboard opens
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    let prevHeight = vv.height;
-    const handleResize = () => {
-      const currentHeight = vv.height;
-      // Keyboard opened (viewport got smaller by >100px)
-      if (prevHeight - currentHeight > 100) {
-        requestAnimationFrame(() => scrollToBottom());
-      }
-      prevHeight = currentHeight;
-    };
-    vv.addEventListener("resize", handleResize);
-    return () => vv.removeEventListener("resize", handleResize);
-  }, [scrollToBottom]);
+    if (!isKeyboardOpen) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToBottom());
+    });
+  }, [isKeyboardOpen, scrollToBottom]);
 
   const targetMessageId = searchParams.get("message");
 
