@@ -544,15 +544,12 @@ export default function ClubAdminChatPage() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)}>
+            <Search className="h-4 w-4" />
+          </Button>
           <ChatHeaderMenu
-            chatType="club_admin"
-            chatId={conversationId!}
-            onSearchOpen={() => setSearchOpen(true)}
-            showMembers={false}
-            showMute={false}
             onRefresh={handleManualRefresh}
             isRefreshing={isManualRefreshing}
-            isNativePlatform={isNativePlatform}
           />
         </div>
       </div>
