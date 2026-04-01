@@ -1179,7 +1179,7 @@ export default function ClubChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "3.5rem" : "calc(var(--bottom-nav-offset, 0px) + 3.5rem)" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? 4 : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />
