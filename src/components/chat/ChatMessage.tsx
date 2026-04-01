@@ -27,6 +27,8 @@ import { toast } from "sonner";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
+import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
+import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 
 interface Reaction {
   id: string;
