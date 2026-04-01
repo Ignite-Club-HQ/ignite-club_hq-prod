@@ -70,6 +70,7 @@ export default function ClubAdminChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const isNativePlatform = Capacitor.isNativePlatform();
 
   const scrollToBottom = useCallback(() => {
