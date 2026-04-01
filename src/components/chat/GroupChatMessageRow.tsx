@@ -113,6 +113,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     longPressTimer.current = setTimeout(() => {
       if (gestureModeRef.current !== "press") return;
       longPressTriggeredRef.current = true;
+      resetReplyReveal();
       armDismissGuard();
       setShowMenu(true);
       setShowReactionPicker(true);
