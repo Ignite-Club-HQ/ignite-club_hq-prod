@@ -116,21 +116,13 @@ export default function BroadcastChatPage() {
     setTimeout(doScroll, 500);
   }, []);
 
-  // Scroll to bottom when keyboard opens (viewport shrinks)
+  // Scroll to bottom when keyboard opens
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    let prevHeight = vv.height;
-    const handleResize = () => {
-      const currentHeight = vv.height;
-      if (prevHeight - currentHeight > 100) {
-        requestAnimationFrame(() => scrollToBottom());
-      }
-      prevHeight = currentHeight;
-    };
-    vv.addEventListener("resize", handleResize);
-    return () => vv.removeEventListener("resize", handleResize);
-  }, [scrollToBottom]);
+    if (!isKeyboardOpen) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToBottom());
+    });
+  }, [isKeyboardOpen, scrollToBottom]);
 
   const targetMessageId = searchParams.get("message");
 

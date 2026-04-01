@@ -82,19 +82,11 @@ export default function ClubAdminChatPage() {
 
   // Scroll to bottom when keyboard opens
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    let prevHeight = vv.height;
-    const handleResize = () => {
-      const currentHeight = vv.height;
-      if (prevHeight - currentHeight > 100) {
-        requestAnimationFrame(() => scrollToBottom());
-      }
-      prevHeight = currentHeight;
-    };
-    vv.addEventListener("resize", handleResize);
-    return () => vv.removeEventListener("resize", handleResize);
-  }, [scrollToBottom]);
+    if (!isKeyboardOpen) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToBottom());
+    });
+  }, [isKeyboardOpen, scrollToBottom]);
 
   // Fetch conversation details
   const { data: conversation, isLoading: conversationLoading } = useQuery({
