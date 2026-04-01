@@ -465,6 +465,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           setShowActionSheet(open);
           if (!open) {
             setShowMenu(false);
+            setShowReactionPicker(false);
+            clearDismissGuard();
           }
         }}
         isOwn={isOwnMessage}
