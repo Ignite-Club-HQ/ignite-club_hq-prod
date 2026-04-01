@@ -234,7 +234,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     handleReply(msg);
   }, [handleReply, msg]);
 
-  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
+  const { swipeState, isSwipingRef, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
     onReply: handleSwipeReply,
     enabled: true,
   });
