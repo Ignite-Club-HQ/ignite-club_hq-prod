@@ -181,11 +181,15 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         longPressTriggeredRef.current = false;
       });
     } else if (gestureModeRef.current === "press" && touchStartPos.current) {
-      // Short tap — open action sheet only
+      // Short tap — flash highlight then open action sheet
       e.preventDefault();
       e.stopPropagation();
-      setShowMenu(true);
-      setShowActionSheet(true);
+      setTapFlash(true);
+      setTimeout(() => {
+        setTapFlash(false);
+        setShowMenu(true);
+        setShowActionSheet(true);
+      }, 120);
     }
 
     touchStartPos.current = null;
