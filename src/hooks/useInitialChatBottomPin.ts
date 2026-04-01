@@ -35,12 +35,18 @@ export function useInitialChatBottomPin({
     if (!el) return;
 
     hasPinnedRef.current = true;
-    onPinnedRef.current?.();
 
     let firstFrame = 0;
     let secondFrame = 0;
     let disconnectTimeout = 0;
     let resizeObserver: ResizeObserver | null = null;
+    let didNotifyPinned = false;
+
+    const notifyPinned = () => {
+      if (didNotifyPinned) return;
+      didNotifyPinned = true;
+      onPinnedRef.current?.();
+    };
 
     const snapToBottom = () => {
       const anchor = bottomAnchorRef?.current;
@@ -56,7 +62,13 @@ export function useInitialChatBottomPin({
 
     snapToBottom();
     firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(snapToBottom);
+      secondFrame = requestAnimationFrame(() => {
+        snapToBottom();
+
+        if (typeof ResizeObserver === "undefined") {
+          notifyPinned();
+        }
+      });
     });
 
     if (typeof ResizeObserver !== "undefined") {
@@ -75,6 +87,7 @@ export function useInitialChatBottomPin({
         snapToBottom();
         resizeObserver?.disconnect();
         resizeObserver = null;
+        notifyPinned();
       }, 250);
     }
 
