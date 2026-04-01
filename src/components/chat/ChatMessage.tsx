@@ -551,125 +551,100 @@ export const ChatMessage = memo(function ChatMessage({
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="relative">
+          {/* Swipe-to-reply wrapper */}
           <div
-            ref={bubbleRef}
-            className={`relative rounded-2xl px-4 py-2 select-none ${
-              isOwn
-                ? "bg-primary text-primary-foreground rounded-br-sm"
-                : "bg-muted rounded-bl-sm"
-            }`}
-            onTouchStart={handleLongPressStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleLongPressEnd}
+            style={{
+              transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
+              transition: swipeState.isSwiping ? 'none' : 'transform 0.2s ease-out',
+            }}
+            onTouchStart={(e) => {
+              handleLongPressStart(e);
+              swipeToReplyHandlers.onTouchStart(e);
+            }}
+            onTouchMove={(e) => {
+              handleTouchMove(e);
+              swipeToReplyHandlers.onTouchMove(e);
+            }}
+            onTouchEnd={(e) => {
+              handleLongPressEnd(e);
+              swipeToReplyHandlers.onTouchEnd();
+            }}
             onContextMenu={handleContextMenu}
           >
-            <div className="text-sm">
-              <MessageContent 
-                text={text} 
-                imageUrl={imageUrl} 
-                searchQuery={searchQuery} 
-                showPreviews={false}
-                showImageActions={!isOwn && !isSystemMessage && !!imageUrl}
-                onReportImage={() => setShowReportDialog(true)}
-                onBlockImageAuthor={() => setShowBlockDialog(true)}
+            <div
+              ref={bubbleRef}
+              className={`relative rounded-2xl px-4 py-2 select-none ${
+                isOwn
+                  ? "bg-primary text-primary-foreground rounded-br-sm"
+                  : "bg-muted rounded-bl-sm"
+              }`}
+            >
+              <div className="text-sm">
+                <MessageContent 
+                  text={text} 
+                  imageUrl={imageUrl} 
+                  searchQuery={searchQuery} 
+                  showPreviews={false}
+                  showImageActions={!isOwn && !isSystemMessage && !!imageUrl}
+                  onReportImage={() => setShowReportDialog(true)}
+                  onBlockImageAuthor={() => setShowBlockDialog(true)}
+                />
+              </div>
+              <MessageReactionsPopover
+                reactions={reactions}
+                currentUserId={currentUserId}
+                onReact={(type) => handleReactionClick(type)}
+                onRemove={(reactionId) => {
+                  if (addReactionMutation.isPending || removeReactionMutation.isPending) return;
+                  removeReactionMutation.mutate(reactionId);
+                }}
+                isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
+                isOpen={showReactionPicker}
+                preventIfGuarded={preventIfGuarded}
+                onOpenChange={(open) => {
+                  if (open) {
+                    setShowReactionPicker(true);
+                    return;
+                  }
+                  closeReactionPicker();
+                }}
+                isOwnMessage={isOwn}
+                anchorRef={bubbleRef}
               />
             </div>
-            <MessageReactionsPopover
-              reactions={reactions}
-              currentUserId={currentUserId}
-              onReact={(type) => handleReactionClick(type)}
-              onRemove={(reactionId) => {
-                if (addReactionMutation.isPending || removeReactionMutation.isPending) return;
-                removeReactionMutation.mutate(reactionId);
-              }}
-              isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
-              isOpen={showReactionPicker}
-              preventIfGuarded={preventIfGuarded}
-              onOpenChange={(open) => {
-                if (open) {
-                  setShowReactionPicker(true);
-                  return;
-                }
-                closeReactionPicker();
-              }}
-              isOwnMessage={isOwn}
-              anchorRef={bubbleRef}
-            />
           </div>
+          {/* Swipe reply icon indicator */}
+          {swipeState.offsetX > 10 && (
+            <div
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2"
+              style={{ opacity: Math.min(1, swipeState.offsetX / 80) }}
+            >
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Reply className="h-4 w-4 text-primary" />
+              </div>
+            </div>
+          )}
         </div>
-        {/* Portalled menu trigger - renders above reaction picker backdrop */}
-        {showMenu && menuPosition && createPortal(
-          <div
-            className="fixed z-[100002]"
-            style={{ top: menuPosition.top, left: menuPosition.left }}
-            data-menu-trigger="true"
-          >
-            <DropdownMenu open={isDropdownOpen} onOpenChange={handleMenuOpenChange}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
-                  onPointerDown={(e) => {
-                    if (preventIfGuarded(e)) return;
-                    e.stopPropagation();
-                  }}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (preventIfGuarded(e)) return;
-                    openActionMenu();
-                  }}
-                  onTouchStart={(e) => e.stopPropagation()}
-                >
-                  <MoreVertical className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align={isOwn ? "end" : "start"}
-                side="top"
-                collisionPadding={16}
-                className="z-[100003] bg-popover border"
-                onCloseAutoFocus={(e) => e.preventDefault()}
-              >
-                {canReply && (
-                  <DropdownMenuItem onClick={handleReply}>
-                    <Reply className="h-4 w-4 mr-2" /> Reply
-                  </DropdownMenuItem>
-                )}
-                {isOwn && !imageUrl && (
-                  <DropdownMenuItem onClick={handleStartEdit}>
-                    <Pencil className="h-4 w-4 mr-2" /> Edit
-                  </DropdownMenuItem>
-                )}
-                {canDelete && (
-                  <DropdownMenuItem 
-                    onClick={handleDelete}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" /> Delete
-                  </DropdownMenuItem>
-                )}
-                {!isOwn && !isSystemMessage && (
-                  <DropdownMenuItem 
-                    onClick={() => setShowReportDialog(true)}
-                  >
-                    <Flag className="h-4 w-4 mr-2" /> Report Message
-                  </DropdownMenuItem>
-                )}
-                {!isOwn && !isSystemMessage && (
-                  <DropdownMenuItem 
-                    onClick={() => setShowBlockDialog(true)}
-                    className="text-destructive"
-                  >
-                    <ShieldAlert className="h-4 w-4 mr-2" /> Block User
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>,
-          document.body
-        )}
+        {/* Action sheet (replaces 3-dot dropdown menu) */}
+        <MessageActionSheet
+          open={showActionSheet}
+          onOpenChange={(open) => {
+            setShowActionSheet(open);
+            if (!open) {
+              setShowMenu(false);
+            }
+          }}
+          isOwn={isOwn}
+          canReply={canReply}
+          canEdit={isOwn && !imageUrl}
+          canDelete={canDelete}
+          isSystemMessage={isSystemMessage}
+          onReply={handleReply}
+          onEdit={handleStartEdit}
+          onDelete={handleDelete}
+          onReport={() => setShowReportDialog(true)}
+          onBlock={() => setShowBlockDialog(true)}
+        />
         {/* Link previews rendered outside the message bubble */}
         <MessageContent text={text} previewsOnly />
         
