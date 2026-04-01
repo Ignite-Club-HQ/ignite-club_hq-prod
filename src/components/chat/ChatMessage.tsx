@@ -398,9 +398,7 @@ export const ChatMessage = memo(function ChatMessage({
     onReply?.({ id, text, authorName: authorName || null });
   }, [onReply, id, text, authorName]);
 
-  // Swipe to reply
-  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
-    onReply: handleReply,
+  const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
     enabled: canReply,
   });
 
