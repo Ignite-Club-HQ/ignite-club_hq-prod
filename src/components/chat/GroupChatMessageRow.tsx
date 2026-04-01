@@ -229,30 +229,15 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     };
   }, [isOwnMessage, showReactionPicker]);
 
-  useLayoutEffect(() => {
-    if (!showActionTrigger || !bubbleRef.current) {
-      setMenuPosition(null);
-      return;
-    }
+  // Swipe to reply
+  const handleSwipeReply = useCallback(() => {
+    handleReply(msg);
+  }, [handleReply, msg]);
 
-    const updatePosition = () => {
-      const rect = bubbleRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setMenuPosition({
-        top: rect.top,
-        left: isOwnMessage ? rect.left - 36 : rect.right + 4,
-      });
-    };
-
-    updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [isOwnMessage, showActionTrigger]);
+  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
+    onReply: handleSwipeReply,
+    enabled: true,
+  });
 
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
