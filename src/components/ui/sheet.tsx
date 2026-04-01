@@ -93,6 +93,7 @@ interface SheetContentProps
   enableDragToClose?: boolean;
   dragCloseThreshold?: number;
   hideCloseButton?: boolean;
+  hideOverlay?: boolean;
 }
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
