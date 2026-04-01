@@ -944,7 +944,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight, paddingBottom: isKeyboardOpen ? 0 : "calc(var(--bottom-nav-offset, 0px) + 1rem)" }}>
+    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -1008,7 +1008,7 @@ export default function DirectMessagePage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
       >
-        <div className="p-4" style={{ paddingBottom: isKeyboardOpen ? 4 : `${Math.max(112, composerHeight + 16)}px` }}>
+        <div className="p-4" style={{ paddingBottom: isKeyboardOpen ? 4 : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(112, composerHeight + 16)}px)` }}>
           <div className={`min-h-full flex flex-col ${!showLoading && (localMessages?.length || 0) > 0 ? "justify-end gap-4" : ""}`}>
             {showLoading ? (
               <div className="flex justify-center py-8">
