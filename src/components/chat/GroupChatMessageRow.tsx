@@ -113,6 +113,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     longPressTimer.current = setTimeout(() => {
       if (gestureModeRef.current !== "press") return;
       longPressTriggeredRef.current = true;
+      resetReplyReveal();
       armDismissGuard();
       setShowMenu(true);
       setShowReactionPicker(true);
@@ -120,13 +121,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     }, 600);
   }, [armDismissGuard]);
 
-  // Swipe to reply
-  const handleSwipeReply = useCallback(() => {
-    handleReply(msg);
-  }, [handleReply, msg]);
-
-  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
-    onReply: handleSwipeReply,
+  const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
     enabled: true,
   });
 
@@ -332,15 +327,20 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </div>
             </div>
             {/* Swipe reply icon indicator */}
-            {swipeState.offsetX > 10 && (
-              <div
+            {swipeState.isReplyRevealed && (
+              <button
+                type="button"
                 className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2"
-                style={{ opacity: Math.min(1, swipeState.offsetX / 80) }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  resetReplyReveal();
+                  handleReply(msg);
+                }}
               >
                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                   <Reply className="h-4 w-4 text-primary" />
                 </div>
-              </div>
+              </button>
             )}
           </div>
 

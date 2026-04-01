@@ -394,15 +394,15 @@ export const ChatMessage = memo(function ChatMessage({
       toast.error("Failed to delete message");
     },
   });
-  const handleReply = useCallback(() => {
-    onReply?.({ id, text, authorName: authorName || null });
-  }, [onReply, id, text, authorName]);
-
   // Swipe to reply
-  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
-    onReply: handleReply,
+  const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
     enabled: canReply,
   });
+
+  const handleReply = useCallback(() => {
+    resetReplyReveal();
+    onReply?.({ id, text, authorName: authorName || null });
+  }, [onReply, id, text, authorName, resetReplyReveal]);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     gestureModeRef.current = "press";
@@ -411,6 +411,7 @@ export const ChatMessage = memo(function ChatMessage({
     longPressTimer.current = setTimeout(() => {
       if (gestureModeRef.current !== "press") return;
       longPressTriggeredRef.current = true;
+      resetReplyReveal();
       armDismissGuard();
       setShowMenu(true);
       setShowReactionPicker(true);
@@ -635,15 +636,20 @@ export const ChatMessage = memo(function ChatMessage({
             </div>
           </div>
           {/* Swipe reply icon indicator */}
-          {swipeState.offsetX > 10 && (
-            <div
+          {swipeState.isReplyRevealed && canReply && (
+            <button
+              type="button"
               className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2"
-              style={{ opacity: Math.min(1, swipeState.offsetX / 80) }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReply();
+                resetReplyReveal();
+              }}
             >
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <Reply className="h-4 w-4 text-primary" />
               </div>
-            </div>
+            </button>
           )}
         </div>
         {/* Action sheet (replaces 3-dot dropdown menu) */}
