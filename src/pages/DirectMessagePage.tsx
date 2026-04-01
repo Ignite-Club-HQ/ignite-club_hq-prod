@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } fr
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -348,7 +349,6 @@ export default function DirectMessagePage() {
   const [localMessages, setLocalMessages] = useState<DirectMessage[] | undefined>(undefined);
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
-  const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
 
   useLayoutEffect(() => {
@@ -386,9 +386,15 @@ export default function DirectMessagePage() {
     }
   }, [localMessages, user?.id, markMessagesAsRead]);
   useEffect(() => {
-    hasInitialScrolled.current = false;
     setInfiniteScrollEnabled(false);
   }, [conversationId]);
+
+  useInitialChatBottomPin({
+    scrollContainerRef: scrollAreaRef,
+    itemCount: localMessages?.length ?? 0,
+    resetKey: conversationId,
+    onPinned: () => setInfiniteScrollEnabled(true),
+  });
  
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
@@ -423,29 +429,6 @@ export default function DirectMessagePage() {
       }
     }
   }, [messages, messagesLoading]);
-
-  useEffect(() => {
-    if (!localMessages?.length) return;
-    if (hasInitialScrolled.current) return;
-    
-    let attempts = 0;
-    const maxAttempts = 20;
-    
-    const tryScroll = () => {
-      attempts++;
-      if (!scrollAreaRef.current) {
-        if (attempts < maxAttempts) setTimeout(tryScroll, 100);
-        return;
-      }
-      const el = scrollAreaRef.current;
-      hasInitialScrolled.current = true;
-      setInfiniteScrollEnabled(true);
-      el.scrollTop = el.scrollHeight;
-      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
-      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 150);
-    };
-    tryScroll();
-  }, [localMessages]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {

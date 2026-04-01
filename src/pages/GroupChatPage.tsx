@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -370,9 +371,6 @@ export default function GroupChatPage() {
 
   // Local copy used for rendering so optimistic updates are instant
   const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(undefined);
- 
-  // Track if initial scroll has happened - reset on every mount
-  const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
@@ -383,9 +381,15 @@ export default function GroupChatPage() {
   
   // Reset scroll state when groupId changes
   useEffect(() => {
-    hasInitialScrolled.current = false;
     setInfiniteScrollEnabled(false);
   }, [groupId]);
+
+  useInitialChatBottomPin({
+    scrollContainerRef: scrollAreaRef,
+    itemCount: localMessages?.length ?? 0,
+    resetKey: groupId,
+    onPinned: () => setInfiniteScrollEnabled(true),
+  });
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -475,32 +479,6 @@ export default function GroupChatPage() {
       });
     });
   }, [localMessages]);
-
-  // Scroll to bottom on initial load after layout/viewport settles
-  useLayoutEffect(() => {
-    const el = scrollAreaRef.current;
-    if (!el || !localMessages?.length || hasInitialScrolled.current) return;
-
-    const snapToBottom = () => {
-      el.scrollTop = el.scrollHeight;
-    };
-
-    hasInitialScrolled.current = true;
-    setInfiniteScrollEnabled(true);
-
-    snapToBottom();
-
-    let firstFrame = 0;
-    let secondFrame = 0;
-    firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(snapToBottom);
-    });
-
-    return () => {
-      cancelAnimationFrame(firstFrame);
-      cancelAnimationFrame(secondFrame);
-    };
-  }, [localMessages?.length, groupId]);
 
   const reactions = useMemo(() => {
     if (!messagesData || Array.isArray(messagesData)) return [];

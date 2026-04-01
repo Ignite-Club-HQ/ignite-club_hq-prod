@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -233,7 +234,6 @@ export default function ClubAdminChatPage() {
   const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(undefined);
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
-  const hasInitialScrolled = useRef(false);
 
   const authorIds = useMemo(() => {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
@@ -251,24 +251,11 @@ export default function ClubAdminChatPage() {
     }
   }, [messages, messagesLoading]);
 
-  // Initial scroll to bottom
-  useEffect(() => {
-    if (!localMessages?.length) return;
-    if (hasInitialScrolled.current) return;
-
-    const tryScroll = () => {
-      if (!scrollAreaRef.current) return;
-      hasInitialScrolled.current = true;
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-      setTimeout(() => { if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight; }, 50);
-    };
-    tryScroll();
-  }, [localMessages]);
-
-  // Reset on conversation change
-  useEffect(() => {
-    hasInitialScrolled.current = false;
-  }, [conversationId]);
+  useInitialChatBottomPin({
+    scrollContainerRef: scrollAreaRef,
+    itemCount: localMessages?.length ?? 0,
+    resetKey: conversationId,
+  });
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
