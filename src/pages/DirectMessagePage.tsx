@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -87,9 +87,11 @@ export default function DirectMessagePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
   const isNativePlatform = Capacitor.isNativePlatform();
+  const [composerHeight, setComposerHeight] = useState(112);
   
   const scrollToBottom = useCallback(() => {
     if (!scrollAreaRef.current) return;
@@ -145,6 +147,30 @@ export default function DirectMessagePage() {
 
   // Check if this is a conversation with Ignite Support (system user)
   const isIgniteSupportConversation = isIgniteSupportUser(otherUserId);
+
+  useLayoutEffect(() => {
+    const composerEl = composerRef.current;
+    if (!composerEl) return;
+
+    const measure = () => {
+      const nextHeight = Math.max(56, Math.ceil(composerEl.getBoundingClientRect().height));
+      setComposerHeight(nextHeight);
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(measure);
+    });
+
+    observer.observe(composerEl);
+    return () => observer.disconnect();
+  }, [isIgniteSupportConversation, replyTo, editingMessage]);
 
   // Fetch other participant's profile
   const { data: otherUser } = useQuery({
@@ -328,6 +354,20 @@ export default function DirectMessagePage() {
   localMessagesRef.current = localMessages;
   const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const shouldStickToBottom = distanceFromBottom <= Math.max(220, composerHeight + 32);
+    if (!shouldStickToBottom) return;
+
+    requestAnimationFrame(() => {
+      if (!scrollAreaRef.current) return;
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    });
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
@@ -964,7 +1004,7 @@ export default function DirectMessagePage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
       >
-        <div className="p-4 space-y-4 pb-28">
+        <div className="p-4 space-y-4" style={{ paddingBottom: `${composerHeight + 16}px` }}>
           {showLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1026,20 +1066,15 @@ export default function DirectMessagePage() {
         </div>
       </div>
 
-      {/* Reply preview */}
-      {replyTo && (
-        <ReplyPreview
-          replyingTo={{ id: replyTo.id, text: replyTo.text, authorName: replyTo.author?.display_name || null }}
-          onCancel={() => setReplyTo(null)}
-        />
-      )}
-      {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-
       {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
         <>
            <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-           <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 0px)" }}>
+           <div
+             ref={composerRef}
+             className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]"
+             style={{ bottom: "var(--bottom-nav-offset, 0px)" }}
+           >
             <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
               This is a welcome message from Ignite Support. Replies are not available.
             </div>
@@ -1048,7 +1083,18 @@ export default function DirectMessagePage() {
       ) : (
         <>
            <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-           <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 0px)" }}>
+           <div
+             ref={composerRef}
+             className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]"
+             style={{ bottom: "var(--bottom-nav-offset, 0px)" }}
+           >
+             {replyTo && (
+               <ReplyPreview
+                 replyingTo={{ id: replyTo.id, text: replyTo.text, authorName: replyTo.author?.display_name || null }}
+                 onCancel={() => setReplyTo(null)}
+               />
+             )}
+             {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
              <div className="flex gap-1.5 items-center">
                <MentionInput
                  value={message}
