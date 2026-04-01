@@ -106,6 +106,7 @@ export const ChatMessage = memo(function ChatMessage({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const longPressTriggeredRef = useRef(false);
+  const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
   const {
@@ -393,50 +394,85 @@ export const ChatMessage = memo(function ChatMessage({
       toast.error("Failed to delete message");
     },
   });
+  const handleReply = useCallback(() => {
+    onReply?.({ id, text, authorName: authorName || null });
+  }, [onReply, id, text, authorName]);
+
+  // Swipe to reply
+  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
+    onReply: handleReply,
+    enabled: canReply,
+  });
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    gestureModeRef.current = "press";
     longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
-      console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
+      if (gestureModeRef.current !== "press") return;
       longPressTriggeredRef.current = true;
       armDismissGuard();
       setShowMenu(true);
       setShowReactionPicker(true);
       setShowActionSheet(true);
     }, 600);
-  }, [armDismissGuard, id, messageType]);
+  }, [armDismissGuard]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (longPressTimer.current && touchStartPos.current) {
-      const dx = e.touches[0].clientX - touchStartPos.current.x;
-      const dy = e.touches[0].clientY - touchStartPos.current.y;
-      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    if (!touchStartPos.current) return;
+
+    const dx = e.touches[0].clientX - touchStartPos.current.x;
+    const dy = e.touches[0].clientY - touchStartPos.current.y;
+
+    if (gestureModeRef.current === "press" && dx > 12 && Math.abs(dy) < 24) {
+      gestureModeRef.current = "swipe";
+      if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
         longPressTimer.current = null;
-        touchStartPos.current = null;
       }
+      longPressTriggeredRef.current = false;
+      swipeToReplyHandlers.onTouchMove(e);
+      return;
     }
-  }, []);
+
+    if (gestureModeRef.current === "swipe") {
+      swipeToReplyHandlers.onTouchMove(e);
+      return;
+    }
+
+    if (longPressTimer.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      touchStartPos.current = null;
+    }
+  }, [swipeToReplyHandlers]);
 
   const handleLongPressEnd = useCallback((e: React.TouchEvent) => {
+    if (gestureModeRef.current === "swipe") {
+      swipeToReplyHandlers.onTouchEnd();
+      gestureModeRef.current = "idle";
+      touchStartPos.current = null;
+      longPressTriggeredRef.current = false;
+      return;
+    }
+
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
     touchStartPos.current = null;
 
-    if (!longPressTriggeredRef.current) return;
+    if (longPressTriggeredRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      armDismissGuard();
+      requestAnimationFrame(() => {
+        longPressTriggeredRef.current = false;
+      });
+    }
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    armDismissGuard();
-
-    requestAnimationFrame(() => {
-      longPressTriggeredRef.current = false;
-    });
-  }, [armDismissGuard]);
+    gestureModeRef.current = "idle";
+  }, [armDismissGuard, swipeToReplyHandlers]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     if (addReactionMutation.isPending || removeReactionMutation.isPending) {
@@ -478,9 +514,6 @@ export const ChatMessage = memo(function ChatMessage({
     setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
-  const handleReply = useCallback(() => {
-    onReply?.({ id, text, authorName: authorName || null });
-  }, [onReply, id, text, authorName]);
 
   const handleStartEdit = useCallback(() => {
     onEdit?.({ id, text });
@@ -500,11 +533,6 @@ export const ChatMessage = memo(function ChatMessage({
     setShowReactionPicker(true);
   }, []);
 
-  // Swipe to reply
-  const { swipeState, isSwipingRef, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
-    onReply: handleReply,
-    enabled: canReply,
-  });
 
   useEffect(() => {
     const handlePointerCancel = () => {
@@ -560,31 +588,8 @@ export const ChatMessage = memo(function ChatMessage({
               handleLongPressStart(e);
               swipeToReplyHandlers.onTouchStart(e);
             }}
-            onTouchMove={(e) => {
-              // If swipe-to-reply has taken over, skip long press move handler
-              if (!isSwipingRef.current) {
-                handleTouchMove(e);
-              }
-              swipeToReplyHandlers.onTouchMove(e);
-              // If swipe just started, cancel long press timer
-              if (isSwipingRef.current && longPressTimer.current) {
-                clearTimeout(longPressTimer.current);
-                longPressTimer.current = null;
-              }
-            }}
-            onTouchEnd={(e) => {
-              if (isSwipingRef.current) {
-                // Swipe handled it — just clean up long press
-                if (longPressTimer.current) {
-                  clearTimeout(longPressTimer.current);
-                  longPressTimer.current = null;
-                }
-                swipeToReplyHandlers.onTouchEnd();
-              } else {
-                handleLongPressEnd(e);
-                swipeToReplyHandlers.onTouchEnd();
-              }
-            }}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleLongPressEnd}
             onContextMenu={handleContextMenu}
           >
             <div

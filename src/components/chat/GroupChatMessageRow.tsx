@@ -84,6 +84,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
   const {
     armDismissGuard,
     clearDismissGuard,
@@ -106,9 +107,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   }, [clearDismissGuard]);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    gestureModeRef.current = "press";
     longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
+      if (gestureModeRef.current !== "press") return;
       longPressTriggeredRef.current = true;
       armDismissGuard();
       setShowMenu(true);
@@ -117,38 +120,71 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     }, 600);
   }, [armDismissGuard]);
 
+  // Swipe to reply
+  const handleSwipeReply = useCallback(() => {
+    handleReply(msg);
+  }, [handleReply, msg]);
+
+  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
+    onReply: handleSwipeReply,
+    enabled: true,
+  });
+
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (longPressTimer.current && touchStartPos.current) {
-      const dx = e.touches[0].clientX - touchStartPos.current.x;
-      const dy = e.touches[0].clientY - touchStartPos.current.y;
-      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    if (!touchStartPos.current) return;
+
+    const dx = e.touches[0].clientX - touchStartPos.current.x;
+    const dy = e.touches[0].clientY - touchStartPos.current.y;
+
+    if (gestureModeRef.current === "press" && dx > 12 && Math.abs(dy) < 24) {
+      gestureModeRef.current = "swipe";
+      if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
         longPressTimer.current = null;
-        touchStartPos.current = null;
       }
+      longPressTriggeredRef.current = false;
+      swipeToReplyHandlers.onTouchMove(e);
+      return;
     }
-  }, []);
+
+    if (gestureModeRef.current === "swipe") {
+      swipeToReplyHandlers.onTouchMove(e);
+      return;
+    }
+
+    if (longPressTimer.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      touchStartPos.current = null;
+    }
+  }, [swipeToReplyHandlers]);
 
   const handleLongPressEnd = useCallback((e: React.TouchEvent) => {
+    if (gestureModeRef.current === "swipe") {
+      swipeToReplyHandlers.onTouchEnd();
+      gestureModeRef.current = "idle";
+      touchStartPos.current = null;
+      longPressTriggeredRef.current = false;
+      return;
+    }
+
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
     touchStartPos.current = null;
 
-    if (!longPressTriggeredRef.current) return;
+    if (longPressTriggeredRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      armDismissGuard();
+      requestAnimationFrame(() => {
+        longPressTriggeredRef.current = false;
+      });
+    }
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Re-arm the dismiss guard from finger-lift so it covers iOS Safari's
-    // delayed synthetic click event (~300-500ms after touchend)
-    armDismissGuard();
-
-    requestAnimationFrame(() => {
-      longPressTriggeredRef.current = false;
-    });
-  }, [armDismissGuard]);
+    gestureModeRef.current = "idle";
+  }, [armDismissGuard, swipeToReplyHandlers]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -229,16 +265,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     };
   }, [isOwnMessage, showReactionPicker]);
 
-  // Swipe to reply
-  const handleSwipeReply = useCallback(() => {
-    handleReply(msg);
-  }, [handleReply, msg]);
-
-  const { swipeState, isSwipingRef, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
-    onReply: handleSwipeReply,
-    enabled: true,
-  });
-
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
   const avatarUrl = profile?.avatar_url || msg.author?.avatar_url || undefined;
@@ -285,31 +311,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 transition: swipeState.isSwiping ? 'none' : 'transform 0.2s ease-out',
               }}
               onTouchStart={(e) => {
+                gestureModeRef.current = "press";
                 handleLongPressStart(e);
                 swipeToReplyHandlers.onTouchStart(e);
               }}
-            onTouchMove={(e) => {
-              if (!isSwipingRef.current) {
-                handleTouchMove(e);
-              }
-              swipeToReplyHandlers.onTouchMove(e);
-              if (isSwipingRef.current && longPressTimer.current) {
-                clearTimeout(longPressTimer.current);
-                longPressTimer.current = null;
-              }
-            }}
-            onTouchEnd={(e) => {
-              if (isSwipingRef.current) {
-                if (longPressTimer.current) {
-                  clearTimeout(longPressTimer.current);
-                  longPressTimer.current = null;
-                }
-                swipeToReplyHandlers.onTouchEnd();
-              } else {
-                handleLongPressEnd(e);
-                swipeToReplyHandlers.onTouchEnd();
-              }
-            }}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleLongPressEnd}
               onContextMenu={handleContextMenu}
             >
               <div
