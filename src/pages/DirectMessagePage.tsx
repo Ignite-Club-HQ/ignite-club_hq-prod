@@ -354,6 +354,20 @@ export default function DirectMessagePage() {
   localMessagesRef.current = localMessages;
   const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const shouldStickToBottom = distanceFromBottom <= Math.max(220, composerHeight + 32);
+    if (!shouldStickToBottom) return;
+
+    requestAnimationFrame(() => {
+      if (!scrollAreaRef.current) return;
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    });
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
