@@ -605,7 +605,7 @@ export const ChatMessage = memo(function ChatMessage({
           {canReply && !isInteracting && (
             <button
               type="button"
-              className={`absolute ${isOwn ? "right-0 translate-x-[calc(100%+4px)]" : "left-0 -translate-x-[calc(100%+4px)]"} top-1/2 -translate-y-1/2 opacity-0 group-hover/msg:opacity-100 focus:opacity-100 transition-opacity duration-150 z-10`}
+              className={`absolute ${isOwn ? "left-0 -translate-x-[calc(100%+4px)]" : "right-0 translate-x-[calc(100%+4px)]"} top-1/2 -translate-y-1/2 opacity-0 group-hover/msg:opacity-100 focus:opacity-100 transition-opacity duration-150 z-10`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleReply();
@@ -714,7 +714,7 @@ export const ChatMessage = memo(function ChatMessage({
           {swipeState.isReplyRevealed && canReply && (
             <button
               type="button"
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2"
+              className={`absolute top-1/2 -translate-y-1/2 ${isOwn ? "left-0 -translate-x-full pr-2" : "right-0 translate-x-full pl-2"}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleReply();
