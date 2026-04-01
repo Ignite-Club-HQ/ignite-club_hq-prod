@@ -345,6 +345,23 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 </div>
               </button>
             )}
+            {/* Swipe indicator behind bubble */}
+            {swipeState.offsetX > 5 && (
+              <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-0 flex items-center gap-1.5 pl-1"
+                style={{
+                  opacity: Math.min(swipeState.offsetX / 30, 1),
+                  transition: swipeState.isSwiping ? 'none' : 'opacity 0.2s ease-out',
+                }}
+              >
+                <Reply className={`h-4 w-4 transition-colors duration-100 ${swipeState.pastThreshold ? "text-primary" : "text-muted-foreground/60"}`} />
+                {swipeState.pastThreshold && (
+                  <span className="text-[10px] font-medium text-primary whitespace-nowrap animate-in fade-in-0 duration-100">
+                    Release to reply
+                  </span>
+                )}
+              </div>
+            )}
             {/* Swipe-to-reply wrapper */}
             <div
               style={{
