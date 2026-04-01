@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+
+const getInitialViewportHeight = () => {
+  if (typeof window === "undefined") return null;
+
+  return window.visualViewport?.height ?? window.innerHeight ?? null;
+};
 
 /**
  * Tracks the visual viewport height and returns a CSS height string
@@ -10,12 +16,15 @@ import { useEffect, useRef, useState } from "react";
  * inside chat threads when the keyboard is up.
  */
 export function useChatViewportHeight(headerOffset = "4rem") {
-  const [vpHeight, setVpHeight] = useState<number | null>(null);
+  const [vpHeight, setVpHeight] = useState<number | null>(getInitialViewportHeight);
   const rafRef = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const vv = window.visualViewport;
-    if (!vv) return;
+    if (!vv) {
+      setVpHeight(window.innerHeight);
+      return;
+    }
 
     const update = () => {
       cancelAnimationFrame(rafRef.current);
