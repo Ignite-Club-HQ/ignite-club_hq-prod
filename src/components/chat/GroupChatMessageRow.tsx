@@ -456,23 +456,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       );
                     })}
                   </div>
-                  <button
-                    type="button"
-                    className="w-full mt-1 text-xs text-muted-foreground py-1.5 rounded-md active:bg-accent"
-                    onTouchEnd={(e) => {
-                      if (preventIfGuarded(e)) return;
-                      e.stopPropagation();
-                      e.preventDefault();
-                      closeActionUi();
-                    }}
-                    onClick={(e) => {
-                      if (preventIfGuarded(e)) return;
-                      e.stopPropagation();
-                      closeActionUi();
-                    }}
-                  >
-                    Cancel
-                  </button>
                 </div>
               </div>
             </div>,
