@@ -415,7 +415,7 @@ export default function DirectMessagePage() {
 
   // Sync localMessages with fetched messages
   // Always update when we have fresh data (even if empty) to avoid stale optimistic messages
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (messages) {
       // If we have messages from the server, use them
       if (messages.length > 0) {
