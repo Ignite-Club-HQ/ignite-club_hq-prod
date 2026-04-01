@@ -333,8 +333,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleReply(msg);
                   resetReplyReveal();
+                  handleReply(msg);
                 }}
               >
                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">

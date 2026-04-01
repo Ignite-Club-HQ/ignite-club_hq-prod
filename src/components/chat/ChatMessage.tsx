@@ -410,6 +410,7 @@ export const ChatMessage = memo(function ChatMessage({
     longPressTimer.current = setTimeout(() => {
       if (gestureModeRef.current !== "press") return;
       longPressTriggeredRef.current = true;
+      resetReplyReveal();
       armDismissGuard();
       setShowMenu(true);
       setShowReactionPicker(true);
