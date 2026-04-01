@@ -157,6 +157,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     }
     setShowMenu(true);
     setShowReactionPicker(true);
+    setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
   useEffect(() => {
