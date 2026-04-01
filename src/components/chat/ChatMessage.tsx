@@ -402,9 +402,9 @@ export const ChatMessage = memo(function ChatMessage({
       console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
       longPressTriggeredRef.current = true;
       armDismissGuard();
-      setIsDropdownOpen(false);
       setShowMenu(true);
       setShowReactionPicker(true);
+      setShowActionSheet(true);
     }, 600);
   }, [armDismissGuard, id, messageType]);
 
@@ -432,8 +432,6 @@ export const ChatMessage = memo(function ChatMessage({
     e.preventDefault();
     e.stopPropagation();
 
-    // Re-arm the dismiss guard from finger-lift so it covers iOS Safari's
-    // delayed synthetic click event (~300-500ms after touchend)
     armDismissGuard();
 
     requestAnimationFrame(() => {
@@ -443,16 +441,13 @@ export const ChatMessage = memo(function ChatMessage({
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     if (addReactionMutation.isPending || removeReactionMutation.isPending) {
-      console.log('[Reaction] Blocked by isPending guard', { addPending: addReactionMutation.isPending, removePending: removeReactionMutation.isPending });
       return;
     }
 
-    // Clear all action UI and release guards immediately so the picker cannot reopen
-    // from a delayed onOpenChange/onTouchEnd sequence after reaction selection.
     clearDismissGuard();
     setShowReactionPicker(false);
     setShowMenu(false);
-    setIsDropdownOpen(false);
+    setShowActionSheet(false);
 
     if (existingReactionId) {
       removeReactionMutation.mutate(existingReactionId);
@@ -461,11 +456,6 @@ export const ChatMessage = memo(function ChatMessage({
 
     const latestReactions = getLatestReactions();
     const existingReaction = latestReactions.find((reaction) => reaction.user_id === currentUserId);
-    console.log('[Reaction] handleReactionClick', {
-      type,
-      existingReaction: existingReaction ? { id: existingReaction.id, type: existingReaction.reaction_type } : null,
-      willToggle: existingReaction?.reaction_type === type,
-    });
     addReactionMutation.mutate({
       reactionType: type,
       existingReaction,
@@ -475,19 +465,8 @@ export const ChatMessage = memo(function ChatMessage({
   const closeReactionPicker = useCallback(() => {
     clearDismissGuard();
     setShowReactionPicker(false);
-    if (!isDropdownOpen) {
-      setShowMenu(false);
-    }
-  }, [clearDismissGuard, isDropdownOpen]);
-
-
-
-
-  const openActionMenu = useCallback(() => {
-    clearDismissGuard();
-    setShowReactionPicker(false);
-    setShowMenu(true);
-    setIsDropdownOpen(true);
+    setShowMenu(false);
+    setShowActionSheet(false);
   }, [clearDismissGuard]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -495,8 +474,10 @@ export const ChatMessage = memo(function ChatMessage({
     if (consumeContextMenuGuard()) {
       return;
     }
-    openActionMenu();
-  }, [consumeContextMenuGuard, openActionMenu]);
+    setShowMenu(true);
+    setShowReactionPicker(true);
+    setShowActionSheet(true);
+  }, [consumeContextMenuGuard]);
 
   const handleReply = useCallback(() => {
     onReply?.({ id, text, authorName: authorName || null });
@@ -520,12 +501,11 @@ export const ChatMessage = memo(function ChatMessage({
     setShowReactionPicker(true);
   }, []);
 
-  const handleMenuOpenChange = useCallback((open: boolean) => {
-    setIsDropdownOpen(open);
-    if (!open) {
-      setShowMenu(false);
-    }
-  }, []);
+  // Swipe to reply
+  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
+    onReply: handleReply,
+    enabled: canReply,
+  });
 
   useEffect(() => {
     const handlePointerCancel = () => {
@@ -542,30 +522,6 @@ export const ChatMessage = memo(function ChatMessage({
       window.removeEventListener('pointercancel', handlePointerCancel, true);
     };
   }, [clearDismissGuard]);
-
-  useLayoutEffect(() => {
-    if (!showMenu || !bubbleRef.current) {
-      setMenuPosition(null);
-      return;
-    }
-
-    const updatePos = () => {
-      const rect = bubbleRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const top = rect.top;
-      const left = isOwn ? rect.left - 36 : rect.right + 4;
-      setMenuPosition({ top, left });
-    };
-
-    updatePos();
-    window.addEventListener("scroll", updatePos, true);
-    window.addEventListener("resize", updatePos);
-
-    return () => {
-      window.removeEventListener("scroll", updatePos, true);
-      window.removeEventListener("resize", updatePos);
-    };
-  }, [showMenu, isOwn]);
 
   // Get display name - never show placeholder text; hide name until profile loads
   const displayName = authorName || "";
