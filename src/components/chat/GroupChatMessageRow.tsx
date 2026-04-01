@@ -77,9 +77,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showReadReceipts, setShowReadReceipts] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showActionSheet, setShowActionSheet] = useState(false);
   const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -92,35 +91,18 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     preventIfGuarded,
   } = useLongPressDismissGuard();
 
-  const showActionTrigger = showMenu || showReactionPicker || isDropdownOpen;
-
   const closeActionUi = useCallback(() => {
     clearDismissGuard();
     setShowMenu(false);
     setShowReactionPicker(false);
-    setIsDropdownOpen(false);
+    setShowActionSheet(false);
   }, [clearDismissGuard]);
 
   const closeReactionPicker = useCallback(() => {
     clearDismissGuard();
     setShowReactionPicker(false);
-    if (!isDropdownOpen) {
-      setShowMenu(false);
-    }
-  }, [clearDismissGuard, isDropdownOpen]);
-
-  const handleDropdownOpenChange = useCallback((open: boolean) => {
-    setIsDropdownOpen(open);
-    if (!open) {
-      setShowMenu(false);
-    }
-  }, []);
-
-  const openActionMenu = useCallback(() => {
-    clearDismissGuard();
-    setShowReactionPicker(false);
-    setShowMenu(true);
-    setIsDropdownOpen(true);
+    setShowMenu(false);
+    setShowActionSheet(false);
   }, [clearDismissGuard]);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
@@ -129,9 +111,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     longPressTimer.current = setTimeout(() => {
       longPressTriggeredRef.current = true;
       armDismissGuard();
-      setIsDropdownOpen(false);
       setShowMenu(true);
       setShowReactionPicker(true);
+      setShowActionSheet(true);
     }, 600);
   }, [armDismissGuard]);
 
