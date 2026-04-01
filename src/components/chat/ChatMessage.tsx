@@ -533,11 +533,6 @@ export const ChatMessage = memo(function ChatMessage({
     setShowReactionPicker(true);
   }, []);
 
-  // Swipe to reply
-  const { swipeState, isSwipingRef, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
-    onReply: handleReply,
-    enabled: canReply,
-  });
 
   useEffect(() => {
     const handlePointerCancel = () => {

@@ -263,16 +263,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     };
   }, [isOwnMessage, showReactionPicker]);
 
-  // Swipe to reply
-  const handleSwipeReply = useCallback(() => {
-    handleReply(msg);
-  }, [handleReply, msg]);
-
-  const { swipeState, isSwipingRef, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
-    onReply: handleSwipeReply,
-    enabled: true,
-  });
-
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
   const avatarUrl = profile?.avatar_url || msg.author?.avatar_url || undefined;
