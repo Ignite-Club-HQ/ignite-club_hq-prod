@@ -106,6 +106,7 @@ export const ChatMessage = memo(function ChatMessage({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const longPressTriggeredRef = useRef(false);
+  const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
   const {

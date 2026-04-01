@@ -84,6 +84,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
   const {
     armDismissGuard,
     clearDismissGuard,
