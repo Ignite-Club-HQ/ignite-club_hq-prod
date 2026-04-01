@@ -1006,65 +1006,67 @@ export default function DirectMessagePage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
       >
-        <div className="p-4 space-y-4" style={{ paddingBottom: `${composerHeight + 16}px` }}>
-          {showLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : localMessages?.length === 0 ? (
-            <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
-          ) : (
-            localMessages
-              ?.filter((msg) => !searchQuery || msg.text.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((msg, index, filteredMessages) => {
-              const showDateSeparator = index === 0 || 
-                !isSameDay(new Date(msg.created_at), new Date(filteredMessages[index - 1]?.created_at));
+        <div className="p-4" style={{ paddingBottom: `${composerHeight + 16}px` }}>
+          <div className={`min-h-full flex flex-col ${!showLoading && (localMessages?.length || 0) > 0 ? "justify-end gap-4" : ""}`}>
+            {showLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : localMessages?.length === 0 ? (
+              <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
+            ) : (
+              localMessages
+                ?.filter((msg) => !searchQuery || msg.text.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((msg, index, filteredMessages) => {
+                const showDateSeparator = index === 0 || 
+                  !isSameDay(new Date(msg.created_at), new Date(filteredMessages[index - 1]?.created_at));
 
-              return (
-                <div key={msg.id}>
-                  {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
-                  <div
-                    id={`message-${msg.id}`}
-                    className={`transition-colors duration-500 ${
-                      highlightedMessageId === msg.id
-                        ? "bg-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background rounded-lg p-2"
-                        : ""
-                    }`}
-                  >
-                    <ChatMessage
-                      id={msg.id}
-                      text={msg.text}
-                      imageUrl={msg.image_url}
-                      authorId={msg.author_id}
-                      authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
-                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
-                      timestamp={format(new Date(msg.created_at), "h:mm a")}
-                      isOwn={msg.author_id === user?.id}
-                      isAdmin={false}
-                      reactions={msg.reactions || []}
-                      currentUserId={user?.id}
-                      messageType="dm"
-                      searchQuery={searchQuery}
-                      readFrontierReaders={readFrontier[msg.id] || []}
-                      readCount={readCounts[msg.id] || 0}
-                      readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
-                      isLastMessage={index === filteredMessages.length - 1}
-                      queryKey={dmQueryKey}
-                      contextId={conversationId || ""}
-                      replyToMessage={
-                        msg.reply_to
-                          ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
-                          : null
-                      }
-                      onReply={isIgniteSupportConversation ? undefined : () => setReplyTo(msg)}
-                      onEdit={handleEdit}
-                    />
+                return (
+                  <div key={msg.id}>
+                    {showDateSeparator && <ChatDateSeparator date={new Date(msg.created_at)} />}
+                    <div
+                      id={`message-${msg.id}`}
+                      className={`transition-colors duration-500 ${
+                        highlightedMessageId === msg.id
+                          ? "bg-primary/20 ring-2 ring-primary ring-offset-2 ring-offset-background rounded-lg p-2"
+                          : ""
+                      }`}
+                    >
+                      <ChatMessage
+                        id={msg.id}
+                        text={msg.text}
+                        imageUrl={msg.image_url}
+                        authorId={msg.author_id}
+                        authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
+                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
+                        timestamp={format(new Date(msg.created_at), "h:mm a")}
+                        isOwn={msg.author_id === user?.id}
+                        isAdmin={false}
+                        reactions={msg.reactions || []}
+                        currentUserId={user?.id}
+                        messageType="dm"
+                        searchQuery={searchQuery}
+                        readFrontierReaders={readFrontier[msg.id] || []}
+                        readCount={readCounts[msg.id] || 0}
+                        readerName={msg.author_id === user?.id ? (otherUser?.display_name || null) : null}
+                        isLastMessage={index === filteredMessages.length - 1}
+                        queryKey={dmQueryKey}
+                        contextId={conversationId || ""}
+                        replyToMessage={
+                          msg.reply_to
+                            ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
+                            : null
+                        }
+                        onReply={isIgniteSupportConversation ? undefined : () => setReplyTo(msg)}
+                        onEdit={handleEdit}
+                      />
+                    </div>
                   </div>
-                </div>
-              );
-            })
-          )}
-          <div ref={messagesEndRef} />
+                );
+              })
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
       </div>
 
