@@ -142,8 +142,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         onTouchStart={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="bg-popover border rounded-lg p-2 shadow-lg">
-          <div className="flex gap-1.5">
+        <div className="bg-popover/95 backdrop-blur-sm border border-border/50 rounded-2xl px-2 py-1.5 shadow-md animate-in fade-in slide-in-from-bottom-1 duration-100">
+          <div className="flex gap-1">
             {REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
@@ -171,7 +171,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   }}
                   onTouchStart={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
-                  className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 transition-colors active:bg-accent ${
+                  className={`inline-flex items-center justify-center h-9 w-9 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 ${
                     userHasReaction ? "bg-primary/20" : "hover:bg-accent"
                   }`}
                 >
@@ -180,25 +180,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
               );
             })}
           </div>
-          <button
-            type="button"
-            className="w-full mt-1 text-xs text-muted-foreground py-1.5 rounded-md active:bg-accent"
-            onTouchEnd={(e) => {
-              if (preventIfGuarded?.(e)) return;
-              e.stopPropagation();
-              e.preventDefault();
-              onOpenChange(false);
-            }}
-            onClick={(e) => {
-              if (preventIfGuarded?.(e)) return;
-              e.stopPropagation();
-              onOpenChange(false);
-            }}
-            onTouchStart={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            Cancel
-          </button>
         </div>
       </div>
     </div>,
