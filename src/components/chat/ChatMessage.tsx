@@ -519,7 +519,6 @@ export const ChatMessage = memo(function ChatMessage({
     }
     setShowMenu(true);
     setShowReactionPicker(true);
-    setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
 
