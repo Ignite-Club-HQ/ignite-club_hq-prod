@@ -91,7 +91,8 @@ export function MessageActionSheet({
         side="bottom"
         hideCloseButton
         enableDragToClose
-        className="px-0 pt-0 pb-0 rounded-t-2xl"
+        className="px-0 pt-0 pb-0 rounded-t-2xl z-[100002]"
+        style={{ zIndex: 100002 }}
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
         <div className="py-2">
