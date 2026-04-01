@@ -170,7 +170,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    touchStartPos.current = null;
 
     if (longPressTriggeredRef.current) {
       e.preventDefault();
