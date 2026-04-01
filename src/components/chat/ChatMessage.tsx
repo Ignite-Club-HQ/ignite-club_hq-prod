@@ -620,7 +620,7 @@ export const ChatMessage = memo(function ChatMessage({
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+              } ${tapFlash ? "brightness-110 ring-1 ring-primary/25" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
                 return {
