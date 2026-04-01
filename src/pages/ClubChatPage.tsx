@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
@@ -455,38 +455,49 @@ export default function ClubChatPage() {
     });
   }, [localMessages]);
 
-  // Scroll to bottom on initial load - poll until ScrollArea is ready
-  useEffect(() => {
-    if (!localMessages?.length) return;
-    if (hasInitialScrolled.current) return;
-    
+  // Scroll to bottom on initial load after layout/viewport settles
+  useLayoutEffect(() => {
+    if (!localMessages?.length || hasInitialScrolled.current) return;
+
     let attempts = 0;
-    const maxAttempts = 20; // Try for up to 2 seconds
-    
-    const tryScroll = () => {
-      attempts++;
-      
+    let retryTimeout = 0;
+    let settleTimeout = 0;
+    let firstFrame = 0;
+    let secondFrame = 0;
+
+    const applyScroll = () => {
+      const el = scrollAreaRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    };
+
+    const pinToBottom = () => {
       if (!scrollAreaRef.current) {
-        if (attempts < maxAttempts) {
-          setTimeout(tryScroll, 100);
+        attempts += 1;
+        if (attempts < 20) {
+          retryTimeout = window.setTimeout(pinToBottom, 100);
         }
         return;
       }
-      
+
       hasInitialScrolled.current = true;
       setInfiniteScrollEnabled(true);
-      
-      const el = scrollAreaRef.current;
-      el.scrollTop = el.scrollHeight;
-      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
-      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 150);
-      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 300);
-      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 500);
+
+      firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(applyScroll);
+      });
+      settleTimeout = window.setTimeout(applyScroll, 80);
     };
-    
-    // Start polling
-    tryScroll();
-  }, [localMessages]);
+
+    pinToBottom();
+
+    return () => {
+      window.clearTimeout(retryTimeout);
+      window.clearTimeout(settleTimeout);
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+    };
+  }, [localMessages?.length, clubId]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
