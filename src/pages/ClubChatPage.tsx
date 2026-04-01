@@ -1101,7 +1101,7 @@ export default function ClubChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight, paddingBottom: isKeyboardOpen ? 0 : "calc(var(--bottom-nav-offset, 0px) + 1rem)" }}>
+    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -1179,7 +1179,7 @@ export default function ClubChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? 4 : "7rem" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "3.5rem" : "calc(var(--bottom-nav-offset, 0px) + 3.5rem)" }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />
