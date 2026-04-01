@@ -902,7 +902,7 @@ export default function DirectMessagePage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -911,7 +911,7 @@ export default function DirectMessagePage() {
               <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
                 <Flame className="h-5 w-5 text-white" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h1 className="font-semibold">Ignite Support</h1>
                 <p className="text-xs text-muted-foreground">Welcome & tips</p>
               </div>
@@ -922,22 +922,22 @@ export default function DirectMessagePage() {
                 <AvatarImage src={otherUser?.avatar_url || undefined} />
                 <AvatarFallback>{otherUser?.display_name?.charAt(0).toUpperCase() || "?"}</AvatarFallback>
               </Avatar>
-              <div>
+              <div className="min-w-0">
                 <h1 className="font-semibold">{otherUser?.display_name || "Unknown User"}</h1>
               </div>
             </>
           )}
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)}>
+            <Search className="h-4 w-4" />
+          </Button>
+          {!isIgniteSupportConversation && (
+            <ChatMuteButton chatType="dm" chatId={conversationId!} />
+          )}
           <ChatHeaderMenu
-            chatType="dm"
-            chatId={conversationId!}
-            onSearchOpen={() => setSearchOpen(true)}
-            showMembers={false}
-            showMute={!isIgniteSupportConversation}
             onRefresh={handleManualRefresh}
             isRefreshing={isAnyRefreshing}
-            isNativePlatform={isNativePlatform}
           />
         </div>
       </div>

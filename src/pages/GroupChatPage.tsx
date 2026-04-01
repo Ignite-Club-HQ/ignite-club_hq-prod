@@ -1322,18 +1322,22 @@ export default function GroupChatPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-semibold truncate">{group.name}</h1>
-        </div>
+        <button
+          className="flex items-center gap-3 flex-1 min-w-0 active:opacity-70 transition-opacity"
+          onClick={() => setMembersOpen(true)}
+        >
+          <div className="flex-1 min-w-0 text-left">
+            <h1 className="font-semibold truncate">{group.name}</h1>
+          </div>
+        </button>
         <div className="flex items-center shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)}>
+            <Search className="h-4 w-4" />
+          </Button>
+          <ChatMuteButton chatType="group" chatId={groupId!} />
           <ChatHeaderMenu
-            chatType="group"
-            chatId={groupId!}
-            onSearchOpen={() => setSearchOpen(true)}
-            onMembersOpen={() => setMembersOpen(true)}
             onRefresh={handleManualRefresh}
             isRefreshing={isAnyRefreshing}
-            isNativePlatform={isNativePlatform}
             onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
             onDeleteGroup={isAdmin ? () => setShowDeleteGroupDialog(true) : undefined}
           />

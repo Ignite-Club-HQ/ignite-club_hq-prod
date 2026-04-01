@@ -1102,24 +1102,28 @@ export default function ClubChatPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={club?.logo_url || undefined} />
-          <AvatarFallback className="bg-secondary text-secondary-foreground">
-            {club?.name?.charAt(0)?.toUpperCase() || "C"}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-semibold truncate">{club?.name || "Club"}</h1>
-        </div>
+        <button
+          className="flex items-center gap-3 flex-1 min-w-0 active:opacity-70 transition-opacity"
+          onClick={() => setMembersOpen(true)}
+        >
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={club?.logo_url || undefined} />
+            <AvatarFallback className="bg-secondary text-secondary-foreground">
+              {club?.name?.charAt(0)?.toUpperCase() || "C"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0 text-left">
+            <h1 className="font-semibold truncate">{club?.name || "Club"}</h1>
+          </div>
+        </button>
         <div className="flex items-center shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)}>
+            <Search className="h-4 w-4" />
+          </Button>
+          <ChatMuteButton chatType="club" chatId={clubId!} />
           <ChatHeaderMenu
-            chatType="club"
-            chatId={clubId!}
-            onSearchOpen={() => setSearchOpen(true)}
-            onMembersOpen={() => setMembersOpen(true)}
             onRefresh={handleManualRefresh}
             isRefreshing={isAnyRefreshing}
-            isNativePlatform={isNativePlatform}
           />
           <ChatMembersSheet
             chatType="club"
