@@ -1008,7 +1008,7 @@ export default function DirectMessagePage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
       >
-        <div className="p-4" style={{ paddingBottom: isKeyboardOpen ? "1rem" : `${Math.max(112, composerHeight + 16)}px` }}>
+        <div className="p-4" style={{ paddingBottom: isKeyboardOpen ? 4 : `${Math.max(112, composerHeight + 16)}px` }}>
           <div className={`min-h-full flex flex-col ${!showLoading && (localMessages?.length || 0) > 0 ? "justify-end gap-4" : ""}`}>
             {showLoading ? (
               <div className="flex justify-center py-8">

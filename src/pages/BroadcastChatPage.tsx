@@ -917,7 +917,7 @@ export default function BroadcastChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "1rem" : "7rem" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? 4 : "7rem" }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />
