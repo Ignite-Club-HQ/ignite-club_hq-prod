@@ -230,7 +230,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       const topBoundary = viewportOffsetTop + 72;
       const composerSafeZone = 140;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - composerSafeZone;
-      const gap = 12;
+      const gap = 6;
 
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
