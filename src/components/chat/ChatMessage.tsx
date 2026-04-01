@@ -609,12 +609,12 @@ export const ChatMessage = memo(function ChatMessage({
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/40" : ""}`}
+              } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/50" : ""}`}
               style={isInteracting ? {
                 boxShadow: isOwn
-                  ? '0 2px 8px -2px hsl(var(--primary) / 0.15)'
-                  : '0 1px 4px -1px rgba(0,0,0,0.06)',
-                filter: isOwn ? 'brightness(1.08)' : 'brightness(0.97)',
+                  ? '0 2px 12px -2px hsl(var(--primary) / 0.25), 0 0 16px -4px hsl(var(--primary) / 0.15)'
+                  : '0 2px 10px -2px hsl(var(--primary) / 0.2), 0 0 12px -4px hsl(var(--primary) / 0.1)',
+                filter: isOwn ? 'brightness(1.08) dark:brightness(1.2)' : 'brightness(0.97) dark:brightness(1.15)',
               } : undefined}
             >
               <div className="text-sm">

@@ -331,12 +331,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`rounded-lg px-3 py-2 select-none transition-all duration-100 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/40" : ""}`}
+                } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/50" : ""}`}
                 style={isInteracting ? {
                   boxShadow: isOwnMessage
-                    ? '0 2px 8px -2px hsl(var(--primary) / 0.15)'
-                    : '0 1px 4px -1px rgba(0,0,0,0.06)',
-                  filter: isOwnMessage ? 'brightness(1.08)' : 'brightness(0.97)',
+                    ? '0 2px 12px -2px hsl(var(--primary) / 0.25), 0 0 16px -4px hsl(var(--primary) / 0.15)'
+                    : '0 2px 10px -2px hsl(var(--primary) / 0.2), 0 0 12px -4px hsl(var(--primary) / 0.1)',
+                  filter: isOwnMessage ? 'brightness(1.08) dark:brightness(1.2)' : 'brightness(0.97) dark:brightness(1.15)',
                 } : undefined}
               >
                 {msg.image_url && (
