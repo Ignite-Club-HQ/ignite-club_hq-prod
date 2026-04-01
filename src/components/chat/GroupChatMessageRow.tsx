@@ -121,7 +121,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       armDismissGuard();
       setShowMenu(true);
       setShowReactionPicker(true);
-      setShowActionSheet(true);
     }, 600);
   }, [armDismissGuard]);
 
@@ -171,7 +170,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    touchStartPos.current = null;
 
     if (longPressTriggeredRef.current) {
       e.preventDefault();
@@ -180,8 +178,15 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
+    } else if (gestureModeRef.current === "press" && touchStartPos.current) {
+      // Short tap — open action sheet only
+      e.preventDefault();
+      e.stopPropagation();
+      setShowMenu(true);
+      setShowActionSheet(true);
     }
 
+    touchStartPos.current = null;
     gestureModeRef.current = "idle";
   }, [armDismissGuard, swipeToReplyHandlers]);
 
@@ -192,7 +197,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     }
     setShowMenu(true);
     setShowReactionPicker(true);
-    setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
   useEffect(() => {

@@ -416,7 +416,6 @@ export const ChatMessage = memo(function ChatMessage({
       armDismissGuard();
       setShowMenu(true);
       setShowReactionPicker(true);
-      setShowActionSheet(true);
     }, 600);
   }, [armDismissGuard]);
 
@@ -462,7 +461,6 @@ export const ChatMessage = memo(function ChatMessage({
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    touchStartPos.current = null;
 
     if (longPressTriggeredRef.current) {
       e.preventDefault();
@@ -471,8 +469,15 @@ export const ChatMessage = memo(function ChatMessage({
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
+    } else if (gestureModeRef.current === "press" && touchStartPos.current) {
+      // Short tap — open action sheet only
+      e.preventDefault();
+      e.stopPropagation();
+      setShowMenu(true);
+      setShowActionSheet(true);
     }
 
+    touchStartPos.current = null;
     gestureModeRef.current = "idle";
   }, [armDismissGuard, swipeToReplyHandlers]);
 
@@ -513,7 +518,6 @@ export const ChatMessage = memo(function ChatMessage({
     }
     setShowMenu(true);
     setShowReactionPicker(true);
-    setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
 
