@@ -126,8 +126,13 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     }, 400);
   }, [armDismissGuard]);
 
+  const handleReplyAction = useCallback(() => {
+    handleReply(msg);
+  }, [handleReply, msg]);
+
   const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
     enabled: true,
+    onReply: handleReplyAction,
   });
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -340,34 +345,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 </div>
               </button>
             )}
-            {/* Swipe background tint */}
-            {swipeState.offsetX > 0 && (
-              <div
-                className="absolute inset-0 rounded-lg pointer-events-none z-0"
-                style={{
-                  background: `hsl(var(--primary) / ${Math.min(swipeState.offsetX / 200, 0.08)})`,
-                  transition: swipeState.isSwiping ? 'none' : 'background 0.3s ease-out',
-                }}
-              />
-            )}
-            {/* Swipe reply icon — visible during swipe */}
-            {swipeState.offsetX > 0 && (
-              <div
-                className="absolute left-0 top-1/2 pointer-events-none z-0 flex items-center gap-1"
-                style={{
-                  opacity: Math.min(swipeState.offsetX / 50, 1),
-                  transform: `translateY(-50%) scale(${Math.min(0.5 + (swipeState.offsetX / 80) * 0.5, 1)})`,
-                  transition: swipeState.isSwiping ? 'none' : 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                }}
-              >
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center transition-all duration-150 ${swipeState.isReplyRevealed ? "bg-primary/25 scale-110" : "bg-primary/10"}`}>
-                  <Reply className={`h-4 w-4 transition-all duration-150 ${swipeState.isReplyRevealed ? "text-primary -scale-x-100" : "text-muted-foreground"}`} />
-                </div>
-                {swipeState.isReplyRevealed && (
-                  <span className="text-[10px] font-medium text-primary animate-in fade-in-0 zoom-in-90 duration-150">Reply</span>
-                )}
-              </div>
-            )}
             {/* Swipe-to-reply wrapper */}
             <div
               style={{
@@ -404,22 +381,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 <MessageContent text={msg.text} />
               </div>
             </div>
-            {/* Swipe reply revealed button */}
-            {swipeState.isReplyRevealed && (
-              <button
-                type="button"
-                className={`absolute top-1/2 -translate-y-1/2 ${isOwnMessage ? "left-0 -translate-x-full pr-2" : "right-0 translate-x-full pl-2"}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  resetReplyReveal();
-                  handleReply(msg);
-                }}
-              >
-                <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center animate-in zoom-in-75 duration-150">
-                  <Reply className="h-4 w-4 text-primary" />
-                </div>
-              </button>
-            )}
           </div>
 
           {isOwnMessage && frontierReaders.length > 0 ? (
