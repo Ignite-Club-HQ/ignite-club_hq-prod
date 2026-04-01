@@ -253,6 +253,7 @@ export default function ClubAdminChatPage() {
 
   useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
+    bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: conversationId,
   });
