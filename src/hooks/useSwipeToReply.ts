@@ -91,6 +91,7 @@ export function useSwipeToReply({
       isSwiping: false,
       isReplyRevealed: current.isReplyRevealed,
     }));
+    hapticFiredRef.current = false;
     touchRef.current = null;
   }, []);
 
