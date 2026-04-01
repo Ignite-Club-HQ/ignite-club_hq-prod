@@ -394,14 +394,15 @@ export const ChatMessage = memo(function ChatMessage({
       toast.error("Failed to delete message");
     },
   });
+  // Swipe to reply
+  const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
+    enabled: canReply,
+  });
+
   const handleReply = useCallback(() => {
     resetReplyReveal();
     onReply?.({ id, text, authorName: authorName || null });
   }, [onReply, id, text, authorName, resetReplyReveal]);
-
-  const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
-    enabled: canReply,
-  });
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     gestureModeRef.current = "press";
