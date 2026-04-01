@@ -605,11 +605,11 @@ export const ChatMessage = memo(function ChatMessage({
           >
             <div
               ref={bubbleRef}
-              className={`relative rounded-2xl px-4 py-2 select-none ${
+              className={`relative rounded-2xl px-4 py-2 select-none transition-all duration-150 ${
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              }`}
+              } ${isInteracting ? "scale-[1.02] shadow-lg ring-2 ring-primary/20" : ""}`}
             >
               <div className="text-sm">
                 <MessageContent 
