@@ -121,7 +121,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       armDismissGuard();
       setShowMenu(true);
       setShowReactionPicker(true);
-      setShowActionSheet(true);
     }, 600);
   }, [armDismissGuard]);
 
