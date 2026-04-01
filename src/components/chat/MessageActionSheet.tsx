@@ -90,8 +90,9 @@ export function MessageActionSheet({
       <SheetContent
         side="bottom"
         hideCloseButton
+        hideOverlay
         enableDragToClose
-        className="px-0 pt-0 pb-0 rounded-t-2xl z-[100002]"
+        className="px-0 pt-0 pb-0 rounded-t-2xl"
         style={{ zIndex: 100002 }}
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
