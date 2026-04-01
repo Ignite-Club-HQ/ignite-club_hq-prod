@@ -280,7 +280,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     >
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 bg-black/[0.12] z-[99999] pointer-events-none animate-fade-in"
+          className="fixed inset-0 bg-black/[0.12] dark:bg-black/[0.12] bg-black/[0.22] z-[99999] pointer-events-none animate-fade-in"
           style={{ animationDuration: '120ms' }}
         />,
         document.body
