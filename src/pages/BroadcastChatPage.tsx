@@ -70,6 +70,7 @@ export default function BroadcastChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const chatHeight = useChatViewportHeight();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
 
