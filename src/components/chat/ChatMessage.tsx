@@ -461,7 +461,6 @@ export const ChatMessage = memo(function ChatMessage({
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    touchStartPos.current = null;
 
     if (longPressTriggeredRef.current) {
       e.preventDefault();
