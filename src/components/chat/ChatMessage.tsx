@@ -609,19 +609,13 @@ export const ChatMessage = memo(function ChatMessage({
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/50" : ""}`}
+              } ${isInteracting ? "scale-[1.01] border border-primary/30 dark:border-primary/40" : "border border-transparent"}`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
                 return {
-                  boxShadow: isDark
-                    ? (isOwn
-                      ? '0 2px 16px -2px hsl(var(--primary) / 0.35), 0 0 20px -4px hsl(var(--primary) / 0.2)'
-                      : '0 2px 14px -2px hsl(var(--primary) / 0.3), 0 0 16px -4px hsl(var(--primary) / 0.15)')
-                    : (isOwn
-                      ? '0 2px 8px -2px hsl(var(--primary) / 0.15)'
-                      : '0 1px 4px -1px rgba(0,0,0,0.06)'),
+                  boxShadow: '0 1px 3px 0 rgba(0,0,0,0.12), 0 1px 2px -1px rgba(0,0,0,0.08)',
                   filter: isDark
-                    ? (isOwn ? 'brightness(1.2) saturate(1.1)' : 'brightness(1.25)')
+                    ? (isOwn ? 'brightness(1.12) saturate(1.05)' : 'brightness(1.12)')
                     : (isOwn ? 'brightness(1.08)' : 'brightness(0.97)'),
                 };
               })() : undefined}
