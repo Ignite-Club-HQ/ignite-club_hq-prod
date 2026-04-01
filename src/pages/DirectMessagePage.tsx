@@ -148,6 +148,30 @@ export default function DirectMessagePage() {
   // Check if this is a conversation with Ignite Support (system user)
   const isIgniteSupportConversation = isIgniteSupportUser(otherUserId);
 
+  useLayoutEffect(() => {
+    const composerEl = composerRef.current;
+    if (!composerEl) return;
+
+    const measure = () => {
+      const nextHeight = Math.max(56, Math.ceil(composerEl.getBoundingClientRect().height));
+      setComposerHeight(nextHeight);
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(measure);
+    });
+
+    observer.observe(composerEl);
+    return () => observer.disconnect();
+  }, [isIgniteSupportConversation, replyTo, editingMessage]);
+
   // Fetch other participant's profile
   const { data: otherUser } = useQuery({
     queryKey: ["dm-other-user", otherUserId],
