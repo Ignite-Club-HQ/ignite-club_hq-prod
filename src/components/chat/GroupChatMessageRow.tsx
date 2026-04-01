@@ -329,9 +329,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`rounded-lg px-3 py-2 select-none ${
+                className={`rounded-lg px-3 py-2 select-none transition-all duration-150 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                }`}
+                } ${isInteracting ? "scale-[1.02] shadow-lg ring-2 ring-primary/20" : ""}`}
               >
                 {msg.image_url && (
                   <img src={msg.image_url} alt="Attachment" className="max-w-xs rounded mb-2" />
