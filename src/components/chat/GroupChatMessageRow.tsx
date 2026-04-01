@@ -2,8 +2,7 @@ import { memo, useState, useRef, useCallback, useEffect, useLayoutEffect } from 
 import { createPortal } from "react-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Pencil, Trash2, Reply, Clock } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Reply, Clock } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
