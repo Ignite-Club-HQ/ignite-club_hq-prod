@@ -176,7 +176,7 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
 
     return (
       <SheetPortal>
-        <SheetOverlay />
+        {!hideOverlay && <SheetOverlay />}
         <SheetPrimitive.Content 
           ref={setContentRefs}
           className={cn(sheetVariants({ side }), className)} 
