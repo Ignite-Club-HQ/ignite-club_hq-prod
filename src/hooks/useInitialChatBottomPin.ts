@@ -1,5 +1,7 @@
 import { RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
+import { resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
+
 interface UseInitialChatBottomPinOptions {
   scrollContainerRef: RefObject<HTMLElement>;
   bottomAnchorRef?: RefObject<HTMLElement>;
@@ -31,14 +33,15 @@ export function useInitialChatBottomPin({
   useLayoutEffect(() => {
     if (!enabled || itemCount <= 0 || hasPinnedRef.current) return;
 
-    const el = scrollContainerRef.current;
-    if (!el) return;
+    const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+    if (!viewport) return;
 
     hasPinnedRef.current = true;
 
     let firstFrame = 0;
     let secondFrame = 0;
-    let disconnectTimeout = 0;
+    let settleTimeout = 0;
+    let maxTimeout = 0;
     let resizeObserver: ResizeObserver | null = null;
     let didNotifyPinned = false;
 
@@ -49,19 +52,30 @@ export function useInitialChatBottomPin({
     };
 
     const snapToBottom = () => {
-      const anchor = bottomAnchorRef?.current;
-      if (anchor) {
-        anchor.scrollIntoView({ block: "end" });
-        return;
-      }
+      scrollChatToBottom(scrollContainerRef.current);
+    };
 
-      const target = scrollContainerRef.current;
-      if (!target) return;
-      target.scrollTop = Math.max(0, target.scrollHeight - target.clientHeight);
+    const disconnectObserver = () => {
+      resizeObserver?.disconnect();
+      resizeObserver = null;
+    };
+
+    const finalizePin = () => {
+      snapToBottom();
+      disconnectObserver();
+      notifyPinned();
+    };
+
+    const scheduleSettle = () => {
+      window.clearTimeout(settleTimeout);
+      settleTimeout = window.setTimeout(() => {
+        finalizePin();
+      }, 120);
     };
 
     snapToBottom();
     firstFrame = requestAnimationFrame(() => {
+      snapToBottom();
       secondFrame = requestAnimationFrame(() => {
         snapToBottom();
 
@@ -74,28 +88,33 @@ export function useInitialChatBottomPin({
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(() => {
         snapToBottom();
+        scheduleSettle();
       });
 
-      resizeObserver.observe(el);
+      resizeObserver.observe(viewport);
 
-      const content = el.firstElementChild;
+      const content = viewport.firstElementChild;
       if (content instanceof HTMLElement) {
         resizeObserver.observe(content);
       }
 
-      disconnectTimeout = window.setTimeout(() => {
-        snapToBottom();
-        resizeObserver?.disconnect();
-        resizeObserver = null;
-        notifyPinned();
-      }, 250);
+      const anchor = bottomAnchorRef?.current;
+      if (anchor) {
+        resizeObserver.observe(anchor);
+      }
+
+      scheduleSettle();
+      maxTimeout = window.setTimeout(() => {
+        finalizePin();
+      }, 1200);
     }
 
     return () => {
       cancelAnimationFrame(firstFrame);
       cancelAnimationFrame(secondFrame);
-      window.clearTimeout(disconnectTimeout);
-      resizeObserver?.disconnect();
+      window.clearTimeout(settleTimeout);
+      window.clearTimeout(maxTimeout);
+      disconnectObserver();
     };
   }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
 }

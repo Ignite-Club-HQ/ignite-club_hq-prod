@@ -38,6 +38,7 @@ import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -118,9 +119,7 @@ export default function ClubChatPage() {
   
   // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
-    if (!scrollAreaRef.current) return;
-    
-    scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    scrollChatToBottom(scrollAreaRef.current);
   }, []);
 
   // Scroll to bottom when keyboard opens

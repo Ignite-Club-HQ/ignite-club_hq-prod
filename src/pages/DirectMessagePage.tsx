@@ -33,6 +33,7 @@ import { useMessageReads } from "@/hooks/useMessageReads";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { getChatScrollMetrics, scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -99,8 +100,7 @@ export default function DirectMessagePage() {
   const [composerHeight, setComposerHeight] = useState(112);
   
   const scrollToBottom = useCallback(() => {
-    if (!scrollAreaRef.current) return;
-    scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    scrollChatToBottom(scrollAreaRef.current);
   }, []);
 
   // Scroll to bottom when keyboard opens
@@ -352,16 +352,15 @@ export default function DirectMessagePage() {
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
 
   useLayoutEffect(() => {
-    const el = scrollAreaRef.current;
-    if (!el) return;
+    const metrics = getChatScrollMetrics(scrollAreaRef.current);
+    if (!metrics) return;
 
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const distanceFromBottom = metrics.distanceFromBottom;
     const shouldStickToBottom = distanceFromBottom <= Math.max(220, composerHeight + 32);
     if (!shouldStickToBottom) return;
 
     requestAnimationFrame(() => {
-      if (!scrollAreaRef.current) return;
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+      scrollChatToBottom(scrollAreaRef.current);
     });
   }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
   

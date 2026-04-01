@@ -24,6 +24,7 @@ import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { Capacitor } from "@capacitor/core";
+import { scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -77,8 +78,7 @@ export default function ClubAdminChatPage() {
   const isNativePlatform = Capacitor.isNativePlatform();
 
   const scrollToBottom = useCallback(() => {
-    if (!scrollAreaRef.current) return;
-    scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    scrollChatToBottom(scrollAreaRef.current);
   }, []);
 
   // Scroll to bottom when keyboard opens
