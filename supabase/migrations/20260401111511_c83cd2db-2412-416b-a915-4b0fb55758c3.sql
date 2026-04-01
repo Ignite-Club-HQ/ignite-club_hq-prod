@@ -1,0 +1,1 @@
+UPDATE role_requests SET status = 'pending', updated_at = now() WHERE id = '1d3143c8-220c-4b32-a15b-1c37b892abe0';
