@@ -97,7 +97,7 @@ interface SheetContentProps
 }
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, hideCloseButton, style, enableDragToClose = false, dragCloseThreshold = 96, ...props }, ref) => {
+  ({ side = "right", className, children, hideCloseButton, hideOverlay, style, enableDragToClose = false, dragCloseThreshold = 96, ...props }, ref) => {
     const { open: isSheetOpen, onOpenChange } = React.useContext(SheetOpenContext);
     const dragStartYRef = React.useRef(0);
     const [dragOffsetY, setDragOffsetY] = React.useState(0);
