@@ -278,76 +278,48 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           )}
 
           <div className="relative">
+            {/* Swipe-to-reply wrapper */}
             <div
-              ref={bubbleRef}
-              className={`rounded-lg px-3 py-2 select-none ${
-                isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-              }`}
-              onTouchStart={handleLongPressStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleLongPressEnd}
+              style={{
+                transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
+                transition: swipeState.isSwiping ? 'none' : 'transform 0.2s ease-out',
+              }}
+              onTouchStart={(e) => {
+                handleLongPressStart(e);
+                swipeToReplyHandlers.onTouchStart(e);
+              }}
+              onTouchMove={(e) => {
+                handleTouchMove(e);
+                swipeToReplyHandlers.onTouchMove(e);
+              }}
+              onTouchEnd={(e) => {
+                handleLongPressEnd(e);
+                swipeToReplyHandlers.onTouchEnd();
+              }}
               onContextMenu={handleContextMenu}
             >
-              {msg.image_url && (
-                <img src={msg.image_url} alt="Attachment" className="max-w-xs rounded mb-2" />
-              )}
-              <MessageContent text={msg.text} />
-            </div>
-
-            {showActionTrigger && menuPosition && createPortal(
               <div
-                className="fixed z-[100002]"
-                style={{ top: menuPosition.top, left: menuPosition.left }}
-                data-menu-trigger="true"
+                ref={bubbleRef}
+                className={`rounded-lg px-3 py-2 select-none ${
+                  isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
+                }`}
               >
-                <DropdownMenu open={isDropdownOpen} onOpenChange={handleDropdownOpenChange}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 min-h-[32px] min-w-[32px] bg-background/80 backdrop-blur-sm shadow-sm"
-                      onPointerDown={(e) => {
-                        if (preventIfGuarded(e)) return;
-                        e.stopPropagation();
-                      }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (preventIfGuarded(e)) return;
-                        openActionMenu();
-                      }}
-                      onTouchStart={(e) => e.stopPropagation()}
-                    >
-                      <MoreVertical className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align={isOwnMessage ? "end" : "start"}
-                    side="top"
-                    collisionPadding={16}
-                    className="z-[100003] bg-popover border"
-                    onCloseAutoFocus={(e) => e.preventDefault()}
-                  >
-                    <DropdownMenuItem onClick={() => { handleReply(msg); closeActionUi(); }}>
-                      <Reply className="h-4 w-4 mr-2" /> Reply
-                    </DropdownMenuItem>
-                    {isOwnMessage && (
-                      <DropdownMenuItem onClick={() => { handleEdit(msg); closeActionUi(); }}>
-                        <Pencil className="h-4 w-4 mr-2" /> Edit
-                      </DropdownMenuItem>
-                    )}
-                    {(isOwnMessage || isAdmin) && (
-                      <DropdownMenuItem
-                        onClick={() => { setShowDeleteConfirm(true); closeActionUi(); }}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>,
-              document.body
+                {msg.image_url && (
+                  <img src={msg.image_url} alt="Attachment" className="max-w-xs rounded mb-2" />
+                )}
+                <MessageContent text={msg.text} />
+              </div>
+            </div>
+            {/* Swipe reply icon indicator */}
+            {swipeState.offsetX > 10 && (
+              <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2"
+                style={{ opacity: Math.min(1, swipeState.offsetX / 80) }}
+              >
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Reply className="h-4 w-4 text-primary" />
+                </div>
+              </div>
             )}
           </div>
 
