@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect, memo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, Reply, Clock, ShieldAlert, Flag, Megaphone } from "lucide-react";
+import { Reply, Clock, Megaphone } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
