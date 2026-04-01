@@ -63,11 +63,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
       const rootStyles = getComputedStyle(document.documentElement);
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-      const pickerWidth = 244;
-      const pickerHeight = 52;
+      const minPickerWidth = 244;
+      const pickerWidth = Math.max(minPickerWidth, Math.min(rect.width, 320));
+      const pickerHeight = 44;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 4;
+      const gap = 2;
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
       const showBelow = spaceAbove < pickerHeight && spaceBelow >= pickerHeight + gap;
@@ -83,7 +84,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       let left = isOwnMessage ? rect.right - pickerWidth : rect.left;
       left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
 
-      setPosition({ top, left });
+      setPosition({ top, left, width: pickerWidth });
     };
 
     updatePosition();
