@@ -37,9 +37,6 @@ export function useInitialChatBottomPin({
 
     let firstFrame = 0;
     let secondFrame = 0;
-    let settleTimeout = 0;
-    let fallbackTimeout = 0;
-    let observer: ResizeObserver | null = null;
 
     const snapToBottom = () => {
       const target = scrollContainerRef.current;
@@ -47,56 +44,14 @@ export function useInitialChatBottomPin({
       target.scrollTop = target.scrollHeight;
     };
 
-    const scheduleSnap = () => {
-      cancelAnimationFrame(firstFrame);
-      cancelAnimationFrame(secondFrame);
-
-      firstFrame = requestAnimationFrame(() => {
-        secondFrame = requestAnimationFrame(snapToBottom);
-      });
-    };
-
-    const finishSoon = () => {
-      window.clearTimeout(settleTimeout);
-      settleTimeout = window.setTimeout(() => {
-        observer?.disconnect();
-      }, 240);
-    };
-
-    scheduleSnap();
-    fallbackTimeout = window.setTimeout(() => {
-      scheduleSnap();
-      finishSoon();
-    }, 120);
-
-    if (typeof ResizeObserver !== "undefined") {
-      observer = new ResizeObserver(() => {
-        scheduleSnap();
-        finishSoon();
-      });
-
-      observer.observe(el);
-
-      const contentEl = el.firstElementChild;
-      if (contentEl instanceof HTMLElement) {
-        observer.observe(contentEl);
-      }
-    }
-
-    const handleViewportResize = () => {
-      scheduleSnap();
-      finishSoon();
-    };
-
-    window.visualViewport?.addEventListener("resize", handleViewportResize);
+    snapToBottom();
+    firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(snapToBottom);
+    });
 
     return () => {
       cancelAnimationFrame(firstFrame);
       cancelAnimationFrame(secondFrame);
-      window.clearTimeout(settleTimeout);
-      window.clearTimeout(fallbackTimeout);
-      observer?.disconnect();
-      window.visualViewport?.removeEventListener("resize", handleViewportResize);
     };
   }, [enabled, itemCount, resetKey, scrollContainerRef]);
 }
