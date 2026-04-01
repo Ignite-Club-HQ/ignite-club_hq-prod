@@ -114,6 +114,30 @@ export default function DirectMessagePage() {
     return () => vv.removeEventListener("resize", handleResize);
   }, [scrollToBottom]);
 
+  useLayoutEffect(() => {
+    const composerEl = composerRef.current;
+    if (!composerEl) return;
+
+    const measure = () => {
+      const nextHeight = Math.max(56, Math.ceil(composerEl.getBoundingClientRect().height));
+      setComposerHeight(nextHeight);
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(measure);
+    });
+
+    observer.observe(composerEl);
+    return () => observer.disconnect();
+  }, [isIgniteSupportConversation, replyTo, editingMessage]);
+
   const targetMessageId = searchParams.get("message");
 
   useEffect(() => {
