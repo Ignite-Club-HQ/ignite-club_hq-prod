@@ -185,11 +185,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       e.preventDefault();
       e.stopPropagation();
       setTapFlash(true);
+      if (navigator.vibrate) navigator.vibrate(6);
       setTimeout(() => {
         setTapFlash(false);
         setShowMenu(true);
         setShowActionSheet(true);
-      }, 120);
+      }, 200);
     }
 
     touchStartPos.current = null;
@@ -386,7 +387,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`rounded-lg px-3 py-2 select-none transition-all duration-100 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                } ${tapFlash ? "brightness-110 ring-1 ring-primary/25" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+                } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
                   const isDark = document.documentElement.classList.contains('dark');
                   return {

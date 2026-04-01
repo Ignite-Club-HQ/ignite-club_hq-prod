@@ -477,11 +477,12 @@ export const ChatMessage = memo(function ChatMessage({
       e.preventDefault();
       e.stopPropagation();
       setTapFlash(true);
+      if (navigator.vibrate) navigator.vibrate(6);
       setTimeout(() => {
         setTapFlash(false);
         setShowMenu(true);
         setShowActionSheet(true);
-      }, 120);
+      }, 200);
     }
 
     touchStartPos.current = null;
@@ -664,7 +665,7 @@ export const ChatMessage = memo(function ChatMessage({
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${tapFlash ? "brightness-110 ring-1 ring-primary/25" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+              } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
                 return {
