@@ -510,10 +510,6 @@ export const ChatMessage = memo(function ChatMessage({
     onReply?.({ id, text, authorName: authorName || null });
   }, [onReply, id, text, authorName]);
 
-  const handleReply = useCallback(() => {
-    onReply?.({ id, text, authorName: authorName || null });
-  }, [onReply, id, text, authorName]);
-
   // Swipe to reply
   const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
     onReply: handleReply,
