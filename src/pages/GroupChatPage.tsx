@@ -142,6 +142,7 @@ export default function GroupChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const chatHeight = useChatViewportHeight();
   
   // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
