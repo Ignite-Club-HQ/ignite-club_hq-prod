@@ -5,10 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import {
