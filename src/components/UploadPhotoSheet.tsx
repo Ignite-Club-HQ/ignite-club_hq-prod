@@ -956,11 +956,6 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           </div>
                           <div>
                             <p className="font-medium">{club.name}</p>
-                            {club.has_pro_access && (
-                              <p className="text-xs text-primary flex items-center gap-1">
-                                <Crown className="h-3 w-3" /> Pro
-                              </p>
-                            )}
                           </div>
                         </div>
                         {selectedClubId === club.id && (
