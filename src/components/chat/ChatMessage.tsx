@@ -415,9 +415,11 @@ export const ChatMessage = memo(function ChatMessage({
       longPressTriggeredRef.current = true;
       resetReplyReveal();
       armDismissGuard();
+      // Haptic feedback
+      if (navigator.vibrate) navigator.vibrate(12);
       setShowMenu(true);
       setShowReactionPicker(true);
-    }, 600);
+    }, 400);
   }, [armDismissGuard]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
