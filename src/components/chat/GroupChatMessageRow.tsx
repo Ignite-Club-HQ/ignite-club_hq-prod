@@ -327,7 +327,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             {!isInteracting && (
               <button
                 type="button"
-                className={`absolute ${isOwnMessage ? "right-0 translate-x-[calc(100%+4px)]" : "left-0 -translate-x-[calc(100%+4px)]"} top-1/2 -translate-y-1/2 opacity-0 group-hover/msg:opacity-100 focus:opacity-100 transition-opacity duration-150 z-10`}
+                className={`absolute ${isOwnMessage ? "left-0 -translate-x-[calc(100%+4px)]" : "right-0 translate-x-[calc(100%+4px)]"} top-1/2 -translate-y-1/2 opacity-0 group-hover/msg:opacity-100 focus:opacity-100 transition-opacity duration-150 z-10`}
                 onClick={(e) => {
                   e.stopPropagation();
                   resetReplyReveal();
