@@ -458,6 +458,25 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Action sheet (replaces 3-dot dropdown menu) */}
+      <MessageActionSheet
+        open={showActionSheet}
+        onOpenChange={(open) => {
+          setShowActionSheet(open);
+          if (!open) {
+            setShowMenu(false);
+          }
+        }}
+        isOwn={isOwnMessage}
+        canReply={true}
+        canEdit={isOwnMessage}
+        canDelete={isOwnMessage || isAdmin}
+        onReply={() => { handleReply(msg); closeActionUi(); }}
+        onEdit={() => { handleEdit(msg); closeActionUi(); }}
+        onDelete={() => { setShowDeleteConfirm(true); closeActionUi(); }}
+        onReport={() => {}}
+        onBlock={() => {}}
+      />
     </div>
   );
 });
