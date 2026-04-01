@@ -37,6 +37,8 @@ export function useInitialChatBottomPin({
 
     let firstFrame = 0;
     let secondFrame = 0;
+    let disconnectTimeout = 0;
+    let resizeObserver: ResizeObserver | null = null;
 
     const snapToBottom = () => {
       const target = scrollContainerRef.current;
@@ -49,9 +51,30 @@ export function useInitialChatBottomPin({
       secondFrame = requestAnimationFrame(snapToBottom);
     });
 
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        snapToBottom();
+      });
+
+      resizeObserver.observe(el);
+
+      const content = el.firstElementChild;
+      if (content instanceof HTMLElement) {
+        resizeObserver.observe(content);
+      }
+
+      disconnectTimeout = window.setTimeout(() => {
+        snapToBottom();
+        resizeObserver?.disconnect();
+        resizeObserver = null;
+      }, 250);
+    }
+
     return () => {
       cancelAnimationFrame(firstFrame);
       cancelAnimationFrame(secondFrame);
+      window.clearTimeout(disconnectTimeout);
+      resizeObserver?.disconnect();
     };
   }, [enabled, itemCount, resetKey, scrollContainerRef]);
 }
