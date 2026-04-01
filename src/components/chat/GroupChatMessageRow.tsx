@@ -501,9 +501,25 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         onReply={() => { handleReply(msg); closeActionUi(); }}
         onEdit={() => { handleEdit(msg); closeActionUi(); }}
         onDelete={() => { setShowDeleteConfirm(true); closeActionUi(); }}
-        onReport={() => {}}
-        onBlock={() => {}}
+        onReport={() => { setShowReportDialog(true); closeActionUi(); }}
+        onBlock={() => { setShowBlockDialog(true); closeActionUi(); }}
       />
+      {showReportDialog && (
+        <ReportMessageDialog
+          isOpen={showReportDialog}
+          onClose={() => setShowReportDialog(false)}
+          messageId={msg.id}
+          messageType="group"
+        />
+      )}
+      {showBlockDialog && (
+        <BlockUserDialog
+          open={showBlockDialog}
+          onOpenChange={setShowBlockDialog}
+          userId={msg.author_id}
+          userName={msg.author?.display_name || "this user"}
+        />
+      )}
     </div>
   );
 });
