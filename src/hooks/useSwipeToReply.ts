@@ -101,15 +101,18 @@ export function useSwipeToReply({
 
     const deltaX = ref.currentX - ref.startX;
     const passedThreshold = deltaX >= threshold;
-
-    // Snap back
-    setSwipeState({ offsetX: 0, isSwiping: false, pastThreshold: false });
     hapticFiredRef.current = false;
     touchRef.current = null;
 
-    // Trigger reply immediately on release if past threshold
-    if (passedThreshold && onReplyRef.current) {
-      onReplyRef.current();
+    if (passedThreshold) {
+      // Keep bubble in place briefly so "Release to reply" is visible
+      setSwipeState(s => ({ ...s, isSwiping: false }));
+      onReplyRef.current?.();
+      setTimeout(() => {
+        setSwipeState({ offsetX: 0, isSwiping: false, pastThreshold: false });
+      }, 200);
+    } else {
+      setSwipeState({ offsetX: 0, isSwiping: false, pastThreshold: false });
     }
   }, [threshold]);
 
