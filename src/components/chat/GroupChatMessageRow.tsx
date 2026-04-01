@@ -381,22 +381,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 <MessageContent text={msg.text} />
               </div>
             </div>
-            {/* Swipe reply revealed button */}
-            {swipeState.isReplyRevealed && (
-              <button
-                type="button"
-                className={`absolute top-1/2 -translate-y-1/2 ${isOwnMessage ? "left-0 -translate-x-full pr-2" : "right-0 translate-x-full pl-2"}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  resetReplyReveal();
-                  handleReply(msg);
-                }}
-              >
-                <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center animate-in zoom-in-75 duration-150">
-                  <Reply className="h-4 w-4 text-primary" />
-                </div>
-              </button>
-            )}
           </div>
 
           {isOwnMessage && frontierReaders.length > 0 ? (
