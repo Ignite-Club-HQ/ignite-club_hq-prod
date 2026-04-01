@@ -143,8 +143,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         onTouchStart={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="bg-popover/95 backdrop-blur-sm border border-border/50 rounded-2xl px-2 py-1.5 shadow-md animate-in fade-in slide-in-from-bottom-1 duration-100">
-          <div className="flex gap-1">
+        <div className="bg-popover/95 backdrop-blur-sm border border-border/30 rounded-2xl px-1.5 py-1 shadow-sm animate-in fade-in slide-in-from-bottom-1 duration-100">
+          <div className="flex justify-around">
             {REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
