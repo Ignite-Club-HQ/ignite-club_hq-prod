@@ -24,6 +24,8 @@ import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
+import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
+import { BlockUserDialog } from "@/components/BlockUserDialog";
 
 interface GroupMessage {
   id: string;
@@ -80,6 +82,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
@@ -497,9 +501,25 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         onReply={() => { handleReply(msg); closeActionUi(); }}
         onEdit={() => { handleEdit(msg); closeActionUi(); }}
         onDelete={() => { setShowDeleteConfirm(true); closeActionUi(); }}
-        onReport={() => {}}
-        onBlock={() => {}}
+        onReport={() => { setShowReportDialog(true); closeActionUi(); }}
+        onBlock={() => { setShowBlockDialog(true); closeActionUi(); }}
       />
+      {showReportDialog && (
+        <ReportMessageDialog
+          isOpen={showReportDialog}
+          onClose={() => setShowReportDialog(false)}
+          messageId={msg.id}
+          messageType="group"
+        />
+      )}
+      {showBlockDialog && (
+        <BlockUserDialog
+          open={showBlockDialog}
+          onOpenChange={setShowBlockDialog}
+          userId={msg.author_id}
+          userName={msg.author?.display_name || "this user"}
+        />
+      )}
     </div>
   );
 });
