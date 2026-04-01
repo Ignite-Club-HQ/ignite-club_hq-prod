@@ -280,7 +280,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     >
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 bg-black/[0.12] dark:bg-black/[0.12] bg-black/[0.22] z-[99999] pointer-events-none animate-fade-in"
+          className="fixed inset-0 dark:bg-black/[0.12] bg-black/[0.28] z-[99999] pointer-events-none animate-fade-in"
           style={{ animationDuration: '120ms' }}
         />,
         document.body
@@ -331,13 +331,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`rounded-lg px-3 py-2 select-none transition-all duration-100 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                } ${isInteracting ? "scale-[1.02] ring-2 ring-primary/40 dark:ring-primary/40 ring-primary/20" : ""}`}
+                } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/40" : ""}`}
                 style={isInteracting ? {
                   boxShadow: isOwnMessage
-                    ? '0 4px 16px -2px hsl(var(--primary) / 0.2), 0 2px 6px -1px rgba(0,0,0,0.1)'
-                    : '0 2px 8px -2px rgba(0,0,0,0.08)',
-                  filter: isOwnMessage ? 'brightness(1.12)' : undefined,
-                  border: isOwnMessage ? undefined : '1px solid rgba(0,0,0,0.05)',
+                    ? '0 2px 8px -2px hsl(var(--primary) / 0.15)'
+                    : '0 1px 4px -1px rgba(0,0,0,0.06)',
+                  filter: isOwnMessage ? 'brightness(1.08)' : 'brightness(0.97)',
                 } : undefined}
               >
                 {msg.image_url && (
