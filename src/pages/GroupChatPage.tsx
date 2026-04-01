@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -141,6 +142,7 @@ export default function GroupChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const chatHeight = useChatViewportHeight();
   
   // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
@@ -1315,7 +1317,7 @@ export default function GroupChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: "calc(var(--stable-vh, 100vh) - 4rem)", paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
+    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight, paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -1383,7 +1385,7 @@ export default function GroupChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >
-            <div className="space-y-4 p-4 pb-20">
+            <div className="space-y-4 p-4 pb-28">
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
               <div ref={loadTriggerRef} className="h-1" />

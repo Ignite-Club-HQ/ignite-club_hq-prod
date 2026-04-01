@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Building2, Search } from "lucide-react";
@@ -107,6 +108,7 @@ export default function ClubChatPage() {
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const chatHeight = useChatViewportHeight();
   
   // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
@@ -1058,7 +1060,7 @@ export default function ClubChatPage() {
   // Block access for non-Pro users - show full page blocker
   if (!isLoadingClubSubscription && !canAccessClubChat) {
   return (
-    <div className="flex flex-col" style={{ height: "calc(var(--stable-vh, 100vh) - 4rem)", paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
+    <div className="flex flex-col" style={{ height: chatHeight, paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
           <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
             <ArrowLeft className="h-5 w-5" />
@@ -1095,7 +1097,7 @@ export default function ClubChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: "calc(var(--stable-vh, 100vh) - 4rem)", paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
+    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight, paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -1173,7 +1175,7 @@ export default function ClubChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
           >
-            <div className="space-y-4 p-4 pb-20">
+            <div className="space-y-4 p-4 pb-28">
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />

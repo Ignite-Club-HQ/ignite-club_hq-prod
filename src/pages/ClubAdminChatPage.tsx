@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -67,6 +68,7 @@ export default function ClubAdminChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const chatHeight = useChatViewportHeight();
   const isNativePlatform = Capacitor.isNativePlatform();
 
   const scrollToBottom = useCallback(() => {
@@ -521,7 +523,7 @@ export default function ClubAdminChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: "calc(var(--stable-vh, 100vh) - 4rem)", paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
+    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight, paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -561,7 +563,7 @@ export default function ClubAdminChatPage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
       >
-        <div className="p-4 space-y-4 pb-20">
+        <div className="p-4 space-y-4 pb-28">
           {showLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
