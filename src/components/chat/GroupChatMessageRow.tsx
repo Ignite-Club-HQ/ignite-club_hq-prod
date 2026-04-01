@@ -269,13 +269,22 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const avatarUrl = profile?.avatar_url || msg.author?.avatar_url || undefined;
   const frontierReaders = readFrontier[msg.id] || [];
 
+  const isInteracting = showMenu || showReactionPicker || showActionSheet;
+
   return (
     <div
       id={`message-${msg.id}`}
       className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} ${
         highlightedMessageId === msg.id ? "bg-primary/10 rounded-lg" : ""
-      }`}
+      } ${isInteracting ? "relative z-[100000]" : ""}`}
     >
+      {isInteracting && createPortal(
+        <div
+          className="fixed inset-0 bg-black/15 z-[99999] pointer-events-none"
+          style={{ animationDuration: '150ms' }}
+        />,
+        document.body
+      )}
       <div className={`flex gap-2 max-w-[85%] group ${isOwnMessage ? "flex-row-reverse" : ""}`}>
         <Avatar className="h-8 w-8 shrink-0">
           <AvatarImage src={avatarUrl} />
@@ -320,9 +329,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`rounded-lg px-3 py-2 select-none ${
+                className={`rounded-lg px-3 py-2 select-none transition-all duration-150 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                }`}
+                } ${isInteracting ? "scale-[1.02] shadow-lg ring-2 ring-primary/20" : ""}`}
               >
                 {msg.image_url && (
                   <img src={msg.image_url} alt="Attachment" className="max-w-xs rounded mb-2" />
