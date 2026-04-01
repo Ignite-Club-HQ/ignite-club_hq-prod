@@ -84,6 +84,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [tapFlash, setTapFlash] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggeredRef = useRef(false);
@@ -119,9 +120,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       longPressTriggeredRef.current = true;
       resetReplyReveal();
       armDismissGuard();
+      if (navigator.vibrate) navigator.vibrate(12);
       setShowMenu(true);
       setShowReactionPicker(true);
-    }, 600);
+    }, 400);
   }, [armDismissGuard]);
 
   const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
@@ -179,11 +181,15 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         longPressTriggeredRef.current = false;
       });
     } else if (gestureModeRef.current === "press" && touchStartPos.current) {
-      // Short tap — open action sheet only
+      // Short tap — flash highlight then open action sheet
       e.preventDefault();
       e.stopPropagation();
-      setShowMenu(true);
-      setShowActionSheet(true);
+      setTapFlash(true);
+      setTimeout(() => {
+        setTapFlash(false);
+        setShowMenu(true);
+        setShowActionSheet(true);
+      }, 120);
     }
 
     touchStartPos.current = null;
@@ -335,7 +341,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`rounded-lg px-3 py-2 select-none transition-all duration-100 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                } ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+                } ${tapFlash ? "brightness-110 ring-1 ring-primary/25" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
                   const isDark = document.documentElement.classList.contains('dark');
                   return {

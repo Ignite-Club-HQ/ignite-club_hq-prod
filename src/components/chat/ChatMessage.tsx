@@ -103,6 +103,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [showMenu, setShowMenu] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [tapFlash, setTapFlash] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
@@ -414,9 +415,11 @@ export const ChatMessage = memo(function ChatMessage({
       longPressTriggeredRef.current = true;
       resetReplyReveal();
       armDismissGuard();
+      // Haptic feedback
+      if (navigator.vibrate) navigator.vibrate(12);
       setShowMenu(true);
       setShowReactionPicker(true);
-    }, 600);
+    }, 400);
   }, [armDismissGuard]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -470,11 +473,15 @@ export const ChatMessage = memo(function ChatMessage({
         longPressTriggeredRef.current = false;
       });
     } else if (gestureModeRef.current === "press" && touchStartPos.current) {
-      // Short tap — open action sheet only
+      // Short tap — flash highlight then open action sheet
       e.preventDefault();
       e.stopPropagation();
-      setShowMenu(true);
-      setShowActionSheet(true);
+      setTapFlash(true);
+      setTimeout(() => {
+        setTapFlash(false);
+        setShowMenu(true);
+        setShowActionSheet(true);
+      }, 120);
     }
 
     touchStartPos.current = null;
@@ -613,7 +620,7 @@ export const ChatMessage = memo(function ChatMessage({
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+              } ${tapFlash ? "brightness-110 ring-1 ring-primary/25" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
                 return {
