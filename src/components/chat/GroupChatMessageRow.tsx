@@ -331,10 +331,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`rounded-lg px-3 py-2 select-none transition-all duration-100 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                } ${isInteracting ? "scale-[1.03] shadow-xl ring-2 ring-primary/30" : ""}`}
+                } ${isInteracting ? "scale-[1.02] ring-2 ring-primary/40" : ""}`}
                 style={isInteracting ? {
-                  boxShadow: '0 8px 30px -4px hsl(var(--primary) / 0.18), 0 4px 12px -2px rgba(0,0,0,0.12)',
-                  filter: isOwnMessage ? 'brightness(1.08)' : 'brightness(0.96)',
+                  boxShadow: '0 4px 16px -2px hsl(var(--primary) / 0.2), 0 2px 6px -1px rgba(0,0,0,0.1)',
+                  filter: isOwnMessage ? 'brightness(1.12)' : 'brightness(0.92)',
                 } : undefined}
               >
                 {msg.image_url && (
