@@ -230,7 +230,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       const topBoundary = viewportOffsetTop + 72;
       const composerSafeZone = 140;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - composerSafeZone;
-      const gap = 12;
+      const gap = 6;
 
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
@@ -280,8 +280,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     >
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 bg-black/15 z-[99999] pointer-events-none"
-          style={{ animationDuration: '150ms' }}
+          className="fixed inset-0 bg-black/[0.12] z-[99999] pointer-events-none animate-fade-in"
+          style={{ animationDuration: '120ms' }}
         />,
         document.body
       )}
@@ -329,9 +329,13 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`rounded-lg px-3 py-2 select-none transition-all duration-150 ${
+                className={`rounded-lg px-3 py-2 select-none transition-all duration-100 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                } ${isInteracting ? "scale-[1.02] shadow-lg ring-2 ring-primary/20" : ""}`}
+                } ${isInteracting ? "scale-[1.03] shadow-xl ring-2 ring-primary/30" : ""}`}
+                style={isInteracting ? {
+                  boxShadow: '0 8px 30px -4px hsl(var(--primary) / 0.18), 0 4px 12px -2px rgba(0,0,0,0.12)',
+                  filter: isOwnMessage ? 'brightness(1.08)' : 'brightness(0.96)',
+                } : undefined}
               >
                 {msg.image_url && (
                   <img src={msg.image_url} alt="Attachment" className="max-w-xs rounded mb-2" />
@@ -452,23 +456,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       );
                     })}
                   </div>
-                  <button
-                    type="button"
-                    className="w-full mt-1 text-xs text-muted-foreground py-1.5 rounded-md active:bg-accent"
-                    onTouchEnd={(e) => {
-                      if (preventIfGuarded(e)) return;
-                      e.stopPropagation();
-                      e.preventDefault();
-                      closeActionUi();
-                    }}
-                    onClick={(e) => {
-                      if (preventIfGuarded(e)) return;
-                      e.stopPropagation();
-                      closeActionUi();
-                    }}
-                  >
-                    Cancel
-                  </button>
                 </div>
               </div>
             </div>,

@@ -566,8 +566,8 @@ export const ChatMessage = memo(function ChatMessage({
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 bg-black/15 z-[99999] pointer-events-none"
-          style={{ animationDuration: '150ms' }}
+          className="fixed inset-0 bg-black/[0.12] z-[99999] pointer-events-none animate-fade-in"
+          style={{ animationDuration: '120ms' }}
         />,
         document.body
       )}
@@ -605,11 +605,15 @@ export const ChatMessage = memo(function ChatMessage({
           >
             <div
               ref={bubbleRef}
-              className={`relative rounded-2xl px-4 py-2 select-none transition-all duration-150 ${
+              className={`relative rounded-2xl px-4 py-2 select-none transition-all duration-100 ${
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${isInteracting ? "scale-[1.02] shadow-lg ring-2 ring-primary/20" : ""}`}
+              } ${isInteracting ? "scale-[1.03] shadow-xl ring-2 ring-primary/30" : ""}`}
+              style={isInteracting ? {
+                boxShadow: '0 8px 30px -4px hsl(var(--primary) / 0.18), 0 4px 12px -2px rgba(0,0,0,0.12)',
+                filter: isOwn ? 'brightness(1.08)' : 'brightness(0.96)',
+              } : undefined}
             >
               <div className="text-sm">
                 <MessageContent 
