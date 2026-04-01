@@ -45,7 +45,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   anchorRef,
   preventIfGuarded,
 }: MessageReactionsProps) {
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
 
   useLayoutEffect(() => {
