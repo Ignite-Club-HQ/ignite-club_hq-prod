@@ -69,13 +69,15 @@ export function MessageActionSheet({
     });
   }
 
+  const safetyActions: MessageAction[] = [];
+
   if (!isOwn && !isSystemMessage) {
-    actions.push({
+    safetyActions.push({
       label: "Report Message",
       icon: <Flag className="h-5 w-5" />,
       onClick: onReport,
     });
-    actions.push({
+    safetyActions.push({
       label: "Block User",
       icon: <ShieldAlert className="h-5 w-5" />,
       onClick: onBlock,
@@ -83,7 +85,25 @@ export function MessageActionSheet({
     });
   }
 
-  if (actions.length === 0) return null;
+  if (actions.length === 0 && safetyActions.length === 0) return null;
+
+  const renderAction = (action: MessageAction, i: number) => (
+    <button
+      key={i}
+      className={`w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium active:bg-muted transition-colors ${
+        action.destructive
+          ? "text-destructive"
+          : "text-foreground"
+      }`}
+      onClick={() => {
+        onOpenChange(false);
+        requestAnimationFrame(() => action.onClick());
+      }}
+    >
+      {action.icon}
+      {action.label}
+    </button>
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -97,24 +117,16 @@ export function MessageActionSheet({
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
         <div className="py-2">
-          {actions.map((action, i) => (
-            <button
-              key={i}
-              className={`w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium active:bg-muted transition-colors ${
-                action.destructive
-                  ? "text-destructive"
-                  : "text-foreground"
-              }`}
-              onClick={() => {
-                onOpenChange(false);
-                // Small delay so sheet closes before action fires
-                requestAnimationFrame(() => action.onClick());
-              }}
-            >
-              {action.icon}
-              {action.label}
-            </button>
-          ))}
+          {actions.map(renderAction)}
+          {actions.length > 0 && safetyActions.length > 0 && (
+            <div className="my-1 mx-6 border-t border-border/50" />
+          )}
+          {safetyActions.length > 0 && (
+            <div>
+              <p className="px-6 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">Safety</p>
+              {safetyActions.map(renderAction)}
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
