@@ -67,7 +67,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const pickerHeight = 124;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 12;
+      const gap = 6;
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
       const showBelow = spaceAbove < pickerHeight && spaceBelow >= pickerHeight + gap;
