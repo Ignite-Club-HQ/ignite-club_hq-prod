@@ -397,14 +397,14 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
   // Swipe to reply
+  const handleReply = useCallback(() => {
+    onReply?.({ id, text, authorName: authorName || null });
+  }, [onReply, id, text, authorName]);
+
   const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
     enabled: canReply,
+    onReply: handleReply,
   });
-
-  const handleReply = useCallback(() => {
-    resetReplyReveal();
-    onReply?.({ id, text, authorName: authorName || null });
-  }, [onReply, id, text, authorName, resetReplyReveal]);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     gestureModeRef.current = "press";
