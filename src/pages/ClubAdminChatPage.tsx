@@ -527,7 +527,7 @@ export default function ClubAdminChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight, paddingBottom: "calc(var(--bottom-nav-offset, 0px) + 1rem)" }}>
+    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight, paddingBottom: isKeyboardOpen ? 0 : "calc(var(--bottom-nav-offset, 0px) + 1rem)" }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -567,7 +567,7 @@ export default function ClubAdminChatPage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
       >
-        <div className="p-4 space-y-4" style={{ paddingBottom: isKeyboardOpen ? "1rem" : "7rem" }}>
+        <div className="p-4 space-y-4" style={{ paddingBottom: isKeyboardOpen ? 4 : "7rem" }}>
           {showLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
