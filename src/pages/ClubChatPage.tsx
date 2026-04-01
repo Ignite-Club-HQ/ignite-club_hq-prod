@@ -110,6 +110,7 @@ export default function ClubChatPage() {
   profileRef.current = profile;
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
@@ -365,6 +366,7 @@ export default function ClubChatPage() {
 
   useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
+    bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: clubId,
     onPinned: () => setInfiniteScrollEnabled(true),
@@ -1196,7 +1198,7 @@ export default function ClubChatPage() {
                   </div>
                 );
               })}
-              <div id="club-chat-end" />
+              <div ref={messagesEndRef} id="club-chat-end" />
             </div>
           </div>
         )}

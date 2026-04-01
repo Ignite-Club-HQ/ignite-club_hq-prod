@@ -391,6 +391,7 @@ export default function DirectMessagePage() {
 
   useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
+    bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: conversationId,
     onPinned: () => setInfiniteScrollEnabled(true),

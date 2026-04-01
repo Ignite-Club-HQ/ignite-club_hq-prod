@@ -119,6 +119,7 @@ export default function TeamChatPage() {
   profileRef.current = profile;
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
@@ -364,6 +365,7 @@ export default function TeamChatPage() {
 
   useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
+    bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: teamId,
     onPinned: () => setInfiniteScrollEnabled(true),
@@ -1207,7 +1209,7 @@ export default function TeamChatPage() {
                   </div>
                 );
               })}
-              <div id="team-chat-end" />
+              <div ref={messagesEndRef} id="team-chat-end" />
             </div>
           </div>
          )}

@@ -2,6 +2,7 @@ import { RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 interface UseInitialChatBottomPinOptions {
   scrollContainerRef: RefObject<HTMLElement>;
+  bottomAnchorRef?: RefObject<HTMLElement>;
   itemCount: number;
   resetKey?: string | number | null;
   enabled?: boolean;
@@ -10,6 +11,7 @@ interface UseInitialChatBottomPinOptions {
 
 export function useInitialChatBottomPin({
   scrollContainerRef,
+  bottomAnchorRef,
   itemCount,
   resetKey,
   enabled = true,
@@ -41,6 +43,12 @@ export function useInitialChatBottomPin({
     let resizeObserver: ResizeObserver | null = null;
 
     const snapToBottom = () => {
+      const anchor = bottomAnchorRef?.current;
+      if (anchor) {
+        anchor.scrollIntoView({ block: "end" });
+        return;
+      }
+
       const target = scrollContainerRef.current;
       if (!target) return;
       target.scrollTop = Math.max(0, target.scrollHeight - target.clientHeight);
@@ -76,5 +84,5 @@ export function useInitialChatBottomPin({
       window.clearTimeout(disconnectTimeout);
       resizeObserver?.disconnect();
     };
-  }, [enabled, itemCount, resetKey, scrollContainerRef]);
+  }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
 }

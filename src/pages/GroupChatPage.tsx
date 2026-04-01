@@ -386,6 +386,7 @@ export default function GroupChatPage() {
 
   useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
+    bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
     resetKey: groupId,
     onPinned: () => setInfiniteScrollEnabled(true),
