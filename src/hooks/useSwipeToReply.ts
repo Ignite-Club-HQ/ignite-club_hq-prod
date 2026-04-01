@@ -65,13 +65,15 @@ export function useSwipeToReply({
     if (!enabled || !ref) return;
 
     const touch = e.touches[0];
-    const deltaX = Math.max(0, touch.clientX - ref.startX);
+    const rawDeltaX = touch.clientX - ref.startX;
+    const deltaX = Math.max(0, rawDeltaX);
     const deltaY = Math.abs(touch.clientY - ref.startY);
 
     if (!ref.locked) {
-      if (deltaX < 10 && deltaY < 10) return;
+      if (Math.abs(rawDeltaX) < 10 && deltaY < 10) return;
       ref.locked = true;
-      ref.isSwiping = deltaX > 0 && deltaX > deltaY * 1.2;
+      // Only activate swipe for clearly rightward gestures
+      ref.isSwiping = rawDeltaX > 10 && rawDeltaX > deltaY * 1.2;
       if (!ref.isSwiping) return;
       hapticFiredRef.current = false;
     }
