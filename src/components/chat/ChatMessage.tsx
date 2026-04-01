@@ -560,8 +560,17 @@ export const ChatMessage = memo(function ChatMessage({
   // Hide messages from blocked users (after all hooks)
   if (!isOwn && isBlocked(authorId)) return null;
 
+  const isInteracting = showMenu || showReactionPicker || showActionSheet;
+
   return (
-    <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""}`}>
+    <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
+      {isInteracting && createPortal(
+        <div
+          className="fixed inset-0 bg-black/15 z-[99999] pointer-events-none"
+          style={{ animationDuration: '150ms' }}
+        />,
+        document.body
+      )}
       {isClubAnnouncement ? (
         <div className="h-8 w-8 shrink-0 rounded-full bg-primary flex items-center justify-center">
           <Megaphone className="h-4 w-4 text-primary-foreground" />
