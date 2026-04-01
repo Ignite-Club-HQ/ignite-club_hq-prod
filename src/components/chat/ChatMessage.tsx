@@ -566,7 +566,7 @@ export const ChatMessage = memo(function ChatMessage({
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 bg-black/[0.12] z-[99999] pointer-events-none animate-fade-in"
+          className="fixed inset-0 bg-black/[0.12] dark:bg-black/[0.12] bg-black/[0.22] z-[99999] pointer-events-none animate-fade-in"
           style={{ animationDuration: '120ms' }}
         />,
         document.body
@@ -609,10 +609,13 @@ export const ChatMessage = memo(function ChatMessage({
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${isInteracting ? "scale-[1.02] ring-2 ring-primary/40" : ""}`}
+              } ${isInteracting ? "scale-[1.02] ring-2 ring-primary/40 dark:ring-primary/40 ring-primary/20" : ""}`}
               style={isInteracting ? {
-                boxShadow: '0 4px 16px -2px hsl(var(--primary) / 0.2), 0 2px 6px -1px rgba(0,0,0,0.1)',
-                filter: isOwn ? 'brightness(1.12)' : 'brightness(0.92)',
+                boxShadow: isOwn
+                  ? '0 4px 16px -2px hsl(var(--primary) / 0.2), 0 2px 6px -1px rgba(0,0,0,0.1)'
+                  : '0 2px 8px -2px rgba(0,0,0,0.08)',
+                filter: isOwn ? 'brightness(1.12)' : undefined,
+                border: isOwn ? undefined : '1px solid rgba(0,0,0,0.05)',
               } : undefined}
             >
               <div className="text-sm">
