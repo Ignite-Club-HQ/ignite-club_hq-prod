@@ -18,7 +18,7 @@ interface SwipeToReplyState {
 
 export function useSwipeToReply({
   enabled = true,
-  threshold = 50,
+  threshold = 100,
   onReply,
 }: UseSwipeToReplyOptions) {
   const [swipeState, setSwipeState] = useState<SwipeToReplyState>({
