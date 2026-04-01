@@ -9,6 +9,10 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 let pending: Promise<void> = Promise.resolve();
 let lastApplied: string | null = null;
 
+const LIGHT_STATUS_BAR_BG = '#f5f7f6';
+const DARK_STATUS_BAR_BG = '#0f1512';
+const VIEWER_STATUS_BAR_BG = '#000000';
+
 const getThemeSync = (): 'light' | 'dark' => {
   if (typeof window !== 'undefined') {
     if (document.documentElement.classList.contains('dark')) return 'dark';
@@ -19,6 +23,18 @@ const getThemeSync = (): 'light' | 'dark' => {
   return 'light';
 };
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function syncAndroidStatusBar(style: Style, backgroundColor: string, overlay: boolean) {
+  await StatusBar.setOverlaysWebView({ overlay });
+  await StatusBar.setBackgroundColor({ color: backgroundColor });
+  await StatusBar.setStyle({ style });
+
+  // Android occasionally reverts icon color during startup/resume after background/overlay updates.
+  await wait(32);
+  await StatusBar.setStyle({ style });
+}
+
 /**
  * Apply status bar style for the given theme.
  * Calls are serialized so concurrent invocations never interleave.
@@ -26,7 +42,6 @@ const getThemeSync = (): 'light' | 'dark' => {
 export const applyStatusBar = (theme?: 'light' | 'dark', force = false): void => {
   const resolved = theme ?? getThemeSync();
 
-  // Enqueue – each call waits for the previous one to finish
   pending = pending
     .then(() => applyInternal(resolved, force))
     .catch((err) => console.warn('[StatusBar] queue error', err));
@@ -37,7 +52,7 @@ export const applyStatusBar = (theme?: 'light' | 'dark', force = false): void =>
  * Useful after app resume or overlay unmount.
  */
 export const refreshStatusBar = (): void => {
-  lastApplied = null; // force re-apply even if theme hasn't changed
+  lastApplied = null;
   applyStatusBar(getThemeSync(), true);
 };
 
@@ -58,29 +73,16 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
 
   lastApplied = theme;
   const platform = Capacitor.getPlatform();
+  const style = theme === 'dark' ? Style.Light : Style.Dark;
+  const backgroundColor = theme === 'dark' ? DARK_STATUS_BAR_BG : LIGHT_STATUS_BAR_BG;
 
   try {
-    // Ensure status bar is visible first
     await StatusBar.show();
 
-    if (theme === 'dark') {
-      // Dark theme: light (white) status bar icons on dark background
-      await StatusBar.setStyle({ style: Style.Light });
-      if (platform === 'android') {
-        await StatusBar.setBackgroundColor({ color: '#0f1512' });
-      }
-    } else {
-      // Light theme: dark (black) status bar icons on light background
-      await StatusBar.setStyle({ style: Style.Dark });
-      if (platform === 'android') {
-        await StatusBar.setBackgroundColor({ color: '#f5f7f6' });
-      }
-    }
-
-    // Avoid re-toggling iOS WebView overlay state after native overlays like Camera,
-    // which can leave the viewport/safe-area in a broken state on Capacitor iOS.
     if (platform === 'android') {
-      await StatusBar.setOverlaysWebView({ overlay: false });
+      await syncAndroidStatusBar(style, backgroundColor, false);
+    } else {
+      await StatusBar.setStyle({ style });
     }
   } catch (error) {
     console.warn('[StatusBar] Error configuring status bar:', error);
@@ -91,13 +93,13 @@ async function applyInternal(theme: 'light' | 'dark', force: boolean) {
 async function applyViewerInternal() {
   if (!Capacitor.isNativePlatform()) return;
 
-  lastApplied = null; // ensure refresh works after viewer closes
+  lastApplied = null;
 
   try {
-    await StatusBar.setStyle({ style: Style.Dark });
     if (Capacitor.getPlatform() === 'android') {
-      await StatusBar.setBackgroundColor({ color: '#000000' });
-      await StatusBar.setOverlaysWebView({ overlay: true });
+      await syncAndroidStatusBar(Style.Light, VIEWER_STATUS_BAR_BG, true);
+    } else {
+      await StatusBar.setStyle({ style: Style.Light });
     }
   } catch (error) {
     console.warn('[StatusBar] Error configuring viewer status bar:', error);
