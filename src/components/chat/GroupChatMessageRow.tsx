@@ -24,6 +24,8 @@ import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
+import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
+import { BlockUserDialog } from "@/components/BlockUserDialog";
 
 interface GroupMessage {
   id: string;
