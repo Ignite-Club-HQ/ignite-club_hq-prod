@@ -13,20 +13,22 @@ interface UseSwipeToReplyOptions {
 interface SwipeToReplyState {
   offsetX: number;
   isSwiping: boolean;
+  pastThreshold: boolean;
 }
 
 export function useSwipeToReply({
   enabled = true,
-  threshold = 80,
+  threshold = 50,
   onReply,
 }: UseSwipeToReplyOptions) {
   const [swipeState, setSwipeState] = useState<SwipeToReplyState>({
     offsetX: 0,
     isSwiping: false,
+    pastThreshold: false,
   });
 
   const resetReplyReveal = useCallback(() => {
-    setSwipeState({ offsetX: 0, isSwiping: false });
+    setSwipeState({ offsetX: 0, isSwiping: false, pastThreshold: false });
   }, []);
 
   useEffect(() => {
@@ -78,14 +80,15 @@ export function useSwipeToReply({
 
     ref.currentX = touch.clientX;
     const offset = deltaX <= threshold ? deltaX : threshold + (deltaX - threshold) * 0.3;
+    const past = deltaX >= threshold;
 
     // Haptic tick when crossing threshold
-    if (deltaX >= threshold && !hapticFiredRef.current) {
+    if (past && !hapticFiredRef.current) {
       hapticFiredRef.current = true;
-      if (navigator.vibrate) navigator.vibrate(8);
+      if (navigator.vibrate) navigator.vibrate(10);
     }
 
-    setSwipeState({ offsetX: offset, isSwiping: true });
+    setSwipeState({ offsetX: offset, isSwiping: true, pastThreshold: past });
   }, [enabled, threshold]);
 
   const onTouchEnd = useCallback(() => {
@@ -100,7 +103,7 @@ export function useSwipeToReply({
     const passedThreshold = deltaX >= threshold;
 
     // Snap back
-    setSwipeState({ offsetX: 0, isSwiping: false });
+    setSwipeState({ offsetX: 0, isSwiping: false, pastThreshold: false });
     hapticFiredRef.current = false;
     touchRef.current = null;
 
