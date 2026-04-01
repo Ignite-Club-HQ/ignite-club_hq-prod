@@ -97,6 +97,7 @@ export function StatusBarManager() {
       appListener?.remove();
       keyboardShowListener?.remove();
       cancelIOSRecovery?.();
+      window.removeEventListener('orientationchange', handleOrientationChange);
       if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
         window.removeEventListener('focus', handleViewportResume);
         window.removeEventListener('pageshow', handleViewportResume);
