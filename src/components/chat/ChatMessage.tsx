@@ -609,14 +609,14 @@ export const ChatMessage = memo(function ChatMessage({
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${isInteracting ? "scale-[1.01] border border-primary/30 dark:border-primary/40" : "border border-transparent"}`}
+              } ${isInteracting ? "scale-[1.01] border border-primary/20 dark:border-primary/25" : "border border-transparent"}`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
                 return {
-                  boxShadow: '0 1px 3px 0 rgba(0,0,0,0.12), 0 1px 2px -1px rgba(0,0,0,0.08)',
+                  boxShadow: '0 1px 2px 0 rgba(0,0,0,0.08)',
                   filter: isDark
-                    ? (isOwn ? 'brightness(1.12) saturate(1.05)' : 'brightness(1.12)')
-                    : (isOwn ? 'brightness(1.08)' : 'brightness(0.97)'),
+                    ? (isOwn ? 'brightness(1.08) saturate(1.03)' : 'brightness(1.08)')
+                    : (isOwn ? 'brightness(1.06)' : 'brightness(0.97)'),
                 };
               })() : undefined}
             >
