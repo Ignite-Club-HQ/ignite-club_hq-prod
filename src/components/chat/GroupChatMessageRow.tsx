@@ -230,11 +230,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
 
       const pickerWidth = Math.min(280, window.innerWidth - 16);
-      const pickerHeight = 124;
+      const pickerHeight = 52;
       const topBoundary = viewportOffsetTop + 72;
       const composerSafeZone = 140;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - composerSafeZone;
-      const gap = 6;
+      const gap = 4;
 
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
