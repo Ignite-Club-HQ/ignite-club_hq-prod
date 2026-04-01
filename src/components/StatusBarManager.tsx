@@ -14,7 +14,19 @@ export function StatusBarManager() {
   useEffect(() => {
     const isNativePlatform = Capacitor.isNativePlatform();
     const isNativeIOS = isNativePlatform && Capacitor.getPlatform() === 'ios';
+    const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === 'android';
     let cancelIOSRecovery: (() => void) | null = null;
+
+    // Set a stable viewport height CSS variable that doesn't change when Android keyboard opens
+    const setStableVh = () => {
+      document.documentElement.style.setProperty('--stable-vh', `${window.innerHeight}px`);
+    };
+    setStableVh();
+    // Only update on orientation change, not on keyboard resize
+    const handleOrientationChange = () => {
+      setTimeout(setStableVh, 150);
+    };
+    window.addEventListener('orientationchange', handleOrientationChange);
 
     const queueIOSRecovery = () => {
       if (!isNativeIOS || typeof document === 'undefined') return;
@@ -85,6 +97,7 @@ export function StatusBarManager() {
       appListener?.remove();
       keyboardShowListener?.remove();
       cancelIOSRecovery?.();
+      window.removeEventListener('orientationchange', handleOrientationChange);
       if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
         window.removeEventListener('focus', handleViewportResume);
         window.removeEventListener('pageshow', handleViewportResume);
