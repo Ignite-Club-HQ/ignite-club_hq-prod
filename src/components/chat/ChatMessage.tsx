@@ -396,48 +396,74 @@ export const ChatMessage = memo(function ChatMessage({
   });
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    gestureModeRef.current = "press";
     longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
-      console.log('[ChatMessage] Long press triggered for message:', id, 'type:', messageType);
+      if (gestureModeRef.current !== "press") return;
       longPressTriggeredRef.current = true;
       armDismissGuard();
       setShowMenu(true);
       setShowReactionPicker(true);
       setShowActionSheet(true);
     }, 600);
-  }, [armDismissGuard, id, messageType]);
+  }, [armDismissGuard]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (longPressTimer.current && touchStartPos.current) {
-      const dx = e.touches[0].clientX - touchStartPos.current.x;
-      const dy = e.touches[0].clientY - touchStartPos.current.y;
-      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    if (!touchStartPos.current) return;
+
+    const dx = e.touches[0].clientX - touchStartPos.current.x;
+    const dy = e.touches[0].clientY - touchStartPos.current.y;
+
+    if (gestureModeRef.current === "press" && dx > 12 && Math.abs(dy) < 24) {
+      gestureModeRef.current = "swipe";
+      if (longPressTimer.current) {
         clearTimeout(longPressTimer.current);
         longPressTimer.current = null;
-        touchStartPos.current = null;
       }
+      longPressTriggeredRef.current = false;
+      swipeToReplyHandlers.onTouchMove(e);
+      return;
     }
-  }, []);
+
+    if (gestureModeRef.current === "swipe") {
+      swipeToReplyHandlers.onTouchMove(e);
+      return;
+    }
+
+    if (longPressTimer.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      touchStartPos.current = null;
+    }
+  }, [swipeToReplyHandlers]);
 
   const handleLongPressEnd = useCallback((e: React.TouchEvent) => {
+    if (gestureModeRef.current === "swipe") {
+      swipeToReplyHandlers.onTouchEnd();
+      gestureModeRef.current = "idle";
+      touchStartPos.current = null;
+      longPressTriggeredRef.current = false;
+      return;
+    }
+
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
     touchStartPos.current = null;
 
-    if (!longPressTriggeredRef.current) return;
+    if (longPressTriggeredRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      armDismissGuard();
+      requestAnimationFrame(() => {
+        longPressTriggeredRef.current = false;
+      });
+    }
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    armDismissGuard();
-
-    requestAnimationFrame(() => {
-      longPressTriggeredRef.current = false;
-    });
-  }, [armDismissGuard]);
+    gestureModeRef.current = "idle";
+  }, [armDismissGuard, swipeToReplyHandlers]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
     if (addReactionMutation.isPending || removeReactionMutation.isPending) {
