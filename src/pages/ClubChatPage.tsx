@@ -481,6 +481,7 @@ export default function ClubChatPage() {
       setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
       setTimeout(() => { el.scrollTop = el.scrollHeight; }, 150);
       setTimeout(() => { el.scrollTop = el.scrollHeight; }, 300);
+      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 500);
     };
     
     // Start polling
