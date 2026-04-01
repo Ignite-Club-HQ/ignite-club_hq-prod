@@ -566,7 +566,7 @@ export const ChatMessage = memo(function ChatMessage({
     <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 dark:bg-black/[0.12] bg-black/[0.28] z-[99999] pointer-events-none animate-fade-in"
+          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] pointer-events-none animate-fade-in"
           style={{ animationDuration: '120ms' }}
         />,
         document.body
@@ -609,13 +609,22 @@ export const ChatMessage = memo(function ChatMessage({
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/40" : ""}`}
-              style={isInteracting ? {
-                boxShadow: isOwn
-                  ? '0 2px 8px -2px hsl(var(--primary) / 0.15)'
-                  : '0 1px 4px -1px rgba(0,0,0,0.06)',
-                filter: isOwn ? 'brightness(1.08)' : 'brightness(0.97)',
-              } : undefined}
+              } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/50" : ""}`}
+              style={isInteracting ? (() => {
+                const isDark = document.documentElement.classList.contains('dark');
+                return {
+                  boxShadow: isDark
+                    ? (isOwn
+                      ? '0 2px 16px -2px hsl(var(--primary) / 0.35), 0 0 20px -4px hsl(var(--primary) / 0.2)'
+                      : '0 2px 14px -2px hsl(var(--primary) / 0.3), 0 0 16px -4px hsl(var(--primary) / 0.15)')
+                    : (isOwn
+                      ? '0 2px 8px -2px hsl(var(--primary) / 0.15)'
+                      : '0 1px 4px -1px rgba(0,0,0,0.06)'),
+                  filter: isDark
+                    ? (isOwn ? 'brightness(1.2) saturate(1.1)' : 'brightness(1.25)')
+                    : (isOwn ? 'brightness(1.08)' : 'brightness(0.97)'),
+                };
+              })() : undefined}
             >
               <div className="text-sm">
                 <MessageContent 

@@ -280,7 +280,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     >
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 dark:bg-black/[0.12] bg-black/[0.28] z-[99999] pointer-events-none animate-fade-in"
+          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] pointer-events-none animate-fade-in"
           style={{ animationDuration: '120ms' }}
         />,
         document.body
@@ -331,13 +331,22 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 ref={bubbleRef}
                 className={`rounded-lg px-3 py-2 select-none transition-all duration-100 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/40" : ""}`}
-                style={isInteracting ? {
-                  boxShadow: isOwnMessage
-                    ? '0 2px 8px -2px hsl(var(--primary) / 0.15)'
-                    : '0 1px 4px -1px rgba(0,0,0,0.06)',
-                  filter: isOwnMessage ? 'brightness(1.08)' : 'brightness(0.97)',
-                } : undefined}
+                } ${isInteracting ? "scale-[1.01] ring-1 dark:ring-2 ring-primary/15 dark:ring-primary/50" : ""}`}
+                style={isInteracting ? (() => {
+                  const isDark = document.documentElement.classList.contains('dark');
+                  return {
+                    boxShadow: isDark
+                      ? (isOwnMessage
+                        ? '0 2px 16px -2px hsl(var(--primary) / 0.35), 0 0 20px -4px hsl(var(--primary) / 0.2)'
+                        : '0 2px 14px -2px hsl(var(--primary) / 0.3), 0 0 16px -4px hsl(var(--primary) / 0.15)')
+                      : (isOwnMessage
+                        ? '0 2px 8px -2px hsl(var(--primary) / 0.15)'
+                        : '0 1px 4px -1px rgba(0,0,0,0.06)'),
+                    filter: isDark
+                      ? (isOwnMessage ? 'brightness(1.2) saturate(1.1)' : 'brightness(1.25)')
+                      : (isOwnMessage ? 'brightness(1.08)' : 'brightness(0.97)'),
+                  };
+                })() : undefined}
               >
                 {msg.image_url && (
                   <img src={msg.image_url} alt="Attachment" className="max-w-xs rounded mb-2" />
