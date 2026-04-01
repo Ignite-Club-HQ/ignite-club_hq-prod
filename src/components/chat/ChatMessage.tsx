@@ -587,31 +587,8 @@ export const ChatMessage = memo(function ChatMessage({
               handleLongPressStart(e);
               swipeToReplyHandlers.onTouchStart(e);
             }}
-            onTouchMove={(e) => {
-              // If swipe-to-reply has taken over, skip long press move handler
-              if (!isSwipingRef.current) {
-                handleTouchMove(e);
-              }
-              swipeToReplyHandlers.onTouchMove(e);
-              // If swipe just started, cancel long press timer
-              if (isSwipingRef.current && longPressTimer.current) {
-                clearTimeout(longPressTimer.current);
-                longPressTimer.current = null;
-              }
-            }}
-            onTouchEnd={(e) => {
-              if (isSwipingRef.current) {
-                // Swipe handled it — just clean up long press
-                if (longPressTimer.current) {
-                  clearTimeout(longPressTimer.current);
-                  longPressTimer.current = null;
-                }
-                swipeToReplyHandlers.onTouchEnd();
-              } else {
-                handleLongPressEnd(e);
-                swipeToReplyHandlers.onTouchEnd();
-              }
-            }}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleLongPressEnd}
             onContextMenu={handleContextMenu}
           >
             <div

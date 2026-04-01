@@ -309,31 +309,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 transition: swipeState.isSwiping ? 'none' : 'transform 0.2s ease-out',
               }}
               onTouchStart={(e) => {
+                gestureModeRef.current = "press";
                 handleLongPressStart(e);
                 swipeToReplyHandlers.onTouchStart(e);
               }}
-            onTouchMove={(e) => {
-              if (!isSwipingRef.current) {
-                handleTouchMove(e);
-              }
-              swipeToReplyHandlers.onTouchMove(e);
-              if (isSwipingRef.current && longPressTimer.current) {
-                clearTimeout(longPressTimer.current);
-                longPressTimer.current = null;
-              }
-            }}
-            onTouchEnd={(e) => {
-              if (isSwipingRef.current) {
-                if (longPressTimer.current) {
-                  clearTimeout(longPressTimer.current);
-                  longPressTimer.current = null;
-                }
-                swipeToReplyHandlers.onTouchEnd();
-              } else {
-                handleLongPressEnd(e);
-                swipeToReplyHandlers.onTouchEnd();
-              }
-            }}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleLongPressEnd}
               onContextMenu={handleContextMenu}
             >
               <div
