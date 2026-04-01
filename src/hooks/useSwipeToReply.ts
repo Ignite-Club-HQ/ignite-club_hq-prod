@@ -1,25 +1,40 @@
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useEffect } from "react";
+
+// Global registry: when any message reveals reply, others dismiss
+type ResetFn = () => void;
+const activeResets = new Set<ResetFn>();
 
 interface UseSwipeToReplyOptions {
   enabled?: boolean;
   threshold?: number;
+  onReply?: () => void;
 }
 
 interface SwipeToReplyState {
   offsetX: number;
   isSwiping: boolean;
-  isReplyRevealed: boolean;
+  pastThreshold: boolean;
 }
 
 export function useSwipeToReply({
   enabled = true,
-  threshold = 80,
+  threshold = 50,
+  onReply,
 }: UseSwipeToReplyOptions) {
   const [swipeState, setSwipeState] = useState<SwipeToReplyState>({
     offsetX: 0,
     isSwiping: false,
-    isReplyRevealed: false,
+    pastThreshold: false,
   });
+
+  const resetReplyReveal = useCallback(() => {
+    setSwipeState({ offsetX: 0, isSwiping: false, pastThreshold: false });
+  }, []);
+
+  useEffect(() => {
+    activeResets.add(resetReplyReveal);
+    return () => { activeResets.delete(resetReplyReveal); };
+  }, [resetReplyReveal]);
 
   const touchRef = useRef<{
     startX: number;
@@ -28,6 +43,10 @@ export function useSwipeToReply({
     locked: boolean;
     isSwiping: boolean;
   } | null>(null);
+
+  const hapticFiredRef = useRef(false);
+  const onReplyRef = useRef(onReply);
+  onReplyRef.current = onReply;
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (!enabled) return;
@@ -46,26 +65,32 @@ export function useSwipeToReply({
     if (!enabled || !ref) return;
 
     const touch = e.touches[0];
-    const deltaX = Math.max(0, touch.clientX - ref.startX);
+    const rawDeltaX = touch.clientX - ref.startX;
+    const deltaX = Math.max(0, rawDeltaX);
     const deltaY = Math.abs(touch.clientY - ref.startY);
 
     if (!ref.locked) {
-      if (deltaX < 10 && deltaY < 10) return;
+      if (Math.abs(rawDeltaX) < 10 && deltaY < 10) return;
       ref.locked = true;
-      ref.isSwiping = deltaX > 0 && deltaX > deltaY * 1.2;
+      // Only activate swipe for clearly rightward gestures
+      ref.isSwiping = rawDeltaX > 10 && rawDeltaX > deltaY * 1.2;
       if (!ref.isSwiping) return;
+      hapticFiredRef.current = false;
     }
 
     if (!ref.isSwiping) return;
 
     ref.currentX = touch.clientX;
     const offset = deltaX <= threshold ? deltaX : threshold + (deltaX - threshold) * 0.3;
+    const past = deltaX >= threshold;
 
-    setSwipeState({
-      offsetX: offset,
-      isSwiping: true,
-      isReplyRevealed: deltaX >= threshold,
-    });
+    // Haptic tick when crossing threshold
+    if (past && !hapticFiredRef.current) {
+      hapticFiredRef.current = true;
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
+
+    setSwipeState({ offsetX: offset, isSwiping: true, pastThreshold: past });
   }, [enabled, threshold]);
 
   const onTouchEnd = useCallback(() => {
@@ -76,21 +101,22 @@ export function useSwipeToReply({
       return;
     }
 
-    setSwipeState((current) => ({
-      offsetX: 0,
-      isSwiping: false,
-      isReplyRevealed: current.isReplyRevealed,
-    }));
+    const deltaX = ref.currentX - ref.startX;
+    const passedThreshold = deltaX >= threshold;
+    hapticFiredRef.current = false;
     touchRef.current = null;
-  }, []);
 
-  const resetReplyReveal = useCallback(() => {
-    setSwipeState({
-      offsetX: 0,
-      isSwiping: false,
-      isReplyRevealed: false,
-    });
-  }, []);
+    if (passedThreshold) {
+      // Keep bubble in place briefly so "Release to reply" is visible
+      setSwipeState(s => ({ ...s, isSwiping: false }));
+      onReplyRef.current?.();
+      setTimeout(() => {
+        setSwipeState({ offsetX: 0, isSwiping: false, pastThreshold: false });
+      }, 200);
+    } else {
+      setSwipeState({ offsetX: 0, isSwiping: false, pastThreshold: false });
+    }
+  }, [threshold]);
 
   return {
     swipeState,

@@ -103,6 +103,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [showMenu, setShowMenu] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [tapFlash, setTapFlash] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
@@ -396,14 +397,14 @@ export const ChatMessage = memo(function ChatMessage({
     },
   });
   // Swipe to reply
+  const handleReply = useCallback(() => {
+    onReply?.({ id, text, authorName: authorName || null });
+  }, [onReply, id, text, authorName]);
+
   const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
     enabled: canReply,
+    onReply: handleReply,
   });
-
-  const handleReply = useCallback(() => {
-    resetReplyReveal();
-    onReply?.({ id, text, authorName: authorName || null });
-  }, [onReply, id, text, authorName, resetReplyReveal]);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     gestureModeRef.current = "press";
@@ -414,9 +415,11 @@ export const ChatMessage = memo(function ChatMessage({
       longPressTriggeredRef.current = true;
       resetReplyReveal();
       armDismissGuard();
+      // Haptic feedback
+      if (navigator.vibrate) navigator.vibrate(12);
       setShowMenu(true);
       setShowReactionPicker(true);
-    }, 600);
+    }, 400);
   }, [armDismissGuard]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -470,11 +473,16 @@ export const ChatMessage = memo(function ChatMessage({
         longPressTriggeredRef.current = false;
       });
     } else if (gestureModeRef.current === "press" && touchStartPos.current) {
-      // Short tap — open action sheet only
+      // Short tap — flash highlight then open action sheet
       e.preventDefault();
       e.stopPropagation();
-      setShowMenu(true);
-      setShowActionSheet(true);
+      setTapFlash(true);
+      if (navigator.vibrate) navigator.vibrate(6);
+      setTimeout(() => {
+        setTapFlash(false);
+        setShowMenu(true);
+        setShowActionSheet(true);
+      }, 200);
     }
 
     touchStartPos.current = null;
@@ -592,12 +600,45 @@ export const ChatMessage = memo(function ChatMessage({
           <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
-        <div className="relative">
+        <div className="relative group/msg">
+          {/* Always-visible reply icon (appears on hover, always tappable) */}
+          {canReply && !isInteracting && (
+            <button
+              type="button"
+              className={`absolute ${isOwn ? "left-0 -translate-x-[calc(100%+4px)]" : "right-0 translate-x-[calc(100%+4px)]"} top-1/2 -translate-y-1/2 opacity-0 group-hover/msg:opacity-100 focus:opacity-100 transition-opacity duration-150 z-10`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReply();
+              }}
+              aria-label="Reply"
+            >
+              <div className="h-7 w-7 rounded-full bg-muted/80 dark:bg-muted/50 flex items-center justify-center active:bg-primary/15 active:scale-95 transition-all duration-100">
+                <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </button>
+          )}
+          {/* Swipe indicator behind bubble */}
+          {canReply && swipeState.offsetX > 5 && (
+            <div
+              className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-0 flex items-center gap-1.5 pl-1"
+              style={{
+                opacity: Math.min(swipeState.offsetX / 30, 1),
+                transition: swipeState.isSwiping ? 'none' : 'opacity 0.2s ease-out',
+              }}
+            >
+              <Reply className={`h-4 w-4 transition-colors duration-100 ${swipeState.pastThreshold ? "text-primary" : "text-muted-foreground/60"}`} />
+              {swipeState.pastThreshold && (
+                <span className="text-[10px] font-medium text-primary whitespace-nowrap animate-in fade-in-0 duration-100">
+                  Release to reply
+                </span>
+              )}
+            </div>
+          )}
           {/* Swipe-to-reply wrapper */}
           <div
             style={{
               transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
-              transition: swipeState.isSwiping ? 'none' : 'transform 0.2s ease-out',
+              transition: swipeState.isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
             onTouchStart={(e) => {
               handleLongPressStart(e);
@@ -613,7 +654,7 @@ export const ChatMessage = memo(function ChatMessage({
                 isOwn
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
-              } ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
+              } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
               style={isInteracting ? (() => {
                 const isDark = document.documentElement.classList.contains('dark');
                 return {
@@ -658,22 +699,6 @@ export const ChatMessage = memo(function ChatMessage({
               />
             </div>
           </div>
-          {/* Swipe reply icon indicator */}
-          {swipeState.isReplyRevealed && canReply && (
-            <button
-              type="button"
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleReply();
-                resetReplyReveal();
-              }}
-            >
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <Reply className="h-4 w-4 text-primary" />
-              </div>
-            </button>
-          )}
         </div>
         {/* Action sheet (replaces 3-dot dropdown menu) */}
         <MessageActionSheet
