@@ -631,6 +631,8 @@ export const ChatMessage = memo(function ChatMessage({
             setShowActionSheet(open);
             if (!open) {
               setShowMenu(false);
+              setShowReactionPicker(false);
+              clearDismissGuard();
             }
           }}
           isOwn={isOwn}
