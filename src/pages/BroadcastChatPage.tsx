@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -276,15 +277,14 @@ export default function BroadcastChatPage() {
   // Local copy used for rendering so optimistic updates are instant
   const [localMessages, setLocalMessages] = useState<Message[] | undefined>(undefined);
  
-  // Track if initial scroll has happened
-  const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
-  
-  // Reset initial scroll state on mount (broadcast is always the same chat, but ensure reset on navigation)
-  useEffect(() => {
-    hasInitialScrolled.current = false;
-    setInfiniteScrollEnabled(false);
-  }, []);
+
+  useInitialChatBottomPin({
+    scrollContainerRef: scrollAreaRef,
+    itemCount: localMessages?.length ?? 0,
+    resetKey: "broadcast",
+    onPinned: () => setInfiniteScrollEnabled(true),
+  });
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -342,19 +342,6 @@ export default function BroadcastChatPage() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [queryClient]);
-
-  // Scroll to bottom on initial load - wait for content to render
-  useEffect(() => {
-    if (!localMessages?.length || hasInitialScrolled.current) return;
-    
-    const timer = setTimeout(() => {
-      hasInitialScrolled.current = true;
-      setInfiniteScrollEnabled(true);
-      scrollToBottom();
-    }, 200);
-    
-    return () => clearTimeout(timer);
-  }, [localMessages, scrollToBottom]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
