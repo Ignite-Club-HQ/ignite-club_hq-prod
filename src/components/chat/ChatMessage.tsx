@@ -501,7 +501,7 @@ export const ChatMessage = memo(function ChatMessage({
   }, []);
 
   // Swipe to reply
-  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
+  const { swipeState, isSwipingRef, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
     onReply: handleReply,
     enabled: canReply,
   });
@@ -561,12 +561,29 @@ export const ChatMessage = memo(function ChatMessage({
               swipeToReplyHandlers.onTouchStart(e);
             }}
             onTouchMove={(e) => {
-              handleTouchMove(e);
+              // If swipe-to-reply has taken over, skip long press move handler
+              if (!isSwipingRef.current) {
+                handleTouchMove(e);
+              }
               swipeToReplyHandlers.onTouchMove(e);
+              // If swipe just started, cancel long press timer
+              if (isSwipingRef.current && longPressTimer.current) {
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
+              }
             }}
             onTouchEnd={(e) => {
-              handleLongPressEnd(e);
-              swipeToReplyHandlers.onTouchEnd();
+              if (isSwipingRef.current) {
+                // Swipe handled it — just clean up long press
+                if (longPressTimer.current) {
+                  clearTimeout(longPressTimer.current);
+                  longPressTimer.current = null;
+                }
+                swipeToReplyHandlers.onTouchEnd();
+              } else {
+                handleLongPressEnd(e);
+                swipeToReplyHandlers.onTouchEnd();
+              }
             }}
             onContextMenu={handleContextMenu}
           >

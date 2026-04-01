@@ -234,7 +234,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     handleReply(msg);
   }, [handleReply, msg]);
 
-  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
+  const { swipeState, isSwipingRef, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
     onReply: handleSwipeReply,
     enabled: true,
   });
@@ -288,14 +288,28 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 handleLongPressStart(e);
                 swipeToReplyHandlers.onTouchStart(e);
               }}
-              onTouchMove={(e) => {
+            onTouchMove={(e) => {
+              if (!isSwipingRef.current) {
                 handleTouchMove(e);
-                swipeToReplyHandlers.onTouchMove(e);
-              }}
-              onTouchEnd={(e) => {
+              }
+              swipeToReplyHandlers.onTouchMove(e);
+              if (isSwipingRef.current && longPressTimer.current) {
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
+              }
+            }}
+            onTouchEnd={(e) => {
+              if (isSwipingRef.current) {
+                if (longPressTimer.current) {
+                  clearTimeout(longPressTimer.current);
+                  longPressTimer.current = null;
+                }
+                swipeToReplyHandlers.onTouchEnd();
+              } else {
                 handleLongPressEnd(e);
                 swipeToReplyHandlers.onTouchEnd();
-              }}
+              }
+            }}
               onContextMenu={handleContextMenu}
             >
               <div

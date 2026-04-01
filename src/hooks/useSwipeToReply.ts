@@ -27,8 +27,10 @@ export function useSwipeToReply({
     currentX: number;
     locked: boolean;
     isSwiping: boolean;
-    triggered: boolean;
   } | null>(null);
+
+  // Tracks whether the swipe is actively in progress (for external coordination)
+  const isSwipingRef = useRef(false);
 
   const onTouchStart = useCallback(
     (e: React.TouchEvent) => {
@@ -40,8 +42,8 @@ export function useSwipeToReply({
         currentX: touch.clientX,
         locked: false,
         isSwiping: false,
-        triggered: false,
       };
+      isSwipingRef.current = false;
     },
     [enabled]
   );
@@ -56,17 +58,17 @@ export function useSwipeToReply({
       const deltaY = touch.clientY - ref.startY;
 
       if (!ref.locked) {
-        if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return;
+        if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) return;
         ref.locked = true;
         // Only swipe right (positive deltaX) and horizontal dominant
-        ref.isSwiping = deltaX > 0 && Math.abs(deltaX) > Math.abs(deltaY);
+        ref.isSwiping = deltaX > 0 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2;
+        isSwipingRef.current = ref.isSwiping;
         if (!ref.isSwiping) return;
       }
 
       if (!ref.isSwiping) return;
 
       ref.currentX = touch.clientX;
-      // Clamp: only allow right swipe, with rubber-band past threshold
       const rawOffset = Math.max(0, deltaX);
       const offset =
         rawOffset <= threshold
@@ -75,9 +77,7 @@ export function useSwipeToReply({
 
       setSwipeState({ offsetX: offset, isSwiping: true });
 
-      if (rawOffset >= threshold && !ref.triggered) {
-        ref.triggered = true;
-        // Haptic feedback if available
+      if (rawOffset >= threshold) {
         if (navigator.vibrate) navigator.vibrate(10);
       }
     },
@@ -88,20 +88,29 @@ export function useSwipeToReply({
     const ref = touchRef.current;
     if (!ref || !ref.isSwiping) {
       touchRef.current = null;
+      isSwipingRef.current = false;
       return;
     }
 
-    const deltaX = ref.currentX - ref.startX;
-    if (deltaX >= threshold) {
-      onReply();
-    }
-
+    const finalOffset = ref.currentX - ref.startX;
+    
+    // Reset state first so UI animates back
     setSwipeState({ offsetX: 0, isSwiping: false });
     touchRef.current = null;
+    isSwipingRef.current = false;
+
+    // Trigger reply if past threshold
+    if (finalOffset >= threshold) {
+      // Use rAF to let the animation start before triggering reply
+      requestAnimationFrame(() => {
+        onReply();
+      });
+    }
   }, [threshold, onReply]);
 
   return {
     swipeState,
+    isSwipingRef,
     swipeHandlers: {
       onTouchStart,
       onTouchMove,
