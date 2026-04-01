@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
+import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -69,6 +70,7 @@ export default function ClubAdminChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const isNativePlatform = Capacitor.isNativePlatform();
 
   const scrollToBottom = useCallback(() => {

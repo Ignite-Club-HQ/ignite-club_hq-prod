@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
+import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Search } from "lucide-react";
@@ -118,6 +119,7 @@ export default function TeamChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
   const chatHeight = useChatViewportHeight();
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   
   // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
