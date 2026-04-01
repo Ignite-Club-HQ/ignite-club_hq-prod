@@ -1,4 +1,27 @@
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useEffect } from "react";
+
+// Global registry: when any message reveals reply, others dismiss
+type ResetFn = () => void;
+const activeResets = new Set<ResetFn>();
+let globalDismissAttached = false;
+
+function attachGlobalDismiss() {
+  if (globalDismissAttached) return;
+  globalDismissAttached = true;
+  document.addEventListener("touchstart", () => {
+    // Each swipe's own onTouchStart will re-arm — this clears stale ones
+    // Delay slightly so the new swipe's onTouchStart registers first
+    setTimeout(() => {
+      activeResets.forEach((fn) => fn());
+    }, 50);
+  }, { passive: true });
+}
+
+function notifyReveal(currentReset: ResetFn) {
+  activeResets.forEach((fn) => {
+    if (fn !== currentReset) fn();
+  });
+}
 
 interface UseSwipeToReplyOptions {
   enabled?: boolean;
@@ -21,6 +44,23 @@ export function useSwipeToReply({
     isReplyRevealed: false,
   });
 
+  const resetReplyReveal = useCallback(() => {
+    setSwipeState({
+      offsetX: 0,
+      isSwiping: false,
+      isReplyRevealed: false,
+    });
+  }, []);
+
+  // Register this instance's reset in the global set
+  useEffect(() => {
+    activeResets.add(resetReplyReveal);
+    attachGlobalDismiss();
+    return () => {
+      activeResets.delete(resetReplyReveal);
+    };
+  }, [resetReplyReveal]);
+
   const touchRef = useRef<{
     startX: number;
     startY: number;
@@ -28,6 +68,9 @@ export function useSwipeToReply({
     locked: boolean;
     isSwiping: boolean;
   } | null>(null);
+
+  const hapticFiredRef = useRef(false);
+  const isRevealedRef = useRef(false);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (!enabled) return;
@@ -40,8 +83,6 @@ export function useSwipeToReply({
       isSwiping: false,
     };
   }, [enabled]);
-
-  const hapticFiredRef = useRef(false);
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     const ref = touchRef.current;
@@ -86,6 +127,8 @@ export function useSwipeToReply({
       return;
     }
 
+    const wasRevealed = swipeState.isReplyRevealed || (ref.currentX - ref.startX >= threshold);
+
     setSwipeState((current) => ({
       offsetX: 0,
       isSwiping: false,
@@ -93,15 +136,18 @@ export function useSwipeToReply({
     }));
     hapticFiredRef.current = false;
     touchRef.current = null;
-  }, []);
 
-  const resetReplyReveal = useCallback(() => {
-    setSwipeState({
-      offsetX: 0,
-      isSwiping: false,
-      isReplyRevealed: false,
-    });
-  }, []);
+    // If this message just revealed, dismiss all others
+    if (wasRevealed) {
+      isRevealedRef.current = true;
+      notifyReveal(resetReplyReveal);
+    }
+  }, [threshold, swipeState.isReplyRevealed, resetReplyReveal]);
+
+  // Keep ref in sync
+  useEffect(() => {
+    isRevealedRef.current = swipeState.isReplyRevealed;
+  }, [swipeState.isReplyRevealed]);
 
   return {
     swipeState,
