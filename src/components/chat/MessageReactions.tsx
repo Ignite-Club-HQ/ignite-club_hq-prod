@@ -135,7 +135,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         style={{
           top: position.top,
           left: position.left,
-          width: "min(280px, calc(100vw - 16px))",
+          width: 244,
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
