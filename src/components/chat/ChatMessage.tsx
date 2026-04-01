@@ -514,15 +514,6 @@ export const ChatMessage = memo(function ChatMessage({
     setShowActionSheet(true);
   }, [consumeContextMenuGuard]);
 
-  const handleReply = useCallback(() => {
-    onReply?.({ id, text, authorName: authorName || null });
-  }, [onReply, id, text, authorName]);
-
-  // Swipe to reply
-  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
-    onReply: handleReply,
-    enabled: canReply,
-  });
 
   const handleStartEdit = useCallback(() => {
     onEdit?.({ id, text });

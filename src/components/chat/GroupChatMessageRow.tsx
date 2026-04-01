@@ -107,9 +107,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   }, [clearDismissGuard]);
 
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    gestureModeRef.current = "press";
     longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
+      if (gestureModeRef.current !== "press") return;
       longPressTriggeredRef.current = true;
       armDismissGuard();
       setShowMenu(true);
