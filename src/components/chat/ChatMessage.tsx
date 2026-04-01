@@ -601,37 +601,18 @@ export const ChatMessage = memo(function ChatMessage({
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="relative group/msg">
-          {/* Always-visible reply icon (appears on hover, always tappable) */}
-          {canReply && !isInteracting && (
-            <button
-              type="button"
-              className={`absolute ${isOwn ? "left-0 -translate-x-[calc(100%+4px)]" : "right-0 translate-x-[calc(100%+4px)]"} top-1/2 -translate-y-1/2 opacity-0 group-hover/msg:opacity-100 focus:opacity-100 transition-opacity duration-150 z-10`}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleReply();
-              }}
-              aria-label="Reply"
-            >
-              <div className="h-7 w-7 rounded-full bg-muted/80 dark:bg-muted/50 flex items-center justify-center active:bg-primary/15 active:scale-95 transition-all duration-100">
-                <Reply className="h-3.5 w-3.5 text-muted-foreground" />
-              </div>
-            </button>
-          )}
-          {/* Swipe indicator behind bubble */}
-          {canReply && swipeState.offsetX > 20 && (
+          {/* Swipe indicator - text only, shown when past threshold */}
+          {canReply && swipeState.pastThreshold && (
             <div
-              className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-0 flex items-center gap-1.5 pl-1"
+              className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-0 flex items-center pl-1"
               style={{
-                opacity: Math.min((swipeState.offsetX - 20) / 25, 1),
+                opacity: 1,
                 transition: swipeState.isSwiping ? 'none' : 'opacity 0.2s ease-out',
               }}
             >
-              <Reply className={`h-4 w-4 transition-colors duration-100 ${swipeState.pastThreshold ? "text-primary" : "text-muted-foreground/60"}`} />
-              {swipeState.pastThreshold && (
-                <span className="text-[10px] font-medium text-primary whitespace-nowrap animate-in fade-in-0 duration-100">
-                  Release to reply
-                </span>
-              )}
+              <span className="text-[10px] font-medium text-primary whitespace-nowrap animate-in fade-in-0 duration-100">
+                Release to reply
+              </span>
             </div>
           )}
           {/* Swipe-to-reply wrapper */}
