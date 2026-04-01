@@ -599,7 +599,37 @@ export const ChatMessage = memo(function ChatMessage({
           <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
-        <div className="relative">
+        <div className="relative group/msg">
+          {/* Always-visible reply icon (appears on hover, always tappable) */}
+          {canReply && !isInteracting && (
+            <button
+              type="button"
+              className={`absolute ${isOwn ? "right-0 translate-x-[calc(100%+4px)]" : "left-0 -translate-x-[calc(100%+4px)]"} top-1/2 -translate-y-1/2 opacity-0 group-hover/msg:opacity-100 focus:opacity-100 transition-opacity duration-150 z-10`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReply();
+              }}
+              aria-label="Reply"
+            >
+              <div className="h-7 w-7 rounded-full bg-muted/80 dark:bg-muted/50 flex items-center justify-center active:bg-primary/15 active:scale-95 transition-all duration-100">
+                <Reply className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </button>
+          )}
+          {/* Swipe reply icon — visible during swipe */}
+          {canReply && swipeState.offsetX > 0 && (
+            <div
+              className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-0"
+              style={{
+                opacity: Math.min(swipeState.offsetX / 60, 1),
+                transform: `translateY(-50%) scale(${Math.min(0.6 + (swipeState.offsetX / 80) * 0.4, 1)})`,
+              }}
+            >
+              <div className={`h-8 w-8 rounded-full flex items-center justify-center ${swipeState.isReplyRevealed ? "bg-primary/20" : "bg-primary/10"} transition-colors duration-100`}>
+                <Reply className={`h-4 w-4 ${swipeState.isReplyRevealed ? "text-primary" : "text-muted-foreground"}`} />
+              </div>
+            </div>
+          )}
           {/* Swipe-to-reply wrapper */}
           <div
             style={{
@@ -665,7 +695,7 @@ export const ChatMessage = memo(function ChatMessage({
               />
             </div>
           </div>
-          {/* Swipe reply icon indicator */}
+          {/* Swipe reply revealed button */}
           {swipeState.isReplyRevealed && canReply && (
             <button
               type="button"
@@ -676,7 +706,7 @@ export const ChatMessage = memo(function ChatMessage({
                 resetReplyReveal();
               }}
             >
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center animate-in zoom-in-75 duration-150">
                 <Reply className="h-4 w-4 text-primary" />
               </div>
             </button>
