@@ -346,11 +346,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               </button>
             )}
             {/* Swipe indicator behind bubble */}
-            {swipeState.offsetX > 5 && (
+            {swipeState.offsetX > 20 && (
               <div
                 className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none z-0 flex items-center gap-1.5 pl-1"
                 style={{
-                  opacity: Math.min(swipeState.offsetX / 30, 1),
+                  opacity: Math.min((swipeState.offsetX - 20) / 25, 1),
                   transition: swipeState.isSwiping ? 'none' : 'opacity 0.2s ease-out',
                 }}
               >
