@@ -482,43 +482,25 @@ export default function TeamChatPage() {
 
   // Scroll to bottom on initial load after layout/viewport settles
   useLayoutEffect(() => {
-    if (!localMessages?.length || hasInitialScrolled.current) return;
+    const el = scrollAreaRef.current;
+    if (!el || !localMessages?.length || hasInitialScrolled.current) return;
 
-    let attempts = 0;
-    let retryTimeout = 0;
-    let settleTimeout = 0;
-    let firstFrame = 0;
-    let secondFrame = 0;
-
-    const applyScroll = () => {
-      const el = scrollAreaRef.current;
-      if (!el) return;
+    const snapToBottom = () => {
       el.scrollTop = el.scrollHeight;
     };
 
-    const pinToBottom = () => {
-      if (!scrollAreaRef.current) {
-        attempts += 1;
-        if (attempts < 20) {
-          retryTimeout = window.setTimeout(pinToBottom, 100);
-        }
-        return;
-      }
+    hasInitialScrolled.current = true;
+    setInfiniteScrollEnabled(true);
 
-      hasInitialScrolled.current = true;
-      setInfiniteScrollEnabled(true);
+    snapToBottom();
 
-      firstFrame = requestAnimationFrame(() => {
-        secondFrame = requestAnimationFrame(applyScroll);
-      });
-      settleTimeout = window.setTimeout(applyScroll, 80);
-    };
-
-    pinToBottom();
+    let firstFrame = 0;
+    let secondFrame = 0;
+    firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(snapToBottom);
+    });
 
     return () => {
-      window.clearTimeout(retryTimeout);
-      window.clearTimeout(settleTimeout);
       cancelAnimationFrame(firstFrame);
       cancelAnimationFrame(secondFrame);
     };
