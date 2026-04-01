@@ -329,9 +329,13 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`rounded-lg px-3 py-2 select-none transition-all duration-150 ${
+                className={`rounded-lg px-3 py-2 select-none transition-all duration-100 ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
-                } ${isInteracting ? "scale-[1.02] shadow-lg ring-2 ring-primary/20" : ""}`}
+                } ${isInteracting ? "scale-[1.03] shadow-xl ring-2 ring-primary/30" : ""}`}
+                style={isInteracting ? {
+                  boxShadow: '0 8px 30px -4px hsl(var(--primary) / 0.18), 0 4px 12px -2px rgba(0,0,0,0.12)',
+                  filter: isOwnMessage ? 'brightness(1.08)' : 'brightness(0.96)',
+                } : undefined}
               >
                 {msg.image_url && (
                   <img src={msg.image_url} alt="Attachment" className="max-w-xs rounded mb-2" />
