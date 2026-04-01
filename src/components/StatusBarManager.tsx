@@ -15,7 +15,6 @@ export function StatusBarManager() {
     const isNativePlatform = Capacitor.isNativePlatform();
     const isNativeIOS = isNativePlatform && Capacitor.getPlatform() === 'ios';
     let cancelIOSRecovery: (() => void) | null = null;
-    const startupRefreshTimers: number[] = [];
 
     const queueIOSRecovery = () => {
       if (!isNativeIOS || typeof document === 'undefined') return;
@@ -24,19 +23,15 @@ export function StatusBarManager() {
       cancelIOSRecovery = scheduleIOSNativeOverlayRecovery([0, 320, 1100, 1800]);
     };
 
+    // Initial apply (synchronous theme read inside statusBarControl)
     applyStatusBar();
 
-    if (isNativePlatform && !isNativeIOS && typeof window !== 'undefined') {
-      startupRefreshTimers.push(
-        window.setTimeout(() => refreshStatusBar(), 80),
-        window.setTimeout(() => refreshStatusBar(), 500),
-      );
-    }
-
+    // iOS keyboard config
     if (isNativeIOS) {
       Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
     }
 
+    // Scroll focused input into view when keyboard appears (Android + iOS)
     let keyboardShowListener: { remove: () => void } | undefined;
     if (isNativePlatform) {
       Keyboard.addListener('keyboardDidShow', () => {
@@ -49,6 +44,7 @@ export function StatusBarManager() {
       }).then(handle => { keyboardShowListener = handle; });
     }
 
+    // Re-apply on app resume with a small delay to let WebView settle
     let appListener: { remove: () => void } | undefined;
     if (isNativePlatform) {
       App.addListener('appStateChange', ({ isActive }) => {
@@ -56,6 +52,7 @@ export function StatusBarManager() {
           if (isNativeIOS) {
             queueIOSRecovery();
           } else {
+            // Android can reset status bar colors during resume – apply twice
             setTimeout(() => refreshStatusBar(), 80);
             setTimeout(() => refreshStatusBar(), 500);
           }
@@ -64,21 +61,18 @@ export function StatusBarManager() {
     }
 
     const handleViewportResume = () => {
-      if (isNativeIOS) {
-        queueIOSRecovery();
-      } else if (isNativePlatform) {
-        refreshStatusBar();
-      }
+      queueIOSRecovery();
     };
 
-    if (isNativePlatform && typeof document !== 'undefined' && typeof window !== 'undefined') {
+    if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
       window.addEventListener('focus', handleViewportResume);
       window.addEventListener('pageshow', handleViewportResume);
       document.addEventListener('visibilitychange', handleViewportResume);
     }
 
+    // Watch for theme changes via DOM class mutations
     const observer = new MutationObserver(() => {
-      applyStatusBar();
+      applyStatusBar(); // dedup handled inside queue
     });
 
     observer.observe(document.documentElement, {
@@ -91,8 +85,7 @@ export function StatusBarManager() {
       appListener?.remove();
       keyboardShowListener?.remove();
       cancelIOSRecovery?.();
-      startupRefreshTimers.forEach((timer) => window.clearTimeout(timer));
-      if (isNativePlatform && typeof document !== 'undefined' && typeof window !== 'undefined') {
+      if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
         window.removeEventListener('focus', handleViewportResume);
         window.removeEventListener('pageshow', handleViewportResume);
         document.removeEventListener('visibilitychange', handleViewportResume);
