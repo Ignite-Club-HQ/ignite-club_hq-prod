@@ -1,4 +1,5 @@
-import { Reply, Pencil, Trash2, Flag, ShieldAlert } from "lucide-react";
+import { useState } from "react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -42,6 +43,8 @@ export function MessageActionSheet({
   onReport,
   onBlock,
 }: MessageActionSheetProps) {
+  const [showSafety, setShowSafety] = useState(false);
+
   const actions: MessageAction[] = [];
 
   if (canReply) {
@@ -69,23 +72,14 @@ export function MessageActionSheet({
     });
   }
 
-  const safetyActions: MessageAction[] = [];
+  const hasSafetyActions = !isOwn && !isSystemMessage;
 
-  if (!isOwn && !isSystemMessage) {
-    safetyActions.push({
-      label: "Report Message",
-      icon: <Flag className="h-5 w-5" />,
-      onClick: onReport,
-    });
-    safetyActions.push({
-      label: "Block User",
-      icon: <ShieldAlert className="h-5 w-5" />,
-      onClick: onBlock,
-      destructive: true,
-    });
-  }
+  if (actions.length === 0 && !hasSafetyActions) return null;
 
-  if (actions.length === 0 && safetyActions.length === 0) return null;
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) setShowSafety(false);
+    onOpenChange(isOpen);
+  };
 
   const renderAction = (action: MessageAction, i: number) => (
     <button
@@ -96,7 +90,7 @@ export function MessageActionSheet({
           : "text-foreground"
       }`}
       onClick={() => {
-        onOpenChange(false);
+        handleOpenChange(false);
         requestAnimationFrame(() => action.onClick());
       }}
     >
@@ -106,7 +100,7 @@ export function MessageActionSheet({
   );
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side="bottom"
         hideCloseButton
@@ -117,15 +111,55 @@ export function MessageActionSheet({
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
         <div className="py-2">
-          {actions.map(renderAction)}
-          {actions.length > 0 && safetyActions.length > 0 && (
-            <div className="my-1 mx-6 border-t border-border/50" />
-          )}
-          {safetyActions.length > 0 && (
-            <div>
-              <p className="px-6 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">Safety</p>
-              {safetyActions.map(renderAction)}
-            </div>
+          {!showSafety ? (
+            <>
+              {actions.map(renderAction)}
+              {hasSafetyActions && (
+                <>
+                  {actions.length > 0 && (
+                    <div className="my-1 mx-6 border-t border-border/30" />
+                  )}
+                  <button
+                    className="w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                    onClick={() => setShowSafety(true)}
+                  >
+                    <MoreHorizontal className="h-5 w-5" />
+                    More…
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                className="w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                onClick={() => setShowSafety(false)}
+              >
+                <ChevronLeft className="h-5 w-5" />
+                Back
+              </button>
+              <div className="my-1 mx-6 border-t border-border/30" />
+              <button
+                className="w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                onClick={() => {
+                  handleOpenChange(false);
+                  requestAnimationFrame(() => onReport());
+                }}
+              >
+                <Flag className="h-5 w-5" />
+                Report Message
+              </button>
+              <button
+                className="w-full flex items-center gap-4 px-6 py-3.5 text-left text-[15px] font-medium text-muted-foreground active:bg-muted transition-colors"
+                onClick={() => {
+                  handleOpenChange(false);
+                  requestAnimationFrame(() => onBlock());
+                }}
+              >
+                <ShieldAlert className="h-5 w-5" />
+                Block User
+              </button>
+            </>
           )}
         </div>
       </SheetContent>
