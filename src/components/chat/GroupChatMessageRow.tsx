@@ -118,6 +118,16 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     }, 600);
   }, [armDismissGuard]);
 
+  // Swipe to reply
+  const handleSwipeReply = useCallback(() => {
+    handleReply(msg);
+  }, [handleReply, msg]);
+
+  const { swipeState, swipeHandlers: swipeToReplyHandlers } = useSwipeToReply({
+    onReply: handleSwipeReply,
+    enabled: true,
+  });
+
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!touchStartPos.current) return;
 
