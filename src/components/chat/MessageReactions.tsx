@@ -45,7 +45,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   anchorRef,
   preventIfGuarded,
 }: MessageReactionsProps) {
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
 
   useLayoutEffect(() => {
@@ -63,11 +63,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
       const rootStyles = getComputedStyle(document.documentElement);
       const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-      const pickerWidth = 244;
-      const pickerHeight = 52;
+      const minPickerWidth = 244;
+      const pickerWidth = Math.max(minPickerWidth, Math.min(rect.width, 320));
+      const pickerHeight = 44;
       const topBoundary = viewportOffsetTop + 72;
       const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - 92;
-      const gap = 4;
+      const gap = 2;
       const spaceAbove = rect.top - topBoundary;
       const spaceBelow = bottomBoundary - rect.bottom;
       const showBelow = spaceAbove < pickerHeight && spaceBelow >= pickerHeight + gap;
@@ -83,7 +84,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       let left = isOwnMessage ? rect.right - pickerWidth : rect.left;
       left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
 
-      setPosition({ top, left });
+      setPosition({ top, left, width: pickerWidth });
     };
 
     updatePosition();
@@ -135,15 +136,15 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         style={{
           top: position.top,
           left: position.left,
-          width: 244,
+          width: position.width,
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="bg-popover/95 backdrop-blur-sm border border-border/50 rounded-2xl px-2 py-1.5 shadow-md animate-in fade-in slide-in-from-bottom-1 duration-100">
-          <div className="flex gap-1">
+        <div className="bg-popover/95 backdrop-blur-sm border border-border/30 rounded-2xl px-1.5 py-1 shadow-sm animate-in fade-in slide-in-from-bottom-1 duration-100">
+          <div className="flex justify-around">
             {REACTION_EMOJIS.map(({ type, emoji }) => {
               const userHasReaction = reactions.some(
                 (r) => r.user_id === currentUserId && r.reaction_type === type
