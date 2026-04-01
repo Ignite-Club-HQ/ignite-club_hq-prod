@@ -120,9 +120,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       longPressTriggeredRef.current = true;
       resetReplyReveal();
       armDismissGuard();
+      if (navigator.vibrate) navigator.vibrate(12);
       setShowMenu(true);
       setShowReactionPicker(true);
-    }, 600);
+    }, 400);
   }, [armDismissGuard]);
 
   const { swipeState, swipeHandlers: swipeToReplyHandlers, resetReplyReveal } = useSwipeToReply({
