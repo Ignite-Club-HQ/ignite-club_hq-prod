@@ -101,13 +101,12 @@ export const ChatMessage = memo(function ChatMessage({
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showReadReceipts, setShowReadReceipts] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const longPressTriggeredRef = useRef(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
   const {
