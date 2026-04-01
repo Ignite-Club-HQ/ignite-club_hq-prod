@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
@@ -389,7 +389,7 @@ export default function TeamChatPage() {
 
   const isAnyRefreshing = isManualRefreshing;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
     if (!messages) return;
 

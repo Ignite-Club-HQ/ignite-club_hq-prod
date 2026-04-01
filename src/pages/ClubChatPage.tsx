@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
@@ -389,7 +389,7 @@ export default function ClubChatPage() {
 
   const isAnyRefreshing = isManualRefreshing;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Always sync localMessages with messages from query cache
     // This ensures optimistic updates (deletions, edits) are reflected immediately
     if (messages) {
