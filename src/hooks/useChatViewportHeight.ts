@@ -20,16 +20,15 @@ const getInitialViewportHeight = () => {
  * to scroll out of view because the browser itself scrolls the page.
  */
 export function useChatViewportHeight(headerOffset = "4rem") {
-  // Web: use pure CSS — no JS viewport tracking needed
-  if (!isNative) {
-    return `calc(100dvh - ${headerOffset})`;
-  }
-
-  // Native: track visualViewport for keyboard handling
-  const [vpHeight, setVpHeight] = useState<number | null>(getInitialViewportHeight);
+  const [vpHeight, setVpHeight] = useState<number | null>(
+    isNative ? getInitialViewportHeight() : null
+  );
   const rafRef = useRef(0);
 
   useLayoutEffect(() => {
+    // On web we don't need JS viewport tracking
+    if (!isNative) return;
+
     const vv = window.visualViewport;
     if (!vv) {
       setVpHeight(window.innerHeight);
@@ -51,6 +50,12 @@ export function useChatViewportHeight(headerOffset = "4rem") {
     };
   }, []);
 
+  // Web: pure CSS approach
+  if (!isNative) {
+    return `calc(100dvh - ${headerOffset})`;
+  }
+
+  // Native: JS-tracked viewport
   if (vpHeight === null) {
     return `calc(var(--stable-vh, 100vh) - ${headerOffset})`;
   }
