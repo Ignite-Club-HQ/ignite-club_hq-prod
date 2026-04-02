@@ -81,22 +81,18 @@ export function useInitialChatBottomPin({
       cancelled = true;
       cleanup();
 
+      // Snap to bottom synchronously BEFORE revealing content
       scrollChatToBottom(scrollContainerRef.current);
+
+      // Use double-rAF to ensure layout is fully computed before revealing
       requestAnimationFrame(() => {
         scrollChatToBottom(scrollContainerRef.current);
-        pinnedKeyRef.current = resetKey;
-        setIsPinned(true);
-        onPinnedRef.current?.();
-
-        // Staggered delayed snaps for native WebView rendering lag.
-        // On first login the WebView may still be computing layout after
-        // the DOM is committed, so we re-snap at multiple intervals.
-        const delays = [50, 150, 300, 600];
-        for (const d of delays) {
-          setTimeout(() => {
-            scrollChatToBottom(scrollContainerRef.current);
-          }, d);
-        }
+        requestAnimationFrame(() => {
+          scrollChatToBottom(scrollContainerRef.current);
+          pinnedKeyRef.current = resetKey;
+          setIsPinned(true);
+          onPinnedRef.current?.();
+        });
       });
     };
 
