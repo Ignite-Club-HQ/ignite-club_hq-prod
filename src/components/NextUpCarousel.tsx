@@ -292,6 +292,14 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+
+  const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+
+  const rsvpMutation = useMutation({
+    mutationFn: async (status: RsvpStatus) => {
+      let rsvpId: string | null = null;
+      if (myRsvp) {
+        const { error } = await supabase.from("rsvps").update({ status }).eq("id", myRsvp.id);
         if (error) throw error;
         rsvpId = myRsvp.id;
       } else {
