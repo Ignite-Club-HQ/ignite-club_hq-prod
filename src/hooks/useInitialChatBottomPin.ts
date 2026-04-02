@@ -162,7 +162,10 @@ export function useInitialChatBottomPin({
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      resumeTimers.forEach(clearTimeout);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [isPinned, scrollContainerRef, resetKey]);
 
   return { isPinned };
