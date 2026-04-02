@@ -541,10 +541,6 @@ export default function GroupChatPage() {
     });
   }, [localMessages]);
 
-  const reactions = useMemo(() => {
-    if (!messagesData || Array.isArray(messagesData)) return [];
-    return (messagesData as any).reactions || [];
-  }, [messagesData]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
