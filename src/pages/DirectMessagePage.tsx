@@ -388,7 +388,7 @@ export default function DirectMessagePage() {
     setInfiniteScrollEnabled(false);
   }, [conversationId]);
 
-  useInitialChatBottomPin({
+  const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
