@@ -387,10 +387,6 @@ export default function TeamChatPage() {
     if (!messages || !teamId) return;
 
     setLocalMessages((prev) => {
-      // Diagnostic: log reaction counts before/after merge
-      const prevReactionCount = (prev || []).reduce((sum, m) => sum + (m.reactions?.length || 0), 0);
-      const incomingReactionCount = messages.reduce((sum, m) => sum + (m.reactions?.length || 0), 0);
-
       const mergedMessages = !prev
         ? messages
         : messages.map((message) => {
@@ -405,28 +401,21 @@ export default function TeamChatPage() {
               incomingByUser.set(reaction.user_id, reaction);
             });
 
-            const tempOnlyFromPrevious = previousReactions.filter(
-              (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
-            );
+            // Keep reactions from prev that are NOT in the incoming set:
+            // - temp reactions whose user isn't already covered
+            // - real reactions (arrived via realtime) whose id isn't in incoming
+            const incomingIds = new Set(incomingReactions.map((r) => r.id));
+            const missingFromIncoming = previousReactions.filter((reaction) => {
+              if (incomingIds.has(reaction.id)) return false;
+              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
+              return !incomingByUser.has(reaction.user_id);
+            });
 
             return {
               ...message,
-              reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+              reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
-
-      const mergedReactionCount = mergedMessages.reduce((sum, m) => sum + (m.reactions?.length || 0), 0);
-
-      if (prevReactionCount > 0 || incomingReactionCount > 0 || mergedReactionCount > 0) {
-        console.log("[TeamChat] Reaction sync", {
-          prevMessages: prev?.length ?? 0,
-          incomingMessages: messages.length,
-          prevReactions: prevReactionCount,
-          incomingReactions: incomingReactionCount,
-          mergedReactions: mergedReactionCount,
-          dropped: prevReactionCount > mergedReactionCount,
-        });
-      }
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,

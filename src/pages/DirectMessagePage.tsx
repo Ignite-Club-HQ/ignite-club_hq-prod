@@ -419,13 +419,16 @@ export default function DirectMessagePage() {
               incomingByUser.set(reaction.user_id, reaction);
             });
 
-            const tempOnlyFromPrevious = previousReactions.filter(
-              (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
-            );
+            const incomingIds = new Set(incomingReactions.map((r) => r.id));
+            const missingFromIncoming = previousReactions.filter((reaction) => {
+              if (incomingIds.has(reaction.id)) return false;
+              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
+              return !incomingByUser.has(reaction.user_id);
+            });
 
             return {
               ...message,
-              reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+              reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
 

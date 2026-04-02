@@ -415,10 +415,6 @@ export default function GroupChatPage() {
     if (!messages || !groupId) return;
 
     setLocalMessages((prev) => {
-      // Diagnostic: log reaction counts before/after merge
-      const prevReactionCount = (prev || []).reduce((sum, m) => sum + ((m as any).reactions?.length || 0), 0);
-      const incomingReactionCount = messages.reduce((sum, m) => sum + ((m as any).reactions?.length || 0), 0);
-
       const mergedMessages = !prev
         ? messages
         : messages.map((message) => {
@@ -433,28 +429,18 @@ export default function GroupChatPage() {
               incomingByUser.set(reaction.user_id, reaction);
             });
 
-            const tempOnlyFromPrevious = previousReactions.filter(
-              (reaction: any) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
-            );
+            const incomingIds = new Set(incomingReactions.map((r: any) => r.id));
+            const missingFromIncoming = previousReactions.filter((reaction: any) => {
+              if (incomingIds.has(reaction.id)) return false;
+              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
+              return !incomingByUser.has(reaction.user_id);
+            });
 
             return {
               ...message,
-              reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+              reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
-
-      const mergedReactionCount = mergedMessages.reduce((sum, m) => sum + ((m as any).reactions?.length || 0), 0);
-
-      if (prevReactionCount > 0 || incomingReactionCount > 0 || mergedReactionCount > 0) {
-        console.log("[GroupChat] Reaction sync", {
-          prevMessages: prev?.length ?? 0,
-          incomingMessages: messages.length,
-          prevReactions: prevReactionCount,
-          incomingReactions: incomingReactionCount,
-          mergedReactions: mergedReactionCount,
-          dropped: prevReactionCount > mergedReactionCount,
-        });
-      }
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
         id: m.id,
