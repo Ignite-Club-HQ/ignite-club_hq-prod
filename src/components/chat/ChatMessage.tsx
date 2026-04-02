@@ -419,7 +419,7 @@ export const ChatMessage = memo(function ChatMessage({
       resetReplyReveal();
       armDismissGuard();
       // Haptic feedback
-      if (navigator.vibrate) navigator.vibrate(12);
+      hapticImpactLight();
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
