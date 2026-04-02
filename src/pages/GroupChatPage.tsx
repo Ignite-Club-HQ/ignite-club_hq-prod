@@ -415,10 +415,6 @@ export default function GroupChatPage() {
     if (!messages || !groupId) return;
 
     setLocalMessages((prev) => {
-      // Diagnostic: log reaction counts before/after merge
-      const prevReactionCount = (prev || []).reduce((sum, m) => sum + ((m as any).reactions?.length || 0), 0);
-      const incomingReactionCount = messages.reduce((sum, m) => sum + ((m as any).reactions?.length || 0), 0);
-
       const mergedMessages = !prev
         ? messages
         : messages.map((message) => {
@@ -445,19 +441,6 @@ export default function GroupChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
-
-      const mergedReactionCount = mergedMessages.reduce((sum, m) => sum + ((m as any).reactions?.length || 0), 0);
-
-      if (prevReactionCount > 0 || incomingReactionCount > 0 || mergedReactionCount > 0) {
-        console.log("[GroupChat] Reaction sync", {
-          prevMessages: prev?.length ?? 0,
-          incomingMessages: messages.length,
-          prevReactions: prevReactionCount,
-          incomingReactions: incomingReactionCount,
-          mergedReactions: mergedReactionCount,
-          dropped: prevReactionCount > mergedReactionCount,
-        });
-      }
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
         id: m.id,
