@@ -398,21 +398,36 @@ export default function DirectMessagePage() {
 
   const isAnyRefreshing = isManualRefreshing;
 
-  // Sync localMessages with fetched messages
-  // Always update when we have fresh data (even if empty) to avoid stale optimistic messages
   useLayoutEffect(() => {
-    if (messages) {
-      // If we have messages from the server, use them
-      if (messages.length > 0) {
-        setLocalMessages(messages);
-      } else {
-        // Only clear local messages if the query is not using placeholder data
-        // This prevents clearing optimistic updates during initial fetch
-        if (!messagesLoading) {
-          setLocalMessages(messages);
-        }
-      }
-    }
+    // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
+    if (!messages) return;
+
+    setLocalMessages((prev) => {
+      if (!prev) return messages;
+      if (messages.length === 0 && messagesLoading) return prev;
+
+      return messages.map((message) => {
+        const previousMessage = prev.find((item) => item.id === message.id);
+        if (!previousMessage) return message;
+
+        const previousReactions = previousMessage.reactions || [];
+        const incomingReactions = message.reactions || [];
+
+        const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
+        incomingReactions.forEach((reaction) => {
+          incomingByUser.set(reaction.user_id, reaction);
+        });
+
+        const tempOnlyFromPrevious = previousReactions.filter(
+          (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
+        );
+
+        return {
+          ...message,
+          reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+        };
+      });
+    });
   }, [messages, messagesLoading]);
 
   useEffect(() => {

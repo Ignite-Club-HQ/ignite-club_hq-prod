@@ -384,11 +384,36 @@ export default function ClubChatPage() {
   const isAnyRefreshing = isManualRefreshing;
 
   useLayoutEffect(() => {
-    // Always sync localMessages with messages from query cache
-    // This ensures optimistic updates (deletions, edits) are reflected immediately
-    if (messages) {
-      setLocalMessages(messages);
-    }
+    // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
+    if (!messages) return;
+
+    setLocalMessages((prev) => {
+      if (!prev) return messages;
+
+      return messages.map((message) => {
+        const previousMessage = prev.find((item) => item.id === message.id);
+        if (!previousMessage) return message;
+
+        const previousReactions = previousMessage.reactions || [];
+        const incomingReactions = message.reactions || [];
+
+        // Trust incoming cache state for real reactions (so removals apply instantly),
+        // but keep any local temp reactions not yet confirmed by realtime/DB.
+        const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
+        incomingReactions.forEach((reaction) => {
+          incomingByUser.set(reaction.user_id, reaction);
+        });
+
+        const tempOnlyFromPrevious = previousReactions.filter(
+          (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
+        );
+
+        return {
+          ...message,
+          reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+        };
+      });
+    });
   }, [messages]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
