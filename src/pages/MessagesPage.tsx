@@ -282,6 +282,8 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     retry: 3,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get clubs where user is admin
