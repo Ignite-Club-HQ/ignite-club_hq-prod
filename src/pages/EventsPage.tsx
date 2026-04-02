@@ -359,6 +359,8 @@ export default function EventsPage() {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get IDs of events user has viewed

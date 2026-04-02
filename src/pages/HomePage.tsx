@@ -540,6 +540,8 @@ export default function HomePage() {
       return data || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Handle opening rewards dialog
