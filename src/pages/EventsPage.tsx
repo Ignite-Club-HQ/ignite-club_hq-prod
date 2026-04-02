@@ -245,6 +245,7 @@ export default function EventsPage() {
       };
     },
     enabled: !!user,
+    staleTime: 60000,
   });
 
   const { data: events, isLoading, isFetching } = useQuery({
@@ -325,6 +326,8 @@ export default function EventsPage() {
       return filterRecurringEvents(filteredData) as Event[];
     },
     enabled: !!user && !!userMemberships,
+    staleTime: 60000, // Cache for 1 minute to prevent flash on resume
+    placeholderData: (prev) => prev, // Keep previous data while refetching
   });
 
   // Check if user is app admin
@@ -405,8 +408,9 @@ export default function EventsPage() {
   // Get dates that have events for calendar highlighting
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
 
-  // Only show full-page loading on first ever load (no cached data)
-  if (isLoading && !events) {
+  // Only show full-page loading on first ever load (no cached data).
+  // Use isLoading (not isFetching) to avoid flash on background refetch/resume.
+  if (isLoading && !events && !upcomingEvents && !pastEvents) {
     return <PageLoading message="Loading events..." />;
   }
 
