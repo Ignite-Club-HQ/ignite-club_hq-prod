@@ -41,6 +41,7 @@ interface GroupMessage {
 
 interface GroupChatMessageRowProps {
   msg: GroupMessage;
+  messagesById: Map<string, GroupMessage>;
   isOwnMessage: boolean;
   isAdmin: boolean;
   highlightedMessageId: string | null;
@@ -60,6 +61,7 @@ interface GroupChatMessageRowProps {
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   msg,
+  messagesById,
   isOwnMessage,
   isAdmin,
   highlightedMessageId,
@@ -284,6 +286,20 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
   const avatarUrl = profile?.avatar_url || msg.author?.avatar_url || undefined;
   const frontierReaders = readFrontier[msg.id] || [];
+  const fallbackReplyMessage = !msg.reply_to && msg.reply_to_id
+    ? messagesById.get(msg.reply_to_id) ?? null
+    : null;
+  const replyPreview = msg.reply_to ?? (fallbackReplyMessage
+    ? {
+        text: fallbackReplyMessage.text,
+        author: {
+          display_name:
+            getProfile(fallbackReplyMessage.author_id)?.display_name ||
+            fallbackReplyMessage.author?.display_name ||
+            null,
+        },
+      }
+    : null);
 
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
@@ -330,10 +346,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             </span>
           </div>
 
-          {msg.reply_to && (
+          {replyPreview && (
             <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded mb-1 border-l-2 border-primary">
-              <span className="font-medium">{msg.reply_to.author?.display_name || "..."}: </span>
-              <span className="line-clamp-1">{msg.reply_to.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</span>
+              <span className="font-medium">{replyPreview.author?.display_name || "..."}: </span>
+              <span className="line-clamp-1">{replyPreview.text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1')}</span>
             </div>
           )}
 
