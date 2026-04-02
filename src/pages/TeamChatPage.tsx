@@ -365,7 +365,8 @@ export default function TeamChatPage() {
 
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
-    if (!isNearBottom(scrollAreaRef.current, 220)) return;
+    const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
+    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, 220)) return;
     scrollChatToBottom(scrollAreaRef.current);
   }, [replyingTo?.id, editingMessage?.id, localMessages?.length]);
  
