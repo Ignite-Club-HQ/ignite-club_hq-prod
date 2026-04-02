@@ -199,6 +199,7 @@ const App = () => {
                 <Route path="/complete-profile" element={<CompleteProfilePage />} />
                 <Route path="/join/:token" element={<JoinTeamPage />} />
                 <Route path="/join/p/:token" element={<JoinTeamPage />} />
+                <Route path="/j/:code" element={<ShortInviteRedirect />} />
                 <Route path="/join-club/:token" element={<JoinClubPage />} />
                 <Route path="/signup-pro" element={<SignupProPage />} />
                 <Route path="/terms" element={<TermsOfServicePage />} />
