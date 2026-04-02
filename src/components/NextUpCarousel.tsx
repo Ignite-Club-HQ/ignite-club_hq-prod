@@ -37,6 +37,8 @@ interface NextUpCarouselProps {
   isLoading?: boolean;
 }
 
+const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[280px]";
+
 function formatContextualDate(dateStr: string) {
   const date = parseISO(dateStr);
   const now = new Date();
@@ -104,6 +106,8 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
       }>;
     },
     enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -173,6 +177,8 @@ function useRsvpSummary(eventId: string, eventType?: string) {
         totalCount: count || rsvps.length,
       };
     },
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -342,7 +348,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
 
   return (
     <Card
-      className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${event.is_cancelled ? "opacity-60" : ""}`}
+      className={`shadow-md hover:shadow-lg transition-all cursor-pointer border-border/50 w-full shrink-0 h-full flex flex-col ${NEXT_UP_CARD_MIN_HEIGHT} ${event.is_cancelled ? "opacity-60" : ""}`}
       role="button"
       tabIndex={0}
       aria-label={`${event.title}${event.opponent ? ` vs ${event.opponent}` : ''}, ${dateLabel} at ${dateTime}`}
@@ -437,7 +443,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             )}
 
             {/* Household RSVP summary + Attendees */}
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex min-h-[32px] items-start justify-between gap-2">
               <HouseholdRsvpSummary eventId={event.id} userId={user?.id} currentStatus={currentStatus} />
               <AttendeeAvatars eventId={event.id} eventType={event.type} />
             </div>
@@ -587,7 +593,7 @@ export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
           <div className="h-6 w-24 rounded bg-muted animate-pulse" />
           <div className="h-4 w-16 rounded bg-muted animate-pulse" />
         </div>
-        <div className="h-[200px] rounded-lg bg-muted animate-pulse" />
+        <div className={`rounded-lg bg-muted animate-pulse ${NEXT_UP_CARD_MIN_HEIGHT}`} />
       </section>
     );
   }
