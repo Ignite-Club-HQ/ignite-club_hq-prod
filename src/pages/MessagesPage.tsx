@@ -495,12 +495,13 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 30000,
-    placeholderData: (prev) => prev,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
   });
   
   // Extract teams and latest messages from combined query
-  const teams = teamsWithMessages?.teams || cachedData?.teams || [];
-  const latestTeamMessages = teamsWithMessages?.latestMessages || cachedData?.latestTeamMessages || {};
+  const teams = teamsWithMessages?.teams ?? [];
+  const latestTeamMessages = teamsWithMessages?.latestMessages ?? {};
 
   // Get admin teams where user can create groups
   const { data: adminTeamIds } = useQuery({
