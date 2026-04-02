@@ -487,6 +487,7 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 30000,
+    placeholderData: (prev) => prev,
   });
   
   // Extract teams and latest messages from combined query

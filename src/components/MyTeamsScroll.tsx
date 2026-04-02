@@ -125,6 +125,7 @@ export function MyTeamsScroll() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch next event per team/league
