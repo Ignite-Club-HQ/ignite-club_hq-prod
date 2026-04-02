@@ -1311,13 +1311,14 @@ export default function GroupChatPage() {
   const messageReactionsMap = useMemo(() => {
     const map = new Map<string, MessageReaction[]>();
     for (const msg of (localMessages || [])) {
-      // Use per-message embedded reactions (preserved by useLayoutEffect merge)
-      // and fall back to top-level reactions array for any that are only there
-      const embeddedReactions: MessageReaction[] = (msg as any).reactions || [];
-      const topLevelReactions = reactions.filter(
-        (r) => r.group_message_id === msg.id && !embeddedReactions.some((er) => er.id === r.id)
+      // Reactions are now embedded on each message by useLayoutEffect merge
+      const embedded: MessageReaction[] = (msg as any).reactions || [];
+      // Also include any from the top-level array not already embedded (e.g. realtime arrivals)
+      const embeddedIds = new Set(embedded.map(r => r.id));
+      const extras = reactions.filter(
+        (r) => r.group_message_id === msg.id && !embeddedIds.has(r.id)
       );
-      map.set(msg.id, [...embeddedReactions, ...topLevelReactions]);
+      map.set(msg.id, extras.length > 0 ? [...embedded, ...extras] : embedded);
     }
     return map;
   }, [localMessages, reactions]);
