@@ -21,98 +21,59 @@ export function useInitialChatBottomPin({
 }: UseInitialChatBottomPinOptions) {
   const hasPinnedRef = useRef(false);
   const onPinnedRef = useRef(onPinned);
-  // Start visible (true) so content is never permanently hidden
   const [isPinned, setIsPinned] = useState(true);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
   }, [onPinned]);
 
+  // Reset pin state when the chat thread changes
   useEffect(() => {
     hasPinnedRef.current = false;
-    setIsPinned(true); // Reset to visible on key change
+    setIsPinned(true);
   }, [resetKey]);
 
   useLayoutEffect(() => {
-    if (!enabled || itemCount <= 0 || hasPinnedRef.current) return;
+    if (!enabled || itemCount <= 0) return;
 
-    const viewport = resolveChatScrollViewport(scrollContainerRef.current);
-    if (!viewport) return;
+    // If already pinned for this thread, skip
+    if (hasPinnedRef.current) return;
 
-    // Briefly hide while we position
+    // Hide while positioning
     setIsPinned(false);
 
-    const snapToBottom = () => {
-      scrollChatToBottom(scrollContainerRef.current);
-    };
+    // Immediate snap attempt
+    scrollChatToBottom(scrollContainerRef.current);
 
-    // Immediate snap
-    snapToBottom();
-
-    // Double-rAF to ensure DOM is fully laid out
+    // Double-rAF ensures the DOM is fully laid out with message content
     let raf1 = 0;
     let raf2 = 0;
-    let settleTimeout = 0;
-    let maxTimeout = 0;
-    let resizeObserver: ResizeObserver | null = null;
+    let safetyTimeout = 0;
     let didFinalize = false;
 
     const finalize = () => {
       if (didFinalize) return;
       didFinalize = true;
       hasPinnedRef.current = true;
-      snapToBottom();
+      scrollChatToBottom(scrollContainerRef.current);
       setIsPinned(true);
-      resizeObserver?.disconnect();
-      resizeObserver = null;
       onPinnedRef.current?.();
     };
 
-    const scheduleSettle = () => {
-      window.clearTimeout(settleTimeout);
-      settleTimeout = window.setTimeout(finalize, 120);
-    };
-
     raf1 = requestAnimationFrame(() => {
-      snapToBottom();
+      scrollChatToBottom(scrollContainerRef.current);
       raf2 = requestAnimationFrame(() => {
-        snapToBottom();
-        // If no ResizeObserver, finalize now
-        if (typeof ResizeObserver === "undefined") {
-          finalize();
-        }
+        finalize();
       });
     });
 
-    // Use ResizeObserver to wait for layout to settle
-    if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(() => {
-        snapToBottom();
-        scheduleSettle();
-      });
-
-      resizeObserver.observe(viewport);
-      const content = viewport.firstElementChild;
-      if (content instanceof HTMLElement) {
-        resizeObserver.observe(content);
-      }
-      const anchor = bottomAnchorRef?.current;
-      if (anchor) {
-        resizeObserver.observe(anchor);
-      }
-
-      scheduleSettle();
-      // Safety: always show after 250ms max
-      maxTimeout = window.setTimeout(finalize, 250);
-    }
+    // Safety: always reveal after 300ms even if rAF is delayed
+    safetyTimeout = window.setTimeout(finalize, 300);
 
     return () => {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
-      window.clearTimeout(settleTimeout);
-      window.clearTimeout(maxTimeout);
-      resizeObserver?.disconnect();
-      // Fail open: if cleanup runs before finalize, ensure visible
+      window.clearTimeout(safetyTimeout);
       if (!didFinalize) {
         setIsPinned(true);
       }
