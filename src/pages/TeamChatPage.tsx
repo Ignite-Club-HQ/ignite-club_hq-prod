@@ -405,13 +405,20 @@ export default function TeamChatPage() {
               incomingByUser.set(reaction.user_id, reaction);
             });
 
-            const tempOnlyFromPrevious = previousReactions.filter(
-              (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
-            );
+            // Keep reactions from prev that are NOT in the incoming set:
+            // - temp reactions whose user isn't already covered
+            // - real reactions (arrived via realtime) whose id isn't in incoming
+            const incomingIds = new Set(incomingReactions.map((r) => r.id));
+            const missingFromIncoming = previousReactions.filter((reaction) => {
+              if (incomingIds.has(reaction.id)) return false; // already present
+              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
+              // Real reaction not in incoming – keep unless incoming already has one from same user
+              return !incomingByUser.has(reaction.user_id);
+            });
 
             return {
               ...message,
-              reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+              reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
 

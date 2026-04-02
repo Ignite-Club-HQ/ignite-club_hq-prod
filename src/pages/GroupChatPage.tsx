@@ -433,13 +433,16 @@ export default function GroupChatPage() {
               incomingByUser.set(reaction.user_id, reaction);
             });
 
-            const tempOnlyFromPrevious = previousReactions.filter(
-              (reaction: any) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
-            );
+            const incomingIds = new Set(incomingReactions.map((r: any) => r.id));
+            const missingFromIncoming = previousReactions.filter((reaction: any) => {
+              if (incomingIds.has(reaction.id)) return false;
+              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
+              return !incomingByUser.has(reaction.user_id);
+            });
 
             return {
               ...message,
-              reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+              reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
 
