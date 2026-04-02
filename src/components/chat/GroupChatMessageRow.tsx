@@ -469,12 +469,16 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               onTouchStart={(e) => { e.stopPropagation(); }}
               onClick={(e) => {
                 if (e.target === e.currentTarget) {
+                  // Guard against synthesized clicks on iOS after long-press release
+                  if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
                   e.stopPropagation();
                   closeReactionPicker();
                 }
               }}
               onTouchEnd={(e) => {
                 if (e.target === e.currentTarget) {
+                  // Guard against synthesized touch events on iOS after long-press release
+                  if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
                   e.stopPropagation();
                   e.preventDefault();
                   closeReactionPicker();

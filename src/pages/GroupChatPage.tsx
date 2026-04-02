@@ -412,34 +412,55 @@ export default function GroupChatPage() {
 
   useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
-    if (!messages) return;
+    if (!messages || !groupId) return;
 
     setLocalMessages((prev) => {
-      if (!prev) return messages;
+      const mergedMessages = !prev
+        ? messages
+        : messages.map((message) => {
+            const previousMessage = prev.find((item) => item.id === message.id);
+            if (!previousMessage) return message;
 
-      return messages.map((message) => {
-        const previousMessage = prev.find((item) => item.id === message.id);
-        if (!previousMessage) return message;
+            const previousReactions = (previousMessage as any).reactions || [];
+            const incomingReactions = (message as any).reactions || [];
 
-        const previousReactions = (previousMessage as any).reactions || [];
-        const incomingReactions = (message as any).reactions || [];
+            const incomingByUser = new Map<string, any>();
+            incomingReactions.forEach((reaction: any) => {
+              incomingByUser.set(reaction.user_id, reaction);
+            });
 
-        const incomingByUser = new Map<string, any>();
-        incomingReactions.forEach((reaction: any) => {
-          incomingByUser.set(reaction.user_id, reaction);
-        });
+            const incomingIds = new Set(incomingReactions.map((r: any) => r.id));
+            const missingFromIncoming = previousReactions.filter((reaction: any) => {
+              if (incomingIds.has(reaction.id)) return false;
+              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
+              return !incomingByUser.has(reaction.user_id);
+            });
 
-        const tempOnlyFromPrevious = previousReactions.filter(
-          (reaction: any) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
-        );
+            return {
+              ...message,
+              reactions: [...incomingReactions, ...missingFromIncoming],
+            };
+          });
 
-        return {
-          ...message,
-          reactions: [...incomingReactions, ...tempOnlyFromPrevious],
-        };
-      });
+      cacheMessages("group", groupId, mergedMessages.map((m) => ({
+        id: m.id,
+        text: m.text,
+        author_id: m.author_id,
+        created_at: m.created_at,
+        image_url: m.image_url,
+        reply_to_id: m.reply_to_id,
+        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
+        reactions: (m.reactions || []).map((reaction: any) => ({
+          id: reaction.id,
+          user_id: reaction.user_id,
+          reaction_type: reaction.reaction_type,
+        })),
+        reply_to: m.reply_to,
+      })));
+
+      return mergedMessages;
     });
-  }, [messages]);
+  }, [messages, groupId]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {

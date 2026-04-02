@@ -400,35 +400,54 @@ export default function DirectMessagePage() {
 
   useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
-    if (!messages) return;
+    if (!messages || !conversationId) return;
 
     setLocalMessages((prev) => {
-      if (!prev) return messages;
       if (messages.length === 0 && messagesLoading) return prev;
 
-      return messages.map((message) => {
-        const previousMessage = prev.find((item) => item.id === message.id);
-        if (!previousMessage) return message;
+      const mergedMessages = !prev
+        ? messages
+        : messages.map((message) => {
+            const previousMessage = prev.find((item) => item.id === message.id);
+            if (!previousMessage) return message;
 
-        const previousReactions = previousMessage.reactions || [];
-        const incomingReactions = message.reactions || [];
+            const previousReactions = previousMessage.reactions || [];
+            const incomingReactions = message.reactions || [];
 
-        const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
-        incomingReactions.forEach((reaction) => {
-          incomingByUser.set(reaction.user_id, reaction);
-        });
+            const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
+            incomingReactions.forEach((reaction) => {
+              incomingByUser.set(reaction.user_id, reaction);
+            });
 
-        const tempOnlyFromPrevious = previousReactions.filter(
-          (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
-        );
+            const incomingIds = new Set(incomingReactions.map((r) => r.id));
+            const missingFromIncoming = previousReactions.filter((reaction) => {
+              if (incomingIds.has(reaction.id)) return false;
+              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
+              return !incomingByUser.has(reaction.user_id);
+            });
 
-        return {
-          ...message,
-          reactions: [...incomingReactions, ...tempOnlyFromPrevious],
-        };
-      });
+            return {
+              ...message,
+              reactions: [...incomingReactions, ...missingFromIncoming],
+            };
+          });
+
+      const messagesToCache: CachedMessage[] = mergedMessages.map((m) => ({
+        id: m.id,
+        text: m.text,
+        author_id: m.author_id,
+        created_at: m.created_at,
+        image_url: m.image_url,
+        reply_to_id: m.reply_to_id,
+        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
+        reactions: m.reactions || [],
+        reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
+      }));
+      cacheMessages("dm", conversationId, messagesToCache);
+
+      return mergedMessages;
     });
-  }, [messages, messagesLoading]);
+  }, [messages, messagesLoading, conversationId]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
