@@ -173,6 +173,8 @@ export default function EventsPage() {
       return teams || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get user's accessible team, club, and mini league IDs for event filtering
