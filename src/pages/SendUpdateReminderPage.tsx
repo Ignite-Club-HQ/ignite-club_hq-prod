@@ -106,7 +106,7 @@ export default function SendUpdateReminderPage() {
       // Fetch profiles
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, display_name, email")
+        .select("id, display_name")
         .in("id", filteredUserIds);
 
       const profileMap = new Map(
@@ -125,8 +125,8 @@ export default function SendUpdateReminderPage() {
         if (!existing || (token.app_version && !existing.appVersion)) {
           userMap.set(token.user_id, {
             userId: token.user_id,
-            name: profile.display_name || profile.email || "Unknown",
-            email: profile.email || "",
+            name: profile.display_name || "Unknown",
+            email: "",
             platform: token.platform || "unknown",
             appVersion: token.app_version || null,
             buildNumber: token.build_number || null,
