@@ -703,6 +703,16 @@ export function AppHeader() {
             navigate(`/pay-fees/${relatedId}`);
           }
           return;
+        case "early_rsvp_points":
+        case "attendance_points":
+        case "duty_points":
+        case "points_awarded":
+          if (relatedId) {
+            navigate(`/clubs/${relatedId}/rewards`);
+          } else {
+            navigate("/notifications");
+          }
+          return;
       }
 
       navigate("/notifications");
