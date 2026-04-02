@@ -92,6 +92,7 @@ const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
 const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
 const PayFeesPage = lazy(() => import("./pages/PayFeesPage"));
 const SendUpdateReminderPage = lazy(() => import("./pages/SendUpdateReminderPage"));
+const ShortInviteRedirect = lazy(() => import("./pages/ShortInviteRedirect"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
@@ -198,6 +199,7 @@ const App = () => {
                 <Route path="/complete-profile" element={<CompleteProfilePage />} />
                 <Route path="/join/:token" element={<JoinTeamPage />} />
                 <Route path="/join/p/:token" element={<JoinTeamPage />} />
+                <Route path="/j/:code" element={<ShortInviteRedirect />} />
                 <Route path="/join-club/:token" element={<JoinClubPage />} />
                 <Route path="/signup-pro" element={<SignupProPage />} />
                 <Route path="/terms" element={<TermsOfServicePage />} />

@@ -3704,6 +3704,7 @@ export type Database = {
           metadata: Json | null
           reminder_count: number | null
           role: Database["public"]["Enums"]["app_role"]
+          short_code: string | null
           status: string
           team_id: string | null
         }
@@ -3724,6 +3725,7 @@ export type Database = {
           metadata?: Json | null
           reminder_count?: number | null
           role: Database["public"]["Enums"]["app_role"]
+          short_code?: string | null
           status?: string
           team_id?: string | null
         }
@@ -3744,6 +3746,7 @@ export type Database = {
           metadata?: Json | null
           reminder_count?: number | null
           role?: Database["public"]["Enums"]["app_role"]
+          short_code?: string | null
           status?: string
           team_id?: string | null
         }
