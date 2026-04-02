@@ -923,12 +923,12 @@ export default function EventDetailPage() {
         if (error) throw error;
         rsvpId = myRsvp.id;
       } else {
-        const { data: newRsvp, error } = await supabase.from("rsvps").insert({
+        const { data: newRsvp, error } = await supabase.from("rsvps").upsert({
           event_id: id!,
           user_id: user!.id,
           status,
           notes: rsvpNotes || null,
-        }).select("id").single();
+        }, { onConflict: "event_id,user_id" }).select("id").single();
         if (error) throw error;
         rsvpId = newRsvp?.id || null;
       }
@@ -984,12 +984,12 @@ export default function EventDetailPage() {
           .eq("id", existingRsvp.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("rsvps").insert({
+        const { error } = await supabase.from("rsvps").upsert({
           event_id: id!,
           user_id: user!.id,
           child_id: childId,
           status,
-        });
+        }, { onConflict: "event_id,child_id" });
         if (error) throw error;
       }
 
@@ -1037,12 +1037,12 @@ export default function EventDetailPage() {
           if (error) throw error;
         } else if (parentUserId) {
           // Create new RSVP for this child
-          const { error } = await supabase.from("rsvps").insert({
+          const { error } = await supabase.from("rsvps").upsert({
             event_id: id!,
             user_id: parentUserId,
             child_id: childId,
             status,
-          });
+          }, { onConflict: "event_id,child_id" });
           if (error) throw error;
         } else {
           throw new Error("Cannot create RSVP: no parent user linked to this player");
@@ -1064,11 +1064,11 @@ export default function EventDetailPage() {
             .eq("id", existingRsvp.id);
           if (error) throw error;
         } else {
-          const { error } = await supabase.from("rsvps").insert({
+          const { error } = await supabase.from("rsvps").upsert({
             event_id: id!,
             mini_league_player_id: playerId,
             status,
-          });
+          }, { onConflict: "event_id,mini_league_player_id" });
           if (error) throw error;
         }
       }
