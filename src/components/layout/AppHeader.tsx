@@ -703,6 +703,14 @@ export function AppHeader() {
             navigate(`/pay-fees/${relatedId}`);
           }
           return;
+        case "early_rsvp_points":
+        case "attendance_points":
+        case "duty_points":
+        case "points_awarded":
+        case "reward_redeemed":
+        case "player_of_match":
+          navigate("/profile?section=points-history");
+          return;
       }
 
       navigate("/notifications");
