@@ -417,6 +417,8 @@ export default function MessagesPage() {
       };
     },
     enabled: !!user,
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
 
 
