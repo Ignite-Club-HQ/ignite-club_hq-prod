@@ -410,12 +410,35 @@ export default function GroupChatPage() {
 
   const isAnyRefreshing = isManualRefreshing;
 
-  useEffect(() => {
-    // Always sync localMessages with messages from query cache
-    // This ensures optimistic updates (deletions, edits) are reflected immediately
-    if (messages) {
-      setLocalMessages(messages);
-    }
+  useLayoutEffect(() => {
+    // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
+    if (!messages) return;
+
+    setLocalMessages((prev) => {
+      if (!prev) return messages;
+
+      return messages.map((message) => {
+        const previousMessage = prev.find((item) => item.id === message.id);
+        if (!previousMessage) return message;
+
+        const previousReactions = (previousMessage as any).reactions || [];
+        const incomingReactions = (message as any).reactions || [];
+
+        const incomingByUser = new Map<string, any>();
+        incomingReactions.forEach((reaction: any) => {
+          incomingByUser.set(reaction.user_id, reaction);
+        });
+
+        const tempOnlyFromPrevious = previousReactions.filter(
+          (reaction: any) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
+        );
+
+        return {
+          ...message,
+          reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+        };
+      });
+    });
   }, [messages]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
