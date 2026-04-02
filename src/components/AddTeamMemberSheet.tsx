@@ -1857,7 +1857,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     ) : (
                       <div className="space-y-2">
                         {singleChildren.map((child, idx) => {
-                          const matches = !child.existingChildId ? findMatchingChildren(child.name) : [];
+                          const matches = !child.existingChildId && !child.confirmedNew && !child.pendingInviteId ? findMatchingChildren(child.name) : [];
                           return (
                             <div key={child.id} className="space-y-1">
                               <div className="flex gap-2 items-start">
@@ -1868,7 +1868,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     onChange={(e) => setSingleChildren(singleChildren.map(c => 
                                       c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
                                     ))}
-                                    className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                    className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
                                   {matches.length > 0 && !child.existingChildId && (
                                     <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
@@ -2269,7 +2269,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     ) : (
                       <div className="space-y-2">
                         {singleChildren.map((child, idx) => {
-                          const matches = !child.existingChildId ? findMatchingChildren(child.name) : [];
+                          const matches = !child.existingChildId && !child.confirmedNew && !child.pendingInviteId ? findMatchingChildren(child.name) : [];
                           return (
                             <div key={child.id} className="space-y-1">
                               <div className="flex gap-2 items-start">
@@ -2280,7 +2280,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     onChange={(e) => setSingleChildren(singleChildren.map(c => 
                                       c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
                                     ))}
-                                    className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                    className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
                                   {matches.length > 0 && !child.existingChildId && (
                                     <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">

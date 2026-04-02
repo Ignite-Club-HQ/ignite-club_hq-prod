@@ -349,7 +349,7 @@ export default function GroupChatPage() {
     },
     enabled: !!groupId,
     staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
-    gcTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
@@ -1354,7 +1354,7 @@ export default function GroupChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "4.5rem" : "calc(var(--bottom-nav-offset, 0px) + 4.5rem)" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "6rem" : "calc(var(--bottom-nav-offset, 0px) + 6rem)" }}>
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
               <div ref={loadTriggerRef} className="h-1" />

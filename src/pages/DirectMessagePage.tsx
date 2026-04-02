@@ -304,7 +304,8 @@ export default function DirectMessagePage() {
       };
     },
     enabled: !!conversationId,
-    staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnWindowFocus: false,
     placeholderData: () => {
@@ -983,7 +984,7 @@ export default function DirectMessagePage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
       >
-        <div className="p-4" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(72, composerHeight + 8)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(112, composerHeight + 16)}px)` }}>
+        <div className="p-4" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(96, composerHeight + 24)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(128, composerHeight + 32)}px)` }}>
           <div className={`min-h-full flex flex-col ${!showLoading && (localMessages?.length || 0) > 0 ? "justify-end gap-4" : ""}`}>
             {showLoading ? (
               <div className="flex justify-center py-8">

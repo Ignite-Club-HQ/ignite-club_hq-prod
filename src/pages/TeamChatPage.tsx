@@ -326,7 +326,7 @@ export default function TeamChatPage() {
     },
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
+    gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
     refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
@@ -1155,7 +1155,7 @@ export default function TeamChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "4.5rem" : "calc(var(--bottom-nav-offset, 0px) + 4.5rem)" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "6rem" : "calc(var(--bottom-nav-offset, 0px) + 6rem)" }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />

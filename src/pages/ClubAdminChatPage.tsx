@@ -214,7 +214,8 @@ export default function ClubAdminChatPage() {
       return { messages, hasOlderMessages: hasMore };
     },
     enabled: !!conversationId,
-    staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
@@ -548,7 +549,7 @@ export default function ClubAdminChatPage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
       >
-        <div className="p-4 space-y-4" style={{ paddingBottom: isKeyboardOpen ? "4.5rem" : "calc(var(--bottom-nav-offset, 0px) + 4.5rem)" }}>
+        <div className="p-4 space-y-4" style={{ paddingBottom: isKeyboardOpen ? "6rem" : "calc(var(--bottom-nav-offset, 0px) + 6rem)" }}>
           {showLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
