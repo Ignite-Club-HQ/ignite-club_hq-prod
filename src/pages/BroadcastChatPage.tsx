@@ -34,7 +34,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-import { scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -267,6 +267,12 @@ export default function BroadcastChatPage() {
     resetKey: "broadcast",
     onPinned: () => setInfiniteScrollEnabled(true),
   });
+
+  // Scroll to bottom when replying, editing, or sending a new message
+  useLayoutEffect(() => {
+    if (!isNearBottom(scrollAreaRef.current, 220)) return;
+    scrollChatToBottom(scrollAreaRef.current);
+  }, [replyingTo?.id, editingMessage?.id, localMessages?.length]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);

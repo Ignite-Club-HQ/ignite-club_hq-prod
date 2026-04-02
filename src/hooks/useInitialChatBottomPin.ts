@@ -1,6 +1,6 @@
 import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
+import { getChatScrollMetrics, resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
 
 interface UseInitialChatBottomPinOptions {
   scrollContainerRef: RefObject<HTMLElement>;
@@ -60,48 +60,70 @@ export function useInitialChatBottomPin({
     setIsPinned(false);
 
     let cancelled = false;
+    let finalizing = false;
     let observer: MutationObserver | null = null;
     let mountObserver: MutationObserver | null = null;
+    let resizeObserver: ResizeObserver | null = null;
     let stabilityTimer: ReturnType<typeof setTimeout> | null = null;
     let maxTimer: ReturnType<typeof setTimeout> | null = null;
     let rafId = 0;
-    const STABILITY_MS = 80;
-    const MAX_WAIT_MS = 1200;
+    const STABILITY_MS = 100;
+    const MAX_WAIT_MS = 1500;
+    const BOTTOM_THRESHOLD_PX = 2;
+    const MAX_SETTLE_ATTEMPTS = 8;
 
     const cleanup = () => {
       observer?.disconnect();
       mountObserver?.disconnect();
+      resizeObserver?.disconnect();
       if (stabilityTimer) clearTimeout(stabilityTimer);
       if (maxTimer) clearTimeout(maxTimer);
       cancelAnimationFrame(rafId);
     };
 
-    const finalize = () => {
+    const reveal = () => {
+      pinnedKeyRef.current = resetKey;
+      setIsPinned(true);
+      onPinnedRef.current?.();
+    };
+
+    const settleAtBottom = (attemptsLeft = MAX_SETTLE_ATTEMPTS) => {
       if (cancelled) return;
-      cancelled = true;
-      cleanup();
 
       scrollChatToBottom(scrollContainerRef.current);
-      requestAnimationFrame(() => {
-        scrollChatToBottom(scrollContainerRef.current);
-        pinnedKeyRef.current = resetKey;
-        setIsPinned(true);
-        onPinnedRef.current?.();
+      rafId = requestAnimationFrame(() => {
+        if (cancelled) return;
 
-        // Staggered delayed snaps for native WebView rendering lag.
-        // On first login the WebView may still be computing layout after
-        // the DOM is committed, so we re-snap at multiple intervals.
-        const delays = [50, 150, 300, 600];
-        for (const d of delays) {
-          setTimeout(() => {
-            scrollChatToBottom(scrollContainerRef.current);
-          }, d);
-        }
+        scrollChatToBottom(scrollContainerRef.current);
+        const firstMetrics = getChatScrollMetrics(scrollContainerRef.current);
+
+        rafId = requestAnimationFrame(() => {
+          if (cancelled) return;
+
+          scrollChatToBottom(scrollContainerRef.current);
+          const secondMetrics = getChatScrollMetrics(scrollContainerRef.current);
+          const firstSettled = !firstMetrics || firstMetrics.distanceFromBottom <= BOTTOM_THRESHOLD_PX;
+          const secondSettled = !secondMetrics || secondMetrics.distanceFromBottom <= BOTTOM_THRESHOLD_PX;
+
+          if ((!firstSettled || !secondSettled) && attemptsLeft > 0) {
+            settleAtBottom(attemptsLeft - 1);
+            return;
+          }
+
+          reveal();
+        });
       });
     };
 
+    const finalize = () => {
+      if (cancelled || finalizing) return;
+      finalizing = true;
+      cleanup();
+      settleAtBottom();
+    };
+
     const scheduleFinalize = () => {
-      if (cancelled) return;
+      if (cancelled || finalizing) return;
       if (stabilityTimer) clearTimeout(stabilityTimer);
       stabilityTimer = setTimeout(finalize, STABILITY_MS);
     };
@@ -112,20 +134,36 @@ export function useInitialChatBottomPin({
       const viewport = resolveChatScrollViewport(scrollContainerRef.current);
       if (!viewport) return false;
 
-      if (viewport.scrollHeight > viewport.clientHeight + 10) {
-        finalize();
-        return true;
-      }
-
       observer?.disconnect();
       observer = new MutationObserver(() => {
-        if (cancelled) return;
+        if (cancelled || finalizing) return;
         const vp = resolveChatScrollViewport(scrollContainerRef.current);
         if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
         scheduleFinalize();
       });
-
       observer.observe(viewport, { childList: true, subtree: true, characterData: true });
+
+      resizeObserver?.disconnect();
+      if (typeof ResizeObserver !== "undefined") {
+        resizeObserver = new ResizeObserver(() => {
+          if (cancelled || finalizing) return;
+          const vp = resolveChatScrollViewport(scrollContainerRef.current);
+          if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
+          scheduleFinalize();
+        });
+
+        resizeObserver.observe(viewport);
+
+        const contentTarget =
+          bottomAnchorRef?.current?.parentElement ??
+          viewport.firstElementChild ??
+          viewport;
+
+        if (contentTarget instanceof HTMLElement && contentTarget !== viewport) {
+          resizeObserver.observe(contentTarget);
+        }
+      }
+
       scheduleFinalize();
       return true;
     };

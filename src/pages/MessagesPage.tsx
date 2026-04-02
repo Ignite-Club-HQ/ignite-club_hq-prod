@@ -375,12 +375,13 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 60000,
-    placeholderData: (prev) => prev,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
   });
   
   // Extract clubs and latest messages from combined query
-  const memberClubs = memberClubsWithMessages?.clubs || cachedData?.memberClubs || [];
-  const latestClubMessages = memberClubsWithMessages?.latestMessages || cachedData?.latestClubMessages || {};
+  const memberClubs = memberClubsWithMessages?.clubs ?? [];
+  const latestClubMessages = memberClubsWithMessages?.latestMessages ?? {};
 
   // Get latest broadcast message
   const { data: latestBroadcast } = useQuery({
@@ -495,12 +496,13 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 30000,
-    placeholderData: (prev) => prev,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
   });
   
   // Extract teams and latest messages from combined query
-  const teams = teamsWithMessages?.teams || cachedData?.teams || [];
-  const latestTeamMessages = teamsWithMessages?.latestMessages || cachedData?.latestTeamMessages || {};
+  const teams = teamsWithMessages?.teams ?? [];
+  const latestTeamMessages = teamsWithMessages?.latestMessages ?? {};
 
   // Get admin teams where user can create groups
   const { data: adminTeamIds } = useQuery({
@@ -701,12 +703,13 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 60000,
-    placeholderData: (prev) => prev,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
   });
   
   // Extract groups and latest messages from combined query
-  const chatGroups = chatGroupsWithMessages?.groups || cachedData?.chatGroups as any || [];
-  const latestGroupMessages = chatGroupsWithMessages?.latestMessages || cachedData?.latestGroupMessages || {};
+  const chatGroups = chatGroupsWithMessages?.groups ?? [];
+  const latestGroupMessages = chatGroupsWithMessages?.latestMessages ?? {};
 
   // Fetch all muted chats for the user
   const { data: mutedChats } = useQuery({
