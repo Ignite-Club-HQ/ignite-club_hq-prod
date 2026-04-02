@@ -447,14 +447,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               data-reaction-picker="true"
               onTouchStart={(e) => { e.stopPropagation(); }}
               onClick={(e) => {
-                if (preventIfGuarded(e)) return;
                 if (e.target === e.currentTarget) {
                   e.stopPropagation();
                   closeReactionPicker();
                 }
               }}
               onTouchEnd={(e) => {
-                if (preventIfGuarded(e)) return;
                 if (e.target === e.currentTarget) {
                   e.stopPropagation();
                   e.preventDefault();
