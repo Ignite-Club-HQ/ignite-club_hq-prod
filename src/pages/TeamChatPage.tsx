@@ -362,7 +362,7 @@ export default function TeamChatPage() {
     setInfiniteScrollEnabled(false);
   }, [teamId]);
 
-  useInitialChatBottomPin({
+  const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
