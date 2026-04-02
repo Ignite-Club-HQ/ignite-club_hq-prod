@@ -462,6 +462,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     },
     enabled: items.length > 0,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch recent photos per team
@@ -496,6 +497,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     },
     enabled: teamIds.length > 0,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch unread message counts per team
@@ -537,15 +539,16 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     },
     enabled: teamIds.length > 0 && !!user?.id,
     staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   if (isLoading) {
     return (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My Teams</h2>
-        <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
           {[1, 2].map(i => (
-            <div key={i} className="shrink-0 w-[85vw] max-w-[340px] h-[140px] rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="shrink-0 w-[85vw] max-w-[340px] h-[158px] rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
       </section>
@@ -679,22 +682,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       </div>
       <ScrollArea className="w-full">
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
-          {[...items]
-            .sort((a, b) => {
-              if (a.type !== b.type) return a.type === "team" ? -1 : 1;
-              if (a.canManage !== b.canManage) return a.canManage ? -1 : 1;
-              const aHasEvent = !!nextEvents[a.id];
-              const bHasEvent = !!nextEvents[b.id];
-              if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
-              const aUnread = unreadCounts[a.id] || 0;
-              const bUnread = unreadCounts[b.id] || 0;
-              if (aUnread !== bUnread) return bUnread - aUnread;
-              const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
-              const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
-              if (aHasPhotos !== bHasPhotos) return aHasPhotos ? -1 : 1;
-              return a.name.localeCompare(b.name);
-            })
-            .map((item) => (
+          {items.map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
               item={item}
