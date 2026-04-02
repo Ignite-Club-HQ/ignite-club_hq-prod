@@ -39,58 +39,52 @@ export function useInitialChatBottomPin({
     const viewport = resolveChatScrollViewport(scrollContainerRef.current);
     if (!viewport) return;
 
-    hasPinnedRef.current = true;
-    // Hide while we position
+    // Briefly hide while we position
     setIsPinned(false);
-
-    let firstFrame = 0;
-    let secondFrame = 0;
-    let settleTimeout = 0;
-    let maxTimeout = 0;
-    let resizeObserver: ResizeObserver | null = null;
-    let didNotifyPinned = false;
-
-    const notifyPinned = () => {
-      if (didNotifyPinned) return;
-      didNotifyPinned = true;
-      setIsPinned(true);
-      onPinnedRef.current?.();
-    };
 
     const snapToBottom = () => {
       scrollChatToBottom(scrollContainerRef.current);
     };
 
-    const disconnectObserver = () => {
+    // Immediate snap
+    snapToBottom();
+
+    // Double-rAF to ensure DOM is fully laid out
+    let raf1 = 0;
+    let raf2 = 0;
+    let settleTimeout = 0;
+    let maxTimeout = 0;
+    let resizeObserver: ResizeObserver | null = null;
+    let didFinalize = false;
+
+    const finalize = () => {
+      if (didFinalize) return;
+      didFinalize = true;
+      hasPinnedRef.current = true;
+      snapToBottom();
+      setIsPinned(true);
       resizeObserver?.disconnect();
       resizeObserver = null;
-    };
-
-    const finalizePin = () => {
-      snapToBottom();
-      disconnectObserver();
-      notifyPinned();
+      onPinnedRef.current?.();
     };
 
     const scheduleSettle = () => {
       window.clearTimeout(settleTimeout);
-      settleTimeout = window.setTimeout(() => {
-        finalizePin();
-      }, 120);
+      settleTimeout = window.setTimeout(finalize, 120);
     };
 
-    snapToBottom();
-    firstFrame = requestAnimationFrame(() => {
+    raf1 = requestAnimationFrame(() => {
       snapToBottom();
-      secondFrame = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
         snapToBottom();
-
+        // If no ResizeObserver, finalize now
         if (typeof ResizeObserver === "undefined") {
-          notifyPinned();
+          finalize();
         }
       });
     });
 
+    // Use ResizeObserver to wait for layout to settle
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(() => {
         snapToBottom();
@@ -98,12 +92,10 @@ export function useInitialChatBottomPin({
       });
 
       resizeObserver.observe(viewport);
-
       const content = viewport.firstElementChild;
       if (content instanceof HTMLElement) {
         resizeObserver.observe(content);
       }
-
       const anchor = bottomAnchorRef?.current;
       if (anchor) {
         resizeObserver.observe(anchor);
@@ -111,19 +103,17 @@ export function useInitialChatBottomPin({
 
       scheduleSettle();
       // Safety: always show after 250ms max
-      maxTimeout = window.setTimeout(() => {
-        finalizePin();
-      }, 250);
+      maxTimeout = window.setTimeout(finalize, 250);
     }
 
     return () => {
-      cancelAnimationFrame(firstFrame);
-      cancelAnimationFrame(secondFrame);
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
       window.clearTimeout(settleTimeout);
       window.clearTimeout(maxTimeout);
-      disconnectObserver();
-      // Fail open: if cleanup runs before pin completes, ensure visible
-      if (!didNotifyPinned) {
+      resizeObserver?.disconnect();
+      // Fail open: if cleanup runs before finalize, ensure visible
+      if (!didFinalize) {
         setIsPinned(true);
       }
     };
