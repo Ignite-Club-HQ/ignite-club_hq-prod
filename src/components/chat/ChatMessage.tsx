@@ -23,6 +23,7 @@ import { MessageReadIndicator } from "./MessageReadIndicator";
 import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
+import { hapticImpactLight, hapticSelectionTick } from "@/lib/haptics";
 import { toast } from "sonner";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
@@ -419,7 +420,7 @@ export const ChatMessage = memo(function ChatMessage({
       resetReplyReveal();
       armDismissGuard();
       // Haptic feedback
-      if (navigator.vibrate) navigator.vibrate(12);
+      hapticImpactLight();
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
@@ -490,7 +491,7 @@ export const ChatMessage = memo(function ChatMessage({
       e.preventDefault();
       e.stopPropagation();
       setTapFlash(true);
-      if (navigator.vibrate) navigator.vibrate(6);
+      hapticSelectionTick();
       setTimeout(() => {
         setTapFlash(false);
         setShowMenu(true);

@@ -22,6 +22,7 @@ import { MessageReadAvatars } from "./MessageReadAvatars";
 import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
 import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
+import { hapticImpactLight, hapticSelectionTick } from "@/lib/haptics";
 import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
@@ -125,7 +126,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       longPressTriggeredRef.current = true;
       resetReplyReveal();
       armDismissGuard();
-      if (navigator.vibrate) navigator.vibrate(12);
+      hapticImpactLight();
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
@@ -204,7 +205,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       e.preventDefault();
       e.stopPropagation();
       setTapFlash(true);
-      if (navigator.vibrate) navigator.vibrate(6);
+      hapticSelectionTick();
       setTimeout(() => {
         setTapFlash(false);
         setShowMenu(true);

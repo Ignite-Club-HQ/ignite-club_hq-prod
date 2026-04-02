@@ -56,6 +56,7 @@ import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import { useIsLandscape } from "@/hooks/useIsLandscape";
 import { useEventGroupSync } from "@/hooks/useEventGroupSync";
+import { hapticImpactMedium } from "@/lib/haptics";
 
 // Import types and utils from extracted files
 import { 
@@ -3536,7 +3537,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     benchLongPressTimer.current = setTimeout(() => {
       setBenchDragPlayer(playerId);
       setBenchDragPos({ x: touch.clientX, y: touch.clientY });
-      if (navigator.vibrate) navigator.vibrate(30);
+      hapticImpactMedium();
     }, 400);
   }, [readOnly, subMode, swapMode]);
 
