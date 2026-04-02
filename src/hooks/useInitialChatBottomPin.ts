@@ -1,4 +1,4 @@
-import { RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
 
@@ -21,6 +21,7 @@ export function useInitialChatBottomPin({
 }: UseInitialChatBottomPinOptions) {
   const hasPinnedRef = useRef(false);
   const onPinnedRef = useRef(onPinned);
+  const [isPinned, setIsPinned] = useState(false);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
@@ -28,6 +29,7 @@ export function useInitialChatBottomPin({
 
   useEffect(() => {
     hasPinnedRef.current = false;
+    setIsPinned(false);
   }, [resetKey]);
 
   useLayoutEffect(() => {
@@ -48,6 +50,7 @@ export function useInitialChatBottomPin({
     const notifyPinned = () => {
       if (didNotifyPinned) return;
       didNotifyPinned = true;
+      setIsPinned(true);
       onPinnedRef.current?.();
     };
 
@@ -106,7 +109,7 @@ export function useInitialChatBottomPin({
       scheduleSettle();
       maxTimeout = window.setTimeout(() => {
         finalizePin();
-      }, 1200);
+      }, 800);
     }
 
     return () => {
@@ -117,4 +120,6 @@ export function useInitialChatBottomPin({
       disconnectObserver();
     };
   }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
+
+  return { isPinned };
 }

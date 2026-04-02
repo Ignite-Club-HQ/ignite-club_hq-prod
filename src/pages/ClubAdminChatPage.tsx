@@ -545,7 +545,7 @@ export default function ClubAdminChatPage() {
         ref={scrollAreaRef}
         data-chat-scroll-lock="true"
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
-        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
+        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
       >
         <div className="p-4 space-y-4" style={{ paddingBottom: isKeyboardOpen ? 4 : "calc(var(--bottom-nav-offset, 0px) + 4.5rem)" }}>
           {showLoading ? (
