@@ -514,6 +514,8 @@ export default function MessagesPage() {
       return data?.map((r) => r.team_id).filter(Boolean) || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Check if user is a committee member (club-level role)
