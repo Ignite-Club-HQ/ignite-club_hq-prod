@@ -560,8 +560,13 @@ export const ChatMessage = memo(function ChatMessage({
 
   useEffect(() => {
     const handlePointerCancel = () => {
-      longPressTriggeredRef.current = false;
-      clearDismissGuard();
+      // On iOS WebView, pointercancel fires when DOM changes (e.g. portal insertion
+      // during long-press). Only reset if the reaction picker is NOT currently open,
+      // otherwise we'd prematurely dismiss it.
+      if (!showReactionPicker) {
+        longPressTriggeredRef.current = false;
+        clearDismissGuard();
+      }
     };
 
     window.addEventListener('pointercancel', handlePointerCancel, true);
@@ -572,7 +577,7 @@ export const ChatMessage = memo(function ChatMessage({
       }
       window.removeEventListener('pointercancel', handlePointerCancel, true);
     };
-  }, [clearDismissGuard]);
+  }, [clearDismissGuard, showReactionPicker]);
 
   // Get display name - never show placeholder text; hide name until profile loads
   const displayName = authorName || "";
