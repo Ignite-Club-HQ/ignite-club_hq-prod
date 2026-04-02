@@ -707,11 +707,9 @@ export function AppHeader() {
         case "attendance_points":
         case "duty_points":
         case "points_awarded":
-          if (relatedId) {
-            navigate(`/clubs/${relatedId}/rewards`);
-          } else {
-            navigate("/notifications");
-          }
+        case "reward_redeemed":
+        case "player_of_match":
+          navigate("/profile?section=points-history");
           return;
       }
 
