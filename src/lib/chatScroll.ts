@@ -21,30 +21,27 @@ export function getChatScrollMetrics(container: HTMLElement | null | undefined) 
   };
 }
 
+/**
+ * Scrolls a chat container to the absolute bottom.
+ * Uses a single immediate snap + one rAF safety pass to catch pending layouts.
+ */
 export function scrollChatToBottom(container: HTMLElement | null | undefined) {
-  const metrics = getChatScrollMetrics(container);
-  if (!metrics) return;
+  const viewport = resolveChatScrollViewport(container);
+  if (!viewport) return;
 
-  const { viewport } = metrics;
-
-  const snapToBottom = () => {
-    const max = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-    if (max > 0) {
-      viewport.scrollTop = max;
-    }
+  const snap = () => {
+    viewport.scrollTop = viewport.scrollHeight - viewport.clientHeight;
   };
 
-  snapToBottom();
+  snap();
+  requestAnimationFrame(snap);
+}
 
-  if (typeof window !== "undefined") {
-    // Double-rAF catches layout shifts from React re-renders
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        snapToBottom();
-      });
-    });
-
-    // Delayed pass catches deferred React updates / lazy-loaded content
-    setTimeout(snapToBottom, 80);
-  }
+/**
+ * Returns true if the viewport is scrolled near the bottom (within threshold px).
+ */
+export function isNearBottom(container: HTMLElement | null | undefined, threshold = 150): boolean {
+  const metrics = getChatScrollMetrics(container);
+  if (!metrics) return true; // default to "at bottom" if can't measure
+  return metrics.distanceFromBottom <= threshold;
 }
