@@ -105,7 +105,7 @@ export function useSwipeToReply({
     // Haptic tick when crossing threshold
     if (past && !hapticFiredRef.current) {
       hapticFiredRef.current = true;
-      if (navigator.vibrate) navigator.vibrate(10);
+      hapticSelectionTick();
     }
 
     setSwipeState({ offsetX: offset, isSwiping: true, pastThreshold: past });

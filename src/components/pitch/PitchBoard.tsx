@@ -3536,7 +3536,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     benchLongPressTimer.current = setTimeout(() => {
       setBenchDragPlayer(playerId);
       setBenchDragPos({ x: touch.clientX, y: touch.clientY });
-      if (navigator.vibrate) navigator.vibrate(30);
+      hapticImpactMedium();
     }, 400);
   }, [readOnly, subMode, swapMode]);
 
