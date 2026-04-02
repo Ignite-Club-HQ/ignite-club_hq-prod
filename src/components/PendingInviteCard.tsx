@@ -255,7 +255,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
         await Share.share({
           title: `Join ${clubName}`,
           text: message,
-          url: inviteLink,
+          dialogTitle: `Join ${clubName}`,
         });
         return;
       } catch {
