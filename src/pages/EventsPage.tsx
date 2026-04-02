@@ -137,9 +137,9 @@ export default function EventsPage() {
       return clubs || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Fetch teams for the selected club (or all user's teams if no club selected)
   const { data: userTeams } = useQuery({
     queryKey: ["user-teams-for-filter", user?.id, clubFilter],
     queryFn: async () => {
