@@ -36,11 +36,14 @@ export function useInitialChatBottomPin({
   }, [onPinned]);
 
   useLayoutEffect(() => {
-    // Already pinned for this key — nothing to do
+    if (!enabled) {
+      setIsPinned(true);
+      return;
+    }
+
     if (pinnedKeyRef.current === resetKey) return;
 
-    if (!enabled || itemCount <= 0) {
-      // No messages or disabled — show content, no scroll needed
+    if (itemCount <= 0) {
       setIsPinned(true);
       return;
     }
@@ -49,18 +52,27 @@ export function useInitialChatBottomPin({
 
     let cancelled = false;
     let observer: MutationObserver | null = null;
+    let mountObserver: MutationObserver | null = null;
     let stabilityTimer: ReturnType<typeof setTimeout> | null = null;
+    let maxTimer: ReturnType<typeof setTimeout> | null = null;
+    let rafId = 0;
     const STABILITY_MS = 80;
     const MAX_WAIT_MS = 1200;
+
+    const cleanup = () => {
+      observer?.disconnect();
+      mountObserver?.disconnect();
+      if (stabilityTimer) clearTimeout(stabilityTimer);
+      if (maxTimer) clearTimeout(maxTimer);
+      cancelAnimationFrame(rafId);
+    };
 
     const finalize = () => {
       if (cancelled) return;
       cancelled = true;
-      observer?.disconnect();
-      if (stabilityTimer) clearTimeout(stabilityTimer);
+      cleanup();
 
       scrollChatToBottom(scrollContainerRef.current);
-
       requestAnimationFrame(() => {
         scrollChatToBottom(scrollContainerRef.current);
         pinnedKeyRef.current = resetKey;
@@ -69,41 +81,62 @@ export function useInitialChatBottomPin({
       });
     };
 
-    const viewport = resolveChatScrollViewport(scrollContainerRef.current);
-    if (!viewport) {
-      setIsPinned(true);
-      pinnedKeyRef.current = resetKey;
-      onPinnedRef.current?.();
-      return;
-    }
-
-    if (viewport.scrollHeight > viewport.clientHeight + 10) {
-      finalize();
-      return;
-    }
-
     const scheduleFinalize = () => {
+      if (cancelled) return;
       if (stabilityTimer) clearTimeout(stabilityTimer);
       stabilityTimer = setTimeout(finalize, STABILITY_MS);
     };
 
-    observer = new MutationObserver(() => {
-      if (cancelled) return;
-      const vp = resolveChatScrollViewport(scrollContainerRef.current);
-      if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
+    const attachToViewport = () => {
+      if (cancelled) return false;
+
+      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+      if (!viewport) return false;
+
+      if (viewport.scrollHeight > viewport.clientHeight + 10) {
+        finalize();
+        return true;
+      }
+
+      observer?.disconnect();
+      observer = new MutationObserver(() => {
+        if (cancelled) return;
+        const vp = resolveChatScrollViewport(scrollContainerRef.current);
+        if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
+        scheduleFinalize();
+      });
+
+      observer.observe(viewport, { childList: true, subtree: true, characterData: true });
       scheduleFinalize();
-    });
+      return true;
+    };
 
-    observer.observe(viewport, { childList: true, subtree: true, characterData: true });
-    scheduleFinalize();
+    if (!attachToViewport()) {
+      const root = scrollContainerRef.current?.parentElement ?? document.body;
+      mountObserver = new MutationObserver(() => {
+        if (attachToViewport()) {
+          mountObserver?.disconnect();
+        }
+      });
+      mountObserver.observe(root, { childList: true, subtree: true });
 
-    const maxTimer = setTimeout(finalize, MAX_WAIT_MS);
+      const retry = () => {
+        if (cancelled) return;
+        if (!attachToViewport()) {
+          rafId = requestAnimationFrame(retry);
+        }
+      };
+      rafId = requestAnimationFrame(retry);
+    }
+
+    maxTimer = setTimeout(() => {
+      if (cancelled) return;
+      finalize();
+    }, MAX_WAIT_MS);
 
     return () => {
       cancelled = true;
-      observer?.disconnect();
-      if (stabilityTimer) clearTimeout(stabilityTimer);
-      clearTimeout(maxTimer);
+      cleanup();
       if (pinnedKeyRef.current !== resetKey) {
         setIsPinned(true);
       }
