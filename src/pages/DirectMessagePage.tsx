@@ -968,7 +968,7 @@ export default function DirectMessagePage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
       >
-        <div className="px-4 pb-4 pt-8" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(96, composerHeight + 24)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(128, composerHeight + 32)}px)` }}>
+        <div className="p-4" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
           <div className={`min-h-full flex flex-col ${!showLoading && (localMessages?.length || 0) > 0 ? "justify-end gap-4" : ""}`}>
             {showLoading ? (
               <div className="flex justify-center py-8">
