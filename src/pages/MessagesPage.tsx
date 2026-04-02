@@ -700,7 +700,8 @@ export default function MessagesPage() {
       return { groups, latestMessages };
     },
     enabled: !!user,
-    staleTime: 30000,
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
   
   // Extract groups and latest messages from combined query
