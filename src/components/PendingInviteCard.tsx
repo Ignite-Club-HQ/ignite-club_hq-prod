@@ -211,40 +211,42 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
       ? `\n\nSign up with ${email} so your account links automatically.`
       : "";
 
+    const link = shareLink;
+
     // Admin/Coach invite to a team
     if (isAdminRole && teamName) {
-      return `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}. Tap here to get started: ${inviteLink}${appDownload}${emailNote}`;
+      return `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}. Tap here to get started: ${link}${appDownload}${emailNote}`;
     }
 
     // Admin invite to a club (no team)
     if (isAdminRole && clubName) {
-      return `You've been invited to help run ${clubName} as ${roleName}. Tap here to get started: ${inviteLink}${appDownload}${emailNote}`;
+      return `You've been invited to help run ${clubName} as ${roleName}. Tap here to get started: ${link}${appDownload}${emailNote}`;
     }
 
     // Parent invite with children
     if (invite.role === "parent" && childrenNames.length === 1) {
-      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}${inviteLink ? `\n\nJoin here: ${inviteLink}` : ""}`;
+      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
     }
     if (invite.role === "parent" && childrenNames.length > 1) {
-      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}${inviteLink ? `\n\nJoin here: ${inviteLink}` : ""}`;
+      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
     }
 
     // Parent invite without children names
     if (invite.role === "parent" && teamName) {
-      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! ${appDownload}${emailNote}${inviteLink ? `\n\nJoin here: ${inviteLink}` : ""}`;
+      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
     }
 
     // Generic team invite
     if (teamName) {
-      return `You've been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here to join: ${inviteLink}${appDownload}${emailNote}`;
+      return `You've been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here to join: ${link}${appDownload}${emailNote}`;
     }
 
     // Generic club invite
     if (clubName) {
-      return `You've been invited to join ${clubName}! Tap here to get started: ${inviteLink}${appDownload}${emailNote}`;
+      return `You've been invited to join ${clubName}! Tap here to get started: ${link}${appDownload}${emailNote}`;
     }
 
-    return `You've been invited to join the team! Tap here to get started: ${inviteLink}${appDownload}${emailNote}`;
+    return `You've been invited to join the team! Tap here to get started: ${link}${appDownload}${emailNote}`;
   };
 
   const handleShareInvite = async () => {
