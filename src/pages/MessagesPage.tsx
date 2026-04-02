@@ -703,12 +703,13 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 60000,
-    placeholderData: (prev) => prev,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
   });
   
   // Extract groups and latest messages from combined query
-  const chatGroups = chatGroupsWithMessages?.groups || cachedData?.chatGroups as any || [];
-  const latestGroupMessages = chatGroupsWithMessages?.latestMessages || cachedData?.latestGroupMessages || {};
+  const chatGroups = chatGroupsWithMessages?.groups ?? [];
+  const latestGroupMessages = chatGroupsWithMessages?.latestMessages ?? {};
 
   // Fetch all muted chats for the user
   const { data: mutedChats } = useQuery({
