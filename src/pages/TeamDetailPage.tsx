@@ -1399,17 +1399,21 @@ export default function TeamDetailPage() {
                             const isConfirmedChild = (name: string) => {
                               const norm = name.toLowerCase().trim();
                               if (confirmedChildNames.has(norm)) return true;
-                              // Fuzzy: check if names differ by only 1-2 characters (typos like Issac/Isaac)
                               for (const confirmed of confirmedChildNames) {
                                 if (Math.abs(norm.length - confirmed.length) > 2) continue;
-                                let diffs = 0;
-                                const longer = norm.length >= confirmed.length ? norm : confirmed;
-                                const shorter = norm.length >= confirmed.length ? confirmed : norm;
-                                let j = 0;
-                                for (let i = 0; i < longer.length && diffs <= 2; i++) {
-                                  if (longer[i] !== shorter[j]) { diffs++; } else { j++; }
+                                // Levenshtein distance check (max 2)
+                                const len1 = norm.length, len2 = confirmed.length;
+                                const dp: number[][] = Array.from({ length: len1 + 1 }, (_, i) => 
+                                  Array.from({ length: len2 + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
+                                );
+                                for (let i = 1; i <= len1; i++) {
+                                  for (let j = 1; j <= len2; j++) {
+                                    dp[i][j] = norm[i-1] === confirmed[j-1]
+                                      ? dp[i-1][j-1]
+                                      : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+                                  }
                                 }
-                                if (diffs <= 2) return true;
+                                if (dp[len1][len2] <= 2) return true;
                               }
                               return false;
                             };
