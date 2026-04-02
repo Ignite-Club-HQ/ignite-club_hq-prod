@@ -1064,11 +1064,11 @@ export default function EventDetailPage() {
             .eq("id", existingRsvp.id);
           if (error) throw error;
         } else {
-          const { error } = await supabase.from("rsvps").upsert({
+          const { error } = await supabase.from("rsvps").insert({
             event_id: id!,
             mini_league_player_id: playerId,
             status,
-          }, { onConflict: "event_id,mini_league_player_id" });
+          });
           if (error) throw error;
         }
       }
