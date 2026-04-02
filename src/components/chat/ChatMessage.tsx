@@ -406,6 +406,9 @@ export const ChatMessage = memo(function ChatMessage({
     onReply: handleReply,
   });
 
+  // Track when the reaction picker was opened to ignore premature dismiss events on iOS
+  const reactionPickerOpenedAtRef = useRef(0);
+
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     gestureModeRef.current = "press";
     longPressTriggeredRef.current = false;
@@ -417,6 +420,7 @@ export const ChatMessage = memo(function ChatMessage({
       armDismissGuard();
       // Haptic feedback
       if (navigator.vibrate) navigator.vibrate(12);
+      reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 400);
@@ -435,6 +439,8 @@ export const ChatMessage = memo(function ChatMessage({
         longPressTimer.current = null;
       }
       longPressTriggeredRef.current = false;
+      // Force-activate the swipe hook so its directionality check doesn't reject the gesture
+      swipeToReplyHandlers.forceActivate(touchStartPos.current.x, touchStartPos.current.y);
       swipeToReplyHandlers.onTouchMove(e);
       return;
     }
@@ -465,7 +471,11 @@ export const ChatMessage = memo(function ChatMessage({
       longPressTimer.current = null;
     }
 
-    if (longPressTriggeredRef.current) {
+    // On iOS, pointercancel can reset longPressTriggeredRef during DOM mutations.
+    // Check if the reaction picker was recently opened as a fallback.
+    const recentlyOpenedPicker = Date.now() - reactionPickerOpenedAtRef.current < 600;
+
+    if (longPressTriggeredRef.current || recentlyOpenedPicker) {
       e.preventDefault();
       e.stopPropagation();
       armDismissGuard();
