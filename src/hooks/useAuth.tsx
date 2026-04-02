@@ -489,29 +489,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [fetchProfile, queryClient]);
 
-  // SESSION RECOVERY: Refresh session when app resumes from background
-  // Android WebView can corrupt localStorage tokens when the process is killed,
-  // causing "token is malformed" errors. Safari PWA can also lose connection state.
-  // This handler MUST NOT depend on session state - after WebView recreate, state is null.
+  // SESSION RECOVERY: Check session health when the app returns to the foreground.
+  // On Android, forcing refreshSession() on every resume can race token rotation
+  // and trigger refresh_token_not_found, which looks like a random logout.
   useEffect(() => {
     const isNative = typeof (window as any).Capacitor !== 'undefined' && 
                      (window as any).Capacitor?.isNativePlatform?.();
     let lastResumeCheck = 0;
+    let recoveryInFlight = false;
 
     const recoverSession = async (source: string) => {
-      // Debounce: don't re-check within 3 seconds
       const now = Date.now();
-      if (now - lastResumeCheck < 3000) return;
+      if (recoveryInFlight || now - lastResumeCheck < 3000) return;
       lastResumeCheck = now;
+      recoveryInFlight = true;
 
-      console.log(`[Auth] ${source} - attempting session recovery`);
+      console.log(`[Auth] ${source} - checking session health`);
+
       try {
-        // Step 1: Try refreshSession FIRST - this uses the refresh_token which is
-        // more resilient than the access_token that may be corrupted/malformed.
-        // On Android, getSession() can return a malformed access_token from localStorage
-        // that was corrupted when the OS killed the WebView process.
+        const hadCachedProfile = !!getCachedProfileWithUser();
+
+        // First trust the stored session. This avoids unnecessary refresh-token
+        // rotation on resume, which was the main source of Android logouts.
+        const { data: currentData, error: currentError } = await supabase.auth.getSession();
+        if (!currentError && currentData.session) {
+          console.log(`[Auth] ${source} - session still valid`);
+          setSession(currentData.session);
+          setUser(currentData.session.user);
+          return;
+        }
+
+        if (!hadCachedProfile) {
+          console.log(`[Auth] ${source} - no prior session to recover`);
+          return;
+        }
+
+        console.warn(`[Auth] ${source} - no active session found, attempting one-time refresh`);
         const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        
+
         if (!refreshError && refreshData.session) {
           console.log(`[Auth] ${source} - session recovered via refresh`);
           setSession(refreshData.session);
@@ -519,33 +534,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Step 2: If refresh failed, try getSession as fallback
-        // (it might work if the access token is still valid)
-        const { data, error } = await supabase.auth.getSession();
-        if (!error && data.session) {
-          console.log(`[Auth] ${source} - session valid from getSession`);
-          setSession(data.session);
-          setUser(data.session.user);
+        const refreshCode = (refreshError as { code?: string } | null)?.code;
+        const refreshMessage = refreshError?.message ?? "";
+        const tokenMissing = refreshCode === 'refresh_token_not_found' || /refresh token not found/i.test(refreshMessage);
+
+        // Give Supabase a brief moment in case another refresh path already won the race.
+        await new Promise(resolve => setTimeout(resolve, 250));
+
+        const { data: retryData, error: retryError } = await supabase.auth.getSession();
+        if (!retryError && retryData.session) {
+          console.log(`[Auth] ${source} - session restored after retry`);
+          setSession(retryData.session);
+          setUser(retryData.session.user);
           return;
         }
 
-        // Step 3: Both failed - check if we HAD a session (cached profile exists)
-        // If so, the session truly expired. If not, user was never logged in.
-        const cachedProfileStr = localStorage.getItem('ignite_profile_cache');
-        if (cachedProfileStr) {
-          console.warn(`[Auth] ${source} - session unrecoverable, clearing state`);
-          queryClient.clear(); // Clear stale RLS-dependent data
-          setUser(null);
-          setSession(null);
-          setProfile(null);
-          setCachedProfile(null);
-          setInitialized(true);
-        } else {
-          console.log(`[Auth] ${source} - no prior session to recover`);
+        console.warn(`[Auth] ${source} - session unrecoverable`, refreshError ?? currentError ?? retryError ?? null);
+        queryClient.clear();
+        clearProfileCache();
+        clearClubTeamCache();
+        clearRolesCache();
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        setCachedProfile(null);
+        setUnreadCount(0);
+        setUnreadMessagesCount(0);
+        setLoading(false);
+        setProfileLoading(false);
+        setInitialized(true);
+
+        if (tokenMissing) {
+          console.warn(`[Auth] ${source} - refresh token missing after resume; user must sign in again`);
         }
       } catch (err) {
         console.error(`[Auth] ${source} - error during recovery (possibly offline):`, err);
         // Network error - don't log out, user might just be offline
+      } finally {
+        recoveryInFlight = false;
       }
     };
 
@@ -576,7 +602,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       resumeListener?.remove().catch(() => {});
     };
-  }, []);
+  }, [queryClient]);
 
   // Real-time notifications subscription and push registration
   useEffect(() => {
