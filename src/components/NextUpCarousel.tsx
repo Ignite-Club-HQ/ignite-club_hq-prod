@@ -553,7 +553,7 @@ function CompactCard({ event }: { event: EventItem }) {
   );
 }
 
-export function NextUpCarousel({ events }: NextUpCarouselProps) {
+export function NextUpCarousel({ events, isLoading }: NextUpCarouselProps) {
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: "start",
     containScroll: "trimSnaps",
@@ -578,6 +578,19 @@ export function NextUpCarousel({ events }: NextUpCarouselProps) {
     onSelect();
     return () => { emblaApi.off("select", onSelect); };
   }, [emblaApi, onSelect]);
+
+  // Show skeleton while loading to reserve space and prevent layout shift
+  if (isLoading) {
+    return (
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="h-6 w-24 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+        </div>
+        <div className="h-[200px] rounded-lg bg-muted animate-pulse" />
+      </section>
+    );
+  }
 
   if (!events || events.length === 0) return null;
 

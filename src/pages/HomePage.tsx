@@ -1581,7 +1581,7 @@ export default function HomePage() {
       })()}
 
       {/* Next Up Carousel - unified event section */}
-      <NextUpCarousel events={events || []} />
+      <NextUpCarousel events={events || []} isLoading={isLoading} />
 
       {/* Mini League Live Matches Widget */}
       <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />
