@@ -298,7 +298,7 @@ export default function DirectMessagePage() {
     enabled: !!conversationId,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: true, // Use cache instantly, refetch in background if stale
+    refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
     refetchOnWindowFocus: false,
     placeholderData: () => {
       // Return cached messages as placeholder for instant load
