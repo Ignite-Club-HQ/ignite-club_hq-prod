@@ -29,6 +29,8 @@ export function useInitialChatBottomPin({
   const pinnedKeyRef = useRef<string | number | null | undefined>(undefined);
   const onPinnedRef = useRef(onPinned);
   const [isPinned, setIsPinned] = useState(false);
+  // Track if we "pinned" due to empty content so we can re-pin when data arrives
+  const pinnedWhileEmptyRef = useRef(false);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
@@ -40,13 +42,21 @@ export function useInitialChatBottomPin({
       return;
     }
 
+    // If we previously pinned from empty content and now have items, reset to re-pin
+    if (pinnedWhileEmptyRef.current && itemCount > 0) {
+      pinnedWhileEmptyRef.current = false;
+      pinnedKeyRef.current = undefined; // Force re-pin
+    }
+
     if (pinnedKeyRef.current === resetKey) return;
 
     if (itemCount <= 0) {
+      pinnedWhileEmptyRef.current = true;
       setIsPinned(true);
       return;
     }
 
+    pinnedWhileEmptyRef.current = false;
     setIsPinned(false);
 
     let cancelled = false;
@@ -77,6 +87,16 @@ export function useInitialChatBottomPin({
         pinnedKeyRef.current = resetKey;
         setIsPinned(true);
         onPinnedRef.current?.();
+
+        // Staggered delayed snaps for native WebView rendering lag.
+        // On first login the WebView may still be computing layout after
+        // the DOM is committed, so we re-snap at multiple intervals.
+        const delays = [50, 150, 300, 600];
+        for (const d of delays) {
+          setTimeout(() => {
+            scrollChatToBottom(scrollContainerRef.current);
+          }, d);
+        }
       });
     };
 

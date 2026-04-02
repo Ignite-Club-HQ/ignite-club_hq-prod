@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone } from "lucide-react";
+import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronRight } from "lucide-react";
@@ -167,6 +167,12 @@ export default function AdminPage() {
               label="AdMob Settings"
               description="Configure Google AdMob for native apps"
               onClick={() => navigate("/admin/admob")}
+            />
+            <AdminMenuItem
+              icon={Send}
+              label="Send Update Reminder"
+              description="Notify users to update their native app"
+              onClick={() => navigate("/admin/send-update-reminder")}
             />
           </CardContent>
         </Card>
