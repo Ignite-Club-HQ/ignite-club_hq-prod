@@ -25,5 +25,5 @@ export function scrollChatToBottom(container: HTMLElement | null | undefined) {
   const metrics = getChatScrollMetrics(container);
   if (!metrics) return;
 
-  metrics.viewport.scrollTop = metrics.maxScrollTop;
+  metrics.viewport.scrollTop = metrics.viewport.scrollHeight + 8;
 }
