@@ -327,9 +327,10 @@ export default function TeamChatPage() {
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
-    refetchOnMount: "always",
+    refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
   });
 
   // Show loading only when we have no data at all (not when refetching)
