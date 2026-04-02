@@ -125,7 +125,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       longPressTriggeredRef.current = true;
       resetReplyReveal();
       armDismissGuard();
-      if (navigator.vibrate) navigator.vibrate(12);
+      hapticImpactLight();
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
