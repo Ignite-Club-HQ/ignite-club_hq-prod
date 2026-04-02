@@ -345,9 +345,9 @@ export default function EventsPage() {
       return !!data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Get user's admin roles for clubs/teams
   const { data: userRoles } = useQuery({
     queryKey: ["user-admin-roles", user?.id],
     queryFn: async () => {
