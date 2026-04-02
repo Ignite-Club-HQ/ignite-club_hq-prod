@@ -117,18 +117,9 @@ export default function ClubChatPage() {
   const isKeyboardOpen = useKeyboardOpen();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   
-  // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
     scrollChatToBottom(scrollAreaRef.current);
   }, []);
-
-  // Scroll to bottom when keyboard opens
-  useEffect(() => {
-    if (!isKeyboardOpen) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollToBottom());
-    });
-  }, [isKeyboardOpen, scrollToBottom]);
 
   const targetMessageId = searchParams.get("message");
 

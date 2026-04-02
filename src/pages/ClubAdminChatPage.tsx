@@ -81,14 +81,6 @@ export default function ClubAdminChatPage() {
     scrollChatToBottom(scrollAreaRef.current);
   }, []);
 
-  // Scroll to bottom when keyboard opens
-  useEffect(() => {
-    if (!isKeyboardOpen) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollToBottom());
-    });
-  }, [isKeyboardOpen, scrollToBottom]);
-
   // Fetch conversation details
   const { data: conversation, isLoading: conversationLoading } = useQuery({
     queryKey: ["club-admin-conversation", conversationId],
