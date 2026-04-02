@@ -631,6 +631,9 @@ export default function CreateEventPage() {
     }
 
     // Require team selection for games and training
+    // Remember last used event type
+    localStorage.setItem("lastEventType", type);
+
     if ((type === "game" || type === "training") && !teamId) {
       toast({
         title: "Team required",
