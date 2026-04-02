@@ -682,22 +682,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       </div>
       <ScrollArea className="w-full">
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
-          {[...items]
-            .sort((a, b) => {
-              if (a.type !== b.type) return a.type === "team" ? -1 : 1;
-              if (a.canManage !== b.canManage) return a.canManage ? -1 : 1;
-              const aHasEvent = !!nextEvents[a.id];
-              const bHasEvent = !!nextEvents[b.id];
-              if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
-              const aUnread = unreadCounts[a.id] || 0;
-              const bUnread = unreadCounts[b.id] || 0;
-              if (aUnread !== bUnread) return bUnread - aUnread;
-              const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
-              const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
-              if (aHasPhotos !== bHasPhotos) return aHasPhotos ? -1 : 1;
-              return a.name.localeCompare(b.name);
-            })
-            .map((item) => (
+          {items.map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
               item={item}
