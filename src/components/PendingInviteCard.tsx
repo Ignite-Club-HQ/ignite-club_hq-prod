@@ -167,7 +167,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     queryFn: async () => {
       const { data } = await supabase
         .from("pending_invites")
-        .select("invite_token, metadata")
+        .select("invite_token, metadata, short_code")
         .eq("id", invite.id)
         .single();
       return data;
