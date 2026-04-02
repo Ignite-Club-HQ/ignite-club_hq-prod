@@ -2,7 +2,7 @@ import { Capacitor } from "@capacitor/core";
 
 /**
  * Cross-platform haptic feedback utility.
- * Uses Capacitor Haptics on native, falls back to navigator.vibrate on web.
+ * Uses Capacitor Haptics on native, falls back to navigator.vibrate on web/Android WebView.
  */
 
 let HapticsModule: typeof import("@capacitor/haptics") | null = null;
@@ -18,7 +18,7 @@ if (Capacitor.isNativePlatform()) {
 export const hapticImpactLight = () => {
   if (HapticsModule && Capacitor.isNativePlatform()) {
     HapticsModule.Haptics.impact({ style: HapticsModule.ImpactStyle.Light }).catch(() => {});
-  } else if (navigator.vibrate) {
+  } else if (typeof navigator !== "undefined" && navigator.vibrate) {
     navigator.vibrate(12);
   }
 };
@@ -27,7 +27,7 @@ export const hapticImpactLight = () => {
 export const hapticImpactMedium = () => {
   if (HapticsModule && Capacitor.isNativePlatform()) {
     HapticsModule.Haptics.impact({ style: HapticsModule.ImpactStyle.Medium }).catch(() => {});
-  } else if (navigator.vibrate) {
+  } else if (typeof navigator !== "undefined" && navigator.vibrate) {
     navigator.vibrate(18);
   }
 };
@@ -36,7 +36,7 @@ export const hapticImpactMedium = () => {
 export const hapticSelectionTick = () => {
   if (HapticsModule && Capacitor.isNativePlatform()) {
     HapticsModule.Haptics.selectionChanged().catch(() => {});
-  } else if (navigator.vibrate) {
+  } else if (typeof navigator !== "undefined" && navigator.vibrate) {
     navigator.vibrate(6);
   }
 };
