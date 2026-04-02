@@ -297,6 +297,7 @@ export default function MediaPage() {
     },
     enabled: !!user,
     staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch clubs user has access to for filtering
