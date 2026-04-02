@@ -168,6 +168,12 @@ export default function AdminPage() {
               description="Configure Google AdMob for native apps"
               onClick={() => navigate("/admin/admob")}
             />
+            <AdminMenuItem
+              icon={Send}
+              label="Send Update Reminder"
+              description="Notify users to update their native app"
+              onClick={() => navigate("/admin/send-update-reminder")}
+            />
           </CardContent>
         </Card>
       )}
