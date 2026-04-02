@@ -1052,9 +1052,9 @@ export default function HomePage() {
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Fetch soccer teams where user is a member (player/parent) OR club admin with Pro Football for read-only access
   // Club admins who are not explicit team members (coach/team_admin) get view-only access
   const { data: readOnlySoccerTeams } = useQuery({
     queryKey: ["read-only-soccer-teams", user?.id],
