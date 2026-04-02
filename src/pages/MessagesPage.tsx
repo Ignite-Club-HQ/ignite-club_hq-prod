@@ -612,6 +612,7 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get Pro status for each club to determine which are locked
