@@ -133,7 +133,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
 
   return (
     <Card
-      className={`shrink-0 w-[85vw] max-w-[340px] cursor-pointer border bg-card transition-all snap-start overflow-hidden relative ${
+      className={`shrink-0 w-[85vw] max-w-[340px] min-h-[158px] cursor-pointer border bg-card transition-all snap-start overflow-hidden relative ${
         hasActivity 
           ? `border-l-[3px] ${accentBorder || "border-l-primary"} shadow-md hover:shadow-lg` 
           : "hover:border-primary/40 shadow-sm hover:shadow-md"
@@ -383,15 +383,61 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         }
       }
 
-      // Sort: admin/coach teams first, then by name
+      // Fetch next-event dates for stable activity-based sorting
+      const now = new Date().toISOString();
+      const resultTeamIds = result.filter(r => r.type === "team").map(r => r.id);
+      const resultLeagueIds = result.filter(r => r.type === "league").map(r => r.id);
+      const nextEventDate: Record<string, string> = {};
+
+      const eventFetches: Promise<void>[] = [];
+      if (resultTeamIds.length > 0) {
+        eventFetches.push(
+          supabase
+            .from("events")
+            .select("team_id, event_date")
+            .in("team_id", resultTeamIds)
+            .gte("event_date", now)
+            .eq("is_cancelled", false)
+            .order("event_date", { ascending: true })
+            .limit(resultTeamIds.length * 2)
+            .then(({ data }) => {
+              data?.forEach(e => { if (e.team_id && !nextEventDate[e.team_id]) nextEventDate[e.team_id] = e.event_date; });
+            }) as Promise<void>
+        );
+      }
+      if (resultLeagueIds.length > 0) {
+        eventFetches.push(
+          supabase
+            .from("events")
+            .select("mini_league_id, event_date")
+            .in("mini_league_id", resultLeagueIds)
+            .gte("event_date", now)
+            .eq("is_cancelled", false)
+            .order("event_date", { ascending: true })
+            .limit(resultLeagueIds.length * 2)
+            .then(({ data }) => {
+              data?.forEach(e => { if (e.mini_league_id && !nextEventDate[e.mini_league_id]) nextEventDate[e.mini_league_id] = e.event_date; });
+            }) as Promise<void>
+        );
+      }
+      await Promise.all(eventFetches);
+
+      // Sort: active roles first, then by upcoming activity, then teams > leagues, then alphabetical
       return result.sort((a, b) => {
-        // Priority 1: canManage (admin/coach) teams first
+        // Priority 1: canManage (coach/team_admin/club_admin) first
         if (a.canManage && !b.canManage) return -1;
         if (!a.canManage && b.canManage) return 1;
-        // Priority 2: teams before leagues
+        // Priority 2: has upcoming event before no event
+        const aDate = nextEventDate[a.id];
+        const bDate = nextEventDate[b.id];
+        if (aDate && !bDate) return -1;
+        if (!aDate && bDate) return 1;
+        // Priority 3: soonest event first
+        if (aDate && bDate && aDate !== bDate) return aDate < bDate ? -1 : 1;
+        // Priority 4: teams before leagues
         if (a.type === "team" && b.type === "league") return -1;
         if (a.type === "league" && b.type === "team") return 1;
-        // Priority 3: alphabetical
+        // Priority 5: alphabetical
         return a.name.localeCompare(b.name);
       });
     },
@@ -462,6 +508,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     },
     enabled: items.length > 0,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch recent photos per team
@@ -496,6 +543,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     },
     enabled: teamIds.length > 0,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch unread message counts per team
@@ -537,15 +585,16 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     },
     enabled: teamIds.length > 0 && !!user?.id,
     staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   if (isLoading) {
     return (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My Teams</h2>
-        <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
           {[1, 2].map(i => (
-            <div key={i} className="shrink-0 w-[85vw] max-w-[340px] h-[140px] rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="shrink-0 w-[85vw] max-w-[340px] h-[158px] rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
       </section>
@@ -679,22 +728,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       </div>
       <ScrollArea className="w-full">
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
-          {[...items]
-            .sort((a, b) => {
-              if (a.type !== b.type) return a.type === "team" ? -1 : 1;
-              if (a.canManage !== b.canManage) return a.canManage ? -1 : 1;
-              const aHasEvent = !!nextEvents[a.id];
-              const bHasEvent = !!nextEvents[b.id];
-              if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
-              const aUnread = unreadCounts[a.id] || 0;
-              const bUnread = unreadCounts[b.id] || 0;
-              if (aUnread !== bUnread) return bUnread - aUnread;
-              const aHasPhotos = (teamPhotos[a.id] || []).length > 0;
-              const bHasPhotos = (teamPhotos[b.id] || []).length > 0;
-              if (aHasPhotos !== bHasPhotos) return aHasPhotos ? -1 : 1;
-              return a.name.localeCompare(b.name);
-            })
-            .map((item) => (
+          {items.map((item) => (
             <TeamCard
               key={`${item.type}-${item.id}`}
               item={item}
