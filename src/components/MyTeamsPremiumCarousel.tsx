@@ -462,6 +462,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     },
     enabled: items.length > 0,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch recent photos per team
