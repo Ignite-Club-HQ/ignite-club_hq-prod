@@ -1161,6 +1161,8 @@ export default function HomePage() {
       return data;
     },
     enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Filter out teams already shown in coach/admin section
