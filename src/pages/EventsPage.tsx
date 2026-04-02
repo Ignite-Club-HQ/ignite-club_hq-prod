@@ -137,9 +137,9 @@ export default function EventsPage() {
       return clubs || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Fetch teams for the selected club (or all user's teams if no club selected)
   const { data: userTeams } = useQuery({
     queryKey: ["user-teams-for-filter", user?.id, clubFilter],
     queryFn: async () => {
@@ -173,6 +173,8 @@ export default function EventsPage() {
       return teams || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get user's accessible team, club, and mini league IDs for event filtering
@@ -343,9 +345,9 @@ export default function EventsPage() {
       return !!data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Get user's admin roles for clubs/teams
   const { data: userRoles } = useQuery({
     queryKey: ["user-admin-roles", user?.id],
     queryFn: async () => {
@@ -357,6 +359,8 @@ export default function EventsPage() {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get IDs of events user has viewed

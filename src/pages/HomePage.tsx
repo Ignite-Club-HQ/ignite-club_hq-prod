@@ -503,6 +503,8 @@ export default function HomePage() {
       return data || [];
     },
     enabled: !!selectedRewardClubId,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch the next reward info across user's clubs
@@ -522,6 +524,8 @@ export default function HomePage() {
       return data?.[0] ? { points_required: data[0].points_required, name: data[0].name } : null;
     },
     enabled: rewardClubs.length > 0,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
   const minRewardThreshold = nextRewardInfo?.points_required ?? null;
 
@@ -536,6 +540,8 @@ export default function HomePage() {
       return data || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Handle opening rewards dialog
@@ -1046,9 +1052,9 @@ export default function HomePage() {
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Fetch soccer teams where user is a member (player/parent) OR club admin with Pro Football for read-only access
   // Club admins who are not explicit team members (coach/team_admin) get view-only access
   const { data: readOnlySoccerTeams } = useQuery({
     queryKey: ["read-only-soccer-teams", user?.id],
@@ -1137,9 +1143,9 @@ export default function HomePage() {
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Fetch user's recently used pitch boards (last 2 used)
   const { data: recentlyUsedGames } = useQuery({
     queryKey: ["recently-used-pitch-boards", user?.id],
     queryFn: async () => {
@@ -1155,6 +1161,8 @@ export default function HomePage() {
       return data;
     },
     enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Filter out teams already shown in coach/admin section

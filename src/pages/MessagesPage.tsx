@@ -241,6 +241,8 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     refetchInterval: 30000,
+    staleTime: 30000,
+    placeholderData: (prev) => prev,
   });
 
   // Delete group mutation
@@ -280,6 +282,8 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     retry: 3,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get clubs where user is admin
@@ -305,7 +309,8 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     retry: 3,
-    placeholderData: cachedData?.adminClubs,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: cachedData?.adminClubs ?? ((prev) => prev),
   });
 
   // Fetch member clubs with their latest messages in a single query
@@ -369,7 +374,8 @@ export default function MessagesPage() {
       return { clubs, latestMessages };
     },
     enabled: !!user,
-    staleTime: 30000,
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
   
   // Extract clubs and latest messages from combined query
@@ -411,6 +417,8 @@ export default function MessagesPage() {
       };
     },
     enabled: !!user,
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
 
 
@@ -506,6 +514,8 @@ export default function MessagesPage() {
       return data?.map((r) => r.team_id).filter(Boolean) || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Check if user is a committee member (club-level role)
@@ -521,6 +531,8 @@ export default function MessagesPage() {
       return !!data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch all user roles for chat group filtering
@@ -600,6 +612,7 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get Pro status for each club to determine which are locked
@@ -633,6 +646,7 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch chat groups with their latest messages in a single query
@@ -686,7 +700,8 @@ export default function MessagesPage() {
       return { groups, latestMessages };
     },
     enabled: !!user,
-    staleTime: 30000,
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
   
   // Extract groups and latest messages from combined query
@@ -722,6 +737,8 @@ export default function MessagesPage() {
       return muted;
     },
     enabled: !!user,
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
 
   // Cache fresh data when it arrives
@@ -860,10 +877,12 @@ export default function MessagesPage() {
   );
 
   // Track if fresh data is still loading (for skeleton states)
-  const isLoadingFreshData = !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess || isLoadingClubProStatus);
+  // With placeholderData, isLoading should be false when cached data exists — but guard further:
+  const hasAnyDisplayData = !!(teams?.length || memberClubs?.length || chatGroups?.length);
+  const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess || isLoadingClubProStatus);
 
   // Show skeleton loading UI when fresh data is loading and we have nothing to show yet
-  const showSkeletonLoading = isLoadingFreshData && !hasCachedData;
+  const showSkeletonLoading = isLoadingFreshData;
 
   // Determine which data to display (prefer fresh, fallback to cached)
   const displayTeams = teams || cachedData?.teams || [];
