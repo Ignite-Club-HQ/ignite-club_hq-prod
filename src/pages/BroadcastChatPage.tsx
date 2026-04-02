@@ -235,7 +235,7 @@ export default function BroadcastChatPage() {
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: true,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
   });
