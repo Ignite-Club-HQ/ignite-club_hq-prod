@@ -397,6 +397,12 @@ export default function GroupChatPage() {
     resetKey: groupId,
     onPinned: () => setInfiniteScrollEnabled(true),
   });
+
+  // Scroll to bottom when replying, editing, or sending a new message
+  useLayoutEffect(() => {
+    if (!isNearBottom(scrollAreaRef.current, 220)) return;
+    scrollChatToBottom(scrollAreaRef.current);
+  }, [replyTo?.id, editingMessage?.id, localMessages?.length]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);

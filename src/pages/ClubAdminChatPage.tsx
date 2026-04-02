@@ -252,6 +252,12 @@ export default function ClubAdminChatPage() {
     resetKey: conversationId,
   });
 
+  // Scroll to bottom when replying, editing, or sending a new message
+  useLayoutEffect(() => {
+    if (!isNearBottom(scrollAreaRef.current, 220)) return;
+    scrollChatToBottom(scrollAreaRef.current);
+  }, [replyTo?.id, editingMessage?.id, localMessages?.length]);
+
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const handleRefresh = useCallback(async () => {
