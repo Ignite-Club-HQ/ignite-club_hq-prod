@@ -1,29 +1,39 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
+import { onlineManager } from "@tanstack/react-query";
 
 export function useOnlineStatus() {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(() => onlineManager.isOnline());
   const [wasOffline, setWasOffline] = useState(false);
+  const resetTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      // Track that we just came back online (for syncing)
-      if (!navigator.onLine) return;
-      setWasOffline(true);
-      // Reset after a short delay
-      setTimeout(() => setWasOffline(false), 5000);
+    const syncOnlineState = () => {
+      const nextOnline = onlineManager.isOnline();
+
+      setIsOnline((prevOnline) => {
+        if (nextOnline && !prevOnline) {
+          setWasOffline(true);
+          if (resetTimerRef.current) {
+            window.clearTimeout(resetTimerRef.current);
+          }
+          resetTimerRef.current = window.setTimeout(() => {
+            setWasOffline(false);
+            resetTimerRef.current = null;
+          }, 5000);
+        }
+
+        return nextOnline;
+      });
     };
 
-    const handleOffline = () => {
-      setIsOnline(false);
-    };
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
+    syncOnlineState();
+    const unsubscribe = onlineManager.subscribe(syncOnlineState);
 
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+      unsubscribe();
+      if (resetTimerRef.current) {
+        window.clearTimeout(resetTimerRef.current);
+      }
     };
   }, []);
 

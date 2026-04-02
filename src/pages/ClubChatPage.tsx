@@ -207,8 +207,9 @@ export default function ClubChatPage() {
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["club-messages", clubId],
     queryFn: async () => {
-      // If offline, return cached messages
-      if (!navigator.onLine) {
+      // If offline, return cached messages using the shared online manager
+      // so native app resume does not incorrectly fall back to stale cache.
+      if (!isOnline) {
         const cached = getCachedMessages("club", clubId!);
         if (cached.length > 0) {
           // Transform cached messages to include club_id
