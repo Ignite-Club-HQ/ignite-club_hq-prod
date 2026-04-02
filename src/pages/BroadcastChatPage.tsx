@@ -135,8 +135,9 @@ export default function BroadcastChatPage() {
   const { data: messagesData, isLoading } = useQuery({
     queryKey: ["broadcast-messages"],
     queryFn: async () => {
-      // If offline, return cached messages
-      if (!navigator.onLine) {
+      // If offline, return cached messages using the shared online manager
+      // so native app resume does not incorrectly fall back to stale cache.
+      if (!isOnline) {
         const cached = getCachedMessages("broadcast", "broadcast");
         if (cached.length > 0) {
           // Transform cached messages to include reactions with proper format
@@ -235,7 +236,7 @@ export default function BroadcastChatPage() {
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: true,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
   });
@@ -877,7 +878,7 @@ export default function BroadcastChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "6rem" : "1rem" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "8rem" : "3rem" }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />

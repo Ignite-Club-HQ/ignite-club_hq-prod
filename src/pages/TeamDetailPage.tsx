@@ -1393,7 +1393,31 @@ export default function TeamDetailPage() {
                           })()}
                           {(() => {
                             const confirmedChildIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
-                            const confirmedChildNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()).filter(Boolean));
+                            const confirmedChildNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()?.trim()).filter(Boolean));
+                            
+                            // Helper: check if a pending child name fuzzy-matches any confirmed child
+                            const isConfirmedChild = (name: string) => {
+                              const norm = name.toLowerCase().trim();
+                              if (confirmedChildNames.has(norm)) return true;
+                              for (const confirmed of confirmedChildNames) {
+                                if (Math.abs(norm.length - confirmed.length) > 2) continue;
+                                // Levenshtein distance check (max 2)
+                                const len1 = norm.length, len2 = confirmed.length;
+                                const dp: number[][] = Array.from({ length: len1 + 1 }, (_, i) => 
+                                  Array.from({ length: len2 + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
+                                );
+                                for (let i = 1; i <= len1; i++) {
+                                  for (let j = 1; j <= len2; j++) {
+                                    dp[i][j] = norm[i-1] === confirmed[j-1]
+                                      ? dp[i-1][j-1]
+                                      : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+                                  }
+                                }
+                                if (dp[len1][len2] <= 2) return true;
+                              }
+                              return false;
+                            };
+                            
                             // Deduplicate pending children across invites by normalized name
                             const seenPendingNames = new Map<string, { name: string; parentLabels: string[]; inviteIds: string[] }>();
                             
@@ -1404,9 +1428,9 @@ export default function TeamDetailPage() {
                               
                               for (const child of meta.children) {
                                 if (!child.name) continue;
-                                // Skip if already confirmed
+                                // Skip if already confirmed (exact or fuzzy match)
                                 if (child.child_id && confirmedChildIds.has(child.child_id)) continue;
-                                if (confirmedChildNames.has(child.name.toLowerCase())) continue;
+                                if (isConfirmedChild(child.name)) continue;
                                 // Skip if this child references another pending invite's child (linked duplicate)
                                 if (typeof child.existingChildId === 'string' && child.existingChildId.startsWith('pending-')) continue;
                                 

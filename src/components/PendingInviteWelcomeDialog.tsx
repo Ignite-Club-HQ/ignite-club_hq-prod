@@ -86,29 +86,57 @@ export function PendingInviteWelcomeDialog() {
         }
         createdChildIds.push(childId);
       } else {
-        // Create new child
-        const { data: newChild, error: childError } = await supabase
-          .from("children")
-          .insert({
-            parent_id: parentId,
-            name: childData.name,
-            year_of_birth: childData.yearOfBirth,
-          })
-          .select("id")
-          .single();
-
-        if (childError) {
-          console.error("[InviteAutoAccept] Failed to create child:", childError.message);
-          continue;
+        // Check if a child with the same name already exists on this team
+        let existingChildOnTeam: any = null;
+        if (teamId) {
+          const { data: matches } = await supabase
+            .from("child_team_assignments")
+            .select("child_id, children!inner(id, name)")
+            .eq("team_id", teamId);
+          existingChildOnTeam = (matches || []).find(
+            (m: any) => m.children?.name?.toLowerCase().trim() === childData.name?.toLowerCase().trim()
+          );
         }
 
-        if (newChild?.id && teamId) {
-          await supabase.from("child_team_assignments").insert({
-            child_id: newChild.id,
-            team_id: teamId,
+        if (existingChildOnTeam) {
+          // Child already exists on team — link as guardian instead of creating duplicate
+          const existingId = existingChildOnTeam.child_id;
+          await supabase.from("child_guardians").insert({
+            child_id: existingId,
+            guardian_id: parentId,
+            relationship_type: "parent",
+            is_primary: false,
+          }).then(({ error: guardErr }) => {
+            if (guardErr && !guardErr.message?.includes("duplicate")) {
+              console.error("[InviteAutoAccept] Failed to link guardian to existing child:", guardErr.message);
+            }
           });
+          createdChildIds.push(existingId);
+        } else {
+          // Create new child
+          const { data: newChild, error: childError } = await supabase
+            .from("children")
+            .insert({
+              parent_id: parentId,
+              name: childData.name,
+              year_of_birth: childData.yearOfBirth,
+            })
+            .select("id")
+            .single();
+
+          if (childError) {
+            console.error("[InviteAutoAccept] Failed to create child:", childError.message);
+            continue;
+          }
+
+          if (newChild?.id && teamId) {
+            await supabase.from("child_team_assignments").insert({
+              child_id: newChild.id,
+              team_id: teamId,
+            });
+          }
+          if (newChild?.id) createdChildIds.push(newChild.id);
         }
-        if (newChild?.id) createdChildIds.push(newChild.id);
       }
     }
     return createdChildIds;

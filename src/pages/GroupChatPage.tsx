@@ -227,8 +227,9 @@ export default function GroupChatPage() {
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: ["group-messages", groupId],
     queryFn: async () => {
-      // If offline, return cached messages
-      if (!navigator.onLine) {
+      // If offline, return cached messages using the shared online manager
+      // so native app resume does not incorrectly fall back to stale cache.
+      if (!isOnline) {
         const cached = getCachedMessages("group", groupId!);
         if (cached.length > 0) {
           // Transform cached messages to GroupMessage format
@@ -243,7 +244,15 @@ export default function GroupChatPage() {
             author: m.profiles ? { display_name: m.profiles.display_name, avatar_url: m.profiles.avatar_url } : null,
             reply_to: m.reply_to,
           })) as GroupMessage[];
-          return { messages: groupMessages, hasOlderMessages: false, reactions: [] as MessageReaction[], fromCache: true };
+          const cachedReactions = cached.flatMap((message) =>
+            (message.reactions || []).map((reaction) => ({
+              id: reaction.id || `cached-${message.id}-${reaction.user_id}-${reaction.reaction_type}`,
+              user_id: reaction.user_id,
+              reaction_type: reaction.reaction_type,
+              group_message_id: message.id,
+            }))
+          ) as MessageReaction[];
+          return { messages: groupMessages, hasOlderMessages: false, reactions: cachedReactions, fromCache: true };
         }
         throw new Error("No cached messages available offline");
       }
@@ -341,7 +350,7 @@ export default function GroupChatPage() {
     enabled: !!groupId,
     staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: true, // Use cache instantly, refetch in background if stale
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
   });
@@ -1350,7 +1359,7 @@ export default function GroupChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "6rem" : "calc(var(--bottom-nav-offset, 0px) + 6rem)" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "8rem" : "calc(var(--bottom-nav-offset, 0px) + 8rem)" }}>
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
               <div ref={loadTriggerRef} className="h-1" />

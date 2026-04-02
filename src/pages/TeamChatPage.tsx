@@ -196,8 +196,9 @@ export default function TeamChatPage() {
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({
     queryKey: ["team-messages", teamId],
     queryFn: async () => {
-      // If offline, return cached messages
-      if (!navigator.onLine) {
+      // If offline, return cached messages using the React Query online manager
+      // so native app resume does not incorrectly fall back to stale cache.
+      if (!isOnline) {
         const cached = getCachedMessages("team", teamId!);
         if (cached.length > 0) {
           // Transform cached messages to include team_id
@@ -318,7 +319,7 @@ export default function TeamChatPage() {
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
-    refetchOnMount: true, // Use cache instantly, refetch in background if stale
+    refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
@@ -1146,7 +1147,7 @@ export default function TeamChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "6rem" : "calc(var(--bottom-nav-offset, 0px) + 6rem)" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "8rem" : "calc(var(--bottom-nav-offset, 0px) + 8rem)" }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />

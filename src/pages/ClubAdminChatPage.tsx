@@ -208,7 +208,7 @@ export default function ClubAdminChatPage() {
     enabled: !!conversationId,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: true, // Use cache instantly, refetch in background if stale
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
   });
@@ -446,6 +446,29 @@ export default function ClubAdminChatPage() {
                 if (reactions.some((r: any) => r.id === reaction.id)) return m;
                 const filtered = reactions.filter((r: any) => !(r.id.startsWith('temp-') && r.user_id === reaction.user_id));
                 return { ...m, reactions: [...filtered, { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type }] };
+              }),
+            };
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "message_reactions" },
+        (payload) => {
+          const reaction = payload.new as any;
+          if (!reaction.club_admin_message_id) return;
+          queryClient.setQueryData(queryKey, (old: any) => {
+            if (!old) return old;
+            return {
+              ...old,
+              messages: old.messages.map((m: any) => {
+                if (m.id !== reaction.club_admin_message_id) return m;
+                const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
+                const hasExisting = (m.reactions || []).some((r: any) => r.id === reaction.id);
+                if (hasExisting) {
+                  return { ...m, reactions: (m.reactions || []).map((r: any) => r.id === reaction.id ? newReaction : r) };
+                }
+                return { ...m, reactions: [...(m.reactions || []).filter((r: any) => r.user_id !== reaction.user_id), newReaction] };
               }),
             };
           });

@@ -1,5 +1,4 @@
 import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Capacitor } from "@capacitor/core";
 
 import { resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
 
@@ -143,19 +142,72 @@ export function useInitialChatBottomPin({
     };
   }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
 
-  // On native: re-snap on app resume
+  // On resume: remember whether we were near bottom, then re-snap after
+  // query refetch re-renders messages. Uses a MutationObserver with a longer
+  // settle window to survive the full invalidate→fetch→render cycle.
   useEffect(() => {
-    if (!isPinned || !Capacitor.isNativePlatform()) return;
+    if (!isPinned) return;
 
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
+    let wasNearBottom = true;
+    let observer: MutationObserver | null = null;
+    let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+    let snapInterval: ReturnType<typeof setInterval> | null = null;
+
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") {
+        // Remember scroll position before app goes to background
+        const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+        if (viewport) {
+          const maxScroll = viewport.scrollHeight - viewport.clientHeight;
+          wasNearBottom = maxScroll - viewport.scrollTop < 150;
+        }
       }
     };
 
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [isPinned, scrollContainerRef, resetKey]);
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || !wasNearBottom) return;
+
+      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+      if (!viewport) return;
+
+      // Immediate snap for cached content
+      scrollChatToBottom(scrollContainerRef.current);
+
+      // Watch for DOM mutations from query refetch, snap on each change
+      observer?.disconnect();
+      observer = new MutationObserver(() => {
+        scrollChatToBottom(scrollContainerRef.current);
+      });
+      observer.observe(viewport, { childList: true, subtree: true });
+
+      // Also poll-snap every 100ms to catch any React re-render gaps
+      // the MutationObserver might miss (e.g. full list replacement)
+      if (snapInterval) clearInterval(snapInterval);
+      snapInterval = setInterval(() => {
+        scrollChatToBottom(scrollContainerRef.current);
+      }, 100);
+
+      // Stop after 2s settle window — covers slow network refetch
+      if (watchdogTimer) clearTimeout(watchdogTimer);
+      watchdogTimer = setTimeout(() => {
+        observer?.disconnect();
+        observer = null;
+        if (snapInterval) { clearInterval(snapInterval); snapInterval = null; }
+        // Final snap
+        requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
+      }, 2000);
+    };
+
+    document.addEventListener("visibilitychange", onHidden);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      observer?.disconnect();
+      if (watchdogTimer) clearTimeout(watchdogTimer);
+      if (snapInterval) clearInterval(snapInterval);
+      document.removeEventListener("visibilitychange", onHidden);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [isPinned, scrollContainerRef]);
 
   return { isPinned };
 }

@@ -210,7 +210,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
     enabled: !event.is_cancelled,
   });
 
-  const currentRsvpStatus = myRsvp?.status as RsvpStatus | null;
+  const currentRsvpStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const canSendReminders = hasPro === true;
 
   const deleteEventMutation = useMutation({
@@ -455,46 +455,16 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             );
           }
 
-          // Build personal status line
-          const personalStatusIcon = goingNames.length > 0
-            ? <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-            : maybeNames.length > 0
-            ? <HelpCircle className="h-3.5 w-3.5 text-warning shrink-0" />
-            : <X className="h-3.5 w-3.5 text-destructive shrink-0" />;
+          // Check if the parent (You) has actually RSVP'd
+          const parentHasRsvpd = currentRsvpStatus !== null;
+          const hasChildRsvps = childRsvps && childRsvps.length > 0;
 
-          const personalStatusColor = goingNames.length > 0
-            ? "text-primary"
-            : maybeNames.length > 0
-            ? "text-warning"
-            : "text-destructive";
-
-          // Build household display: "You, Archie, Teddy" for going, etc.
-          const householdParts: string[] = [];
-          if (goingNames.length > 0) {
-            householdParts.push(goingNames.join(", "));
-          }
-          if (maybeNames.length > 0) {
-            const maybeLabel = maybeNames.join(", ") + " (maybe)";
-            householdParts.push(maybeLabel);
-          }
-          if (notGoingNames.length > 0) {
-            const notGoingLabel = notGoingNames.join(", ") + " (not going)";
-            householdParts.push(notGoingLabel);
-          }
-
-          // Primary status word
-          const primaryStatus = goingNames.length > 0
-            ? "Going"
-            : maybeNames.length > 0
-            ? "Maybe"
-            : "Not going";
-
-          // Build a compact but clear household summary showing each status group
+          // Build child status groups (exclude "You")
           const childGoing = goingNames.filter(n => n !== "You");
           const childMaybe = maybeNames.filter(n => n !== "You");
           const childNotGoing = notGoingNames.filter(n => n !== "You");
 
-          // Always show child names with an explicit status for clarity
+          // Build child display parts
           const childParts: string[] = [];
           if (childGoing.length > 0) {
             const names = childGoing.length <= 3 ? childGoing.join(", ") : `${childGoing.slice(0, 2).join(", ")} +${childGoing.length - 2}`;
@@ -509,20 +479,58 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
             childParts.push(`${names} not going`);
           }
 
+          // Determine the icon and color based on the best status across the household
+          const bestIcon = goingNames.length > 0
+            ? <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+            : maybeNames.length > 0
+            ? <HelpCircle className="h-3.5 w-3.5 text-warning shrink-0" />
+            : <X className="h-3.5 w-3.5 text-destructive shrink-0" />;
+
+          // Build the display text
+          let statusText: React.ReactNode;
+          if (parentHasRsvpd) {
+            // Parent has responded - show "You: Going/Maybe/Not going"
+            const primaryStatus = currentRsvpStatus === "going"
+              ? "Going"
+              : currentRsvpStatus === "maybe"
+              ? "Maybe"
+              : "Not going";
+            const personalStatusColor = currentRsvpStatus === "going"
+              ? "text-primary"
+              : currentRsvpStatus === "maybe"
+              ? "text-warning"
+              : "text-destructive";
+            statusText = (
+              <span className={`text-[12px] font-semibold ${personalStatusColor} truncate`}>
+                You: {primaryStatus}
+                {childParts.length > 0 && (
+                  <span className="font-normal text-foreground/70">
+                    {" · "}{childParts.join(" · ")}
+                  </span>
+                )}
+              </span>
+            );
+          } else {
+            // Parent hasn't responded - only show child statuses
+            const childStatusColor = childGoing.length > 0
+              ? "text-primary"
+              : childMaybe.length > 0
+              ? "text-warning"
+              : "text-destructive";
+            statusText = (
+              <span className={`text-[12px] font-semibold ${childStatusColor} truncate`}>
+                {childParts.join(" · ")}
+              </span>
+            );
+          }
+
           return (
             <div className="pt-2 border-t border-border/40 space-y-1">
               {/* Line 1: Personal / household RSVP */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  {personalStatusIcon}
-                  <span className={`text-[12px] font-semibold ${personalStatusColor} truncate`}>
-                    You: {primaryStatus}
-                    {childParts.length > 0 && (
-                      <span className="font-normal text-foreground/70">
-                        {" · "}{childParts.join(" · ")}
-                      </span>
-                    )}
-                  </span>
+                  {bestIcon}
+                  {statusText}
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
               </div>
