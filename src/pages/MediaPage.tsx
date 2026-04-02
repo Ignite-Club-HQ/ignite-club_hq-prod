@@ -335,6 +335,7 @@ export default function MediaPage() {
     },
     enabled: !!user && !!userRoles && userRoles.length > 0,
     staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   // Filter teams by selected club
