@@ -241,6 +241,8 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     refetchInterval: 30000,
+    staleTime: 30000,
+    placeholderData: (prev) => prev,
   });
 
   // Delete group mutation
