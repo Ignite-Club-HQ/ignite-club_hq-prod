@@ -402,7 +402,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
             .limit(resultTeamIds.length * 2)
             .then(({ data }) => {
               data?.forEach(e => { if (e.team_id && !nextEventDate[e.team_id]) nextEventDate[e.team_id] = e.event_date; });
-            })
+            }) as Promise<void>
         );
       }
       if (resultLeagueIds.length > 0) {
@@ -417,7 +417,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
             .limit(resultLeagueIds.length * 2)
             .then(({ data }) => {
               data?.forEach(e => { if (e.mini_league_id && !nextEventDate[e.mini_league_id]) nextEventDate[e.mini_league_id] = e.event_date; });
-            })
+            }) as Promise<void>
         );
       }
       await Promise.all(eventFetches);
