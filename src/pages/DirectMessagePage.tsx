@@ -345,7 +345,8 @@ export default function DirectMessagePage() {
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
 
   useLayoutEffect(() => {
-    if (!isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
+    const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
+    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current);
   }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
   

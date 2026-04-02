@@ -400,7 +400,8 @@ export default function GroupChatPage() {
 
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
-    if (!isNearBottom(scrollAreaRef.current, 220)) return;
+    const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
+    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, 220)) return;
     scrollChatToBottom(scrollAreaRef.current);
   }, [replyTo?.id, editingMessage?.id, localMessages?.length]);
  
