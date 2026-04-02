@@ -1,5 +1,4 @@
 import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Capacitor } from "@capacitor/core";
 
 import { resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
 
