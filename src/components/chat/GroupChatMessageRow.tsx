@@ -225,8 +225,13 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
   useEffect(() => {
     const handlePointerCancel = () => {
-      longPressTriggeredRef.current = false;
-      clearDismissGuard();
+      // On iOS WebView, pointercancel fires when DOM changes (e.g. portal insertion
+      // during long-press). Only reset if the reaction picker is NOT currently open,
+      // otherwise we'd prematurely dismiss it.
+      if (!showReactionPicker) {
+        longPressTriggeredRef.current = false;
+        clearDismissGuard();
+      }
     };
 
     window.addEventListener("pointercancel", handlePointerCancel, true);
@@ -235,7 +240,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
       window.removeEventListener("pointercancel", handlePointerCancel, true);
     };
-  }, [clearDismissGuard]);
+  }, [clearDismissGuard, showReactionPicker]);
 
   useLayoutEffect(() => {
     if (!showReactionPicker || !bubbleRef.current) {
