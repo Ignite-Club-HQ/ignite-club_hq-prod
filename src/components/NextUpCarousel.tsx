@@ -470,6 +470,8 @@ function CompactCard({ event }: { event: EventItem }) {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
