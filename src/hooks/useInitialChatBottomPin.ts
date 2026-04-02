@@ -29,7 +29,7 @@ export function useInitialChatBottomPin({
 }: UseInitialChatBottomPinOptions) {
   const pinnedKeyRef = useRef<string | number | null | undefined>(undefined);
   const onPinnedRef = useRef(onPinned);
-  const [isPinned, setIsPinned] = useState(true);
+  const [isPinned, setIsPinned] = useState(false);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
