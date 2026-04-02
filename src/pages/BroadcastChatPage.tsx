@@ -249,9 +249,10 @@ export default function BroadcastChatPage() {
     },
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 30,
-    refetchOnMount: false,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
   });
 
   const showLoading = isLoading && !messagesData;
