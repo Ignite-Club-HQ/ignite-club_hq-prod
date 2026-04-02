@@ -291,29 +291,43 @@ export default function BroadcastChatPage() {
     if (!messages) return;
 
     setLocalMessages((prev) => {
-      if (!prev) return messages;
+      const mergedMessages = !prev
+        ? messages
+        : messages.map((message) => {
+            const previousMessage = prev.find((item) => item.id === message.id);
+            if (!previousMessage) return message;
 
-      return messages.map((message) => {
-        const previousMessage = prev.find((item) => item.id === message.id);
-        if (!previousMessage) return message;
+            const previousReactions = previousMessage.reactions || [];
+            const incomingReactions = message.reactions || [];
 
-        const previousReactions = previousMessage.reactions || [];
-        const incomingReactions = message.reactions || [];
+            const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
+            incomingReactions.forEach((reaction) => {
+              incomingByUser.set(reaction.user_id, reaction);
+            });
 
-        const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
-        incomingReactions.forEach((reaction) => {
-          incomingByUser.set(reaction.user_id, reaction);
-        });
+            const tempOnlyFromPrevious = previousReactions.filter(
+              (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
+            );
 
-        const tempOnlyFromPrevious = previousReactions.filter(
-          (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
-        );
+            return {
+              ...message,
+              reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+            };
+          });
 
-        return {
-          ...message,
-          reactions: [...incomingReactions, ...tempOnlyFromPrevious],
-        };
-      });
+      cacheMessages("broadcast", "broadcast", mergedMessages.map((m) => ({
+        id: m.id,
+        text: m.text,
+        author_id: m.author_id,
+        created_at: m.created_at,
+        image_url: m.image_url,
+        reply_to_id: m.reply_to_id,
+        profiles: null,
+        reactions: m.reactions,
+        reply_to: m.reply_to,
+      })));
+
+      return mergedMessages;
     });
   }, [messages]);
 
