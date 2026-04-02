@@ -1,4 +1,8 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
+import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
+import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Search } from "lucide-react";
@@ -34,6 +38,7 @@ import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessa
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -115,31 +120,24 @@ export default function TeamChatPage() {
   profileRef.current = profile;
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const chatHeight = useChatViewportHeight();
+  const isKeyboardOpen = useKeyboardOpen();
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   
   // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
-    if (!scrollAreaRef.current) return;
-    
-    scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    scrollChatToBottom(scrollAreaRef.current);
   }, []);
 
-  // Scroll to bottom when keyboard opens (viewport shrinks)
+  // Scroll to bottom when keyboard opens
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    let prevHeight = vv.height;
-    const handleResize = () => {
-      const currentHeight = vv.height;
-      // Keyboard opened (viewport got smaller by >100px)
-      if (prevHeight - currentHeight > 100) {
-        requestAnimationFrame(() => scrollToBottom());
-      }
-      prevHeight = currentHeight;
-    };
-    vv.addEventListener("resize", handleResize);
-    return () => vv.removeEventListener("resize", handleResize);
-  }, [scrollToBottom]);
+    if (!isKeyboardOpen) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToBottom());
+    });
+  }, [isKeyboardOpen, scrollToBottom]);
 
   const targetMessageId = searchParams.get("message");
 
@@ -329,9 +327,10 @@ export default function TeamChatPage() {
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
-    refetchOnMount: "always",
+    refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
   });
 
   // Show loading only when we have no data at all (not when refetching)
@@ -351,9 +350,6 @@ export default function TeamChatPage() {
 
   // Local copy used for rendering so optimistic updates are instant
   const [localMessages, setLocalMessages] = useState<Message[] | undefined>(undefined);
- 
-  // Track if initial scroll has happened - reset on every mount
-  const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
@@ -364,9 +360,16 @@ export default function TeamChatPage() {
   
   // Reset scroll state when teamId changes
   useEffect(() => {
-    hasInitialScrolled.current = false;
     setInfiniteScrollEnabled(false);
   }, [teamId]);
+
+  const { isPinned } = useInitialChatBottomPin({
+    scrollContainerRef: scrollAreaRef,
+    bottomAnchorRef: messagesEndRef,
+    itemCount: localMessages?.length ?? 0,
+    resetKey: teamId,
+    onPinned: () => setInfiniteScrollEnabled(true),
+  });
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -387,7 +390,7 @@ export default function TeamChatPage() {
 
   const isAnyRefreshing = isManualRefreshing;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
     if (!messages) return;
 
@@ -481,40 +484,6 @@ export default function TeamChatPage() {
         return updated ? newMessages : prev;
       });
     });
-  }, [localMessages]);
-
-  // Scroll to bottom on initial load - poll until ScrollArea is ready
-  useEffect(() => {
-    if (!localMessages?.length) return;
-    if (hasInitialScrolled.current) return;
-    
-    let attempts = 0;
-    const maxAttempts = 20; // Try for up to 2 seconds
-    
-    const tryScroll = () => {
-      attempts++;
-      
-      if (!scrollAreaRef.current) {
-        if (attempts < maxAttempts) {
-          setTimeout(tryScroll, 100);
-        }
-        return;
-      }
-      
-      // Mark as scrolled and perform scroll
-      hasInitialScrolled.current = true;
-      setInfiniteScrollEnabled(true);
-      
-      // Scroll multiple times to ensure content is fully rendered
-      const el = scrollAreaRef.current;
-      el.scrollTop = el.scrollHeight;
-      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 50);
-      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 150);
-      setTimeout(() => { el.scrollTop = el.scrollHeight; }, 300);
-    };
-    
-    // Start polling
-    tryScroll();
   }, [localMessages]);
 
   // Update hasOlderMessages from fetched data
@@ -1112,7 +1081,7 @@ export default function TeamChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: "calc(var(--stable-vh, 100vh) - 4rem)", paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
+    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -1184,9 +1153,9 @@ export default function TeamChatPage() {
             className="flex-1 min-h-0 overflow-y-auto overscroll-none scrollbar-hide"
             data-chat-scroll-lock="true"
             ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
+            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4 pb-20">
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "4.5rem" : "calc(var(--bottom-nav-offset, 0px) + 4.5rem)" }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />
@@ -1240,15 +1209,15 @@ export default function TeamChatPage() {
                   </div>
                 );
               })}
-              <div id="team-chat-end" />
+              <div ref={messagesEndRef} id="team-chat-end" />
             </div>
           </div>
          )}
        </div>
 
       {/* Input - Fixed at bottom above nav bar */}
-      <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
-      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
+      <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
+      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

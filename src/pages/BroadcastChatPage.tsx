@@ -1,4 +1,8 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
+import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
+import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Flame, Search } from "lucide-react";
@@ -30,6 +34,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -69,6 +74,9 @@ export default function BroadcastChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const chatHeight = useChatViewportHeight();
+  const isKeyboardOpen = useKeyboardOpen();
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isNativePlatform = Capacitor.isNativePlatform();
 
@@ -94,14 +102,7 @@ export default function BroadcastChatPage() {
   
   // Scroll to bottom helper - retries until content is ready
   const scrollToBottom = useCallback(() => {
-    if (!scrollAreaRef.current) return;
-    
-    const el = scrollAreaRef.current;
-    const doScroll = () => {
-      if (el.scrollHeight > el.clientHeight) {
-        el.scrollTop = el.scrollHeight;
-      }
-    };
+    const doScroll = () => scrollChatToBottom(scrollAreaRef.current);
     
     doScroll();
     setTimeout(doScroll, 50);
@@ -110,21 +111,13 @@ export default function BroadcastChatPage() {
     setTimeout(doScroll, 500);
   }, []);
 
-  // Scroll to bottom when keyboard opens (viewport shrinks)
+  // Scroll to bottom when keyboard opens
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    let prevHeight = vv.height;
-    const handleResize = () => {
-      const currentHeight = vv.height;
-      if (prevHeight - currentHeight > 100) {
-        requestAnimationFrame(() => scrollToBottom());
-      }
-      prevHeight = currentHeight;
-    };
-    vv.addEventListener("resize", handleResize);
-    return () => vv.removeEventListener("resize", handleResize);
-  }, [scrollToBottom]);
+    if (!isKeyboardOpen) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToBottom());
+    });
+  }, [isKeyboardOpen, scrollToBottom]);
 
   const targetMessageId = searchParams.get("message");
 
@@ -278,15 +271,15 @@ export default function BroadcastChatPage() {
   // Local copy used for rendering so optimistic updates are instant
   const [localMessages, setLocalMessages] = useState<Message[] | undefined>(undefined);
  
-  // Track if initial scroll has happened
-  const hasInitialScrolled = useRef(false);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
-  
-  // Reset initial scroll state on mount (broadcast is always the same chat, but ensure reset on navigation)
-  useEffect(() => {
-    hasInitialScrolled.current = false;
-    setInfiniteScrollEnabled(false);
-  }, []);
+
+  const { isPinned } = useInitialChatBottomPin({
+    scrollContainerRef: scrollAreaRef,
+    bottomAnchorRef: messagesEndRef,
+    itemCount: localMessages?.length ?? 0,
+    resetKey: "broadcast",
+    onPinned: () => setInfiniteScrollEnabled(true),
+  });
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -306,7 +299,7 @@ export default function BroadcastChatPage() {
 
   const isAnyRefreshing = isManualRefreshing;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // Always sync localMessages with messages from query cache
     // This ensures optimistic updates (deletions, edits) are reflected immediately
     if (messages) {
@@ -344,19 +337,6 @@ export default function BroadcastChatPage() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [queryClient]);
-
-  // Scroll to bottom on initial load - wait for content to render
-  useEffect(() => {
-    if (!localMessages?.length || hasInitialScrolled.current) return;
-    
-    const timer = setTimeout(() => {
-      hasInitialScrolled.current = true;
-      setInfiniteScrollEnabled(true);
-      scrollToBottom();
-    }, 200);
-    
-    return () => clearTimeout(timer);
-  }, [localMessages, scrollToBottom]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
@@ -861,7 +841,7 @@ export default function BroadcastChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: "calc(var(--stable-vh, 100vh) - 4rem)", paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}>
+    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }}>
       {/* Header */}
       <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10 shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -909,9 +889,9 @@ export default function BroadcastChatPage() {
             className="flex-1 min-h-0 overflow-y-auto overscroll-none scrollbar-hide"
             data-chat-scroll-lock="true"
             ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
+            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4 pb-20">
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "4.5rem" : "1rem" }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />

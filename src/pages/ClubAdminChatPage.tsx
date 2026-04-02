@@ -1,5 +1,9 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
+import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
+import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,6 +24,7 @@ import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { Capacitor } from "@capacitor/core";
+import { scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -67,28 +72,22 @@ export default function ClubAdminChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const chatHeight = useChatViewportHeight();
+  const isKeyboardOpen = useKeyboardOpen();
+  useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const isNativePlatform = Capacitor.isNativePlatform();
 
   const scrollToBottom = useCallback(() => {
-    if (!scrollAreaRef.current) return;
-    scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    scrollChatToBottom(scrollAreaRef.current);
   }, []);
 
   // Scroll to bottom when keyboard opens
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    let prevHeight = vv.height;
-    const handleResize = () => {
-      const currentHeight = vv.height;
-      if (prevHeight - currentHeight > 100) {
-        requestAnimationFrame(() => scrollToBottom());
-      }
-      prevHeight = currentHeight;
-    };
-    vv.addEventListener("resize", handleResize);
-    return () => vv.removeEventListener("resize", handleResize);
-  }, [scrollToBottom]);
+    if (!isKeyboardOpen) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToBottom());
+    });
+  }, [isKeyboardOpen, scrollToBottom]);
 
   // Fetch conversation details
   const { data: conversation, isLoading: conversationLoading } = useQuery({
@@ -215,9 +214,10 @@ export default function ClubAdminChatPage() {
       return { messages, hasOlderMessages: hasMore };
     },
     enabled: !!conversationId,
-    staleTime: 30 * 1000,
-    refetchOnMount: 'always' as const,
+    staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
+    refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
   });
 
   const showLoading = messagesLoading && !messagesData;
@@ -235,7 +235,6 @@ export default function ClubAdminChatPage() {
   const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(undefined);
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
-  const hasInitialScrolled = useRef(false);
 
   const authorIds = useMemo(() => {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
@@ -243,7 +242,7 @@ export default function ClubAdminChatPage() {
   const { getProfile } = useProfiles(authorIds);
 
   // Sync localMessages with fetched messages
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (messages) {
       if (messages.length > 0) {
         setLocalMessages(messages);
@@ -253,24 +252,12 @@ export default function ClubAdminChatPage() {
     }
   }, [messages, messagesLoading]);
 
-  // Initial scroll to bottom
-  useEffect(() => {
-    if (!localMessages?.length) return;
-    if (hasInitialScrolled.current) return;
-
-    const tryScroll = () => {
-      if (!scrollAreaRef.current) return;
-      hasInitialScrolled.current = true;
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-      setTimeout(() => { if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight; }, 50);
-    };
-    tryScroll();
-  }, [localMessages]);
-
-  // Reset on conversation change
-  useEffect(() => {
-    hasInitialScrolled.current = false;
-  }, [conversationId]);
+  const { isPinned } = useInitialChatBottomPin({
+    scrollContainerRef: scrollAreaRef,
+    bottomAnchorRef: messagesEndRef,
+    itemCount: localMessages?.length ?? 0,
+    resetKey: conversationId,
+  });
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
@@ -521,7 +508,7 @@ export default function ClubAdminChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: "calc(var(--stable-vh, 100vh) - 4rem)", paddingBottom: "calc(var(--bottom-nav-offset, 5rem) + 1rem)" }}>
+    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -559,9 +546,9 @@ export default function ClubAdminChatPage() {
         ref={scrollAreaRef}
         data-chat-scroll-lock="true"
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
-        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
+        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
       >
-        <div className="p-4 space-y-4 pb-20">
+        <div className="p-4 space-y-4" style={{ paddingBottom: isKeyboardOpen ? "4.5rem" : "calc(var(--bottom-nav-offset, 0px) + 4.5rem)" }}>
           {showLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -629,8 +616,8 @@ export default function ClubAdminChatPage() {
       {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
 
       {/* Input area */}
-      <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 5rem) + 3rem)" }} />
-      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 5rem)" }}>
+      <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
+      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 0px)" }}>
         <div className="flex gap-1.5 items-center">
           <MentionInput
             value={message}

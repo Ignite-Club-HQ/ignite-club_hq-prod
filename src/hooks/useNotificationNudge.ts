@@ -3,7 +3,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
 
 const NUDGE_DISMISSED_PREFIX = "notification-nudge-dismissed-";
+const NUDGE_STATUS_PREFIX = "notification-nudge-status-";
 const NUDGE_COOLDOWN_DAYS = 7;
+
+const getDismissKey = (context: string, userId: string) => `${NUDGE_DISMISSED_PREFIX}${context}-${userId}`;
+const getStatusKey = (context: string, userId: string) => `${NUDGE_STATUS_PREFIX}${context}-${userId}`;
+
+const readCachedPushStatus = (context: string, userId: string | undefined) => {
+  if (!userId || typeof window === "undefined") return null;
+
+  const cached = localStorage.getItem(getStatusKey(context, userId));
+  if (cached === "enabled") return true;
+  if (cached === "disabled") return false;
+  return null;
+};
+
+const writeCachedPushStatus = (context: string, userId: string | undefined, enabled: boolean) => {
+  if (!userId || typeof window === "undefined") return;
+  localStorage.setItem(getStatusKey(context, userId), enabled ? "enabled" : "disabled");
+};
 
 /**
  * Hook to determine if a user should be nudged to enable push notifications.
@@ -12,9 +30,9 @@ const NUDGE_COOLDOWN_DAYS = 7;
  */
 export function useNotificationNudge(userId: string | undefined, context: string = "general") {
   // Start as null (loading) — never show nudge while loading
-  const [hasPushEnabled, setHasPushEnabled] = useState<boolean | null>(null);
+  const [hasPushEnabled, setHasPushEnabled] = useState<boolean | null>(() => readCachedPushStatus(context, userId));
   const [isDismissed, setIsDismissed] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => readCachedPushStatus(context, userId) === null);
 
   useEffect(() => {
     if (!userId) {
@@ -23,7 +41,11 @@ export function useNotificationNudge(userId: string | undefined, context: string
       return;
     }
 
-    const dismissKey = `${NUDGE_DISMISSED_PREFIX}${context}-${userId}`;
+    const cachedStatus = readCachedPushStatus(context, userId);
+    setHasPushEnabled(cachedStatus);
+    setIsLoading(cachedStatus === null);
+
+    const dismissKey = getDismissKey(context, userId);
     const dismissedAt = localStorage.getItem(dismissKey);
     if (dismissedAt) {
       const elapsed = Date.now() - parseInt(dismissedAt, 10);
@@ -37,18 +59,24 @@ export function useNotificationNudge(userId: string | undefined, context: string
       localStorage.removeItem(dismissKey);
     }
 
-    // Delay check slightly to ensure auth session is fully settled
-    const timer = setTimeout(async () => {
+    setIsDismissed(false);
+
+    let cancelled = false;
+
+    const checkPushStatus = async () => {
       try {
         // Verify we have an active session before querying
         const { data: sessionData } = await supabase.auth.getSession();
+        if (cancelled) return;
+
         if (!sessionData?.session) {
-          setHasPushEnabled(null);
+          setHasPushEnabled(cachedStatus);
           setIsLoading(false);
           return;
         }
 
         const isNative = Capacitor.isNativePlatform();
+        let nextHasPushEnabled = false;
 
         if (isNative) {
           // Check FCM tokens for native
@@ -57,7 +85,7 @@ export function useNotificationNudge(userId: string | undefined, context: string
             .select("id")
             .eq("user_id", userId)
             .limit(1);
-          setHasPushEnabled(!error && data && data.length > 0);
+          nextHasPushEnabled = !error && !!data && data.length > 0;
         } else {
           // Check push_subscriptions for web/PWA
           const { data, error } = await supabase
@@ -65,22 +93,33 @@ export function useNotificationNudge(userId: string | undefined, context: string
             .select("id")
             .eq("user_id", userId)
             .limit(1);
-          setHasPushEnabled(!error && data && data.length > 0);
+          nextHasPushEnabled = !error && !!data && data.length > 0;
         }
-      } catch {
-        // On error, assume enabled to avoid false nudges
-        setHasPushEnabled(true);
-      } finally {
-        setIsLoading(false);
-      }
-    }, 500);
 
-    return () => clearTimeout(timer);
+        if (cancelled) return;
+        setHasPushEnabled(nextHasPushEnabled);
+        writeCachedPushStatus(context, userId, nextHasPushEnabled);
+      } catch {
+        if (cancelled) return;
+        // On error, preserve cached value when available; otherwise assume enabled to avoid false nudges
+        setHasPushEnabled(cachedStatus ?? true);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void checkPushStatus();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId, context]);
 
   const dismiss = useCallback(() => {
     if (!userId) return;
-    const dismissKey = `${NUDGE_DISMISSED_PREFIX}${context}-${userId}`;
+    const dismissKey = getDismissKey(context, userId);
     localStorage.setItem(dismissKey, Date.now().toString());
     setIsDismissed(true);
   }, [userId, context]);

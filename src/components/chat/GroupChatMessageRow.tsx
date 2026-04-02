@@ -296,8 +296,18 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     >
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] pointer-events-none animate-fade-in"
+          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
           style={{ animationDuration: '120ms' }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeActionUi();
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeActionUi();
+          }}
         />,
         document.body
       )}
