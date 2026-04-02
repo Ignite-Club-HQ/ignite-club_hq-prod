@@ -531,6 +531,8 @@ export default function MessagesPage() {
       return !!data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch all user roles for chat group filtering
