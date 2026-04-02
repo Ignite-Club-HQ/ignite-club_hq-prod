@@ -395,7 +395,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
         return a.name.localeCompare(b.name);
       });
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
   });
 
