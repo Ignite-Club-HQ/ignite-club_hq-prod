@@ -539,6 +539,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     },
     enabled: teamIds.length > 0 && !!user?.id,
     staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   if (isLoading) {
