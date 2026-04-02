@@ -1,4 +1,5 @@
 import { RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 
 import { resolveChatScrollViewport, scrollChatToBottom } from "@/lib/chatScroll";
 
@@ -123,6 +124,45 @@ export function useInitialChatBottomPin({
       }
     };
   }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
+
+  // On native, the viewport height can shift after pin (Capacitor layout settling,
+  // status bar changes, safe-area recalculation). Re-scroll to bottom when this happens.
+  useEffect(() => {
+    if (!isPinned || !Capacitor.isNativePlatform()) return;
+
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    let lastHeight = vv.height;
+    let raf = 0;
+
+    const onResize = () => {
+      const newHeight = vv.height;
+      // Only re-scroll for small layout shifts (not keyboard open/close which is large)
+      if (Math.abs(newHeight - lastHeight) > 0 && Math.abs(newHeight - lastHeight) < 200) {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          scrollChatToBottom(scrollContainerRef.current);
+        });
+      }
+      lastHeight = newHeight;
+    };
+
+    vv.addEventListener("resize", onResize);
+
+    // Also do a delayed re-scroll after pin to catch any post-pin layout shifts
+    const t1 = setTimeout(() => scrollChatToBottom(scrollContainerRef.current), 100);
+    const t2 = setTimeout(() => scrollChatToBottom(scrollContainerRef.current), 300);
+    const t3 = setTimeout(() => scrollChatToBottom(scrollContainerRef.current), 600);
+
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [isPinned, scrollContainerRef, resetKey]);
 
   return { isPinned };
 }
