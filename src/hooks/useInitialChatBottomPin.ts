@@ -42,7 +42,12 @@ export function useInitialChatBottomPin({
   }, [resetKey]);
 
   useLayoutEffect(() => {
-    if (!enabled || itemCount <= 0 || pinnedKeyRef.current === resetKey) return;
+    if (!enabled || pinnedKeyRef.current === resetKey) return;
+    if (itemCount <= 0) {
+      // No messages yet — show empty state, no scroll needed
+      setIsPinned(true);
+      return;
+    }
 
     setIsPinned(false);
 
