@@ -524,6 +524,8 @@ export default function HomePage() {
       return data?.[0] ? { points_required: data[0].points_required, name: data[0].name } : null;
     },
     enabled: rewardClubs.length > 0,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
   const minRewardThreshold = nextRewardInfo?.points_required ?? null;
 
