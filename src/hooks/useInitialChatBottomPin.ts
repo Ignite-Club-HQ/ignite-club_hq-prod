@@ -131,24 +131,44 @@ export function useInitialChatBottomPin({
     if (!isPinned || !Capacitor.isNativePlatform()) return;
 
     const vv = window.visualViewport;
-    if (!vv) return;
 
-    let lastHeight = vv.height;
+    let lastHeight = vv?.height ?? 0;
     let raf = 0;
 
+    const resnap = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        scrollChatToBottom(scrollContainerRef.current);
+      });
+    };
+
     const onResize = () => {
+      if (!vv) return;
       const newHeight = vv.height;
       // Only re-scroll for small layout shifts (not keyboard open/close which is large)
       if (Math.abs(newHeight - lastHeight) > 0 && Math.abs(newHeight - lastHeight) < 200) {
-        cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(() => {
-          scrollChatToBottom(scrollContainerRef.current);
-        });
+        resnap();
       }
       lastHeight = newHeight;
     };
 
-    vv.addEventListener("resize", onResize);
+    // Re-pin when app resumes from background (lock screen, task switcher)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Stagger to catch post-resume layout settling
+        setTimeout(resnap, 50);
+        setTimeout(resnap, 300);
+      }
+    };
+
+    const onFocus = () => {
+      setTimeout(resnap, 50);
+      setTimeout(resnap, 300);
+    };
+
+    vv?.addEventListener("resize", onResize);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onFocus);
 
     // Also do a delayed re-scroll after pin to catch any post-pin layout shifts
     const t1 = setTimeout(() => scrollChatToBottom(scrollContainerRef.current), 100);
@@ -156,7 +176,9 @@ export function useInitialChatBottomPin({
     const t3 = setTimeout(() => scrollChatToBottom(scrollContainerRef.current), 600);
 
     return () => {
-      vv.removeEventListener("resize", onResize);
+      vv?.removeEventListener("resize", onResize);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onFocus);
       cancelAnimationFrame(raf);
       clearTimeout(t1);
       clearTimeout(t2);
