@@ -180,7 +180,8 @@ export default function MediaPage() {
       return data || [];
     },
     enabled: !!user,
-    staleTime: 300000, // Cache for 5 minutes
+    staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   const isAppAdmin = useMemo(() => 
