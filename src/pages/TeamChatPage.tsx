@@ -38,7 +38,7 @@ import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessa
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-import { scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 

@@ -24,7 +24,7 @@ import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { Capacitor } from "@capacitor/core";
-import { scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
