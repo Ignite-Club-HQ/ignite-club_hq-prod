@@ -1143,9 +1143,9 @@ export default function HomePage() {
       return soccerTeams.filter(t => proFootballTeamIds.has(t.id));
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Fetch user's recently used pitch boards (last 2 used)
   const { data: recentlyUsedGames } = useQuery({
     queryKey: ["recently-used-pitch-boards", user?.id],
     queryFn: async () => {
