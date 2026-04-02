@@ -56,6 +56,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       setPosition(null);
       return;
     }
+    mountedAtRef.current = Date.now();
 
     const updatePosition = () => {
       const anchor = anchorRef.current;
