@@ -30,7 +30,7 @@ export function useInitialChatBottomPin({
   // Reset pin state when the chat thread changes
   useEffect(() => {
     pinnedKeyRef.current = undefined;
-    setIsPinned(true);
+    setIsPinned(false);
   }, [resetKey]);
 
   useLayoutEffect(() => {
@@ -45,12 +45,31 @@ export function useInitialChatBottomPin({
     let stableSince = 0;
     let lastSignature = "";
 
+    const getSignature = (viewport: HTMLElement) => {
+      const anchorOffset = bottomAnchorRef?.current?.offsetTop ?? viewport.scrollHeight;
+      const contentHeight = bottomAnchorRef?.current?.parentElement?.scrollHeight ?? viewport.scrollHeight;
+      const childCount = bottomAnchorRef?.current?.parentElement?.childElementCount ?? 0;
+
+      return `${viewport.scrollHeight}:${viewport.clientHeight}:${itemCount}:${anchorOffset}:${contentHeight}:${childCount}`;
+    };
+
     const finalize = () => {
       if (cancelled || didFinalize) return;
 
+      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+      if (!viewport) return;
+
+      scrollChatToBottom(scrollContainerRef.current);
+
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      const distanceFromBottom = Math.max(0, maxScrollTop - viewport.scrollTop);
+      if (distanceFromBottom > 4) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
       didFinalize = true;
       pinnedKeyRef.current = resetKey;
-      scrollChatToBottom(scrollContainerRef.current);
       setIsPinned(true);
       onPinnedRef.current?.();
     };
@@ -68,7 +87,7 @@ export function useInitialChatBottomPin({
 
       scrollChatToBottom(scrollContainerRef.current);
 
-      const signature = `${viewport.scrollHeight}:${viewport.clientHeight}:${itemCount}`;
+      const signature = getSignature(viewport);
       if (signature !== lastSignature) {
         lastSignature = signature;
         stableSince = timestamp;
@@ -78,16 +97,15 @@ export function useInitialChatBottomPin({
       const observedFor = timestamp - startedAt;
       const quietFor = stableSince === 0 ? 0 : timestamp - stableSince;
 
-      // First-open chats can still shift after the first paint (auth hydration, banner/composer sizing,
-      // avatar/profile hydration). Keep snapping until the viewport metrics have been quiet for a short
-      // period, then reveal the thread once it is actually at the bottom.
-      if (hasMeasuredContent && observedFor >= 260 && quietFor >= 120) {
+      // First-open chats can still shift well after first paint (auth hydration, banners, composer sizing,
+      // avatar/reaction hydration). Keep the thread hidden until the measured bottom stays quiet longer.
+      if (hasMeasuredContent && observedFor >= 520 && quietFor >= 180) {
         finalize();
         return;
       }
 
       // Safety cap so we always fail open if the layout keeps changing.
-      if (observedFor >= 1000) {
+      if (observedFor >= 1800) {
         finalize();
         return;
       }
