@@ -1243,6 +1243,7 @@ export default function GroupChatPage() {
       return;
     }
     setReplyTo(msg);
+    setTimeout(() => scrollToBottom(), 100);
     inputRef.current?.focus();
   };
 
