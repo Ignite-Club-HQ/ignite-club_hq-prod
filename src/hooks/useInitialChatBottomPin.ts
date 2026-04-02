@@ -35,16 +35,12 @@ export function useInitialChatBottomPin({
     onPinnedRef.current = onPinned;
   }, [onPinned]);
 
-  // Reset when thread changes
-  useEffect(() => {
-    pinnedKeyRef.current = undefined;
-    setIsPinned(false);
-  }, [resetKey]);
-
   useLayoutEffect(() => {
-    if (!enabled || pinnedKeyRef.current === resetKey) return;
-    if (itemCount <= 0) {
-      // No messages yet — show empty state, no scroll needed
+    // Already pinned for this key — nothing to do
+    if (pinnedKeyRef.current === resetKey) return;
+
+    if (!enabled || itemCount <= 0) {
+      // No messages or disabled — show content, no scroll needed
       setIsPinned(true);
       return;
     }
@@ -54,8 +50,8 @@ export function useInitialChatBottomPin({
     let cancelled = false;
     let observer: MutationObserver | null = null;
     let stabilityTimer: ReturnType<typeof setTimeout> | null = null;
-    const STABILITY_MS = 80; // how long layout must be quiet before we pin
-    const MAX_WAIT_MS = 1200; // safety cap
+    const STABILITY_MS = 80;
+    const MAX_WAIT_MS = 1200;
 
     const finalize = () => {
       if (cancelled) return;
@@ -65,7 +61,6 @@ export function useInitialChatBottomPin({
 
       scrollChatToBottom(scrollContainerRef.current);
 
-      // One more rAF to confirm we're actually at bottom after the snap
       requestAnimationFrame(() => {
         scrollChatToBottom(scrollContainerRef.current);
         pinnedKeyRef.current = resetKey;
@@ -76,20 +71,17 @@ export function useInitialChatBottomPin({
 
     const viewport = resolveChatScrollViewport(scrollContainerRef.current);
     if (!viewport) {
-      // No viewport yet — reveal immediately to avoid permanent blank
       setIsPinned(true);
       pinnedKeyRef.current = resetKey;
       onPinnedRef.current?.();
       return;
     }
 
-    // If content is already rendered (cached), pin immediately
     if (viewport.scrollHeight > viewport.clientHeight + 10) {
       finalize();
       return;
     }
 
-    // Otherwise watch for DOM mutations (content loading in)
     const scheduleFinalize = () => {
       if (stabilityTimer) clearTimeout(stabilityTimer);
       stabilityTimer = setTimeout(finalize, STABILITY_MS);
@@ -97,18 +89,14 @@ export function useInitialChatBottomPin({
 
     observer = new MutationObserver(() => {
       if (cancelled) return;
-      // Snap while we wait so content doesn't flash at wrong position
       const vp = resolveChatScrollViewport(scrollContainerRef.current);
       if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
       scheduleFinalize();
     });
 
     observer.observe(viewport, { childList: true, subtree: true, characterData: true });
-
-    // Kick off the first stability timer in case content is already there
     scheduleFinalize();
 
-    // Safety cap
     const maxTimer = setTimeout(finalize, MAX_WAIT_MS);
 
     return () => {
@@ -122,7 +110,7 @@ export function useInitialChatBottomPin({
     };
   }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
 
-  // On native: re-snap on app resume (visibility change)
+  // On native: re-snap on app resume
   useEffect(() => {
     if (!isPinned || !Capacitor.isNativePlatform()) return;
 
