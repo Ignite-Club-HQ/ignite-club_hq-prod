@@ -1037,12 +1037,12 @@ export default function EventDetailPage() {
           if (error) throw error;
         } else if (parentUserId) {
           // Create new RSVP for this child
-          const { error } = await supabase.from("rsvps").insert({
+          const { error } = await supabase.from("rsvps").upsert({
             event_id: id!,
             user_id: parentUserId,
             child_id: childId,
             status,
-          });
+          }, { onConflict: "event_id,child_id" });
           if (error) throw error;
         } else {
           throw new Error("Cannot create RSVP: no parent user linked to this player");
