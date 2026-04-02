@@ -291,7 +291,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     enabled: !!user,
   });
 
-  const currentStatus = myRsvp?.status as RsvpStatus | null;
+  const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
@@ -470,7 +470,7 @@ function CompactCard({ event }: { event: EventItem }) {
     enabled: !!user,
   });
 
-  const currentStatus = myRsvp?.status as RsvpStatus | null;
+  const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
 
   const rsvpIndicator = currentStatus ? (
     <div className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ${

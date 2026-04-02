@@ -210,7 +210,7 @@ export function EventCard({ event, isAdmin, hasViewed = true }: EventCardProps) 
     enabled: !event.is_cancelled,
   });
 
-  const currentRsvpStatus = myRsvp?.status as RsvpStatus | null;
+  const currentRsvpStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const canSendReminders = hasPro === true;
 
   const deleteEventMutation = useMutation({
