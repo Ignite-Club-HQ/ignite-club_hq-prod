@@ -21,7 +21,8 @@ export function useInitialChatBottomPin({
 }: UseInitialChatBottomPinOptions) {
   const hasPinnedRef = useRef(false);
   const onPinnedRef = useRef(onPinned);
-  const [isPinned, setIsPinned] = useState(false);
+  // Start visible (true) so content is never permanently hidden
+  const [isPinned, setIsPinned] = useState(true);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
@@ -29,7 +30,7 @@ export function useInitialChatBottomPin({
 
   useEffect(() => {
     hasPinnedRef.current = false;
-    setIsPinned(false);
+    setIsPinned(true); // Reset to visible on key change
   }, [resetKey]);
 
   useLayoutEffect(() => {
@@ -39,6 +40,8 @@ export function useInitialChatBottomPin({
     if (!viewport) return;
 
     hasPinnedRef.current = true;
+    // Hide while we position
+    setIsPinned(false);
 
     let firstFrame = 0;
     let secondFrame = 0;
@@ -107,9 +110,10 @@ export function useInitialChatBottomPin({
       }
 
       scheduleSettle();
+      // Safety: always show after 250ms max
       maxTimeout = window.setTimeout(() => {
         finalizePin();
-      }, 800);
+      }, 250);
     }
 
     return () => {
@@ -118,6 +122,10 @@ export function useInitialChatBottomPin({
       window.clearTimeout(settleTimeout);
       window.clearTimeout(maxTimeout);
       disconnectObserver();
+      // Fail open: if cleanup runs before pin completes, ensure visible
+      if (!didNotifyPinned) {
+        setIsPinned(true);
+      }
     };
   }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
 
