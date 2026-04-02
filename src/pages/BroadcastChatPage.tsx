@@ -685,7 +685,8 @@ export default function BroadcastChatPage() {
       return;
     }
     setReplyingTo(m);
-  }, [toast]);
+    setTimeout(() => scrollToBottom(), 100);
+  }, [toast, scrollToBottom]);
 
   const queryKeyMemo = useMemo(() => ["broadcast-messages"], []);
 
