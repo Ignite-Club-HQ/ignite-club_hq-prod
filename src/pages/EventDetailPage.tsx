@@ -1650,7 +1650,7 @@ export default function EventDetailPage() {
         throw new Error("All members have already been reminded!");
       }
       
-      // Create notifications for members who haven't been reminded
+      // Create notifications - the DB trigger (on_notification_created) handles push dispatch
       const notifications = membersToNotify.map(userId => ({
         user_id: userId,
         type: "event_reminder",
@@ -1660,18 +1660,6 @@ export default function EventDetailPage() {
       
       const { error } = await supabase.from("notifications").insert(notifications);
       if (error) throw error;
-      
-      // Send push notifications to all members being reminded
-      for (const userId of membersToNotify) {
-        supabase.functions.invoke("send-push-notification", {
-          body: {
-            userId,
-            title: "RSVP Reminder",
-            body: `Please RSVP for "${event?.title}"`,
-            url: `/events/${id}`,
-          },
-        }).catch(console.error);
-      }
       
       return membersToNotify.length;
     },
