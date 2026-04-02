@@ -372,6 +372,12 @@ export default function GroupChatPage() {
   // Local copy used for rendering so optimistic updates are instant
   const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(undefined);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+
+  // Extract top-level reactions from query data (must be before useLayoutEffect that uses it)
+  const reactions = useMemo(() => {
+    if (!messagesData || Array.isArray(messagesData)) return [] as MessageReaction[];
+    return ((messagesData as any).reactions || []) as MessageReaction[];
+  }, [messagesData]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
