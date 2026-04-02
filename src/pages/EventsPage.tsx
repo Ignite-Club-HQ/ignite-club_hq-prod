@@ -245,6 +245,7 @@ export default function EventsPage() {
       };
     },
     enabled: !!user,
+    staleTime: 60000,
   });
 
   const { data: events, isLoading, isFetching } = useQuery({
