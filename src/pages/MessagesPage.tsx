@@ -60,7 +60,7 @@ function MessageSkeleton() {
 
 // Helper to strip mention formatting: @[Name](id) -> @Name
 const stripMentionFormatting = (text: string): string => {
-  return text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '@$1');
+  return text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1');
 };
 
 // Helper to get message preview text - shows "Image" if message is only an image
