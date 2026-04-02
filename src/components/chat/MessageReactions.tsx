@@ -47,12 +47,16 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
+  // On iOS, synthesized click/touch events can fire immediately after the picker opens.
+  // Ignore dismiss events for a short window after mount.
+  const mountedAtRef = useRef(0);
 
   useLayoutEffect(() => {
     if (!isOpen || !anchorRef.current) {
       setPosition(null);
       return;
     }
+    mountedAtRef.current = Date.now();
 
     const updatePosition = () => {
       const anchor = anchorRef.current;
@@ -117,12 +121,16 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
+          // Ignore synthesized clicks within 400ms of mount (iOS WebView issue)
+          if (Date.now() - mountedAtRef.current < 400) return;
           e.stopPropagation();
           onOpenChange(false);
         }
       }}
       onTouchEnd={(e) => {
         if (e.target === e.currentTarget) {
+          // Ignore synthesized touch events within 400ms of mount (iOS WebView issue)
+          if (Date.now() - mountedAtRef.current < 400) return;
           e.stopPropagation();
           e.preventDefault();
           onOpenChange(false);

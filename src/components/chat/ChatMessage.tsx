@@ -406,6 +406,9 @@ export const ChatMessage = memo(function ChatMessage({
     onReply: handleReply,
   });
 
+  // Track when the reaction picker was opened to ignore premature dismiss events on iOS
+  const reactionPickerOpenedAtRef = useRef(0);
+
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
     gestureModeRef.current = "press";
     longPressTriggeredRef.current = false;
@@ -417,6 +420,7 @@ export const ChatMessage = memo(function ChatMessage({
       armDismissGuard();
       // Haptic feedback
       if (navigator.vibrate) navigator.vibrate(12);
+      reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
     }, 400);
@@ -435,6 +439,8 @@ export const ChatMessage = memo(function ChatMessage({
         longPressTimer.current = null;
       }
       longPressTriggeredRef.current = false;
+      // Force-activate the swipe hook so its directionality check doesn't reject the gesture
+      swipeToReplyHandlers.forceActivate(touchStartPos.current.x, touchStartPos.current.y);
       swipeToReplyHandlers.onTouchMove(e);
       return;
     }
@@ -465,7 +471,11 @@ export const ChatMessage = memo(function ChatMessage({
       longPressTimer.current = null;
     }
 
-    if (longPressTriggeredRef.current) {
+    // On iOS, pointercancel can reset longPressTriggeredRef during DOM mutations.
+    // Check if the reaction picker was recently opened as a fallback.
+    const recentlyOpenedPicker = Date.now() - reactionPickerOpenedAtRef.current < 600;
+
+    if (longPressTriggeredRef.current || recentlyOpenedPicker) {
       e.preventDefault();
       e.stopPropagation();
       armDismissGuard();
@@ -550,8 +560,13 @@ export const ChatMessage = memo(function ChatMessage({
 
   useEffect(() => {
     const handlePointerCancel = () => {
-      longPressTriggeredRef.current = false;
-      clearDismissGuard();
+      // On iOS WebView, pointercancel fires when DOM changes (e.g. portal insertion
+      // during long-press). Only reset if the reaction picker is NOT currently open,
+      // otherwise we'd prematurely dismiss it.
+      if (!showReactionPicker) {
+        longPressTriggeredRef.current = false;
+        clearDismissGuard();
+      }
     };
 
     window.addEventListener('pointercancel', handlePointerCancel, true);
@@ -562,7 +577,7 @@ export const ChatMessage = memo(function ChatMessage({
       }
       window.removeEventListener('pointercancel', handlePointerCancel, true);
     };
-  }, [clearDismissGuard]);
+  }, [clearDismissGuard, showReactionPicker]);
 
   // Get display name - never show placeholder text; hide name until profile loads
   const displayName = authorName || "";
@@ -581,6 +596,8 @@ export const ChatMessage = memo(function ChatMessage({
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
           style={{ animationDuration: '120ms' }}
           onClick={(e) => {
+            // Ignore synthesized clicks within 400ms of reaction picker opening (iOS WebView)
+            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
             e.preventDefault();
             e.stopPropagation();
             clearDismissGuard();
@@ -589,6 +606,8 @@ export const ChatMessage = memo(function ChatMessage({
             setShowActionSheet(false);
           }}
           onTouchEnd={(e) => {
+            // Ignore synthesized touch events within 400ms of reaction picker opening (iOS WebView)
+            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
             e.preventDefault();
             e.stopPropagation();
             clearDismissGuard();
