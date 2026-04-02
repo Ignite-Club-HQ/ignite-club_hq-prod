@@ -33,7 +33,7 @@ import { useMessageReads } from "@/hooks/useMessageReads";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-import { getChatScrollMetrics, scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -102,14 +102,6 @@ export default function DirectMessagePage() {
   const scrollToBottom = useCallback(() => {
     scrollChatToBottom(scrollAreaRef.current);
   }, []);
-
-  // Scroll to bottom when keyboard opens
-  useEffect(() => {
-    if (!isKeyboardOpen) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollToBottom());
-    });
-  }, [isKeyboardOpen, scrollToBottom]);
 
   const targetMessageId = searchParams.get("message");
 
@@ -353,16 +345,8 @@ export default function DirectMessagePage() {
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
 
   useLayoutEffect(() => {
-    const metrics = getChatScrollMetrics(scrollAreaRef.current);
-    if (!metrics) return;
-
-    const distanceFromBottom = metrics.distanceFromBottom;
-    const shouldStickToBottom = distanceFromBottom <= Math.max(220, composerHeight + 32);
-    if (!shouldStickToBottom) return;
-
-    requestAnimationFrame(() => {
-      scrollChatToBottom(scrollAreaRef.current);
-    });
+    if (!isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
+    scrollChatToBottom(scrollAreaRef.current);
   }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)

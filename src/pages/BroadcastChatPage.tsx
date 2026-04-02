@@ -100,24 +100,9 @@ export default function BroadcastChatPage() {
     markNotificationsAsRead();
   }, [user, refreshUnreadCount, queryClient]);
   
-  // Scroll to bottom helper - retries until content is ready
   const scrollToBottom = useCallback(() => {
-    const doScroll = () => scrollChatToBottom(scrollAreaRef.current);
-    
-    doScroll();
-    setTimeout(doScroll, 50);
-    setTimeout(doScroll, 150);
-    setTimeout(doScroll, 300);
-    setTimeout(doScroll, 500);
+    scrollChatToBottom(scrollAreaRef.current);
   }, []);
-
-  // Scroll to bottom when keyboard opens
-  useEffect(() => {
-    if (!isKeyboardOpen) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollToBottom());
-    });
-  }, [isKeyboardOpen, scrollToBottom]);
 
   const targetMessageId = searchParams.get("message");
 

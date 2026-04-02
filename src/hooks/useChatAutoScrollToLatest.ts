@@ -1,5 +1,4 @@
 import { RefObject, useEffect } from "react";
-
 import { scrollChatToBottom } from "@/lib/chatScroll";
 
 interface UseChatAutoScrollToLatestOptions {
@@ -8,9 +7,12 @@ interface UseChatAutoScrollToLatestOptions {
 }
 
 /**
- * Keeps latest messages visible when the composer is engaged.
- * - On input focus: always jump to latest
- * - On viewport resize (keyboard show/hide): jump only while an input is focused
+ * Keeps the chat pinned to bottom when:
+ * - The composer receives focus (keyboard opens)
+ * - The viewport resizes while the composer is focused (keyboard animation)
+ *
+ * This is the SINGLE source of truth for keyboard-related scroll adjustments.
+ * Individual chat pages should NOT add their own keyboard scroll effects.
  */
 export function useChatAutoScrollToLatest({
   scrollContainerRef,
@@ -19,27 +21,19 @@ export function useChatAutoScrollToLatest({
   useEffect(() => {
     if (!enabled) return;
 
-    const scrollToLatest = () => {
-      requestAnimationFrame(() => {
-        scrollChatToBottom(scrollContainerRef.current);
-      });
-    };
-
     const isComposerTarget = (target: EventTarget | null) => {
       const element = target as HTMLElement | null;
       return !!element?.closest("input, textarea, [contenteditable='true']");
     };
 
-    const isComposerFocused = () => isComposerTarget(document.activeElement);
-
     const handleFocusIn = (event: FocusEvent) => {
       if (!isComposerTarget(event.target)) return;
-      scrollToLatest();
+      scrollChatToBottom(scrollContainerRef.current);
     };
 
     const handleViewportResize = () => {
-      if (!isComposerFocused()) return;
-      scrollToLatest();
+      if (!isComposerTarget(document.activeElement)) return;
+      scrollChatToBottom(scrollContainerRef.current);
     };
 
     window.addEventListener("focusin", handleFocusIn);
