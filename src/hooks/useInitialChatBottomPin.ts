@@ -19,7 +19,7 @@ export function useInitialChatBottomPin({
   enabled = true,
   onPinned,
 }: UseInitialChatBottomPinOptions) {
-  const hasPinnedRef = useRef(false);
+  const pinnedKeyRef = useRef<string | number | null | undefined>(undefined);
   const onPinnedRef = useRef(onPinned);
   const [isPinned, setIsPinned] = useState(true);
 
@@ -29,51 +29,77 @@ export function useInitialChatBottomPin({
 
   // Reset pin state when the chat thread changes
   useEffect(() => {
-    hasPinnedRef.current = false;
+    pinnedKeyRef.current = undefined;
     setIsPinned(true);
   }, [resetKey]);
 
   useLayoutEffect(() => {
-    if (!enabled || itemCount <= 0) return;
+    if (!enabled || itemCount <= 0 || pinnedKeyRef.current === resetKey) return;
 
-    // If already pinned for this thread, skip
-    if (hasPinnedRef.current) return;
-
-    // Hide while positioning
     setIsPinned(false);
 
-    // Immediate snap attempt
-    scrollChatToBottom(scrollContainerRef.current);
-
-    // Double-rAF ensures the DOM is fully laid out with message content
-    let raf1 = 0;
-    let raf2 = 0;
-    let safetyTimeout = 0;
+    let raf = 0;
+    let cancelled = false;
     let didFinalize = false;
+    let startedAt = 0;
+    let stableSince = 0;
+    let lastSignature = "";
 
     const finalize = () => {
-      if (didFinalize) return;
+      if (cancelled || didFinalize) return;
+
       didFinalize = true;
-      hasPinnedRef.current = true;
+      pinnedKeyRef.current = resetKey;
       scrollChatToBottom(scrollContainerRef.current);
       setIsPinned(true);
       onPinnedRef.current?.();
     };
 
-    raf1 = requestAnimationFrame(() => {
-      scrollChatToBottom(scrollContainerRef.current);
-      raf2 = requestAnimationFrame(() => {
-        finalize();
-      });
-    });
+    const tick = (timestamp: number) => {
+      if (cancelled || didFinalize) return;
 
-    // Safety: always reveal after 300ms even if rAF is delayed
-    safetyTimeout = window.setTimeout(finalize, 300);
+      if (startedAt === 0) startedAt = timestamp;
+
+      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+      if (!viewport) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
+      scrollChatToBottom(scrollContainerRef.current);
+
+      const signature = `${viewport.scrollHeight}:${viewport.clientHeight}:${itemCount}`;
+      if (signature !== lastSignature) {
+        lastSignature = signature;
+        stableSince = timestamp;
+      }
+
+      const hasMeasuredContent = viewport.scrollHeight > 0;
+      const observedFor = timestamp - startedAt;
+      const quietFor = stableSince === 0 ? 0 : timestamp - stableSince;
+
+      // First-open chats can still shift after the first paint (auth hydration, banner/composer sizing,
+      // avatar/profile hydration). Keep snapping until the viewport metrics have been quiet for a short
+      // period, then reveal the thread once it is actually at the bottom.
+      if (hasMeasuredContent && observedFor >= 260 && quietFor >= 120) {
+        finalize();
+        return;
+      }
+
+      // Safety cap so we always fail open if the layout keeps changing.
+      if (observedFor >= 1000) {
+        finalize();
+        return;
+      }
+
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
 
     return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      window.clearTimeout(safetyTimeout);
+      cancelled = true;
+      cancelAnimationFrame(raf);
       if (!didFinalize) {
         setIsPinned(true);
       }
