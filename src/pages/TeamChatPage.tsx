@@ -384,36 +384,50 @@ export default function TeamChatPage() {
 
   useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
-    if (!messages) return;
+    if (!messages || !teamId) return;
 
     setLocalMessages((prev) => {
-      if (!prev) return messages;
+      const mergedMessages = !prev
+        ? messages
+        : messages.map((message) => {
+            const previousMessage = prev.find((item) => item.id === message.id);
+            if (!previousMessage) return message;
 
-      return messages.map((message) => {
-        const previousMessage = prev.find((item) => item.id === message.id);
-        if (!previousMessage) return message;
+            const previousReactions = previousMessage.reactions || [];
+            const incomingReactions = message.reactions || [];
 
-        const previousReactions = previousMessage.reactions || [];
-        const incomingReactions = message.reactions || [];
+            // Trust incoming cache state for real reactions (so removals apply instantly),
+            // but keep any local temp reactions not yet confirmed by realtime/DB.
+            const incomingByUser = new Map<string, typeof incomingReactions[number]>();
+            incomingReactions.forEach((reaction) => {
+              incomingByUser.set(reaction.user_id, reaction);
+            });
 
-        // Trust incoming cache state for real reactions (so removals apply instantly),
-        // but keep any local temp reactions not yet confirmed by realtime/DB.
-        const incomingByUser = new Map<string, typeof incomingReactions[number]>();
-        incomingReactions.forEach((reaction) => {
-          incomingByUser.set(reaction.user_id, reaction);
-        });
+            const tempOnlyFromPrevious = previousReactions.filter(
+              (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
+            );
 
-        const tempOnlyFromPrevious = previousReactions.filter(
-          (reaction) => reaction.id.startsWith("temp-") && !incomingByUser.has(reaction.user_id)
-        );
+            return {
+              ...message,
+              reactions: [...incomingReactions, ...tempOnlyFromPrevious],
+            };
+          });
 
-        return {
-          ...message,
-          reactions: [...incomingReactions, ...tempOnlyFromPrevious],
-        };
-      });
+      cacheMessages("team", teamId, mergedMessages.map((m) => ({
+        id: m.id,
+        text: m.text,
+        author_id: m.author_id,
+        created_at: m.created_at,
+        image_url: m.image_url,
+        reply_to_id: m.reply_to_id,
+        profiles: m.profiles,
+        reactions: m.reactions,
+        reply_to: m.reply_to,
+      })));
+
+      return mergedMessages;
     });
-  }, [messages]);
+  }, [messages, teamId]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
