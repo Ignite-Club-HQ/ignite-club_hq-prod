@@ -923,12 +923,12 @@ export default function EventDetailPage() {
         if (error) throw error;
         rsvpId = myRsvp.id;
       } else {
-        const { data: newRsvp, error } = await supabase.from("rsvps").insert({
+        const { data: newRsvp, error } = await supabase.from("rsvps").upsert({
           event_id: id!,
           user_id: user!.id,
           status,
           notes: rsvpNotes || null,
-        }).select("id").single();
+        }, { onConflict: "event_id,user_id" }).select("id").single();
         if (error) throw error;
         rsvpId = newRsvp?.id || null;
       }
