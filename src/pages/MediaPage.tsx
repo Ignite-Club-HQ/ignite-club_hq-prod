@@ -546,7 +546,8 @@ export default function MediaPage() {
       return data || [];
     },
     enabled: !!user && allPhotoIds.length > 0,
-    staleTime: 120000, // Cache for 2 minutes
+    staleTime: 120000,
+    placeholderData: (prev) => prev,
   });
 
   // Use fetched reactions
