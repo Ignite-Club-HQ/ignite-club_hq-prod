@@ -764,8 +764,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setCachedProfile(null);
-    // Keep profile/club/team caches for faster re-login (public data)
-    // Only clear security-sensitive data
+    // Clear ALL React Query cache to prevent stale RLS data on re-login
+    queryClient.clear();
     clearRolesCache(); // Clear cached user roles (security-critical)
     setUnreadCount(0);
     setUnreadMessagesCount(0);
