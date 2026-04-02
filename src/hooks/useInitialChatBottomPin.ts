@@ -143,27 +143,44 @@ export function useInitialChatBottomPin({
     };
   }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
 
-  // On native: re-snap on app resume
+  // On native: re-snap on app resume using a MutationObserver
+  // to react to actual DOM changes (query refetch) rather than blind timeouts.
   useEffect(() => {
     if (!isPinned || !Capacitor.isNativePlatform()) return;
 
-    let resumeTimers: ReturnType<typeof setTimeout>[] = [];
+    let observer: MutationObserver | null = null;
+    let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        // Staggered re-snaps to handle query refetch & DOM re-render on resume
-        resumeTimers.forEach(clearTimeout);
-        resumeTimers = [0, 100, 300, 600].map((delay) =>
-          setTimeout(() => {
-            requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
-          }, delay),
-        );
-      }
+      if (document.visibilityState !== "visible") return;
+
+      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+      if (!viewport) return;
+
+      // Immediate snap for cached content
+      scrollChatToBottom(scrollContainerRef.current);
+
+      // Watch for DOM mutations from query refetch, snap on each change
+      observer?.disconnect();
+      observer = new MutationObserver(() => {
+        requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
+      });
+      observer.observe(viewport, { childList: true, subtree: true });
+
+      // Stop observing after a settle window — refetch should complete within 800ms
+      if (watchdogTimer) clearTimeout(watchdogTimer);
+      watchdogTimer = setTimeout(() => {
+        observer?.disconnect();
+        observer = null;
+        // Final snap after observer detaches
+        requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
+      }, 800);
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
-      resumeTimers.forEach(clearTimeout);
+      observer?.disconnect();
+      if (watchdogTimer) clearTimeout(watchdogTimer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [isPinned, scrollContainerRef, resetKey]);
