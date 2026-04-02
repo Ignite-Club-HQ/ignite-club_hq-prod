@@ -92,6 +92,7 @@ const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
 const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
 const PayFeesPage = lazy(() => import("./pages/PayFeesPage"));
 const SendUpdateReminderPage = lazy(() => import("./pages/SendUpdateReminderPage"));
+const ShortInviteRedirect = lazy(() => import("./pages/ShortInviteRedirect"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
