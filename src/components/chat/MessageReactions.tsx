@@ -121,12 +121,16 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
+          // Ignore synthesized clicks within 400ms of mount (iOS WebView issue)
+          if (Date.now() - mountedAtRef.current < 400) return;
           e.stopPropagation();
           onOpenChange(false);
         }
       }}
       onTouchEnd={(e) => {
         if (e.target === e.currentTarget) {
+          // Ignore synthesized touch events within 400ms of mount (iOS WebView issue)
+          if (Date.now() - mountedAtRef.current < 400) return;
           e.stopPropagation();
           e.preventDefault();
           onOpenChange(false);
