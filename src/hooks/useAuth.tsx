@@ -534,6 +534,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const cachedProfileStr = localStorage.getItem('ignite_profile_cache');
         if (cachedProfileStr) {
           console.warn(`[Auth] ${source} - session unrecoverable, clearing state`);
+          queryClient.clear(); // Clear stale RLS-dependent data
           setUser(null);
           setSession(null);
           setProfile(null);
