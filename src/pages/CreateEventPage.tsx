@@ -624,6 +624,9 @@ export default function CreateEventPage() {
   }, [type, clubId, eventDateTime, address]);
 
   const handleSubmit = async (skipConflictCheck = false) => {
+    // Prevent double-submission
+    if (saving) return;
+    
     if (!title.trim() || !clubId || !eventDateTime) {
       toast({
         title: "Missing information",
