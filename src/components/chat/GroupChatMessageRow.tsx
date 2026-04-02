@@ -330,11 +330,15 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
           style={{ animationDuration: '120ms' }}
           onClick={(e) => {
+            // Ignore synthesized clicks within 400ms of reaction picker opening (iOS WebView)
+            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
             e.preventDefault();
             e.stopPropagation();
             closeActionUi();
           }}
           onTouchEnd={(e) => {
+            // Ignore synthesized touch events within 400ms of reaction picker opening (iOS WebView)
+            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
             e.preventDefault();
             e.stopPropagation();
             closeActionUi();
