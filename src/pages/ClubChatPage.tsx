@@ -363,7 +363,7 @@ export default function ClubChatPage() {
     setInfiniteScrollEnabled(false);
   }, [clubId]);
 
-  useInitialChatBottomPin({
+  const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
@@ -1142,7 +1142,7 @@ export default function ClubChatPage() {
             className="flex-1 min-h-0 overflow-y-auto overscroll-none scrollbar-hide"
             data-chat-scroll-lock="true"
             ref={scrollAreaRef}
-            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch' }}
+            style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
             <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? 4 : "calc(var(--bottom-nav-offset, 0px) + 4.5rem)" }}>
               {/* Invisible trigger for infinite scroll */}
