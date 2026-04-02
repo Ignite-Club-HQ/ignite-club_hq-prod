@@ -208,7 +208,7 @@ export default function ClubAdminChatPage() {
     enabled: !!conversationId,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
-    refetchOnMount: true, // Use cache instantly, refetch in background if stale
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
   });
