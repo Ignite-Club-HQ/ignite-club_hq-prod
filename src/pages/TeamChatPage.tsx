@@ -387,6 +387,10 @@ export default function TeamChatPage() {
     if (!messages || !teamId) return;
 
     setLocalMessages((prev) => {
+      // Diagnostic: log reaction counts before/after merge
+      const prevReactionCount = (prev || []).reduce((sum, m) => sum + (m.reactions?.length || 0), 0);
+      const incomingReactionCount = messages.reduce((sum, m) => sum + (m.reactions?.length || 0), 0);
+
       const mergedMessages = !prev
         ? messages
         : messages.map((message) => {
@@ -396,8 +400,6 @@ export default function TeamChatPage() {
             const previousReactions = previousMessage.reactions || [];
             const incomingReactions = message.reactions || [];
 
-            // Trust incoming cache state for real reactions (so removals apply instantly),
-            // but keep any local temp reactions not yet confirmed by realtime/DB.
             const incomingByUser = new Map<string, typeof incomingReactions[number]>();
             incomingReactions.forEach((reaction) => {
               incomingByUser.set(reaction.user_id, reaction);
@@ -412,6 +414,19 @@ export default function TeamChatPage() {
               reactions: [...incomingReactions, ...tempOnlyFromPrevious],
             };
           });
+
+      const mergedReactionCount = mergedMessages.reduce((sum, m) => sum + (m.reactions?.length || 0), 0);
+
+      if (prevReactionCount > 0 || incomingReactionCount > 0 || mergedReactionCount > 0) {
+        console.log("[TeamChat] Reaction sync", {
+          prevMessages: prev?.length ?? 0,
+          incomingMessages: messages.length,
+          prevReactions: prevReactionCount,
+          incomingReactions: incomingReactionCount,
+          mergedReactions: mergedReactionCount,
+          dropped: prevReactionCount > mergedReactionCount,
+        });
+      }
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,
