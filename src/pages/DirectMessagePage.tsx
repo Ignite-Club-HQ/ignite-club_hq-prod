@@ -345,16 +345,8 @@ export default function DirectMessagePage() {
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
 
   useLayoutEffect(() => {
-    const metrics = getChatScrollMetrics(scrollAreaRef.current);
-    if (!metrics) return;
-
-    const distanceFromBottom = metrics.distanceFromBottom;
-    const shouldStickToBottom = distanceFromBottom <= Math.max(220, composerHeight + 32);
-    if (!shouldStickToBottom) return;
-
-    requestAnimationFrame(() => {
-      scrollChatToBottom(scrollAreaRef.current);
-    });
+    if (!isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
+    scrollChatToBottom(scrollAreaRef.current);
   }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
