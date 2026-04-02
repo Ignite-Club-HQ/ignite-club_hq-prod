@@ -91,6 +91,7 @@ const AppSettingsPage = lazy(() => import("./pages/AppSettingsPage"));
 const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
 const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
 const PayFeesPage = lazy(() => import("./pages/PayFeesPage"));
+const SendUpdateReminderPage = lazy(() => import("./pages/SendUpdateReminderPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
@@ -266,6 +267,7 @@ const App = () => {
                   <Route path="/admin/notification-preferences" element={<NotificationPreferencesPage />} />
                   <Route path="/admin/settings" element={<AppSettingsPage />} />
                   <Route path="/admin/admob" element={<AdMobSettingsPage />} />
+                  <Route path="/admin/send-update-reminder" element={<SendUpdateReminderPage />} />
                   <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
                   <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
                 </Route>
