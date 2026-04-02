@@ -12,6 +12,13 @@ interface UseInitialChatBottomPinOptions {
   onPinned?: () => void;
 }
 
+/**
+ * Pins a chat scroll container to the bottom on initial load.
+ *
+ * Strategy: wait for content to appear and layout to stabilise (quiet for 80ms),
+ * then snap once and reveal. Much simpler than the previous rAF-loop approach,
+ * eliminating scroll thrash during the stabilisation window.
+ */
 export function useInitialChatBottomPin({
   scrollContainerRef,
   bottomAnchorRef,
@@ -22,168 +29,132 @@ export function useInitialChatBottomPin({
 }: UseInitialChatBottomPinOptions) {
   const pinnedKeyRef = useRef<string | number | null | undefined>(undefined);
   const onPinnedRef = useRef(onPinned);
-  const [isPinned, setIsPinned] = useState(true);
+  const [isPinned, setIsPinned] = useState(false);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
   }, [onPinned]);
 
-  // Reset pin state when the chat thread changes
-  useEffect(() => {
-    pinnedKeyRef.current = undefined;
-    setIsPinned(false);
-  }, [resetKey]);
-
   useLayoutEffect(() => {
-    if (!enabled || itemCount <= 0 || pinnedKeyRef.current === resetKey) return;
+    if (!enabled) {
+      setIsPinned(true);
+      return;
+    }
+
+    if (pinnedKeyRef.current === resetKey) return;
+
+    if (itemCount <= 0) {
+      setIsPinned(true);
+      return;
+    }
 
     setIsPinned(false);
 
-    let raf = 0;
     let cancelled = false;
-    let didFinalize = false;
-    let startedAt = 0;
-    let stableSince = 0;
-    let lastSignature = "";
+    let observer: MutationObserver | null = null;
+    let mountObserver: MutationObserver | null = null;
+    let stabilityTimer: ReturnType<typeof setTimeout> | null = null;
+    let maxTimer: ReturnType<typeof setTimeout> | null = null;
+    let rafId = 0;
+    const STABILITY_MS = 80;
+    const MAX_WAIT_MS = 1200;
 
-    const getSignature = (viewport: HTMLElement) => {
-      const anchorOffset = bottomAnchorRef?.current?.offsetTop ?? viewport.scrollHeight;
-      const contentHeight = bottomAnchorRef?.current?.parentElement?.scrollHeight ?? viewport.scrollHeight;
-      const childCount = bottomAnchorRef?.current?.parentElement?.childElementCount ?? 0;
-
-      return `${viewport.scrollHeight}:${viewport.clientHeight}:${itemCount}:${anchorOffset}:${contentHeight}:${childCount}`;
+    const cleanup = () => {
+      observer?.disconnect();
+      mountObserver?.disconnect();
+      if (stabilityTimer) clearTimeout(stabilityTimer);
+      if (maxTimer) clearTimeout(maxTimer);
+      cancelAnimationFrame(rafId);
     };
 
     const finalize = () => {
-      if (cancelled || didFinalize) return;
-
-      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
-      if (!viewport) return;
-
-      scrollChatToBottom(scrollContainerRef.current);
-
-      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-      const distanceFromBottom = Math.max(0, maxScrollTop - viewport.scrollTop);
-      if (distanceFromBottom > 4) {
-        raf = requestAnimationFrame(tick);
-        return;
-      }
-
-      didFinalize = true;
-      pinnedKeyRef.current = resetKey;
-      setIsPinned(true);
-      onPinnedRef.current?.();
-    };
-
-    const tick = (timestamp: number) => {
-      if (cancelled || didFinalize) return;
-
-      if (startedAt === 0) startedAt = timestamp;
-
-      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
-      if (!viewport) {
-        raf = requestAnimationFrame(tick);
-        return;
-      }
+      if (cancelled) return;
+      cancelled = true;
+      cleanup();
 
       scrollChatToBottom(scrollContainerRef.current);
-
-      const signature = getSignature(viewport);
-      if (signature !== lastSignature) {
-        lastSignature = signature;
-        stableSince = timestamp;
-      }
-
-      const hasMeasuredContent = viewport.scrollHeight > 0;
-      const observedFor = timestamp - startedAt;
-      const quietFor = stableSince === 0 ? 0 : timestamp - stableSince;
-
-      // First-open chats can still shift well after first paint (auth hydration, banners, composer sizing,
-      // avatar/reaction hydration). Keep the thread hidden until the measured bottom stays quiet longer.
-      if (hasMeasuredContent && observedFor >= 520 && quietFor >= 180) {
-        finalize();
-        return;
-      }
-
-      // Safety cap so we always fail open if the layout keeps changing.
-      if (observedFor >= 1800) {
-        finalize();
-        return;
-      }
-
-      raf = requestAnimationFrame(tick);
+      requestAnimationFrame(() => {
+        scrollChatToBottom(scrollContainerRef.current);
+        pinnedKeyRef.current = resetKey;
+        setIsPinned(true);
+        onPinnedRef.current?.();
+      });
     };
 
-    raf = requestAnimationFrame(tick);
+    const scheduleFinalize = () => {
+      if (cancelled) return;
+      if (stabilityTimer) clearTimeout(stabilityTimer);
+      stabilityTimer = setTimeout(finalize, STABILITY_MS);
+    };
+
+    const attachToViewport = () => {
+      if (cancelled) return false;
+
+      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+      if (!viewport) return false;
+
+      if (viewport.scrollHeight > viewport.clientHeight + 10) {
+        finalize();
+        return true;
+      }
+
+      observer?.disconnect();
+      observer = new MutationObserver(() => {
+        if (cancelled) return;
+        const vp = resolveChatScrollViewport(scrollContainerRef.current);
+        if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
+        scheduleFinalize();
+      });
+
+      observer.observe(viewport, { childList: true, subtree: true, characterData: true });
+      scheduleFinalize();
+      return true;
+    };
+
+    if (!attachToViewport()) {
+      const root = scrollContainerRef.current?.parentElement ?? document.body;
+      mountObserver = new MutationObserver(() => {
+        if (attachToViewport()) {
+          mountObserver?.disconnect();
+        }
+      });
+      mountObserver.observe(root, { childList: true, subtree: true });
+
+      const retry = () => {
+        if (cancelled) return;
+        if (!attachToViewport()) {
+          rafId = requestAnimationFrame(retry);
+        }
+      };
+      rafId = requestAnimationFrame(retry);
+    }
+
+    maxTimer = setTimeout(() => {
+      if (cancelled) return;
+      finalize();
+    }, MAX_WAIT_MS);
 
     return () => {
       cancelled = true;
-      cancelAnimationFrame(raf);
-      if (!didFinalize) {
+      cleanup();
+      if (pinnedKeyRef.current !== resetKey) {
         setIsPinned(true);
       }
     };
   }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
 
-  // On native, the viewport height can shift after pin (Capacitor layout settling,
-  // status bar changes, safe-area recalculation). Re-scroll to bottom when this happens.
+  // On native: re-snap on app resume
   useEffect(() => {
     if (!isPinned || !Capacitor.isNativePlatform()) return;
 
-    const vv = window.visualViewport;
-
-    let lastHeight = vv?.height ?? 0;
-    let raf = 0;
-
-    const resnap = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        scrollChatToBottom(scrollContainerRef.current);
-      });
-    };
-
-    const onResize = () => {
-      if (!vv) return;
-      const newHeight = vv.height;
-      // Only re-scroll for small layout shifts (not keyboard open/close which is large)
-      if (Math.abs(newHeight - lastHeight) > 0 && Math.abs(newHeight - lastHeight) < 200) {
-        resnap();
-      }
-      lastHeight = newHeight;
-    };
-
-    // Re-pin when app resumes from background (lock screen, task switcher)
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        // Stagger to catch post-resume layout settling
-        setTimeout(resnap, 50);
-        setTimeout(resnap, 300);
+        requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
       }
     };
 
-    const onFocus = () => {
-      setTimeout(resnap, 50);
-      setTimeout(resnap, 300);
-    };
-
-    vv?.addEventListener("resize", onResize);
     document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("focus", onFocus);
-
-    // Also do a delayed re-scroll after pin to catch any post-pin layout shifts
-    const t1 = setTimeout(() => scrollChatToBottom(scrollContainerRef.current), 100);
-    const t2 = setTimeout(() => scrollChatToBottom(scrollContainerRef.current), 300);
-    const t3 = setTimeout(() => scrollChatToBottom(scrollContainerRef.current), 600);
-
-    return () => {
-      vv?.removeEventListener("resize", onResize);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("focus", onFocus);
-      cancelAnimationFrame(raf);
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [isPinned, scrollContainerRef, resetKey]);
 
   return { isPinned };

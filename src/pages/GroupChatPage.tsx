@@ -150,18 +150,9 @@ export default function GroupChatPage() {
   const isKeyboardOpen = useKeyboardOpen();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   
-  // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
     scrollChatToBottom(scrollAreaRef.current);
   }, []);
-
-  // Scroll to bottom when keyboard opens
-  useEffect(() => {
-    if (!isKeyboardOpen) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollToBottom());
-    });
-  }, [isKeyboardOpen, scrollToBottom]);
 
   const targetMessageId = searchParams.get("message");
 
@@ -1209,6 +1200,11 @@ export default function GroupChatPage() {
     );
   }, [localMessages, searchQuery]);
 
+  const messagesById = useMemo(
+    () => new Map((localMessages || []).map((message) => [message.id, message])),
+    [localMessages]
+  );
+
   // Message IDs for read tracking
   const messageIds = useMemo(() => 
     (filteredMessages || []).map(m => m.id).filter(id => !id.startsWith('temp-')),
@@ -1371,6 +1367,7 @@ export default function GroupChatPage() {
                 {showDateSeparator && <ChatDateSeparator date={currentDate} />}
                 <GroupChatMessageRow
                   msg={msg}
+                  messagesById={messagesById}
                   isOwnMessage={isOwnMessage}
                   isAdmin={isAdmin}
                   highlightedMessageId={highlightedMessageId}

@@ -40,7 +40,7 @@ const corsHeaders = {
 
 // Rate limiting configuration for email sending
 const RATE_LIMIT_WINDOW_SECONDS = 3600; // 1 hour
-const RATE_LIMIT_MAX_EMAILS = 50; // 50 emails per hour per user
+const RATE_LIMIT_MAX_EMAILS = 200; // 200 emails per hour per user (supports bulk invite workflows)
 const MAX_REQUEST_SIZE = 102400; // 100KB max for email content
 
 // Template types

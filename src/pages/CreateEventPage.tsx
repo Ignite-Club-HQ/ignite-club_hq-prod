@@ -84,11 +84,18 @@ export default function CreateEventPage() {
   const isFromMiniLeague = presetType === "mini_league" && !!presetMiniLeagueId;
 
   const [title, setTitle] = useState(prefillTitle || "");
-  const [type, setType] = useState<EventType>(presetType || "training");
+  const [type, setType] = useState<EventType>(presetType || (localStorage.getItem("lastEventType") as EventType) || "training");
   const [clubId, setClubId] = useState(presetClubId || "");
   const [teamId, setTeamId] = useState("");
   const [miniLeagueId, setMiniLeagueId] = useState(presetMiniLeagueId || "");
-  const [eventDateTime, setEventDateTime] = useState(prefillDate || "");
+  const [eventDateTime, setEventDateTime] = useState(() => {
+    if (prefillDate) return prefillDate;
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}T09:00`;
+  });
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -380,7 +387,9 @@ export default function CreateEventPage() {
   const isCommitteeOnlyForClub = useMemo(() => {
     if (!clubId || !user) return false;
     if (isClubAdminForSelectedClub) return false;
-    if (teams && teams.length > 0) return false;
+    // Wait for teams to finish loading before deciding
+    if (teams === undefined) return false;
+    if (teams.length > 0) return false;
     return true;
   }, [clubId, user, isClubAdminForSelectedClub, teams]);
 
@@ -624,6 +633,9 @@ export default function CreateEventPage() {
     }
 
     // Require team selection for games and training
+    // Remember last used event type
+    localStorage.setItem("lastEventType", type);
+
     if ((type === "game" || type === "training") && !teamId) {
       toast({
         title: "Team required",

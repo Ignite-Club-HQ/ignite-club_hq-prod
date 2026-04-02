@@ -116,14 +116,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
         e.stopPropagation();
       }}
       onClick={(e) => {
-        if (preventIfGuarded?.(e)) return;
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           onOpenChange(false);
         }
       }}
       onTouchEnd={(e) => {
-        if (preventIfGuarded?.(e)) return;
         if (e.target === e.currentTarget) {
           e.stopPropagation();
           e.preventDefault();
