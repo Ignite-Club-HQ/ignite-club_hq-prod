@@ -47,6 +47,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const lastTouchReactionAtRef = useRef(0);
+  // On iOS, synthesized click/touch events can fire immediately after the picker opens.
+  // Ignore dismiss events for a short window after mount.
+  const mountedAtRef = useRef(0);
 
   useLayoutEffect(() => {
     if (!isOpen || !anchorRef.current) {
