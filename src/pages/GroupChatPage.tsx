@@ -372,6 +372,12 @@ export default function GroupChatPage() {
   // Local copy used for rendering so optimistic updates are instant
   const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(undefined);
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+
+  // Extract top-level reactions from query data (must be before useLayoutEffect that uses it)
+  const reactions = useMemo(() => {
+    if (!messagesData || Array.isArray(messagesData)) return [] as MessageReaction[];
+    return ((messagesData as any).reactions || []) as MessageReaction[];
+  }, [messagesData]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
@@ -412,35 +418,45 @@ export default function GroupChatPage() {
 
   useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
+    // IMPORTANT: In GroupChatPage, reactions come as a separate top-level array in messagesData,
+    // NOT embedded on each message. We must merge the top-level reactions onto each message here.
     if (!messages || !groupId) return;
 
+    // Build a map of incoming reactions from the top-level reactions array
+    const incomingReactionsByMsg = new Map<string, MessageReaction[]>();
+    reactions.forEach((r: MessageReaction) => {
+      if (!r.group_message_id) return;
+      if (!incomingReactionsByMsg.has(r.group_message_id)) incomingReactionsByMsg.set(r.group_message_id, []);
+      incomingReactionsByMsg.get(r.group_message_id)!.push(r);
+    });
+
     setLocalMessages((prev) => {
-      const mergedMessages = !prev
-        ? messages
-        : messages.map((message) => {
-            const previousMessage = prev.find((item) => item.id === message.id);
-            if (!previousMessage) return message;
+      const mergedMessages = messages.map((message) => {
+        const incomingReactions = incomingReactionsByMsg.get(message.id) || [];
+        const previousMessage = prev?.find((item) => item.id === message.id);
+        const previousReactions: MessageReaction[] = (previousMessage as any)?.reactions || [];
 
-            const previousReactions = (previousMessage as any).reactions || [];
-            const incomingReactions = (message as any).reactions || [];
+        if (previousReactions.length === 0) {
+          return { ...message, reactions: incomingReactions };
+        }
 
-            const incomingByUser = new Map<string, any>();
-            incomingReactions.forEach((reaction: any) => {
-              incomingByUser.set(reaction.user_id, reaction);
-            });
+        const incomingIds = new Set(incomingReactions.map((r) => r.id));
+        const incomingByUser = new Map<string, MessageReaction>();
+        incomingReactions.forEach((r) => incomingByUser.set(r.user_id, r));
 
-            const incomingIds = new Set(incomingReactions.map((r: any) => r.id));
-            const missingFromIncoming = previousReactions.filter((reaction: any) => {
-              if (incomingIds.has(reaction.id)) return false;
-              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
-              return !incomingByUser.has(reaction.user_id);
-            });
+        // Keep previous reactions that are missing from the incoming data
+        // (optimistic or realtime-delivered reactions not yet in the refetch)
+        const missingFromIncoming = previousReactions.filter((reaction) => {
+          if (incomingIds.has(reaction.id)) return false;
+          if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
+          return !incomingByUser.has(reaction.user_id);
+        });
 
-            return {
-              ...message,
-              reactions: [...incomingReactions, ...missingFromIncoming],
-            };
-          });
+        return {
+          ...message,
+          reactions: [...incomingReactions, ...missingFromIncoming],
+        };
+      });
 
       cacheMessages("group", groupId, mergedMessages.map((m) => ({
         id: m.id,
@@ -450,7 +466,7 @@ export default function GroupChatPage() {
         image_url: m.image_url,
         reply_to_id: m.reply_to_id,
         profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
-        reactions: (m.reactions || []).map((reaction: any) => ({
+        reactions: ((m as any).reactions || []).map((reaction: any) => ({
           id: reaction.id,
           user_id: reaction.user_id,
           reaction_type: reaction.reaction_type,
@@ -460,7 +476,7 @@ export default function GroupChatPage() {
 
       return mergedMessages;
     });
-  }, [messages, groupId]);
+  }, [messages, reactions, groupId]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
@@ -525,10 +541,6 @@ export default function GroupChatPage() {
     });
   }, [localMessages]);
 
-  const reactions = useMemo(() => {
-    if (!messagesData || Array.isArray(messagesData)) return [];
-    return (messagesData as any).reactions || [];
-  }, [messagesData]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
@@ -1299,7 +1311,14 @@ export default function GroupChatPage() {
   const messageReactionsMap = useMemo(() => {
     const map = new Map<string, MessageReaction[]>();
     for (const msg of (localMessages || [])) {
-      map.set(msg.id, reactions.filter((r) => r.group_message_id === msg.id));
+      // Reactions are now embedded on each message by useLayoutEffect merge
+      const embedded: MessageReaction[] = (msg as any).reactions || [];
+      // Also include any from the top-level array not already embedded (e.g. realtime arrivals)
+      const embeddedIds = new Set(embedded.map(r => r.id));
+      const extras = reactions.filter(
+        (r) => r.group_message_id === msg.id && !embeddedIds.has(r.id)
+      );
+      map.set(msg.id, extras.length > 0 ? [...embedded, ...extras] : embedded);
     }
     return map;
   }, [localMessages, reactions]);
