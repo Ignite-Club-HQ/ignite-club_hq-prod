@@ -1359,7 +1359,7 @@ export default function GroupChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "6rem" : "calc(var(--bottom-nav-offset, 0px) + 6rem)" }}>
+            <div className="space-y-4 px-4 pb-4 pt-8" style={{ paddingBottom: isKeyboardOpen ? "6rem" : "calc(var(--bottom-nav-offset, 0px) + 6rem)" }}>
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
               <div ref={loadTriggerRef} className="h-1" />
