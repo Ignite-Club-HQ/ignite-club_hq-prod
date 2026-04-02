@@ -374,7 +374,8 @@ export default function MessagesPage() {
       return { clubs, latestMessages };
     },
     enabled: !!user,
-    staleTime: 30000,
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
   
   // Extract clubs and latest messages from combined query
