@@ -282,6 +282,7 @@ export default function MediaPage() {
     enabled: !!user,
     staleTime: 300000,
     gcTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: userProfile } = useQuery({
