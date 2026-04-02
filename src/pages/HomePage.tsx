@@ -503,6 +503,8 @@ export default function HomePage() {
       return data || [];
     },
     enabled: !!selectedRewardClubId,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch the next reward info across user's clubs
