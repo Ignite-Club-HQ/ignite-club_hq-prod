@@ -409,6 +409,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // FRESH LOGIN: Reset state to block AppLayout until profile is fetched
           // This prevents the double-flash to complete-profile page
           console.log('[Auth] SIGNED_IN event - processing login', isNative ? '(native app)' : '(web)');
+          // Clear all cached query data to force fresh fetches with the new session
+          // This prevents stale/empty RLS results from a previous logged-out window
+          queryClient.clear();
           setIsFreshLogin(true);
           setInitialized(false);
           setLoading(true);
@@ -421,6 +424,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           handleSession(currentSession, event === 'INITIAL_SESSION', false);
         } else if (event === 'SIGNED_OUT') {
           console.log('[Auth] SIGNED_OUT event');
+          // Clear ALL cached query data - prevents stale data from being served
+          // after re-login (same userId would match stale queryKeys)
+          queryClient.clear();
           profileFetched = false;
           setIsFreshLogin(false);
           setProfile(null);
@@ -528,6 +534,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const cachedProfileStr = localStorage.getItem('ignite_profile_cache');
         if (cachedProfileStr) {
           console.warn(`[Auth] ${source} - session unrecoverable, clearing state`);
+          queryClient.clear(); // Clear stale RLS-dependent data
           setUser(null);
           setSession(null);
           setProfile(null);
@@ -758,8 +765,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setCachedProfile(null);
-    // Keep profile/club/team caches for faster re-login (public data)
-    // Only clear security-sensitive data
+    // Clear ALL React Query cache to prevent stale RLS data on re-login
+    queryClient.clear();
     clearRolesCache(); // Clear cached user roles (security-critical)
     setUnreadCount(0);
     setUnreadMessagesCount(0);
