@@ -279,7 +279,7 @@ export default function MediaPage() {
       return false;
     },
     enabled: !!user,
-    staleTime: 0,
+    staleTime: 300000,
     gcTime: 300000,
   });
 

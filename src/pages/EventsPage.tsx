@@ -405,8 +405,9 @@ export default function EventsPage() {
   // Get dates that have events for calendar highlighting
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
 
-  // Only show full-page loading on first ever load (no cached data)
-  if (isLoading && !events) {
+  // Only show full-page loading on first ever load (no cached data).
+  // Use isLoading (not isFetching) to avoid flash on background refetch/resume.
+  if (isLoading && !events && !upcomingEvents && !pastEvents) {
     return <PageLoading message="Loading events..." />;
   }
 
