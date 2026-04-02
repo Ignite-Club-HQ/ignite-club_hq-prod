@@ -147,9 +147,17 @@ export function useInitialChatBottomPin({
   useEffect(() => {
     if (!isPinned || !Capacitor.isNativePlatform()) return;
 
+    let resumeTimers: ReturnType<typeof setTimeout>[] = [];
+
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
+        // Staggered re-snaps to handle query refetch & DOM re-render on resume
+        resumeTimers.forEach(clearTimeout);
+        resumeTimers = [0, 100, 300, 600].map((delay) =>
+          setTimeout(() => {
+            requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
+          }, delay),
+        );
       }
     };
 
