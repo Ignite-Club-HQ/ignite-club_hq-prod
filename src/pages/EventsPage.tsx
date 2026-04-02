@@ -325,6 +325,8 @@ export default function EventsPage() {
       return filterRecurringEvents(filteredData) as Event[];
     },
     enabled: !!user && !!userMemberships,
+    staleTime: 60000, // Cache for 1 minute to prevent flash on resume
+    placeholderData: (prev) => prev, // Keep previous data while refetching
   });
 
   // Check if user is app admin
