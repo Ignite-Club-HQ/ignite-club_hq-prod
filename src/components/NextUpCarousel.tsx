@@ -185,13 +185,14 @@ function HouseholdRsvpSummary({ eventId, userId, currentStatus }: { eventId: str
   const goingChildren = childRsvps.filter(r => r.status === "going");
   const maybeChildren = childRsvps.filter(r => r.status === "maybe");
   const notGoingChildren = childRsvps.filter(r => r.status === "not_going");
+  const parentHasRsvpd = currentStatus !== null;
 
   const parts: React.ReactNode[] = [];
   
   // User status
-  if (currentStatus === "going") parts.push(<span key="you" className="text-primary font-medium">You: Going</span>);
-  else if (currentStatus === "maybe") parts.push(<span key="you" className="text-warning font-medium">You: Maybe</span>);
-  else if (currentStatus === "not_going") parts.push(<span key="you" className="text-destructive font-medium">You: Can't go</span>);
+  if (parentHasRsvpd && currentStatus === "going") parts.push(<span key="you" className="text-primary font-medium">You: Going</span>);
+  else if (parentHasRsvpd && currentStatus === "maybe") parts.push(<span key="you" className="text-warning font-medium">You: Maybe</span>);
+  else if (parentHasRsvpd && currentStatus === "not_going") parts.push(<span key="you" className="text-destructive font-medium">You: Can't go</span>);
 
   if (goingChildren.length > 0) {
     const names = goingChildren.map(c => c.children?.name?.split(' ')[0] || "Child").join(", ");
@@ -216,7 +217,7 @@ function HouseholdRsvpSummary({ eventId, userId, currentStatus }: { eventId: str
     parts.push(
       <span key="notgoing" className="flex items-center gap-0.5">
         <X className="h-2.5 w-2.5 text-destructive" />
-        <span>{names}</span>
+        <span>{names} not going</span>
       </span>
     );
   }
