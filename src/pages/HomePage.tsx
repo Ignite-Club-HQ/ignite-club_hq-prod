@@ -291,7 +291,7 @@ export default function HomePage() {
       
       return { memberships, events: limited as Event[] };
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
