@@ -146,7 +146,7 @@ function formatEventDate(dateStr: string) {
 }
 
 export default function HomePage() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, initialized } = useAuth();
   usePageTitle("Home");
   const { toast } = useToast();
   const queryClient = useQueryClient();
