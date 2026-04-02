@@ -25,5 +25,19 @@ export function scrollChatToBottom(container: HTMLElement | null | undefined) {
   const metrics = getChatScrollMetrics(container);
   if (!metrics) return;
 
-  metrics.viewport.scrollTop = metrics.viewport.scrollHeight + 8;
+  const { viewport } = metrics;
+
+  const snapToBottom = () => {
+    viewport.scrollTop = viewport.scrollHeight;
+  };
+
+  snapToBottom();
+
+  if (typeof window !== "undefined") {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        snapToBottom();
+      });
+    });
+  }
 }
