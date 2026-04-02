@@ -984,12 +984,12 @@ export default function EventDetailPage() {
           .eq("id", existingRsvp.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("rsvps").upsert({
+        const { error } = await supabase.from("rsvps").insert({
           event_id: id!,
           user_id: user!.id,
           child_id: childId,
           status,
-        }, { onConflict: "event_id,child_id" });
+        });
         if (error) throw error;
       }
 
