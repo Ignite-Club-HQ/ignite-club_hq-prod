@@ -201,8 +201,13 @@ export function QuickRSVPDialog({
     onSuccess: (_data, status) => {
       queryClient.invalidateQueries({ queryKey: ["quick-rsvp", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", eventId] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
       queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+      queryClient.invalidateQueries({ queryKey: ["hero-rsvp", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["card-child-rsvps", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["rsvp-summary", eventId] });
 
       // If going to a paid event, prompt payment
       if (status === "going" && eventAmount && eventAmount > 0 && eventType === "social") {
@@ -242,7 +247,13 @@ export function QuickRSVPDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quick-rsvp", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", eventId] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+      queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+      queryClient.invalidateQueries({ queryKey: ["hero-rsvp", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["card-child-rsvps", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["rsvp-summary", eventId] });
     },
     onError: (error: Error) => {
       toast({
