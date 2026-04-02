@@ -453,6 +453,29 @@ export default function ClubAdminChatPage() {
       )
       .on(
         "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "message_reactions" },
+        (payload) => {
+          const reaction = payload.new as any;
+          if (!reaction.club_admin_message_id) return;
+          queryClient.setQueryData(queryKey, (old: any) => {
+            if (!old) return old;
+            return {
+              ...old,
+              messages: old.messages.map((m: any) => {
+                if (m.id !== reaction.club_admin_message_id) return m;
+                const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
+                const hasExisting = (m.reactions || []).some((r: any) => r.id === reaction.id);
+                if (hasExisting) {
+                  return { ...m, reactions: (m.reactions || []).map((r: any) => r.id === reaction.id ? newReaction : r) };
+                }
+                return { ...m, reactions: [...(m.reactions || []).filter((r: any) => r.user_id !== reaction.user_id), newReaction] };
+              }),
+            };
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
         { event: "DELETE", schema: "public", table: "message_reactions" },
         (payload) => {
           const deleted = payload.old as any;
