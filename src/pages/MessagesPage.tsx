@@ -737,6 +737,8 @@ export default function MessagesPage() {
       return muted;
     },
     enabled: !!user,
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
 
   // Cache fresh data when it arrives
