@@ -1868,7 +1868,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     onChange={(e) => setSingleChildren(singleChildren.map(c => 
                                       c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
                                     ))}
-                                    className={`h-9 ${child.existingChildId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                    className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
                                   />
                                   {matches.length > 0 && !child.existingChildId && (
                                     <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
