@@ -29,6 +29,8 @@ export function useInitialChatBottomPin({
   const pinnedKeyRef = useRef<string | number | null | undefined>(undefined);
   const onPinnedRef = useRef(onPinned);
   const [isPinned, setIsPinned] = useState(false);
+  // Track if we "pinned" due to empty content so we can re-pin when data arrives
+  const pinnedWhileEmptyRef = useRef(false);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
@@ -40,13 +42,21 @@ export function useInitialChatBottomPin({
       return;
     }
 
+    // If we previously pinned from empty content and now have items, reset to re-pin
+    if (pinnedWhileEmptyRef.current && itemCount > 0) {
+      pinnedWhileEmptyRef.current = false;
+      pinnedKeyRef.current = undefined; // Force re-pin
+    }
+
     if (pinnedKeyRef.current === resetKey) return;
 
     if (itemCount <= 0) {
+      pinnedWhileEmptyRef.current = true;
       setIsPinned(true);
       return;
     }
 
+    pinnedWhileEmptyRef.current = false;
     setIsPinned(false);
 
     let cancelled = false;
@@ -74,6 +84,10 @@ export function useInitialChatBottomPin({
       scrollChatToBottom(scrollContainerRef.current);
       requestAnimationFrame(() => {
         scrollChatToBottom(scrollContainerRef.current);
+        // Extra delayed snap for native WebView rendering lag
+        setTimeout(() => {
+          scrollChatToBottom(scrollContainerRef.current);
+        }, 100);
         pinnedKeyRef.current = resetKey;
         setIsPinned(true);
         onPinnedRef.current?.();
