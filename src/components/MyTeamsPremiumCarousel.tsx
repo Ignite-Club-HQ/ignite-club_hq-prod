@@ -133,7 +133,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
 
   return (
     <Card
-      className={`shrink-0 w-[85vw] max-w-[340px] cursor-pointer border bg-card transition-all snap-start overflow-hidden relative ${
+      className={`shrink-0 w-[85vw] max-w-[340px] min-h-[158px] cursor-pointer border bg-card transition-all snap-start overflow-hidden relative ${
         hasActivity 
           ? `border-l-[3px] ${accentBorder || "border-l-primary"} shadow-md hover:shadow-lg` 
           : "hover:border-primary/40 shadow-sm hover:shadow-md"
