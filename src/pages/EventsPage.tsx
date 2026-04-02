@@ -178,7 +178,7 @@ export default function EventsPage() {
   });
 
   // Get user's accessible team, club, and mini league IDs for event filtering
-  const { data: userMemberships } = useQuery({
+  const { data: userMemberships, isLoading: membershipsLoading } = useQuery({
     queryKey: ["user-memberships-for-events", user?.id],
     queryFn: async () => {
       const { data: roles } = await supabase
@@ -413,8 +413,9 @@ export default function EventsPage() {
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
 
   // Only show full-page loading on first ever load (no cached data).
-  // Use isLoading (not isFetching) to avoid flash on background refetch/resume.
-  if (isLoading && !events && !upcomingEvents && !pastEvents) {
+  // Also wait when userMemberships is still loading (events query is disabled until it resolves).
+  const isInitialLoad = !events && !upcomingEvents && !pastEvents;
+  if (isInitialLoad && (isLoading || membershipsLoading || !userMemberships)) {
     return <PageLoading message="Loading events..." />;
   }
 
