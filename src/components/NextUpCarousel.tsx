@@ -291,7 +291,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     enabled: !!user,
   });
 
-  const currentStatus = myRsvp?.status as RsvpStatus | null;
+  const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
