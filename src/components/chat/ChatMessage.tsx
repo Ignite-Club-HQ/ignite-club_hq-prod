@@ -479,6 +479,9 @@ export const ChatMessage = memo(function ChatMessage({
       e.preventDefault();
       e.stopPropagation();
       armDismissGuard();
+      // Re-arm the backdrop guard from finger-release time, not picker-open time.
+      // The user may hold for >400ms, so the original guard would have expired.
+      reactionPickerOpenedAtRef.current = Date.now();
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });

@@ -194,6 +194,8 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       e.preventDefault();
       e.stopPropagation();
       armDismissGuard();
+      // Re-arm the backdrop guard from finger-release time, not picker-open time.
+      reactionPickerOpenedAtRef.current = Date.now();
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
