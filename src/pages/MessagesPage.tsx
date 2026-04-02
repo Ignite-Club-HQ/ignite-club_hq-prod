@@ -646,6 +646,7 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch chat groups with their latest messages in a single query
