@@ -34,6 +34,7 @@ interface EventItem {
 
 interface NextUpCarouselProps {
   events: EventItem[];
+  isLoading?: boolean;
 }
 
 function formatContextualDate(dateStr: string) {
