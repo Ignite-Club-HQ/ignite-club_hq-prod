@@ -196,8 +196,9 @@ export default function TeamChatPage() {
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({
     queryKey: ["team-messages", teamId],
     queryFn: async () => {
-      // If offline, return cached messages
-      if (!navigator.onLine) {
+      // If offline, return cached messages using the React Query online manager
+      // so native app resume does not incorrectly fall back to stale cache.
+      if (!isOnline) {
         const cached = getCachedMessages("team", teamId!);
         if (cached.length > 0) {
           // Transform cached messages to include team_id
