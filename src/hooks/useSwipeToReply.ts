@@ -1,4 +1,5 @@
 import { useRef, useCallback, useState, useEffect } from "react";
+import { hapticSelectionTick } from "@/lib/haptics";
 
 // Global registry: when any message reveals reply, others dismiss
 type ResetFn = () => void;
