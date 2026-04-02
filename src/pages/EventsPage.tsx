@@ -248,8 +248,8 @@ export default function EventsPage() {
     },
     enabled: !!user,
     staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
-
   const { data: events, isLoading, isFetching } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
