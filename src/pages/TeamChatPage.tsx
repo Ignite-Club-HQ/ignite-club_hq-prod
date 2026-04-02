@@ -387,10 +387,6 @@ export default function TeamChatPage() {
     if (!messages || !teamId) return;
 
     setLocalMessages((prev) => {
-      // Diagnostic: log reaction counts before/after merge
-      const prevReactionCount = (prev || []).reduce((sum, m) => sum + (m.reactions?.length || 0), 0);
-      const incomingReactionCount = messages.reduce((sum, m) => sum + (m.reactions?.length || 0), 0);
-
       const mergedMessages = !prev
         ? messages
         : messages.map((message) => {
@@ -410,9 +406,8 @@ export default function TeamChatPage() {
             // - real reactions (arrived via realtime) whose id isn't in incoming
             const incomingIds = new Set(incomingReactions.map((r) => r.id));
             const missingFromIncoming = previousReactions.filter((reaction) => {
-              if (incomingIds.has(reaction.id)) return false; // already present
+              if (incomingIds.has(reaction.id)) return false;
               if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
-              // Real reaction not in incoming – keep unless incoming already has one from same user
               return !incomingByUser.has(reaction.user_id);
             });
 
@@ -421,19 +416,6 @@ export default function TeamChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
-
-      const mergedReactionCount = mergedMessages.reduce((sum, m) => sum + (m.reactions?.length || 0), 0);
-
-      if (prevReactionCount > 0 || incomingReactionCount > 0 || mergedReactionCount > 0) {
-        console.log("[TeamChat] Reaction sync", {
-          prevMessages: prev?.length ?? 0,
-          incomingMessages: messages.length,
-          prevReactions: prevReactionCount,
-          incomingReactions: incomingReactionCount,
-          mergedReactions: mergedReactionCount,
-          dropped: prevReactionCount > mergedReactionCount,
-        });
-      }
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,
