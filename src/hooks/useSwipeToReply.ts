@@ -60,6 +60,23 @@ export function useSwipeToReply({
     };
   }, [enabled]);
 
+  /**
+   * Force-activate the swipe gesture from the parent gesture coordinator.
+   * Called when the parent's handleTouchMove determines this is a rightward swipe
+   * (transitioning from "press" to "swipe" mode). This bypasses the hook's own
+   * directionality check which can be stricter and reject valid swipes.
+   */
+  const forceActivate = useCallback((startX: number, startY: number) => {
+    touchRef.current = {
+      startX,
+      startY,
+      currentX: startX,
+      locked: true,
+      isSwiping: true,
+    };
+    hapticFiredRef.current = false;
+  }, []);
+
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     const ref = touchRef.current;
     if (!enabled || !ref) return;
@@ -124,6 +141,7 @@ export function useSwipeToReply({
       onTouchStart,
       onTouchMove,
       onTouchEnd,
+      forceActivate,
     },
     resetReplyReveal,
   };
