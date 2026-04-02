@@ -1857,7 +1857,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     ) : (
                       <div className="space-y-2">
                         {singleChildren.map((child, idx) => {
-                          const matches = !child.existingChildId ? findMatchingChildren(child.name) : [];
+                          const matches = !child.existingChildId && !child.confirmedNew && !child.pendingInviteId ? findMatchingChildren(child.name) : [];
                           return (
                             <div key={child.id} className="space-y-1">
                               <div className="flex gap-2 items-start">
