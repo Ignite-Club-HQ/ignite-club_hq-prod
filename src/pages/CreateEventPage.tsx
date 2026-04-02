@@ -387,7 +387,9 @@ export default function CreateEventPage() {
   const isCommitteeOnlyForClub = useMemo(() => {
     if (!clubId || !user) return false;
     if (isClubAdminForSelectedClub) return false;
-    if (teams && teams.length > 0) return false;
+    // Wait for teams to finish loading before deciding
+    if (teams === undefined) return false;
+    if (teams.length > 0) return false;
     return true;
   }, [clubId, user, isClubAdminForSelectedClub, teams]);
 
