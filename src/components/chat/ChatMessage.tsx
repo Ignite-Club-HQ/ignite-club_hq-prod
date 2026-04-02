@@ -491,7 +491,7 @@ export const ChatMessage = memo(function ChatMessage({
       e.preventDefault();
       e.stopPropagation();
       setTapFlash(true);
-      if (navigator.vibrate) navigator.vibrate(6);
+      hapticSelectionTick();
       setTimeout(() => {
         setTapFlash(false);
         setShowMenu(true);
