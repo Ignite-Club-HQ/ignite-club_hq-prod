@@ -862,7 +862,8 @@ export default function ClubChatPage() {
       return;
     }
     setReplyingTo(m);
-  }, [toast]);
+    setTimeout(() => scrollToBottom(), 100);
+  }, [toast, scrollToBottom]);
 
   const queryKeyMemo = useMemo(() => ["club-messages", clubId!], [clubId]);
 

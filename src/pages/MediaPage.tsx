@@ -180,7 +180,8 @@ export default function MediaPage() {
       return data || [];
     },
     enabled: !!user,
-    staleTime: 300000, // Cache for 5 minutes
+    staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   const isAppAdmin = useMemo(() => 
@@ -279,8 +280,9 @@ export default function MediaPage() {
       return false;
     },
     enabled: !!user,
-    staleTime: 0,
+    staleTime: 300000,
     gcTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: userProfile } = useQuery({
@@ -295,6 +297,7 @@ export default function MediaPage() {
     },
     enabled: !!user,
     staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch clubs user has access to for filtering
@@ -313,6 +316,7 @@ export default function MediaPage() {
     },
     enabled: !!user && !!userRoles && userRoles.length > 0,
     staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch teams user has access to for filtering
@@ -331,6 +335,7 @@ export default function MediaPage() {
     },
     enabled: !!user && !!userRoles && userRoles.length > 0,
     staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   // Filter teams by selected club
@@ -504,15 +509,20 @@ export default function MediaPage() {
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Pro access check - don't show content until we've confirmed Pro status
-  // Also treat as loading if user exists but roles haven't been fetched yet (prevents flash on app open)
-  // Additionally, if roles are loaded but pro-access query hasn't resolved yet (enabled but no data), keep loading
-  const proQueryShouldBeEnabled = !!user && (roleClubIds.length > 0 || roleTeamIds.length > 0 || !!activeClubFilter);
+  // Pro access check - don't show content until we've confirmed Pro status on FIRST load.
+  // Once resolved, never re-show skeletons on background refetch (prevents jolt on resume/unlock).
+  const hasProAccess = isAppAdmin || hasProClub === true;
   const hasProAccessQueryFailed = !!proAccessError;
+  const proAccessEverResolved = useRef(false);
+  if (hasProClub !== undefined || hasProAccessQueryFailed) {
+    proAccessEverResolved.current = true;
+  }
+
+  const proQueryShouldBeEnabled = !!user && (roleClubIds.length > 0 || roleTeamIds.length > 0 || !!activeClubFilter);
   const proQueryNotYetResolved = proQueryShouldBeEnabled && hasProClub === undefined && !hasProAccessQueryFailed;
   const waitingOnRolesWithoutFallback = !!user && !userRoles && !activeClubFilter;
-  const isCheckingProAccess = !user || loadingProAccess || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved;
-  const hasProAccess = isAppAdmin || hasProClub === true;
+  // Only show loading state on initial resolution — never on refetch/resume
+  const isCheckingProAccess = !proAccessEverResolved.current && (!user || loadingProAccess || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
@@ -536,7 +546,8 @@ export default function MediaPage() {
       return data || [];
     },
     enabled: !!user && allPhotoIds.length > 0,
-    staleTime: 120000, // Cache for 2 minutes
+    staleTime: 120000,
+    placeholderData: (prev) => prev,
   });
 
   // Use fetched reactions
@@ -562,7 +573,8 @@ export default function MediaPage() {
       return data || [];
     },
     enabled: !!user && allPhotoIds.length > 0,
-    staleTime: 120000, // Cache for 2 minutes
+    staleTime: 120000,
+    placeholderData: (prev) => prev,
   });
 
   const reactMutation = useMutation({

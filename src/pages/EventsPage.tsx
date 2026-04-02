@@ -137,9 +137,9 @@ export default function EventsPage() {
       return clubs || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Fetch teams for the selected club (or all user's teams if no club selected)
   const { data: userTeams } = useQuery({
     queryKey: ["user-teams-for-filter", user?.id, clubFilter],
     queryFn: async () => {
@@ -173,6 +173,8 @@ export default function EventsPage() {
       return teams || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get user's accessible team, club, and mini league IDs for event filtering
@@ -245,8 +247,9 @@ export default function EventsPage() {
       };
     },
     enabled: !!user,
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
-
   const { data: events, isLoading, isFetching } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
@@ -325,6 +328,8 @@ export default function EventsPage() {
       return filterRecurringEvents(filteredData) as Event[];
     },
     enabled: !!user && !!userMemberships,
+    staleTime: 60000, // Cache for 1 minute to prevent flash on resume
+    placeholderData: (prev) => prev, // Keep previous data while refetching
   });
 
   // Check if user is app admin
@@ -340,9 +345,9 @@ export default function EventsPage() {
       return !!data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  // Get user's admin roles for clubs/teams
   const { data: userRoles } = useQuery({
     queryKey: ["user-admin-roles", user?.id],
     queryFn: async () => {
@@ -354,6 +359,8 @@ export default function EventsPage() {
       return data;
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Get IDs of events user has viewed
@@ -405,8 +412,9 @@ export default function EventsPage() {
   // Get dates that have events for calendar highlighting
   const eventDates = events?.map((e) => parseISO(e.event_date)) || [];
 
-  // Only show full-page loading on first ever load (no cached data)
-  if (isLoading && !events) {
+  // Only show full-page loading on first ever load (no cached data).
+  // Use isLoading (not isFetching) to avoid flash on background refetch/resume.
+  if (isLoading && !events && !upcomingEvents && !pastEvents) {
     return <PageLoading message="Loading events..." />;
   }
 

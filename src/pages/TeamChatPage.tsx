@@ -890,7 +890,9 @@ export default function TeamChatPage() {
       return;
     }
     setReplyingTo(m);
-  }, []);
+    // Scroll to bottom after reply banner renders so latest message stays visible
+    setTimeout(() => scrollToBottom(), 100);
+  }, [scrollToBottom]);
 
   const queryKeyMemo = useMemo(() => ["team-messages", teamId!], [teamId]);
 

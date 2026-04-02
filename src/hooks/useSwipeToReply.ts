@@ -1,4 +1,5 @@
 import { useRef, useCallback, useState, useEffect } from "react";
+import { hapticSelectionTick } from "@/lib/haptics";
 
 // Global registry: when any message reveals reply, others dismiss
 type ResetFn = () => void;
@@ -104,7 +105,7 @@ export function useSwipeToReply({
     // Haptic tick when crossing threshold
     if (past && !hapticFiredRef.current) {
       hapticFiredRef.current = true;
-      if (navigator.vibrate) navigator.vibrate(10);
+      hapticSelectionTick();
     }
 
     setSwipeState({ offsetX: offset, isSwiping: true, pastThreshold: past });
