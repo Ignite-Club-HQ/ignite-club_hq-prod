@@ -214,9 +214,10 @@ export default function ClubAdminChatPage() {
       return { messages, hasOlderMessages: hasMore };
     },
     enabled: !!conversationId,
-    staleTime: 30 * 1000,
-    refetchOnMount: 'always' as const,
+    staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
+    refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
   });
 
   const showLoading = messagesLoading && !messagesData;

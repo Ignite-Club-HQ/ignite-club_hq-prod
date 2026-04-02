@@ -304,8 +304,8 @@ export default function DirectMessagePage() {
       };
     },
     enabled: !!conversationId,
-    staleTime: 30 * 1000, // 30 seconds - shorter stale time to ensure fresh data
-    refetchOnMount: 'always', // Always refetch when returning to page
+    staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
+    refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnWindowFocus: false,
     placeholderData: () => {
       // Return cached messages as placeholder for instant load

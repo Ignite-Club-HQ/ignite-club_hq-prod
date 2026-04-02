@@ -348,10 +348,11 @@ export default function GroupChatPage() {
       };
     },
     enabled: !!groupId,
-    staleTime: 1000 * 30, // 30 seconds - refetch more often to get new reactions
+    staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
     gcTime: 1000 * 60 * 30,
-    refetchOnMount: 'always', // Always refetch on mount to get latest reactions
+    refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnWindowFocus: false,
+    placeholderData: (prev: any) => prev,
   });
 
   const showLoading = messagesLoading && !messagesData;
