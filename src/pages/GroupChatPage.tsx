@@ -1299,7 +1299,13 @@ export default function GroupChatPage() {
   const messageReactionsMap = useMemo(() => {
     const map = new Map<string, MessageReaction[]>();
     for (const msg of (localMessages || [])) {
-      map.set(msg.id, reactions.filter((r) => r.group_message_id === msg.id));
+      // Use per-message embedded reactions (preserved by useLayoutEffect merge)
+      // and fall back to top-level reactions array for any that are only there
+      const embeddedReactions: MessageReaction[] = (msg as any).reactions || [];
+      const topLevelReactions = reactions.filter(
+        (r) => r.group_message_id === msg.id && !embeddedReactions.some((er) => er.id === r.id)
+      );
+      map.set(msg.id, [...embeddedReactions, ...topLevelReactions]);
     }
     return map;
   }, [localMessages, reactions]);
