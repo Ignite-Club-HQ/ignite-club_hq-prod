@@ -29,7 +29,7 @@ export function useInitialChatBottomPin({
 }: UseInitialChatBottomPinOptions) {
   const pinnedKeyRef = useRef<string | number | null | undefined>(undefined);
   const onPinnedRef = useRef(onPinned);
-  const [isPinned, setIsPinned] = useState(true);
+  const [isPinned, setIsPinned] = useState(false);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
@@ -42,7 +42,12 @@ export function useInitialChatBottomPin({
   }, [resetKey]);
 
   useLayoutEffect(() => {
-    if (!enabled || itemCount <= 0 || pinnedKeyRef.current === resetKey) return;
+    if (!enabled || pinnedKeyRef.current === resetKey) return;
+    if (itemCount <= 0) {
+      // No messages yet — show empty state, no scroll needed
+      setIsPinned(true);
+      return;
+    }
 
     setIsPinned(false);
 
