@@ -127,7 +127,7 @@ function useRsvpSummary(eventId: string, eventType?: string) {
       // Then get a few for avatars
       let avatarQuery = supabase
         .from("rsvps")
-        .select("id, status, user_id")
+        .select("id, status, user_id, child_id, mini_league_player_id, children:child_id(name), mini_league_players:mini_league_player_id(name)")
         .eq("event_id", eventId)
         .eq("status", "going");
       
@@ -139,21 +139,35 @@ function useRsvpSummary(eventId: string, eventType?: string) {
       if (error) throw error;
       if (!rsvps || rsvps.length === 0) return { avatars: [], totalCount: 0 };
 
-      const userIds = [...new Set(rsvps.map(r => r.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
+      const guardianUserIds = [
+        ...new Set(
+          rsvps
+            .filter(r => !r.child_id && !r.mini_league_player_id && r.user_id)
+            .map(r => r.user_id)
+        ),
+      ];
 
-      const profileMap = (profiles || []).reduce((acc, p) => {
-        acc[p.id] = p;
-        return acc;
-      }, {} as Record<string, { id: string; display_name: string | null; avatar_url: string | null }>);
+      const profileMap = guardianUserIds.length > 0
+        ? Object.fromEntries(
+            ((await supabase
+              .from("profiles")
+              .select("id, display_name, avatar_url")
+              .in("id", guardianUserIds)).data || []).map((profile) => [profile.id, profile])
+          )
+        : {};
 
       return {
         avatars: rsvps.map(r => ({
-          ...r,
-          profile: profileMap[r.user_id] || null,
+          id: r.id,
+          displayName:
+            r.children?.name ||
+            r.mini_league_players?.name ||
+            profileMap[r.user_id]?.display_name ||
+            "?",
+          avatarUrl:
+            r.child_id || r.mini_league_player_id
+              ? null
+              : profileMap[r.user_id]?.avatar_url || null,
         })),
         totalCount: count || rsvps.length,
       };
@@ -235,9 +249,9 @@ function AttendeeAvatars({ eventId, eventType }: { eventId: string; eventType?: 
       <div className="flex -space-x-1.5">
         {visible.map((rsvp) => (
           <Avatar key={rsvp.id} className="h-5 w-5 border-[1.5px] border-background">
-            <AvatarImage src={rsvp.profile?.avatar_url || undefined} />
+              <AvatarImage src={rsvp.avatarUrl || undefined} />
             <AvatarFallback className="bg-primary/15 text-primary text-[8px] font-medium">
-              {rsvp.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                {rsvp.displayName?.charAt(0)?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
         ))}
