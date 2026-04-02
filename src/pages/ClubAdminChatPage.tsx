@@ -24,7 +24,7 @@ import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { Capacitor } from "@capacitor/core";
-import { scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -251,6 +251,12 @@ export default function ClubAdminChatPage() {
     itemCount: localMessages?.length ?? 0,
     resetKey: conversationId,
   });
+
+  // Scroll to bottom when replying, editing, or sending a new message
+  useLayoutEffect(() => {
+    if (!isNearBottom(scrollAreaRef.current, 220)) return;
+    scrollChatToBottom(scrollAreaRef.current);
+  }, [replyTo?.id, editingMessage?.id, localMessages?.length]);
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
