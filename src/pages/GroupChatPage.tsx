@@ -383,7 +383,7 @@ export default function GroupChatPage() {
     setInfiniteScrollEnabled(false);
   }, [groupId]);
 
-  useInitialChatBottomPin({
+  const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
     bottomAnchorRef: messagesEndRef,
     itemCount: localMessages?.length ?? 0,
