@@ -98,9 +98,10 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
             <span className="font-medium">
               {latestMessage.author_id === user?.id ? "You" : latestMessage.authorName}:
             </span>{" "}
-            {latestMessage.text.length > 40
-              ? latestMessage.text.slice(0, 40) + "…"
-              : latestMessage.text}
+            {(() => {
+              const clean = stripMentionFormatting(latestMessage.text);
+              return clean.length > 40 ? clean.slice(0, 40) + "…" : clean;
+            })()}
           </p>
         ) : (
           <p className="text-[11px] text-muted-foreground">No messages yet — say hello! 👋</p>
