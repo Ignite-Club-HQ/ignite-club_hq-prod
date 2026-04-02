@@ -177,9 +177,14 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   });
 
   const pendingInviteToken = pendingInviteData?.invite_token;
+  const pendingShortCode = (pendingInviteData as any)?.short_code as string | null;
   const inviteMetadata = pendingInviteData?.metadata as { children?: { name: string }[]; customMessage?: string } | null;
 
+  // Use short URL for sharing, full URL for emails/internal
   const inviteLink = pendingInviteToken ? `https://igniteclubhq.app/join/p/${pendingInviteToken}` : null;
+  const shareLink = pendingShortCode 
+    ? `https://igniteclubhq.app/j/${pendingShortCode}` 
+    : inviteLink;
 
   const handleCopyLink = async () => {
     if (!inviteLink) {
