@@ -349,7 +349,7 @@ export default function GroupChatPage() {
     },
     enabled: !!groupId,
     staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
-    gcTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: true, // Use cache instantly, refetch in background if stale
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
