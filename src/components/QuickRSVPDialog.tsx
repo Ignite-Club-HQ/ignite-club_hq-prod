@@ -178,11 +178,11 @@ export function QuickRSVPDialog({
         if (error) throw error;
         rsvpId = myRsvp.id;
       } else {
-        const { data: newRsvp, error } = await supabase.from("rsvps").upsert({
+        const { data: newRsvp, error } = await supabase.from("rsvps").insert({
           event_id: eventId,
           user_id: user!.id,
           status,
-        }, { onConflict: "event_id,user_id" }).select("id").single();
+        }).select("id").single();
         if (error) throw error;
         rsvpId = newRsvp?.id || null;
       }
@@ -235,12 +235,12 @@ export function QuickRSVPDialog({
           .eq("id", existingChildRsvp.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("rsvps").upsert({
+        const { error } = await supabase.from("rsvps").insert({
           event_id: eventId,
           user_id: user!.id,
           child_id: childId,
           status,
-        }, { onConflict: "event_id,child_id" });
+        });
         if (error) throw error;
       }
     },
