@@ -375,12 +375,13 @@ export default function MessagesPage() {
     },
     enabled: !!user,
     staleTime: 60000,
-    placeholderData: (prev) => prev,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
   });
   
   // Extract clubs and latest messages from combined query
-  const memberClubs = memberClubsWithMessages?.clubs || cachedData?.memberClubs || [];
-  const latestClubMessages = memberClubsWithMessages?.latestMessages || cachedData?.latestClubMessages || {};
+  const memberClubs = memberClubsWithMessages?.clubs ?? [];
+  const latestClubMessages = memberClubsWithMessages?.latestMessages ?? {};
 
   // Get latest broadcast message
   const { data: latestBroadcast } = useQuery({
