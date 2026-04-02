@@ -180,7 +180,8 @@ export default function MediaPage() {
       return data || [];
     },
     enabled: !!user,
-    staleTime: 300000, // Cache for 5 minutes
+    staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   const isAppAdmin = useMemo(() => 
@@ -281,6 +282,7 @@ export default function MediaPage() {
     enabled: !!user,
     staleTime: 300000,
     gcTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: userProfile } = useQuery({
@@ -295,6 +297,7 @@ export default function MediaPage() {
     },
     enabled: !!user,
     staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch clubs user has access to for filtering
@@ -313,6 +316,7 @@ export default function MediaPage() {
     },
     enabled: !!user && !!userRoles && userRoles.length > 0,
     staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   // Fetch teams user has access to for filtering
@@ -331,6 +335,7 @@ export default function MediaPage() {
     },
     enabled: !!user && !!userRoles && userRoles.length > 0,
     staleTime: 300000,
+    placeholderData: (prev) => prev,
   });
 
   // Filter teams by selected club
@@ -541,7 +546,8 @@ export default function MediaPage() {
       return data || [];
     },
     enabled: !!user && allPhotoIds.length > 0,
-    staleTime: 120000, // Cache for 2 minutes
+    staleTime: 120000,
+    placeholderData: (prev) => prev,
   });
 
   // Use fetched reactions
@@ -567,7 +573,8 @@ export default function MediaPage() {
       return data || [];
     },
     enabled: !!user && allPhotoIds.length > 0,
-    staleTime: 120000, // Cache for 2 minutes
+    staleTime: 120000,
+    placeholderData: (prev) => prev,
   });
 
   const reactMutation = useMutation({
