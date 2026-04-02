@@ -84,7 +84,7 @@ export default function CreateEventPage() {
   const isFromMiniLeague = presetType === "mini_league" && !!presetMiniLeagueId;
 
   const [title, setTitle] = useState(prefillTitle || "");
-  const [type, setType] = useState<EventType>(presetType || "training");
+  const [type, setType] = useState<EventType>(presetType || (localStorage.getItem("lastEventType") as EventType) || "training");
   const [clubId, setClubId] = useState(presetClubId || "");
   const [teamId, setTeamId] = useState("");
   const [miniLeagueId, setMiniLeagueId] = useState(presetMiniLeagueId || "");
@@ -631,6 +631,9 @@ export default function CreateEventPage() {
     }
 
     // Require team selection for games and training
+    // Remember last used event type
+    localStorage.setItem("lastEventType", type);
+
     if ((type === "game" || type === "training") && !teamId) {
       toast({
         title: "Team required",
