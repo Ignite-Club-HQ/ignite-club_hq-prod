@@ -145,7 +145,12 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDMDialog, setShowDMDialog] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
+  const [localClubFilter, setLocalClubFilter] = useState("all");
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
+
+  // Effective club filter: use theme filter if active, otherwise use local filter
+  const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
+  const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
 
   // Load cached data for instant display
   const cachedData = useMemo(() => {
