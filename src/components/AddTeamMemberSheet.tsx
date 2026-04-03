@@ -2600,7 +2600,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   ? `Add Parents to Team`
                   : `Add ${selectedUser.display_name} as ${selectedRoleOption?.label}`}
               </Button>
-            ) : (
+            ) : customEmail.trim() ? (
+              /* Email provided: single send button */
               <Button
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => addPendingMemberMutation.mutate()}
@@ -2613,14 +2614,67 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 )}
                 {nameInput.trim()
                   ? (selectedSecondParent
-                    ? `${customEmail.trim() ? 'Send Invite' : 'Add'} & Add ${selectedSecondParent.display_name}`
-                    : secondParentName.trim() && secondParentEmail.trim() 
-                      ? `Send Invites to ${nameInput} & ${secondParentName}` 
-                      : customEmail.trim()
-                        ? `Send Invite to ${nameInput}`
-                        : `Add ${nameInput} as Pending`) 
+                    ? `Send Invite & Add ${selectedSecondParent.display_name}`
+                    : secondParentName.trim() && secondParentEmail.trim()
+                      ? `Send Invites to ${nameInput} & ${secondParentName}`
+                      : `Send Invite to ${nameInput}`)
                   : "Enter name to continue"}
               </Button>
+            ) : (
+              /* No email: show share/copy options */
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground text-center">Choose how to deliver the invite</p>
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1 h-12 text-base font-semibold"
+                    onClick={async () => {
+                      addPendingMemberMutation.mutate(undefined, {
+                        onSuccess: async (result) => {
+                          const msg = buildInviteShareMessage().trim();
+                          if (Capacitor.isNativePlatform()) {
+                            try {
+                              await Share.share({
+                                title: `Join ${clubBranding?.name || teamName}`,
+                                text: msg,
+                                dialogTitle: 'Share invite',
+                              });
+                            } catch { /* cancelled */ }
+                          } else {
+                            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                          }
+                        },
+                      });
+                    }}
+                    disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
+                  >
+                    {addPendingMemberMutation.isPending ? (
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    ) : (
+                      <Share2 className="h-5 w-5 mr-2" />
+                    )}
+                    {nameInput.trim() ? `Share Invite` : "Enter name"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-12 px-4"
+                    onClick={async () => {
+                      addPendingMemberMutation.mutate(undefined, {
+                        onSuccess: async () => {
+                          try {
+                            await navigator.clipboard.writeText(inviteShareLink || inviteLink || "");
+                            toast({ title: "Invite link copied!" });
+                          } catch {
+                            toast({ title: "Failed to copy", variant: "destructive" });
+                          }
+                        },
+                      });
+                    }}
+                    disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
+                  >
+                    <Copy className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
             )}
           </TabsContent>
 
