@@ -1,7 +1,7 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby } from "lucide-react";
+import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -530,13 +530,19 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
             </div>
 
             {childrenOnEvent && childrenOnEvent.length > 0 && (
-              <div className="space-y-2 rounded-xl border border-border/50 bg-muted/20 p-2.5">
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+              <details className="rounded-xl border border-border/50 bg-muted/20 group">
+                <summary className="flex items-center gap-1.5 text-[11px] font-medium text-foreground cursor-pointer list-none p-2.5 [&::-webkit-details-marker]:hidden">
                   <Baby className="h-3.5 w-3.5 text-primary" />
                   <span>Children's RSVP</span>
-                </div>
-
-                <div className="space-y-2">
+                  {childRsvps && childRsvps.length > 0 ? (
+                    <span className="text-[10px] text-muted-foreground ml-auto mr-1">
+                      {childRsvps.filter(r => r.status === "going").length > 0 && `${childRsvps.filter(r => r.status === "going").length} going`}
+                      {childRsvps.filter(r => r.status === "maybe").length > 0 && ` · ${childRsvps.filter(r => r.status === "maybe").length} maybe`}
+                    </span>
+                  ) : null}
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 shrink-0" />
+                </summary>
+                <div className="space-y-2 px-2.5 pb-2.5">
                   {childrenOnEvent.map((child) => {
                     const childRsvp = childRsvps?.find((rsvp) => rsvp.child_id === child.id);
 
@@ -576,7 +582,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                     );
                   })}
                 </div>
-              </div>
+              </details>
             )}
 
             {/* Helper text when no RSVP selected */}
