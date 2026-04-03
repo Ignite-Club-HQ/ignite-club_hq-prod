@@ -1216,8 +1216,11 @@ export default function ClubUpgradePage() {
       {/* Team Limit Warning */}
       {renderTeamCountBanner()}
 
+      {/* Trial Banner */}
+      {isOnTrial && renderTrialBanner()}
+
       {/* Expiry Banner for active subscriptions */}
-      {(isProActive || isProFootballActive) && renderExpiryBanner()}
+      {(isProActive || isProFootballActive) && !isOnTrial && renderExpiryBanner()}
 
       {/* Info Card */}
       <Card className="bg-muted/50">
