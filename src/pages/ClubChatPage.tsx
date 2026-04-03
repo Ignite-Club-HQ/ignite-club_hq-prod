@@ -626,7 +626,8 @@ export default function ClubChatPage() {
 
   // Intersection observer for infinite scroll
   useEffect(() => {
-    if (!infiniteScrollEnabled || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
+    const scrollRoot = scrollAreaRef.current;
+    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
     
     const observer = new IntersectionObserver(
       (entries) => {
@@ -634,7 +635,7 @@ export default function ClubChatPage() {
           loadOlderMessages();
         }
       },
-      { threshold: 0.1 }
+      { root: scrollRoot, threshold: 0.1 }
     );
     
     observer.observe(loadTriggerRef.current);
