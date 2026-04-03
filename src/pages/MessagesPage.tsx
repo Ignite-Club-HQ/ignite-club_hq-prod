@@ -138,7 +138,7 @@ interface Club {
 }
 
 export default function MessagesPage() {
-  const { user, refreshUnreadCount } = useAuth();
+  const { user, initialized, refreshUnreadCount } = useAuth();
   usePageTitle("Messages");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
