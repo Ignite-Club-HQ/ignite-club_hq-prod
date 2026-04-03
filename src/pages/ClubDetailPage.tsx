@@ -205,6 +205,7 @@ export default function ClubDetailPage() {
         .from("teams")
         .select("*, team_folders!teams_folder_id_fkey(id, name)")
         .eq("club_id", id!)
+        .is("deleted_at", null)
         .order("name");
 
       if (error) throw error;
