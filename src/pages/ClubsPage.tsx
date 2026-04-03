@@ -63,6 +63,7 @@ export default function ClubsPage() {
       const { data, error } = await supabase
         .from("clubs")
         .select("id, name, logo_url, description, sport, is_pro, created_by, primary_sponsor_id")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
 
       if (error) throw error;

@@ -8,6 +8,7 @@ import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import InviteOtherParentSheet from "@/components/InviteOtherParentSheet";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -596,7 +597,11 @@ export default function TeamDetailPage() {
     },
   });
 
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDelete = async () => {
+    setIsDeleting(true);
     // Get all team members to notify them
     const { data: teamMembers } = await supabase
       .from("user_roles")
@@ -619,8 +624,13 @@ export default function TeamDetailPage() {
       }
     }
 
-    const { error } = await supabase.from("teams").delete().eq("id", id!);
+    // Soft-delete: set deleted_at instead of hard delete
+    const { error } = await supabase.from("teams").update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: user?.id,
+    } as any).eq("id", id!);
 
+    setIsDeleting(false);
     if (error) {
       toast({
         title: "Error",
@@ -630,8 +640,24 @@ export default function TeamDetailPage() {
       return;
     }
 
-    toast({ title: "Team deleted" });
+    setShowDeleteDialog(false);
+    toast({ title: "Team deleted", description: "You can restore it within 30 days." });
     navigate(`/clubs/${team?.club_id}`);
+  };
+
+  const handleRestoreTeam = async () => {
+    const { error } = await supabase.from("teams").update({
+      deleted_at: null,
+      deleted_by: null,
+    } as any).eq("id", id!);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to restore team.", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Team restored!" });
+    queryClient.invalidateQueries({ queryKey: ["team", id] });
   };
 
   if (isLoading) {
@@ -852,32 +878,45 @@ export default function TeamDetailPage() {
                 }
               />
               }
-              {isAdmin && <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Team
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Team?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete the team and all its events. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>}
+              {isAdmin && <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Team
+              </DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       </div>
+
+      {/* Soft-deleted banner */}
+      {(team as any)?.deleted_at && isAdmin && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-3 flex items-center gap-3">
+            <Trash2 className="h-5 w-5 text-destructive shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-destructive">This team was deleted</p>
+              <p className="text-xs text-muted-foreground">
+                Deleted {new Date((team as any).deleted_at).toLocaleDateString()} · Will be permanently removed after 30 days
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={handleRestoreTeam}>
+              <ArchiveRestore className="h-4 w-4 mr-1" />
+              Restore
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <ConfirmDeleteDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        entityName={team?.name || ""}
+        entityType="team"
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+      />
 
       {/* Archived Banner */}
       {(team as any)?.is_archived && (

@@ -1511,6 +1511,8 @@ export type Database = {
           contact_email: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           id: string
           is_pro: boolean
@@ -1576,6 +1578,8 @@ export type Database = {
           contact_email?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
           is_pro?: boolean
@@ -1641,6 +1645,8 @@ export type Database = {
           contact_email?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
           is_pro?: boolean
@@ -5487,6 +5493,8 @@ export type Database = {
           default_pitch_format: string | null
           default_pitch_orientation: string | null
           default_pitch_view: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           folder_id: string | null
           id: string
@@ -5516,6 +5524,8 @@ export type Database = {
           default_pitch_format?: string | null
           default_pitch_orientation?: string | null
           default_pitch_view?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           folder_id?: string | null
           id?: string
@@ -5545,6 +5555,8 @@ export type Database = {
           default_pitch_format?: string | null
           default_pitch_orientation?: string | null
           default_pitch_view?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           folder_id?: string | null
           id?: string
