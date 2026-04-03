@@ -445,7 +445,7 @@ export default function MessagesPage() {
           id,
           name,
           logo_url,
-          clubs (name, logo_url, sport)
+          clubs (id, name, logo_url, sport)
         `)
         .in("id", teamIds);
 
