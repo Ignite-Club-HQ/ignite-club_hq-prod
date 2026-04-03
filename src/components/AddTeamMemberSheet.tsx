@@ -1695,6 +1695,52 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </p>
             </div>
 
+            {/* Share invite via other channels */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-center">Share invite via</p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    const msg = buildInviteShareMessage().trim();
+                    if (Capacitor.isNativePlatform()) {
+                      try {
+                        await Share.share({
+                          title: `Join ${clubBranding?.name || teamName}`,
+                          text: msg,
+                          dialogTitle: `Share invite`,
+                        });
+                        return;
+                      } catch {
+                        // cancelled
+                      }
+                    }
+                    // Fallback: WhatsApp
+                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                  }}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteShareLink || inviteLink || "");
+                      toast({ title: "Invite link copied!" });
+                    } catch {
+                      toast({ title: "Failed to copy link", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Link
+                </Button>
+              </div>
+            </div>
+
             <p className="text-sm text-muted-foreground text-center">
               When they accept the invite, their name will be pre-filled as "{nameInput}"
             </p>
@@ -1702,6 +1748,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => {
                 setInviteLink(null);
+                setInviteShareLink(null);
                 setNameInput("");
                 setCustomEmail("");
                 setSingleChildren([]);
