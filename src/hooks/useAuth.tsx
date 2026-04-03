@@ -163,6 +163,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Flag to track if this is a fresh login (not a page refresh)
   const [isFreshLogin, setIsFreshLogin] = useState(false);
+  
+  // Ref to track the current user ID for use inside stable callbacks
+  const currentUserIdRef = useRef<string | null>(null);
 
   // CRITICAL FIX: applyTheme is now a direct parameter, not dependent on React state
   // This avoids stale closure issues during Google OAuth where isFreshLogin state
