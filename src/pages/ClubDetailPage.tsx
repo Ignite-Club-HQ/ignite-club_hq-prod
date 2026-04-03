@@ -5,6 +5,7 @@ import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shi
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
