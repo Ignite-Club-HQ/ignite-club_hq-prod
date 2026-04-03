@@ -959,8 +959,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
+      const shortCode = (primaryInvite as any)?.short_code || null;
+      const sLink = shortCode 
+        ? `https://igniteclubhq.app/j/${shortCode}` 
+        : link;
+
       return { 
         link, 
+        shareLink: sLink,
         email: customEmail.trim(), 
         childrenCount: validChildren.length, 
         childrenNames: validChildren.map(c => c.name.trim()),
@@ -970,8 +976,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentAddedDirectly,
       };
     },
-    onSuccess: async ({ link, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly }) => {
+    onSuccess: async ({ link, shareLink: sLink, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly }) => {
       setInviteLink(link);
+      setInviteShareLink(sLink);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
 
       if (secondParentAddedDirectly && selectedSecondParent) {
