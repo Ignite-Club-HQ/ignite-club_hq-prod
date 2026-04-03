@@ -890,6 +890,34 @@ export default function TeamDetailPage() {
         )}
       </div>
 
+      {/* Soft-deleted banner */}
+      {(team as any)?.deleted_at && isAdmin && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-3 flex items-center gap-3">
+            <Trash2 className="h-5 w-5 text-destructive shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-destructive">This team was deleted</p>
+              <p className="text-xs text-muted-foreground">
+                Deleted {new Date((team as any).deleted_at).toLocaleDateString()} · Will be permanently removed after 30 days
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={handleRestoreTeam}>
+              <ArchiveRestore className="h-4 w-4 mr-1" />
+              Restore
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <ConfirmDeleteDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        entityName={team?.name || ""}
+        entityType="team"
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+      />
+
       {/* Archived Banner */}
       {(team as any)?.is_archived && (
         <Card className="border-amber-500/40 bg-amber-50 dark:bg-amber-950/20">

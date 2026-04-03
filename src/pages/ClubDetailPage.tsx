@@ -845,6 +845,36 @@ export default function ClubDetailPage() {
         )}
       </div>
 
+      {/* Soft-deleted banner */}
+      {(club as any)?.deleted_at && isAdmin && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-3 flex items-center gap-3">
+            <Trash2 className="h-5 w-5 text-destructive shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-destructive">
+                This {club?.class_mode_enabled ? "organisation" : "club"} was deleted
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Deleted {new Date((club as any).deleted_at).toLocaleDateString()} · Will be permanently removed after 30 days
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={handleRestoreClub}>
+              <ArchiveRestore className="h-4 w-4 mr-1" />
+              Restore
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <ConfirmDeleteDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        entityName={club.name}
+        entityType={club?.class_mode_enabled ? "organisation" : "club"}
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+      />
+
       {/* Club Card */}
       <Card>
         <CardContent className="p-6">
