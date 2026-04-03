@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isNativePlatform } from "@/lib/nativePush";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, Users, CreditCard, Heart, ExternalLink } from "lucide-react";
+import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, Users, CreditCard, Heart, ExternalLink, Flame } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { isPast, parseISO, format, addMonths, addYears } from "date-fns";
 import { Button } from "@/components/ui/button";
