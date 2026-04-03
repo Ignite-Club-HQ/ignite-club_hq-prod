@@ -1094,11 +1094,34 @@ export default function MessagesPage() {
             <RefreshCw className="h-4 w-4 text-muted-foreground animate-spin" />
           )}
         </div>
-        <NewMessageMenu 
-          onNewDM={() => setShowDMDialog(true)}
-          onNewGroup={() => setShowGroupDialog(true)}
-          canCreateGroups={!!canCreateGroups}
-        />
+        <div className="flex items-center gap-2">
+          {/* Club filter button - only show when not in club theme mode and user has multiple clubs */}
+          {!activeClubFilter && displayMemberClubs.length > 1 && (
+            <Button
+              variant={hasLocalFilter ? "default" : "outline"}
+              size="icon"
+              onClick={() => {
+                if (hasLocalFilter) {
+                  setLocalClubFilter("all");
+                } else {
+                  // Cycle: show a simple drawer with club options
+                  setShowClubFilterDrawer(true);
+                }
+              }}
+              className="h-10 w-10 relative"
+            >
+              <Filter className="h-5 w-5" />
+              {hasLocalFilter && (
+                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary-foreground" />
+              )}
+            </Button>
+          )}
+          <NewMessageMenu 
+            onNewDM={() => setShowDMDialog(true)}
+            onNewGroup={() => setShowGroupDialog(true)}
+            canCreateGroups={!!canCreateGroups}
+          />
+        </div>
       </div>
 
       {/* DM and Group dialogs */}
