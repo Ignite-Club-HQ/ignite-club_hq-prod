@@ -146,6 +146,7 @@ export default function MessagesPage() {
   const [showDMDialog, setShowDMDialog] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
   const [localClubFilter, setLocalClubFilter] = useState("all");
+  const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
   // Effective club filter: use theme filter if active, otherwise use local filter
