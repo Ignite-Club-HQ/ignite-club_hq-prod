@@ -396,7 +396,8 @@ export default function TeamChatPage() {
 
   useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
-    if (!messages || !teamId) return;
+    // Guard: never replace existing messages with an empty array (transient cache state during resume)
+    if (!messages || !teamId || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
 
     setLocalMessages((prev) => {
       const mergedMessages = !prev
