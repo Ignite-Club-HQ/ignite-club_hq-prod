@@ -955,8 +955,8 @@ export default function MessagesPage() {
     let groups = leagueChats;
     
     // Apply club filter if active
-    if (activeClubFilter) {
-      groups = groups.filter((group: any) => group.club_id === activeClubFilter);
+    if (effectiveClubFilter) {
+      groups = groups.filter((group: any) => group.club_id === effectiveClubFilter);
     }
     
     if (!query) return groups;
@@ -965,16 +965,16 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || clubName.includes(query);
     });
-  }, [leagueChats, query, activeClubFilter]);
+  }, [leagueChats, query, effectiveClubFilter]);
 
   const filteredChatGroups = useMemo(() => {
     let groups = regularChatGroups;
     
     // Apply club filter if active
-    if (activeClubFilter) {
+    if (effectiveClubFilter) {
       groups = groups.filter((group: any) => 
-        group.club_id === activeClubFilter || 
-        (group.team_id && activeClubTeamIds.includes(group.team_id))
+        group.club_id === effectiveClubFilter || 
+        (group.team_id && (activeClubFilter ? activeClubTeamIds.includes(group.team_id) : displayTeams.some((t: any) => t.id === group.team_id && t.clubs?.id === effectiveClubFilter)))
       );
     }
     
@@ -985,20 +985,24 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || teamName.includes(query) || clubName.includes(query);
     });
-  }, [regularChatGroups, query, activeClubFilter, activeClubTeamIds]);
+  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams]);
 
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
     
-    // Apply club filter if active, but fall back to team.club id until the async
-    // activeClubTeamIds query finishes so login doesn't briefly hide all team chats.
-    if (activeClubFilter) {
-      const hasResolvedActiveClubTeams = activeClubTeamIds.length > 0;
-      teamsToFilter = teamsToFilter.filter((team: any) => {
-        const matchesResolvedIds = hasResolvedActiveClubTeams && activeClubTeamIds.includes(team.id);
-        const matchesClubRelation = team.clubs?.id === activeClubFilter;
-        return matchesResolvedIds || matchesClubRelation;
-      });
+    if (effectiveClubFilter) {
+      if (activeClubFilter) {
+        // Theme filter: use resolved team IDs with fallback
+        const hasResolvedActiveClubTeams = activeClubTeamIds.length > 0;
+        teamsToFilter = teamsToFilter.filter((team: any) => {
+          const matchesResolvedIds = hasResolvedActiveClubTeams && activeClubTeamIds.includes(team.id);
+          const matchesClubRelation = team.clubs?.id === activeClubFilter;
+          return matchesResolvedIds || matchesClubRelation;
+        });
+      } else {
+        // Local filter: use club relation on team
+        teamsToFilter = teamsToFilter.filter((team: any) => team.clubs?.id === effectiveClubFilter);
+      }
     }
     
     if (!query) {
@@ -1014,21 +1018,21 @@ export default function MessagesPage() {
       .sort((a: any, b: any) =>
         (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" })
       );
-  }, [displayTeams, query, activeClubFilter, activeClubTeamIds]);
+  }, [displayTeams, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds]);
 
   const filteredClubs = useMemo(() => {
     let clubsToFilter = displayClubsWithAnnouncements || [];
     
     // Apply club filter if active - only show the active club
-    if (activeClubFilter) {
-      clubsToFilter = clubsToFilter.filter((club: any) => club.id === activeClubFilter);
+    if (effectiveClubFilter) {
+      clubsToFilter = clubsToFilter.filter((club: any) => club.id === effectiveClubFilter);
     }
     
     if (!query) return clubsToFilter;
     return clubsToFilter.filter((club: any) =>
       club.name.toLowerCase().includes(query)
     );
-  }, [displayClubsWithAnnouncements, query, activeClubFilter]);
+  }, [displayClubsWithAnnouncements, query, effectiveClubFilter]);
 
   // Always show broadcast in club mode - it's a global announcements channel
   const showBroadcast = !query || "announcements".includes(query);
