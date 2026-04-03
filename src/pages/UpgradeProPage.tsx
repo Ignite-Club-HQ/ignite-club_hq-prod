@@ -612,10 +612,14 @@ export default function UpgradeProPage() {
     const isPro = tier === "pro";
     const Icon = isPro ? Crown : Target;
     const colorClass = isPro ? "yellow" : "emerald";
-    const title = isPro ? "Pro Active" : "Pro Football Active";
-    const description = isPro 
-      ? "This team has full access to all Pro features."
-      : "This team has access to the Soccer Pitch Board.";
+    const title = isOnTrial 
+      ? (isPro ? "Pro Trial Active" : "Pro Football Trial Active")
+      : (isPro ? "Pro Active" : "Pro Football Active");
+    const description = isOnTrial
+      ? `Your free trial ${isPro ? "gives this team full Pro access" : "includes the Soccer Pitch Board"}.`
+      : (isPro 
+        ? "This team has full access to all Pro features."
+        : "This team has access to the Soccer Pitch Board.");
 
     return (
       <Card className={`border-${colorClass}-500/50 bg-${colorClass}-500/10`}>
@@ -623,10 +627,24 @@ export default function UpgradeProPage() {
           <Icon className={`h-12 w-12 text-${colorClass}-500 mx-auto`} />
           <div>
             <h2 className="text-xl font-bold">{title}</h2>
+            {isOnTrial && (
+              <Badge className="mt-2 bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                Free Trial
+              </Badge>
+            )}
             <p className="text-muted-foreground mt-2">{description}</p>
           </div>
           
-          {expiresAt && (
+          {isOnTrial && trialEndsAt && (
+            <div className="p-3 rounded-lg bg-amber-500/10 flex items-center justify-center gap-2">
+              <Flame className="h-4 w-4 text-amber-500" />
+              <span className="text-sm">
+                Trial ends <strong>{format(trialEndsAt, "dd MMMM yyyy")}</strong>
+              </span>
+            </div>
+          )}
+
+          {!isOnTrial && expiresAt && (
             <div className={`p-3 rounded-lg ${isExpired ? 'bg-destructive/10' : 'bg-muted/50'} flex items-center justify-center gap-2`}>
               <Calendar className={`h-4 w-4 ${isExpired ? 'text-destructive' : 'text-muted-foreground'}`} />
               <span className={`text-sm ${isExpired ? 'text-destructive font-semibold' : ''}`}>
@@ -636,7 +654,7 @@ export default function UpgradeProPage() {
             </div>
           )}
 
-          {isExpired && (
+          {isExpired && !isOnTrial && (
             <p className="text-sm text-destructive">
               Your subscription has expired. Features will be disabled until you renew.
             </p>
