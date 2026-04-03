@@ -83,11 +83,15 @@ export function useInitialChatBottomPin({
     let observer: MutationObserver | null = null;
     let mountObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let postPinObserver: MutationObserver | null = null;
+    let postPinResizeObserver: ResizeObserver | null = null;
     let stabilityTimer: ReturnType<typeof setTimeout> | null = null;
     let maxTimer: ReturnType<typeof setTimeout> | null = null;
+    let postPinTimer: ReturnType<typeof setTimeout> | null = null;
     let rafId = 0;
     const STABILITY_MS = 100;
     const MAX_WAIT_MS = 1500;
+    const POST_PIN_GUARD_MS = 2000;
     const BOTTOM_THRESHOLD_PX = 2;
     const MAX_SETTLE_ATTEMPTS = 8;
 
@@ -95,14 +99,62 @@ export function useInitialChatBottomPin({
       observer?.disconnect();
       mountObserver?.disconnect();
       resizeObserver?.disconnect();
+      postPinObserver?.disconnect();
+      postPinResizeObserver?.disconnect();
       if (stabilityTimer) clearTimeout(stabilityTimer);
       if (maxTimer) clearTimeout(maxTimer);
+      if (postPinTimer) clearTimeout(postPinTimer);
       cancelAnimationFrame(rafId);
+    };
+
+    const startPostPinGuard = () => {
+      if (cancelled) return;
+
+      const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+      if (!viewport) return;
+
+      const guardSnap = () => {
+        if (cancelled) return;
+        scrollChatToBottom(scrollContainerRef.current);
+      };
+
+      postPinObserver?.disconnect();
+      postPinObserver = new MutationObserver(() => {
+        guardSnap();
+      });
+      postPinObserver.observe(viewport, { childList: true, subtree: true, characterData: true });
+
+      postPinResizeObserver?.disconnect();
+      if (typeof ResizeObserver !== "undefined") {
+        postPinResizeObserver = new ResizeObserver(() => {
+          guardSnap();
+        });
+
+        postPinResizeObserver.observe(viewport);
+
+        const contentTarget =
+          bottomAnchorRef?.current?.parentElement ??
+          viewport.firstElementChild ??
+          viewport;
+
+        if (contentTarget instanceof HTMLElement && contentTarget !== viewport) {
+          postPinResizeObserver.observe(contentTarget);
+        }
+      }
+
+      guardSnap();
+      postPinTimer = setTimeout(() => {
+        postPinObserver?.disconnect();
+        postPinObserver = null;
+        postPinResizeObserver?.disconnect();
+        postPinResizeObserver = null;
+      }, POST_PIN_GUARD_MS);
     };
 
     const reveal = () => {
       pinnedKeyRef.current = resetKey;
       setIsPinned(true);
+      startPostPinGuard();
       onPinnedRef.current?.();
     };
 
