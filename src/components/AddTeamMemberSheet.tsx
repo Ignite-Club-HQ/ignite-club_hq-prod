@@ -123,6 +123,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [inviteShareLink, setInviteShareLink] = useState<string | null>(null);
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [mode, setMode] = useState<"single" | "bulk">("single");
   // Single invite children (for parent role)
   const [singleChildren, setSingleChildren] = useState<BulkChild[]>([]);
