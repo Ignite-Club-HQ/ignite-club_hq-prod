@@ -1488,6 +1488,40 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
   });
 
+  const buildInviteShareMessage = () => {
+    const clubName = clubBranding?.name || "";
+    const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
+    const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(selectedRole);
+    const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
+    const email = customEmail.trim();
+    const appDownload = `\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
+    const emailNote = email ? `\n\nSign up with ${email} so your account links automatically.` : "";
+    const link = inviteShareLink || inviteLink || "";
+
+    if (isAdminRole && teamName) {
+      return `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}. Tap here to get started: ${link}${appDownload}${emailNote}`;
+    }
+    if (isAdminRole && clubName) {
+      return `You've been invited to help run ${clubName} as ${roleName}. Tap here to get started: ${link}${appDownload}${emailNote}`;
+    }
+    if (selectedRole === "parent" && childrenNames.length === 1) {
+      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
+    }
+    if (selectedRole === "parent" && childrenNames.length > 1) {
+      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
+    }
+    if (selectedRole === "parent" && teamName) {
+      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
+    }
+    if (teamName) {
+      return `You've been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here to join: ${link}${appDownload}${emailNote}`;
+    }
+    if (clubName) {
+      return `You've been invited to join ${clubName}! Tap here to get started: ${link}${appDownload}${emailNote}`;
+    }
+    return `You've been invited to join the team! Tap here to get started: ${link}${appDownload}${emailNote}`;
+  };
+
   const handleClose = () => {
     setOpen(false);
     setNameInput("");
