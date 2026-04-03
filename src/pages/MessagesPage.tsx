@@ -127,7 +127,7 @@ interface Team {
   id: string;
   name: string;
   logo_url: string | null;
-  clubs: { name: string; logo_url: string | null; sport: string | null };
+  clubs: { id: string; name: string; logo_url: string | null; sport: string | null };
 }
 
 interface Club {
