@@ -198,6 +198,8 @@ export default function UpgradeProPage() {
   const showFootballOption = isSoccerClub(team?.clubs?.sport);
   const expiresAt = subscription?.expires_at ? parseISO(subscription.expires_at) : null;
   const isExpired = expiresAt ? isPast(expiresAt) : false;
+  const isOnTrial = subscription?.is_trial && subscription?.trial_ends_at && !isPast(parseISO(subscription.trial_ends_at));
+  const trialEndsAt = subscription?.trial_ends_at ? parseISO(subscription.trial_ends_at) : null;
   
 
   const applyPromoMutation = useMutation({
