@@ -877,28 +877,13 @@ export default function TeamDetailPage() {
                 }
               />
               }
-              {isAdmin && <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Team
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Team?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete the team and all its events. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>}
+              {isAdmin && <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Team
+              </DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
