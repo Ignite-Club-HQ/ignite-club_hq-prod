@@ -75,12 +75,45 @@ const formatMessageDate = (dateStr: string) => {
   return format(date, "MMM d, h:mm a");
 };
 
+const getCachedTeamMessages = (teamId: string): Message[] =>
+  getCachedMessages("team", teamId).map((cachedMessage) => ({
+    id: cachedMessage.id,
+    team_id: teamId,
+    author_id: cachedMessage.author_id,
+    text: cachedMessage.text,
+    image_url: cachedMessage.image_url,
+    reply_to_id: cachedMessage.reply_to_id,
+    created_at: cachedMessage.created_at,
+    is_club_announcement: Boolean(cachedMessage.is_club_announcement),
+    club_announcement_name:
+      typeof cachedMessage.club_announcement_name === "string"
+        ? cachedMessage.club_announcement_name
+        : null,
+    profiles: cachedMessage.profiles,
+    reactions: (cachedMessage.reactions || []).map((reaction) => ({
+      id: reaction.id || `cached-${cachedMessage.id}-${reaction.user_id}-${reaction.reaction_type}`,
+      user_id: reaction.user_id,
+      reaction_type: reaction.reaction_type,
+    })),
+    reply_to: cachedMessage.reply_to
+      ? {
+          text: cachedMessage.reply_to.text,
+          profiles:
+            cachedMessage.reply_to.profiles ??
+            (cachedMessage.reply_to.author
+              ? { display_name: cachedMessage.reply_to.author.display_name }
+              : null),
+        }
+      : null,
+  }));
+
 export default function TeamChatPage() {
   const { teamId } = useParams<{ teamId: string }>();
-  const { user, profile, refreshUnreadCount } = useAuth();
+  const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -194,7 +227,7 @@ export default function TeamChatPage() {
       
       return !!teamRoleResult.data || !!clubRoleResult.data || !!appAdminResult.data;
     },
-    enabled: !!teamId && !!user,
+    enabled: !!teamId && authReady,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -321,17 +354,22 @@ export default function TeamChatPage() {
 
       return { messages, hasOlderMessages: hasMore };
     },
-    enabled: !!teamId,
+    enabled: !!teamId && authReady,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
     refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
-    placeholderData: (prev: any) => prev,
-  });
+    placeholderData: (prev: any) => {
+      if (prev) return prev;
+      if (!teamId) return undefined;
 
-  // Show loading only when we have no data at all (not when refetching)
-  const showLoading = loadingMessages && !messagesData;
+      const cachedMessages = getCachedTeamMessages(teamId);
+      if (!cachedMessages.length) return undefined;
+
+      return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+    },
+  });
 
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
@@ -346,8 +384,13 @@ export default function TeamChatPage() {
   }, [messagesData]);
 
   // Local copy used for rendering so optimistic updates are instant
-  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(undefined);
+  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() =>
+    teamId ? getCachedTeamMessages(teamId) : undefined,
+  );
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  const showLoading =
+    (!authReady && !(localMessages?.length)) ||
+    (loadingMessages && !messagesData && !(localMessages?.length));
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
@@ -355,8 +398,10 @@ export default function TeamChatPage() {
   }, [localMessages]);
   const { getProfile } = useProfiles(authorIds);
   
-  // Reset scroll state when teamId changes
+  // Reset per-thread scroll/message state when teamId changes so the initial
+  // bottom-pin runs against the new chat, not stale messages from the last team.
   useEffect(() => {
+    setLocalMessages(teamId ? getCachedTeamMessages(teamId) : undefined);
     setInfiniteScrollEnabled(false);
   }, [teamId]);
 
@@ -448,21 +493,21 @@ export default function TeamChatPage() {
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
-    if (!teamId || loadingMessages || isFetching) return;
+    if (!teamId || !authReady || loadingMessages || isFetching) return;
     
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("team", teamId, fetchedCount)) {
       console.log("[TeamChat] Messages unexpectedly 0, triggering refetch");
       queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
     }
-  }, [teamId, messages, loadingMessages, isFetching, queryClient]);
+  }, [teamId, authReady, messages, loadingMessages, isFetching, queryClient]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
     let lastRefresh = Date.now();
     
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible" && teamId) {
+      if (document.visibilityState === "visible" && teamId && authReady) {
         const timeSinceLastRefresh = Date.now() - lastRefresh;
         // Only refresh if it's been more than 30 seconds
         if (timeSinceLastRefresh > 30000) {
@@ -475,7 +520,7 @@ export default function TeamChatPage() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [teamId, queryClient]);
+  }, [teamId, authReady, queryClient]);
 
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
@@ -633,7 +678,8 @@ export default function TeamChatPage() {
 
   // Intersection observer for infinite scroll
   useEffect(() => {
-    if (!infiniteScrollEnabled || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
+    const scrollRoot = scrollAreaRef.current;
+    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
     
     const observer = new IntersectionObserver(
       (entries) => {
@@ -641,7 +687,7 @@ export default function TeamChatPage() {
           loadOlderMessages();
         }
       },
-      { threshold: 0.1 }
+      { root: scrollRoot, threshold: 0.1 }
     );
     
     observer.observe(loadTriggerRef.current);

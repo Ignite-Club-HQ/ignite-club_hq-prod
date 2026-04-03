@@ -57,8 +57,9 @@ interface ClubAdminMessage {
 export default function ClubAdminChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, initialized } = useAuth();
   const queryClient = useQueryClient();
+  const authReady = !!user && initialized;
   const [message, setMessage] = useState("");
   const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
@@ -98,7 +99,7 @@ export default function ClubAdminChatPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!conversationId,
+    enabled: !!conversationId && authReady,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -114,7 +115,7 @@ export default function ClubAdminChatPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!conversation?.club_id,
+    enabled: !!conversation?.club_id && authReady,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -130,7 +131,7 @@ export default function ClubAdminChatPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!conversation?.member_user_id,
+    enabled: !!conversation?.member_user_id && authReady,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -210,15 +211,13 @@ export default function ClubAdminChatPage() {
 
       return { messages, hasOlderMessages: hasMore };
     },
-    enabled: !!conversationId,
+    enabled: !!conversationId && authReady,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => prev,
   });
-
-  const showLoading = messagesLoading && !messagesData;
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
@@ -233,6 +232,9 @@ export default function ClubAdminChatPage() {
   const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(undefined);
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
+  const showLoading =
+    (!authReady && !(localMessages?.length)) ||
+    (messagesLoading && !messagesData && !(localMessages?.length));
 
   const authorIds = useMemo(() => {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];

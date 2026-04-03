@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -163,6 +163,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Flag to track if this is a fresh login (not a page refresh)
   const [isFreshLogin, setIsFreshLogin] = useState(false);
+  
+  // Ref to track the current user ID for use inside stable callbacks
+  const currentUserIdRef = useRef<string | null>(null);
 
   // CRITICAL FIX: applyTheme is now a direct parameter, not dependent on React state
   // This avoids stale closure issues during Google OAuth where isFreshLogin state
@@ -402,21 +405,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         console.log('Auth state change:', event, currentSession?.user?.id, 'isNative:', isNative);
         
+        const incomingUserId = currentSession?.user?.id ?? null;
+        const previousUserId = currentUserIdRef.current || cachedUserId;
+        
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
+        currentUserIdRef.current = incomingUserId;
         
         if (event === 'SIGNED_IN') {
-          // FRESH LOGIN: Reset state to block AppLayout until profile is fetched
-          // This prevents the double-flash to complete-profile page
-          console.log('[Auth] SIGNED_IN event - processing login', isNative ? '(native app)' : '(web)');
-          // Clear all cached query data to force fresh fetches with the new session
-          // This prevents stale/empty RLS results from a previous logged-out window
-          queryClient.clear();
-          setIsFreshLogin(true);
-          setInitialized(false);
-          setLoading(true);
-          setProfileLoading(true);
-          handleSession(currentSession, false, true);
+          const isSameUserResuming = !!previousUserId && previousUserId === incomingUserId;
+          
+          if (isSameUserResuming) {
+            // Same user resuming (e.g., phone lock/unlock, app background/foreground)
+            // Do NOT clear query cache — this causes data to flash/disappear
+            console.log('[Auth] SIGNED_IN event - same user resuming, skipping cache clear', isNative ? '(native app)' : '(web)');
+            handleSession(currentSession, false, false);
+          } else {
+            // FRESH LOGIN or different user: Reset state to block AppLayout until profile is fetched
+            console.log('[Auth] SIGNED_IN event - processing login', isNative ? '(native app)' : '(web)');
+            // Clear all cached query data to force fresh fetches with the new session
+            // This prevents stale/empty RLS results from a previous logged-out window
+            queryClient.clear();
+            setIsFreshLogin(true);
+            setInitialized(false);
+            setLoading(true);
+            setProfileLoading(true);
+            handleSession(currentSession, false, true);
+          }
         } else if ((event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
           // Page refresh or token refresh - don't override theme
           console.log('[Auth] Session restored:', event, isNative ? '(native app)' : '(web)');

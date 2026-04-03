@@ -98,13 +98,51 @@ interface MessageReaction {
   group_message_id: string | null;
 }
 
+const getCachedGroupMessages = (groupId: string) => {
+  const cachedMessages = getCachedMessages("group", groupId);
+
+  const messages = cachedMessages.map((cachedMessage) => ({
+    id: cachedMessage.id,
+    text: cachedMessage.text,
+    image_url: cachedMessage.image_url,
+    created_at: cachedMessage.created_at,
+    author_id: cachedMessage.author_id,
+    group_id: groupId,
+    reply_to_id: cachedMessage.reply_to_id,
+    author: cachedMessage.profiles
+      ? {
+          display_name: cachedMessage.profiles.display_name,
+          avatar_url: cachedMessage.profiles.avatar_url,
+        }
+      : null,
+    reply_to: cachedMessage.reply_to
+      ? {
+          text: cachedMessage.reply_to.text,
+          author: cachedMessage.reply_to.author ?? cachedMessage.reply_to.profiles ?? null,
+        }
+      : null,
+  })) as GroupMessage[];
+
+  const reactions = cachedMessages.flatMap((cachedMessage) =>
+    (cachedMessage.reactions || []).map((reaction) => ({
+      id: reaction.id || `cached-${cachedMessage.id}-${reaction.user_id}-${reaction.reaction_type}`,
+      user_id: reaction.user_id,
+      reaction_type: reaction.reaction_type,
+      group_message_id: cachedMessage.id,
+    })),
+  ) as MessageReaction[];
+
+  return { messages, reactions };
+};
+
 export default function GroupChatPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, profile, refreshUnreadCount } = useAuth();
+  const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const queryClient = useQueryClient();
+  const authReady = !!user && initialized;
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
@@ -222,7 +260,7 @@ export default function GroupChatPage() {
       
       return !!teamRoleResult.data || !!clubRoleResult.data || !!appAdminResult.data;
     },
-    enabled: !!groupId && !!user && !!group,
+    enabled: !!groupId && authReady && !!group,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -352,15 +390,21 @@ export default function GroupChatPage() {
           : (reactionsResult.data || []) as MessageReaction[],
       };
     },
-    enabled: !!groupId,
+    enabled: !!groupId && authReady,
     staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
-    placeholderData: (prev: any) => prev,
-  });
+    placeholderData: (prev: any) => {
+      if (prev) return prev;
+      if (!groupId) return undefined;
 
-  const showLoading = messagesLoading && !messagesData;
+      const cachedData = getCachedGroupMessages(groupId);
+      if (!cachedData.messages.length) return undefined;
+
+      return { ...cachedData, hasOlderMessages: false, fromCache: true };
+    },
+  });
 
   // Extract messages and reactions from query data
   const messages = useMemo(() => {
@@ -375,8 +419,13 @@ export default function GroupChatPage() {
   }, [messagesData]);
 
   // Local copy used for rendering so optimistic updates are instant
-  const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(undefined);
+  const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(() =>
+    groupId ? getCachedGroupMessages(groupId).messages : undefined,
+  );
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  const showLoading =
+    (!authReady && !(localMessages?.length)) ||
+    (messagesLoading && !messagesData && !(localMessages?.length));
 
   // Extract top-level reactions from query data (must be before useLayoutEffect that uses it)
   const reactions = useMemo(() => {
@@ -392,6 +441,7 @@ export default function GroupChatPage() {
   
   // Reset scroll state when groupId changes
   useEffect(() => {
+    setLocalMessages(groupId ? getCachedGroupMessages(groupId).messages : undefined);
     setInfiniteScrollEnabled(false);
   }, [groupId]);
 
@@ -493,21 +543,21 @@ export default function GroupChatPage() {
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
-    if (!groupId || messagesLoading) return;
+    if (!groupId || !authReady || messagesLoading) return;
     
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("group", groupId, fetchedCount)) {
       console.log("[GroupChat] Messages unexpectedly 0, triggering refetch");
       queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
     }
-  }, [groupId, messages, messagesLoading, queryClient]);
+  }, [groupId, authReady, messages, messagesLoading, queryClient]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
     let lastRefresh = Date.now();
     
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible" && groupId) {
+      if (document.visibilityState === "visible" && groupId && authReady) {
         const timeSinceLastRefresh = Date.now() - lastRefresh;
         // Only refresh if it's been more than 30 seconds
         if (timeSinceLastRefresh > 30000) {
@@ -520,7 +570,7 @@ export default function GroupChatPage() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [groupId, queryClient]);
+  }, [groupId, authReady, queryClient]);
 
   // Always ensure profiles are loaded for messages with missing author data
   useEffect(() => {
@@ -672,7 +722,8 @@ export default function GroupChatPage() {
 
   // Intersection observer for infinite scroll
   useEffect(() => {
-    if (!infiniteScrollEnabled || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
+    const scrollRoot = scrollAreaRef.current;
+    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
     
     const observer = new IntersectionObserver(
       (entries) => {
@@ -680,7 +731,7 @@ export default function GroupChatPage() {
           loadOlderMessages();
         }
       },
-      { threshold: 0.1 }
+      { root: scrollRoot, threshold: 0.1 }
     );
     
     observer.observe(loadTriggerRef.current);

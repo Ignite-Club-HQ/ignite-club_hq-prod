@@ -26,7 +26,7 @@ import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getCachedMessages, cacheMessages, CachedMessage } from "@/lib/messageCache";
+import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
@@ -69,13 +69,43 @@ interface DirectConversation {
   created_at: string;
   updated_at: string;
 }
+
+const getCachedDirectMessages = (conversationId: string): DirectMessage[] =>
+  getCachedMessages("dm", conversationId).map((cachedMessage) => ({
+    id: cachedMessage.id,
+    text: cachedMessage.text,
+    image_url: cachedMessage.image_url,
+    created_at: cachedMessage.created_at,
+    author_id: cachedMessage.author_id,
+    conversation_id: conversationId,
+    reply_to_id: cachedMessage.reply_to_id,
+    author: cachedMessage.profiles
+      ? {
+          display_name: cachedMessage.profiles.display_name,
+          avatar_url: cachedMessage.profiles.avatar_url,
+        }
+      : undefined,
+    reply_to: cachedMessage.reply_to
+      ? {
+          text: cachedMessage.reply_to.text,
+          author: cachedMessage.reply_to.author || cachedMessage.reply_to.profiles,
+        }
+      : null,
+    reactions: (cachedMessage.reactions || []).map((reaction) => ({
+      id: reaction.id || `cached-${cachedMessage.id}-${reaction.user_id}-${reaction.reaction_type}`,
+      user_id: reaction.user_id,
+      reaction_type: reaction.reaction_type,
+    })),
+  }));
+
 export default function DirectMessagePage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, profile } = useAuth();
+  const { user, profile, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const queryClient = useQueryClient();
+  const authReady = !!user && initialized;
   const [message, setMessage] = useState("");
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
@@ -125,7 +155,7 @@ export default function DirectMessagePage() {
       if (error) throw error;
       return data as DirectConversation;
     },
-    enabled: !!conversationId,
+    enabled: !!conversationId && authReady,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -173,7 +203,7 @@ export default function DirectMessagePage() {
       if (error) throw error;
       return data;
     },
-    enabled: !!otherUserId,
+    enabled: !!otherUserId && authReady,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -193,7 +223,7 @@ export default function DirectMessagePage() {
       }
       return data as boolean;
     },
-    enabled: !!otherUserId,
+    enabled: !!otherUserId && authReady,
     staleTime: 30 * 1000, // Shorter stale time - 30 seconds
     refetchOnMount: true, // Always re-check when returning to page
   });
@@ -295,7 +325,7 @@ export default function DirectMessagePage() {
         hasOlderMessages: hasMore,
       };
     },
-    enabled: !!conversationId,
+    enabled: !!conversationId && authReady,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: 'always', // Always refetch on mount to pick up reactions/messages added while away
@@ -303,31 +333,12 @@ export default function DirectMessagePage() {
     placeholderData: () => {
       // Return cached messages as placeholder for instant load
       if (!conversationId) return undefined;
-      const cached = getCachedMessages("dm", conversationId);
-      if (!cached.length) return undefined;
-      
-      const messages: DirectMessage[] = cached.map(c => ({
-        id: c.id,
-        text: c.text,
-        image_url: c.image_url,
-        created_at: c.created_at,
-        author_id: c.author_id,
-        conversation_id: conversationId,
-        reply_to_id: c.reply_to_id,
-        author: c.profiles ? { display_name: c.profiles.display_name, avatar_url: c.profiles.avatar_url } : undefined,
-        reply_to: c.reply_to ? { text: c.reply_to.text, author: c.reply_to.author || c.reply_to.profiles } : null,
-        reactions: (c.reactions || []).map((r: any) => ({
-          id: r.id || "",
-          user_id: r.user_id,
-          reaction_type: r.reaction_type,
-        })),
-      }));
+      const messages = getCachedDirectMessages(conversationId);
+      if (!messages.length) return undefined;
       
       return { messages, hasOlderMessages: false };
     },
   });
-
-  const showLoading = messagesLoading && !messagesData;
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
@@ -339,10 +350,15 @@ export default function DirectMessagePage() {
     );
   }, [messagesData]);
 
-  const [localMessages, setLocalMessages] = useState<DirectMessage[] | undefined>(undefined);
+  const [localMessages, setLocalMessages] = useState<DirectMessage[] | undefined>(() =>
+    conversationId ? getCachedDirectMessages(conversationId) : undefined,
+  );
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  const showLoading =
+    (!authReady && !(localMessages?.length)) ||
+    (messagesLoading && !messagesData && !(localMessages?.length));
 
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
@@ -371,6 +387,7 @@ export default function DirectMessagePage() {
     }
   }, [localMessages, user?.id, markMessagesAsRead]);
   useEffect(() => {
+    setLocalMessages(conversationId ? getCachedDirectMessages(conversationId) : undefined);
     setInfiniteScrollEnabled(false);
   }, [conversationId]);
 
@@ -457,12 +474,22 @@ export default function DirectMessagePage() {
     }
   }, [messagesData]);
 
+  useEffect(() => {
+    if (!conversationId || !authReady || messagesLoading) return;
+
+    const fetchedCount = messages?.length ?? 0;
+    if (shouldRefetchMessages("dm", conversationId, fetchedCount)) {
+      console.log("[DirectMessage] Messages unexpectedly 0, triggering refetch");
+      queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+    }
+  }, [conversationId, authReady, messages, messagesLoading, queryClient]);
+
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
     let lastRefresh = Date.now();
     
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible" && conversationId) {
+      if (document.visibilityState === "visible" && conversationId && authReady) {
         const timeSinceLastRefresh = Date.now() - lastRefresh;
         // Only refresh if it's been more than 30 seconds
         if (timeSinceLastRefresh > 30000) {
@@ -475,7 +502,7 @@ export default function DirectMessagePage() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [conversationId, queryClient]);
+  }, [conversationId, authReady, queryClient]);
 
   // Send message mutation
   const sendMessageMutation = useMutation({

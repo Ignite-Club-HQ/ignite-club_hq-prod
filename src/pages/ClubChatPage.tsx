@@ -66,13 +66,41 @@ interface Message {
   } | null;
 }
 
+const getCachedClubMessages = (clubId: string): Message[] =>
+  getCachedMessages("club", clubId).map((cachedMessage) => ({
+    id: cachedMessage.id,
+    club_id: clubId,
+    author_id: cachedMessage.author_id,
+    text: cachedMessage.text,
+    image_url: cachedMessage.image_url,
+    reply_to_id: cachedMessage.reply_to_id,
+    created_at: cachedMessage.created_at,
+    profiles: cachedMessage.profiles,
+    reactions: (cachedMessage.reactions || []).map((reaction) => ({
+      id: reaction.id || `cached-${cachedMessage.id}-${reaction.user_id}-${reaction.reaction_type}`,
+      user_id: reaction.user_id,
+      reaction_type: reaction.reaction_type,
+    })),
+    reply_to: cachedMessage.reply_to
+      ? {
+          text: cachedMessage.reply_to.text,
+          profiles:
+            cachedMessage.reply_to.profiles ??
+            (cachedMessage.reply_to.author
+              ? { display_name: cachedMessage.reply_to.author.display_name }
+              : null),
+        }
+      : null,
+  }));
+
 export default function ClubChatPage() {
   const { clubId } = useParams<{ clubId: string }>();
-  const { user, profile, refreshUnreadCount } = useAuth();
+  const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -166,7 +194,7 @@ export default function ClubChatPage() {
         .maybeSingle();
       return !!data;
     },
-    enabled: !!user,
+    enabled: authReady,
   });
 
   // Check if user is club admin
@@ -182,7 +210,7 @@ export default function ClubChatPage() {
         .maybeSingle();
       return !!data;
     },
-    enabled: !!user && !!clubId,
+    enabled: authReady && !!clubId,
   });
 
   // Check for club-level subscription (Club Chat requires CLUB-level Pro, not team-level Pro)
@@ -325,15 +353,21 @@ export default function ClubChatPage() {
 
       return { messages, hasOlderMessages: hasMore };
     },
-    enabled: !!clubId,
+    enabled: !!clubId && authReady,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
-    placeholderData: (prev: any) => prev,
-  });
+    placeholderData: (prev: any) => {
+      if (prev) return prev;
+      if (!clubId) return undefined;
 
-  const showLoading = isLoading && !messagesData;
+      const cachedMessages = getCachedClubMessages(clubId);
+      if (!cachedMessages.length) return undefined;
+
+      return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+    },
+  });
 
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
@@ -348,8 +382,13 @@ export default function ClubChatPage() {
   }, [messagesData]);
 
   // Local copy used for rendering so optimistic updates are instant
-  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(undefined);
+  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() =>
+    clubId ? getCachedClubMessages(clubId) : undefined,
+  );
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  const showLoading =
+    (!authReady && !(localMessages?.length)) ||
+    (isLoading && !messagesData && !(localMessages?.length));
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
@@ -359,6 +398,7 @@ export default function ClubChatPage() {
   
   // Reset scroll state when clubId changes
   useEffect(() => {
+    setLocalMessages(clubId ? getCachedClubMessages(clubId) : undefined);
     setInfiniteScrollEnabled(false);
   }, [clubId]);
 
@@ -448,21 +488,21 @@ export default function ClubChatPage() {
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
-    if (!clubId || isLoading) return;
+    if (!clubId || !authReady || isLoading) return;
     
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("club", clubId, fetchedCount)) {
       console.log("[ClubChat] Messages unexpectedly 0, triggering refetch");
       queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
     }
-  }, [clubId, messages, isLoading, queryClient]);
+  }, [clubId, authReady, messages, isLoading, queryClient]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
     let lastRefresh = Date.now();
     
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible" && clubId) {
+      if (document.visibilityState === "visible" && clubId && authReady) {
         const timeSinceLastRefresh = Date.now() - lastRefresh;
         // Only refresh if it's been more than 30 seconds
         if (timeSinceLastRefresh > 30000) {
@@ -475,7 +515,7 @@ export default function ClubChatPage() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [clubId, queryClient]);
+  }, [clubId, authReady, queryClient]);
 
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
@@ -626,7 +666,8 @@ export default function ClubChatPage() {
 
   // Intersection observer for infinite scroll
   useEffect(() => {
-    if (!infiniteScrollEnabled || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
+    const scrollRoot = scrollAreaRef.current;
+    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
     
     const observer = new IntersectionObserver(
       (entries) => {
@@ -634,7 +675,7 @@ export default function ClubChatPage() {
           loadOlderMessages();
         }
       },
-      { threshold: 0.1 }
+      { root: scrollRoot, threshold: 0.1 }
     );
     
     observer.observe(loadTriggerRef.current);

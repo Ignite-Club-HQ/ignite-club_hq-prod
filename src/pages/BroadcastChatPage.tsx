@@ -56,12 +56,29 @@ interface Message {
   } | null;
 }
 
+const getCachedBroadcastMessages = (): Message[] =>
+  getCachedMessages("broadcast", "broadcast").map((cachedMessage) => ({
+    id: cachedMessage.id,
+    author_id: cachedMessage.author_id,
+    text: cachedMessage.text,
+    image_url: cachedMessage.image_url,
+    reply_to_id: cachedMessage.reply_to_id,
+    created_at: cachedMessage.created_at,
+    reactions: (cachedMessage.reactions || []).map((reaction) => ({
+      id: reaction.id || `cached-${cachedMessage.id}-${reaction.user_id}-${reaction.reaction_type}`,
+      user_id: reaction.user_id,
+      reaction_type: reaction.reaction_type,
+    })),
+    reply_to: cachedMessage.reply_to ? { text: cachedMessage.reply_to.text } : null,
+  }));
+
 export default function BroadcastChatPage() {
-  const { user, refreshUnreadCount } = useAuth();
+  const { user, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -128,7 +145,7 @@ export default function BroadcastChatPage() {
         .maybeSingle();
       return !!data;
     },
-    enabled: !!user,
+    enabled: authReady,
   });
 
   const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
@@ -239,15 +256,20 @@ export default function BroadcastChatPage() {
 
       return { messages, hasOlderMessages: hasMore };
     },
-    enabled: !!user,
+    enabled: authReady,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
-    placeholderData: (prev: any) => prev,
-  });
+    placeholderData: (prev: any) => {
+      if (prev) return prev;
 
-  const showLoading = isLoading && !messagesData;
+      const cachedMessages = getCachedBroadcastMessages();
+      if (!cachedMessages.length) return undefined;
+
+      return { messages: cachedMessages, hasOlderMessages: false, fromCache: true };
+    },
+  });
 
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
@@ -262,9 +284,12 @@ export default function BroadcastChatPage() {
   }, [messagesData]);
 
   // Local copy used for rendering so optimistic updates are instant
-  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(undefined);
+  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() => getCachedBroadcastMessages());
  
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  const showLoading =
+    (!authReady && !(localMessages?.length)) ||
+    (isLoading && !messagesData && !(localMessages?.length));
 
   const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
@@ -350,21 +375,21 @@ export default function BroadcastChatPage() {
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
-    if (isLoading) return;
+    if (!authReady || isLoading) return;
     
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("broadcast", "broadcast", fetchedCount)) {
       console.log("[BroadcastChat] Messages unexpectedly 0, triggering refetch");
       queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
     }
-  }, [messages, isLoading, queryClient]);
+  }, [authReady, messages, isLoading, queryClient]);
 
   // Visibility change handler - refetch messages when app becomes visible (e.g., phone unlock)
   useEffect(() => {
     let lastRefresh = Date.now();
     
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && authReady) {
         const timeSinceLastRefresh = Date.now() - lastRefresh;
         // Only refresh if it's been more than 30 seconds
         if (timeSinceLastRefresh > 30000) {
@@ -377,7 +402,7 @@ export default function BroadcastChatPage() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [queryClient]);
+  }, [authReady, queryClient]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
@@ -488,7 +513,8 @@ export default function BroadcastChatPage() {
 
   // Intersection observer for infinite scroll
   useEffect(() => {
-    if (!infiniteScrollEnabled || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
+    const scrollRoot = scrollAreaRef.current;
+    if (!infiniteScrollEnabled || !scrollRoot || !loadTriggerRef.current || !hasOlderMessages || searchQuery) return;
     
     const observer = new IntersectionObserver(
       (entries) => {
@@ -496,7 +522,7 @@ export default function BroadcastChatPage() {
           loadOlderMessages();
         }
       },
-      { threshold: 0.1 }
+      { root: scrollRoot, threshold: 0.1 }
     );
     
     observer.observe(loadTriggerRef.current);
