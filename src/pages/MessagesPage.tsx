@@ -138,7 +138,7 @@ interface Club {
 }
 
 export default function MessagesPage() {
-  const { user, refreshUnreadCount } = useAuth();
+  const { user, initialized, refreshUnreadCount } = useAuth();
   usePageTitle("Messages");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -239,7 +239,7 @@ export default function MessagesPage() {
       
       return counts;
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     refetchInterval: 30000,
     staleTime: 30000,
     placeholderData: (prev) => prev,
@@ -280,7 +280,7 @@ export default function MessagesPage() {
       if (error) throw error;
       return !!data;
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     retry: 3,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -307,7 +307,7 @@ export default function MessagesPage() {
 
       return data as Club[];
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     retry: 3,
     staleTime: 5 * 60 * 1000,
     placeholderData: cachedData?.adminClubs ?? ((prev) => prev),
@@ -373,7 +373,7 @@ export default function MessagesPage() {
       
       return { clubs, latestMessages };
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 60000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
@@ -417,7 +417,7 @@ export default function MessagesPage() {
         profiles: { display_name: authorName }
       };
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 60000,
     placeholderData: (prev) => prev,
   });
@@ -494,7 +494,7 @@ export default function MessagesPage() {
       
       return { teams, latestMessages };
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 30000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
@@ -515,7 +515,7 @@ export default function MessagesPage() {
         .in("role", ["team_admin", "coach", "committee_member"]);
       return data?.map((r) => r.team_id).filter(Boolean) || [];
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -532,7 +532,7 @@ export default function MessagesPage() {
         .maybeSingle();
       return !!data;
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -547,7 +547,7 @@ export default function MessagesPage() {
         .eq("user_id", user!.id);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -612,7 +612,7 @@ export default function MessagesPage() {
       
       return false;
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -646,7 +646,7 @@ export default function MessagesPage() {
       
       return statusMap;
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
@@ -701,7 +701,7 @@ export default function MessagesPage() {
       
       return { groups, latestMessages };
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 60000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
@@ -739,7 +739,7 @@ export default function MessagesPage() {
       
       return muted;
     },
-    enabled: !!user,
+    enabled: !!user && initialized,
     staleTime: 60000,
     placeholderData: (prev) => prev,
   });
