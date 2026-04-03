@@ -911,7 +911,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               ...(selectedSecondParent ? { second_parent_user_id: selectedSecondParent.id } : {}),
             } 
           : null,
-      } as any).select("id").single();
+      } as any).select("id, short_code").single();
       if (inviteError) throw inviteError;
 
       const link = `${window.location.origin}/join/p/${inviteToken}`;
