@@ -638,8 +638,54 @@ export default function ClubUpgradePage() {
     );
   }
 
+  const renderTrialBanner = () => {
+    if (!isOnTrial || !trialEndsAt) return null;
+    return (
+      <Card className="border-amber-500/50 bg-amber-500/10 mb-4">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <Flame className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-amber-700 dark:text-amber-400">Free Trial Active</p>
+              <p className="text-sm text-muted-foreground">
+                Your trial ends on <strong>{format(trialEndsAt, "dd MMMM yyyy")}</strong>. 
+                After the trial, your subscription will begin and you'll be charged.
+              </p>
+            </div>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full text-destructive border-destructive/30 hover:bg-destructive/10">
+                Cancel Trial
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will immediately end your trial and remove Pro features from all teams. No payment will be taken.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => cancelTrialMutation.mutate()}
+                  disabled={cancelTrialMutation.isPending}
+                >
+                  {cancelTrialMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  Cancel Trial
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
+    );
+  };
+
   const renderExpiryBanner = () => {
-    if (!expiresAt) return null;
+    if (!expiresAt || isOnTrial) return null;
     
     if (isExpired) {
       return (
