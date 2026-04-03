@@ -405,16 +405,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         console.log('Auth state change:', event, currentSession?.user?.id, 'isNative:', isNative);
         
+        const incomingUserId = currentSession?.user?.id ?? null;
+        const previousUserId = currentUserIdRef.current || cachedUserId;
+        
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
-        currentUserIdRef.current = currentSession?.user?.id ?? null;
+        currentUserIdRef.current = incomingUserId;
         
         if (event === 'SIGNED_IN') {
-          const incomingUserId = currentSession?.user?.id;
-          const previousUserId = currentUserIdRef.current;
-          // Also check cachedUserId for initial page load where ref might not be set yet
-          const knownUserId = previousUserId || cachedUserId;
-          const isSameUserResuming = !!knownUserId && knownUserId === incomingUserId;
+          const isSameUserResuming = !!previousUserId && previousUserId === incomingUserId;
           
           if (isSameUserResuming) {
             // Same user resuming (e.g., phone lock/unlock, app background/foreground)
