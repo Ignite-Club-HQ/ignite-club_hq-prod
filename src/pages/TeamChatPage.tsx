@@ -355,8 +355,10 @@ export default function TeamChatPage() {
   }, [localMessages]);
   const { getProfile } = useProfiles(authorIds);
   
-  // Reset scroll state when teamId changes
+  // Reset per-thread scroll/message state when teamId changes so the initial
+  // bottom-pin runs against the new chat, not stale messages from the last team.
   useEffect(() => {
+    setLocalMessages(undefined);
     setInfiniteScrollEnabled(false);
   }, [teamId]);
 
