@@ -202,7 +202,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const buildShareMessage = () => {
     const clubName = teamData?.clubs?.name || clubData?.name || "";
     const teamName = teamData?.name || "";
-    const childrenNames = inviteMetadata?.children?.map(c => c.name) || [];
+    const childrenNames = inviteMetadata?.children?.map(c => c.name?.trim()).filter(Boolean) || [];
     const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(invite.role);
     const roleName = roleLabels[invite.role] || invite.role.replace("_", " ");
     const email = invite.invited_email;

@@ -5,6 +5,7 @@ import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shi
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -204,6 +205,7 @@ export default function ClubDetailPage() {
         .from("teams")
         .select("*, team_folders!teams_folder_id_fkey(id, name)")
         .eq("club_id", id!)
+        .is("deleted_at", null)
         .order("name");
 
       if (error) throw error;
@@ -631,7 +633,11 @@ export default function ClubDetailPage() {
     },
   });
 
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDelete = async () => {
+    setIsDeleting(true);
     // Get all club members to notify them (from club-level and team-level roles)
     const { data: teamsData } = await supabase
       .from("teams")
@@ -673,8 +679,21 @@ export default function ClubDetailPage() {
       await supabase.from("notifications").insert(notifications);
     }
 
-    const { error } = await supabase.from("clubs").delete().eq("id", id!);
+    // Soft-delete: set deleted_at instead of hard delete
+    const { error } = await supabase.from("clubs").update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: user?.id,
+    } as any).eq("id", id!);
 
+    // Also soft-delete all teams in the club
+    if (!error && teamIds.length > 0) {
+      await supabase.from("teams").update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user?.id,
+      } as any).in("id", teamIds);
+    }
+
+    setIsDeleting(false);
     if (error) {
       toast({
         title: "Error",
@@ -684,8 +703,32 @@ export default function ClubDetailPage() {
       return;
     }
 
-    toast({ title: "Club deleted" });
+    setShowDeleteDialog(false);
+    toast({ title: "Club deleted", description: "You can restore it within 30 days from the clubs page." });
     navigate("/clubs");
+  };
+
+  const handleRestoreClub = async () => {
+    const { error } = await supabase.from("clubs").update({
+      deleted_at: null,
+      deleted_by: null,
+    } as any).eq("id", id!);
+
+    // Also restore all teams that were soft-deleted
+    if (!error) {
+      await supabase.from("teams").update({
+        deleted_at: null,
+        deleted_by: null,
+      } as any).eq("club_id", id!);
+    }
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to restore club.", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Club restored!" });
+    queryClient.invalidateQueries({ queryKey: ["club", id] });
   };
 
   // Mutation for app admins to toggle club Pro status
@@ -791,35 +834,47 @@ export default function ClubDetailPage() {
                 <Pencil className="h-4 w-4 mr-2" />
                 {club?.class_mode_enabled ? "Edit Organisation" : "Edit Club"}
               </DropdownMenuItem>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    {club?.class_mode_enabled ? "Delete Organisation" : "Delete Club"}
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{club?.class_mode_enabled ? "Delete Organisation?" : "Delete Club?"}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete the {club?.class_mode_enabled ? "organisation" : "club"}, all {club?.class_mode_enabled ? "classes" : "teams"}, and events. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {club?.class_mode_enabled ? "Delete Organisation" : "Delete Club"}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       </div>
+
+      {/* Soft-deleted banner */}
+      {(club as any)?.deleted_at && isAdmin && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="p-3 flex items-center gap-3">
+            <Trash2 className="h-5 w-5 text-destructive shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-destructive">
+                This {club?.class_mode_enabled ? "organisation" : "club"} was deleted
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Deleted {new Date((club as any).deleted_at).toLocaleDateString()} · Will be permanently removed after 30 days
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={handleRestoreClub}>
+              <ArchiveRestore className="h-4 w-4 mr-1" />
+              Restore
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <ConfirmDeleteDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        entityName={club.name}
+        entityType={club?.class_mode_enabled ? "organisation" : "club"}
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+      />
 
       {/* Club Card */}
       <Card>

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
@@ -120,6 +122,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const [selectedRole, setSelectedRole] = useState<TeamRole>(getDefaultRole());
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteShareLink, setInviteShareLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [mode, setMode] = useState<"single" | "bulk">("single");
   // Single invite children (for parent role)
@@ -908,7 +911,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               ...(selectedSecondParent ? { second_parent_user_id: selectedSecondParent.id } : {}),
             } 
           : null,
-      } as any).select("id").single();
+      } as any).select("id, short_code").single();
       if (inviteError) throw inviteError;
 
       const link = `${window.location.origin}/join/p/${inviteToken}`;
@@ -956,8 +959,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
+      const shortCode = (primaryInvite as any)?.short_code || null;
+      const sLink = shortCode 
+        ? `https://igniteclubhq.app/j/${shortCode}` 
+        : link;
+
       return { 
         link, 
+        shareLink: sLink,
         email: customEmail.trim(), 
         childrenCount: validChildren.length, 
         childrenNames: validChildren.map(c => c.name.trim()),
@@ -967,8 +976,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentAddedDirectly,
       };
     },
-    onSuccess: async ({ link, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly }) => {
+    onSuccess: async ({ link, shareLink: sLink, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly }) => {
       setInviteLink(link);
+      setInviteShareLink(sLink);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
 
       if (secondParentAddedDirectly && selectedSecondParent) {
@@ -1478,6 +1488,40 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
   });
 
+  const buildInviteShareMessage = (overrideLink?: string) => {
+    const clubName = clubBranding?.name || "";
+    const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
+    const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(selectedRole);
+    const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
+    const email = customEmail.trim();
+    const appDownload = `\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
+    const emailNote = email ? `\n\nSign up with ${email} so your account links automatically.` : "";
+    const link = overrideLink || inviteShareLink || inviteLink || "";
+
+    if (isAdminRole && teamName) {
+      return `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}. Tap here to get started: ${link}${appDownload}${emailNote}`;
+    }
+    if (isAdminRole && clubName) {
+      return `You've been invited to help run ${clubName} as ${roleName}. Tap here to get started: ${link}${appDownload}${emailNote}`;
+    }
+    if (selectedRole === "parent" && childrenNames.length === 1) {
+      return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
+    }
+    if (selectedRole === "parent" && childrenNames.length > 1) {
+      return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
+    }
+    if (selectedRole === "parent" && teamName) {
+      return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
+    }
+    if (teamName) {
+      return `You've been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here to join: ${link}${appDownload}${emailNote}`;
+    }
+    if (clubName) {
+      return `You've been invited to join ${clubName}! Tap here to get started: ${link}${appDownload}${emailNote}`;
+    }
+    return `You've been invited to join the team! Tap here to get started: ${link}${appDownload}${emailNote}`;
+  };
+
   const handleClose = () => {
     setOpen(false);
     setNameInput("");
@@ -1485,6 +1529,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setCustomEmail("");
     setSelectedRole(getDefaultRole());
     setInviteLink(null);
+    setInviteShareLink(null);
     setInviteSent(false);
     setMode("single");
     setSingleChildren([]);
@@ -1678,10 +1723,64 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <div className="space-y-6 pb-6">
             <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
               <p className="font-medium mb-1">{nameInput}</p>
+              {selectedRole === "parent" && singleChildren.filter(c => c.name.trim()).length > 0 ? (
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Baby className="h-3.5 w-3.5" />
+                  {singleChildren.filter(c => c.name.trim()).length === 1
+                    ? `${singleChildren.find(c => c.name.trim())!.name.trim()} added to ${teamName || "the team"}`
+                    : `${singleChildren.filter(c => c.name.trim()).map(c => c.name.trim()).join(", ")} added to ${teamName || "the team"}`}
+                </p>
+              ) : null}
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5" />
                 {customEmail ? `Invite sent to ${customEmail}` : "Invite link created — share it with them"}
               </p>
+            </div>
+
+            {/* Share invite via other channels */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-center">Share invite via</p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    const msg = buildInviteShareMessage().trim();
+                    if (Capacitor.isNativePlatform()) {
+                      try {
+                        await Share.share({
+                          title: `Join ${clubBranding?.name || teamName}`,
+                          text: msg,
+                          dialogTitle: `Share invite`,
+                        });
+                        return;
+                      } catch {
+                        // cancelled
+                      }
+                    }
+                    // Fallback: WhatsApp
+                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                  }}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteShareLink || inviteLink || "");
+                      toast({ title: "Invite link copied!" });
+                    } catch {
+                      toast({ title: "Failed to copy link", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Link
+                </Button>
+              </div>
             </div>
 
             <p className="text-sm text-muted-foreground text-center">
@@ -1691,6 +1790,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => {
                 setInviteLink(null);
+                setInviteShareLink(null);
                 setNameInput("");
                 setCustomEmail("");
                 setSingleChildren([]);
@@ -2508,7 +2608,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   ? `Add Parents to Team`
                   : `Add ${selectedUser.display_name} as ${selectedRoleOption?.label}`}
               </Button>
-            ) : (
+            ) : customEmail.trim() ? (
+              /* Email provided: single send button */
               <Button
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => addPendingMemberMutation.mutate()}
@@ -2521,14 +2622,67 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 )}
                 {nameInput.trim()
                   ? (selectedSecondParent
-                    ? `${customEmail.trim() ? 'Send Invite' : 'Add'} & Add ${selectedSecondParent.display_name}`
-                    : secondParentName.trim() && secondParentEmail.trim() 
-                      ? `Send Invites to ${nameInput} & ${secondParentName}` 
-                      : customEmail.trim()
-                        ? `Send Invite to ${nameInput}`
-                        : `Add ${nameInput} as Pending`) 
+                    ? `Send Invite & Add ${selectedSecondParent.display_name}`
+                    : secondParentName.trim() && secondParentEmail.trim()
+                      ? `Send Invites to ${nameInput} & ${secondParentName}`
+                      : `Send Invite to ${nameInput}`)
                   : "Enter name to continue"}
               </Button>
+            ) : (
+              /* No email: show share/copy options */
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground text-center">Choose how to deliver the invite</p>
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1 h-12 text-base font-semibold"
+                    onClick={() => {
+                      addPendingMemberMutation.mutate(undefined, {
+                        onSuccess: (result) => {
+                          const shareUrl = result.shareLink || result.link;
+                          const msg = buildInviteShareMessage(shareUrl).trim();
+                          if (Capacitor.isNativePlatform()) {
+                            Share.share({
+                              title: `Join ${clubBranding?.name || teamName}`,
+                              text: msg,
+                              dialogTitle: 'Share invite',
+                            }).catch(() => {});
+                          } else {
+                            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                          }
+                        },
+                      });
+                    }}
+                    disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
+                  >
+                    {addPendingMemberMutation.isPending ? (
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    ) : (
+                      <Share2 className="h-5 w-5 mr-2" />
+                    )}
+                    {nameInput.trim() ? `Share Invite` : "Enter name"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-12 px-4"
+                    onClick={() => {
+                      addPendingMemberMutation.mutate(undefined, {
+                        onSuccess: async (result) => {
+                          const shareUrl = result.shareLink || result.link;
+                          try {
+                            await navigator.clipboard.writeText(shareUrl);
+                            toast({ title: "Invite link copied!" });
+                          } catch {
+                            toast({ title: "Failed to copy", variant: "destructive" });
+                          }
+                        },
+                      });
+                    }}
+                    disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
+                  >
+                    <Copy className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
             )}
           </TabsContent>
 
