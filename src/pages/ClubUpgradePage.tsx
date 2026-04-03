@@ -848,10 +848,14 @@ export default function ClubUpgradePage() {
   const renderProActiveCard = (tier: "pro" | "pro_football") => {
     const isPro = tier === "pro";
     const Icon = isPro ? Crown : Target;
-    const title = isPro ? "Club Pro Active" : "Club Pro Football Active";
-    const description = isPro 
-      ? "All teams have full access to Pro features."
-      : "All teams have access to Pro Football features including Pitch Board.";
+    const title = isOnTrial 
+      ? (isPro ? "Club Pro Trial Active" : "Club Pro Football Trial Active")
+      : (isPro ? "Club Pro Active" : "Club Pro Football Active");
+    const description = isOnTrial
+      ? `Your free trial ${isPro ? "gives all teams full Pro access" : "includes Pro Football features for all teams"}.`
+      : (isPro 
+        ? "All teams have full access to Pro features."
+        : "All teams have access to Pro Football features including Pitch Board.");
 
     return (
       <Card className={isPro ? "border-yellow-500/50 bg-yellow-500/10" : "border-emerald-500/50 bg-emerald-500/10"}>
@@ -859,6 +863,11 @@ export default function ClubUpgradePage() {
           <Icon className={`h-12 w-12 ${isPro ? "text-yellow-500" : "text-emerald-500"} mx-auto`} />
           <div>
             <h2 className="text-xl font-bold">{title}</h2>
+            {isOnTrial && (
+              <Badge className="mt-2 bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                Free Trial
+              </Badge>
+            )}
             <p className="text-muted-foreground mt-2">{description}</p>
           </div>
 
@@ -868,14 +877,16 @@ export default function ClubUpgradePage() {
                 {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
                 {currentTeamLimit ? ` (${teamCount}/${currentTeamLimit} teams)` : " (Unlimited teams)"}
               </Badge>
-              <Badge variant="secondary" className="text-xs">
-                {isSponsorFunded ? "Sponsor-funded" : "Self-paid"}
-              </Badge>
+              {!isOnTrial && (
+                <Badge variant="secondary" className="text-xs">
+                  {isSponsorFunded ? "Sponsor-funded" : "Self-paid"}
+                </Badge>
+              )}
             </div>
           )}
 
           {/* Sponsor attribution logos */}
-          {isSponsorFunded && activeSponsors.length > 0 && (
+          {!isOnTrial && isSponsorFunded && activeSponsors.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">Sponsored by</p>
               <div className="flex items-center justify-center gap-3 flex-wrap">
@@ -890,8 +901,17 @@ export default function ClubUpgradePage() {
               </div>
             </div>
           )}
+
+          {isOnTrial && trialEndsAt && (
+            <div className="p-3 rounded-lg bg-amber-500/10 flex items-center justify-center gap-2">
+              <Flame className="h-4 w-4 text-amber-500" />
+              <span className="text-sm">
+                Trial ends <strong>{format(trialEndsAt, "dd MMMM yyyy")}</strong>
+              </span>
+            </div>
+          )}
           
-          {expiresAt && (
+          {!isOnTrial && expiresAt && (
             <div className={`p-3 rounded-lg ${isExpired ? 'bg-destructive/10' : 'bg-muted/50'} flex flex-col items-center gap-1`}>
               <div className="flex items-center gap-2">
                 <Calendar className={`h-4 w-4 ${isExpired ? 'text-destructive' : 'text-muted-foreground'}`} />
@@ -908,7 +928,7 @@ export default function ClubUpgradePage() {
             </div>
           )}
 
-          {isExpired && (
+          {isExpired && !isOnTrial && (
             <div className="space-y-2">
               <p className="text-sm text-destructive text-center">
                 Your payment failed. Please update your payment method{!isNative && !isClassMode ? " or find a sponsor" : ""}.
@@ -923,7 +943,7 @@ export default function ClubUpgradePage() {
             </div>
           )}
 
-          {showSponsorOption && !isExpired && (
+          {!isOnTrial && showSponsorOption && !isExpired && (
             <Button variant="outline" size="sm" onClick={handleGetSponsored} className="w-full">
               <Heart className="h-4 w-4 mr-2 text-pink-500" />
               Get Sponsored
