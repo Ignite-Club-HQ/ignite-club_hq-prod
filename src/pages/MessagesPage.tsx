@@ -1148,6 +1148,58 @@ export default function MessagesPage() {
         />
       </div>
 
+      {/* Active club filter indicator */}
+      {hasLocalFilter && (
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="gap-1.5 px-3 py-1">
+            <Building2 className="h-3 w-3" />
+            {displayMemberClubs.find((c: any) => c.id === localClubFilter)?.name || "Club"}
+          </Badge>
+          <Button variant="ghost" size="sm" onClick={() => setLocalClubFilter("all")} className="h-7 px-2 text-xs text-muted-foreground">
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Club filter drawer */}
+      <Drawer open={showClubFilterDrawer} onOpenChange={setShowClubFilterDrawer}>
+        <DrawerContent>
+          <DrawerHeader className="text-left border-b">
+            <DrawerTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Filter by Club
+            </DrawerTitle>
+          </DrawerHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="p-4 space-y-2">
+              <button
+                type="button"
+                onClick={() => { setLocalClubFilter("all"); setShowClubFilterDrawer(false); }}
+                className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left hover:bg-accent/50 ${
+                  localClubFilter === "all" ? "border-primary bg-primary/5" : "border-border bg-card"
+                }`}
+              >
+                <span className="text-base font-medium">All Clubs</span>
+                {localClubFilter === "all" && <Check className="h-5 w-5 text-primary" />}
+              </button>
+              {displayMemberClubs.map((club: any) => (
+                <button
+                  key={club.id}
+                  type="button"
+                  onClick={() => { setLocalClubFilter(club.id); setShowClubFilterDrawer(false); }}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left hover:bg-accent/50 ${
+                    localClubFilter === club.id ? "border-primary bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  <span className="text-base font-medium">{club.name}</span>
+                  {localClubFilter === club.id && <Check className="h-5 w-5 text-primary" />}
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
+
       {/* All Messages List */}
       <div className="space-y-2">
         {/* Skeleton loading when no cache available */}
