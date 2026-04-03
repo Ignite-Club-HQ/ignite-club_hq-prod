@@ -2627,18 +2627,17 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 <div className="flex gap-2">
                   <Button
                     className="flex-1 h-12 text-base font-semibold"
-                    onClick={async () => {
+                    onClick={() => {
                       addPendingMemberMutation.mutate(undefined, {
-                        onSuccess: async (result) => {
-                          const msg = buildInviteShareMessage().trim();
+                        onSuccess: (result) => {
+                          const shareUrl = result.shareLink || result.link;
+                          const msg = buildInviteShareMessage(shareUrl).trim();
                           if (Capacitor.isNativePlatform()) {
-                            try {
-                              await Share.share({
-                                title: `Join ${clubBranding?.name || teamName}`,
-                                text: msg,
-                                dialogTitle: 'Share invite',
-                              });
-                            } catch { /* cancelled */ }
+                            Share.share({
+                              title: `Join ${clubBranding?.name || teamName}`,
+                              text: msg,
+                              dialogTitle: 'Share invite',
+                            }).catch(() => {});
                           } else {
                             window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
                           }
@@ -2657,11 +2656,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   <Button
                     variant="outline"
                     className="h-12 px-4"
-                    onClick={async () => {
+                    onClick={() => {
                       addPendingMemberMutation.mutate(undefined, {
-                        onSuccess: async () => {
+                        onSuccess: async (result) => {
+                          const shareUrl = result.shareLink || result.link;
                           try {
-                            await navigator.clipboard.writeText(inviteShareLink || inviteLink || "");
+                            await navigator.clipboard.writeText(shareUrl);
                             toast({ title: "Invite link copied!" });
                           } catch {
                             toast({ title: "Failed to copy", variant: "destructive" });
