@@ -6,7 +6,7 @@ import { getShareUrl } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
@@ -2275,13 +2275,22 @@ export default function EventDetailPage() {
         )}
         {/* Child RSVP - inline below parent RSVP */}
         {childrenOnTeam && childrenOnTeam.length > 0 && (
-          <div className="space-y-3 pt-2">
+          <div className="pt-2">
             <Separator />
-            <div className="flex items-center gap-2">
-              <Baby className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">Children's RSVP</h3>
-            </div>
-            {childrenOnTeam.map((child: any) => {
+            <details className="mt-3 rounded-xl border border-border/50 bg-muted/20 group">
+              <summary className="flex items-center gap-2 cursor-pointer list-none p-3 [&::-webkit-details-marker]:hidden">
+                <Baby className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">Children's RSVP</h3>
+                {childRsvps.length > 0 && (
+                  <span className="text-xs text-muted-foreground ml-auto mr-1">
+                    {childRsvps.filter(r => r.status === "going").length > 0 && `${childRsvps.filter(r => r.status === "going").length} going`}
+                    {childRsvps.filter(r => r.status === "maybe").length > 0 && ` · ${childRsvps.filter(r => r.status === "maybe").length} maybe`}
+                  </span>
+                )}
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180 shrink-0" />
+              </summary>
+              <div className="space-y-3 px-3 pb-3">
+              {childrenOnTeam.map((child: any) => {
               const childRsvp = childRsvps.find((r) => r.child_id === child.id);
               return (
                 <div key={child.id} className="space-y-2">
@@ -2318,6 +2327,8 @@ export default function EventDetailPage() {
                 </div>
               );
             })}
+              </div>
+            </details>
           </div>
         )}
       </section>
