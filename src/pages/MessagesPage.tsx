@@ -45,7 +45,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, Building2 } from "lucide-react";
+
 
 // Skeleton component for message items while loading
 function MessageSkeleton() {
