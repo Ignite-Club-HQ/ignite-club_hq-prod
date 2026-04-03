@@ -1,0 +1,227 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@14.21.0";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Authenticate the user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Not authenticated' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { subscription_type, entity_id } = await req.json();
+
+    if (!subscription_type || !entity_id) {
+      return new Response(JSON.stringify({ error: 'subscription_type and entity_id are required' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!['team', 'club'].includes(subscription_type)) {
+      return new Response(JSON.stringify({ error: 'subscription_type must be "team" or "club"' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    let stripeSubscriptionId: string | null = null;
+    let clubId: string | null = null;
+
+    if (subscription_type === 'team') {
+      // Verify user is team admin/coach
+      const { data: team } = await supabase
+        .from('teams')
+        .select('id, created_by, club_id')
+        .eq('id', entity_id)
+        .single();
+
+      if (!team) {
+        return new Response(JSON.stringify({ error: 'Team not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Check if user is team creator or has admin/coach role
+      const { data: membership } = await supabase
+        .from('club_members')
+        .select('role')
+        .eq('club_id', team.club_id)
+        .eq('user_id', user.id)
+        .single();
+
+      const isAuthorized = team.created_by === user.id ||
+        (membership && ['admin', 'club_admin', 'coach'].includes(membership.role));
+
+      if (!isAuthorized) {
+        return new Response(JSON.stringify({ error: 'Not authorized' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: sub } = await supabase
+        .from('team_subscriptions')
+        .select('stripe_subscription_id')
+        .eq('team_id', entity_id)
+        .single();
+
+      stripeSubscriptionId = sub?.stripe_subscription_id;
+      clubId = team.club_id;
+    } else {
+      // Club subscription
+      const { data: membership } = await supabase
+        .from('club_members')
+        .select('role')
+        .eq('club_id', entity_id)
+        .eq('user_id', user.id)
+        .single();
+
+      const isAuthorized = membership && ['admin', 'club_admin'].includes(membership.role);
+
+      if (!isAuthorized) {
+        return new Response(JSON.stringify({ error: 'Not authorized' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: sub } = await supabase
+        .from('club_subscriptions')
+        .select('stripe_subscription_id')
+        .eq('club_id', entity_id)
+        .single();
+
+      stripeSubscriptionId = sub?.stripe_subscription_id;
+      clubId = entity_id;
+    }
+
+    // If it's an IAP subscription, skip Stripe cancellation
+    if (stripeSubscriptionId && stripeSubscriptionId.startsWith('iap_')) {
+      console.log('IAP subscription detected, skipping Stripe cancellation:', stripeSubscriptionId);
+      return new Response(JSON.stringify({ success: true, message: 'IAP subscription - manage via App Store/Play Store' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Cancel the Stripe subscription if one exists
+    if (stripeSubscriptionId) {
+      // Find the Stripe secret key
+      let stripeSecretKey: string | null = null;
+
+      if (clubId) {
+        const { data: clubStripeConfig } = await supabase
+          .from('club_stripe_configs')
+          .select('stripe_secret_key, is_enabled')
+          .eq('club_id', clubId)
+          .eq('is_enabled', true)
+          .maybeSingle();
+
+        if (clubStripeConfig?.stripe_secret_key) {
+          stripeSecretKey = clubStripeConfig.stripe_secret_key;
+        }
+      }
+
+      if (!stripeSecretKey) {
+        const { data: appStripeConfig } = await supabase
+          .from('app_stripe_config')
+          .select('stripe_secret_key, is_enabled')
+          .eq('is_enabled', true)
+          .maybeSingle();
+
+        if (appStripeConfig?.stripe_secret_key) {
+          stripeSecretKey = appStripeConfig.stripe_secret_key;
+        }
+      }
+
+      if (stripeSecretKey) {
+        const stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-10-16' });
+
+        try {
+          await stripe.subscriptions.cancel(stripeSubscriptionId);
+          console.log('Stripe subscription cancelled:', stripeSubscriptionId);
+        } catch (stripeError: any) {
+          // If already cancelled or not found, that's fine
+          if (stripeError.code === 'resource_missing') {
+            console.log('Stripe subscription already cancelled or not found:', stripeSubscriptionId);
+          } else {
+            console.error('Stripe cancellation error:', stripeError);
+            return new Response(JSON.stringify({ error: 'Failed to cancel Stripe subscription' }), {
+              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+      } else {
+        console.warn('No Stripe secret key found, skipping Stripe cancellation');
+      }
+    }
+
+    // Reset the database subscription record
+    if (subscription_type === 'team') {
+      await supabase
+        .from('team_subscriptions')
+        .update({
+          is_trial: false,
+          trial_ends_at: null,
+          trial_plan: null,
+          is_pro: false,
+          is_pro_football: false,
+          expires_at: null,
+          stripe_subscription_id: null,
+        })
+        .eq('team_id', entity_id);
+    } else {
+      await supabase
+        .from('club_subscriptions')
+        .update({
+          is_trial: false,
+          trial_ends_at: null,
+          trial_plan: null,
+          trial_tier: null,
+          trial_is_annual: null,
+          is_pro: false,
+          is_pro_football: false,
+          expires_at: null,
+          stripe_subscription_id: null,
+        })
+        .eq('club_id', entity_id);
+
+      // Sync clubs.is_pro
+      await supabase
+        .from('clubs')
+        .update({ is_pro: false })
+        .eq('id', entity_id);
+    }
+
+    console.log(`${subscription_type} trial/subscription cancelled for ${entity_id} by user ${user.id}`);
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  } catch (error: any) {
+    console.error('Cancel subscription error:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
