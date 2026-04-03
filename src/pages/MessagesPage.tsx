@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus } from "lucide-react";
+import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus, Filter, Check, Building2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
@@ -38,6 +38,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 // Skeleton component for message items while loading
 function MessageSkeleton() {
@@ -145,7 +153,13 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDMDialog, setShowDMDialog] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
+  const [localClubFilter, setLocalClubFilter] = useState("all");
+  const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
+
+  // Effective club filter: use theme filter if active, otherwise use local filter
+  const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
+  const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
 
   // Load cached data for instant display
   const cachedData = useMemo(() => {
@@ -950,8 +964,8 @@ export default function MessagesPage() {
     let groups = leagueChats;
     
     // Apply club filter if active
-    if (activeClubFilter) {
-      groups = groups.filter((group: any) => group.club_id === activeClubFilter);
+    if (effectiveClubFilter) {
+      groups = groups.filter((group: any) => group.club_id === effectiveClubFilter);
     }
     
     if (!query) return groups;
@@ -960,16 +974,16 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || clubName.includes(query);
     });
-  }, [leagueChats, query, activeClubFilter]);
+  }, [leagueChats, query, effectiveClubFilter]);
 
   const filteredChatGroups = useMemo(() => {
     let groups = regularChatGroups;
     
     // Apply club filter if active
-    if (activeClubFilter) {
+    if (effectiveClubFilter) {
       groups = groups.filter((group: any) => 
-        group.club_id === activeClubFilter || 
-        (group.team_id && activeClubTeamIds.includes(group.team_id))
+        group.club_id === effectiveClubFilter || 
+        (group.team_id && (activeClubFilter ? activeClubTeamIds.includes(group.team_id) : displayTeams.some((t: any) => t.id === group.team_id && t.clubs?.id === effectiveClubFilter)))
       );
     }
     
@@ -980,20 +994,24 @@ export default function MessagesPage() {
       const clubName = group.clubs?.name?.toLowerCase() || "";
       return groupName.includes(query) || teamName.includes(query) || clubName.includes(query);
     });
-  }, [regularChatGroups, query, activeClubFilter, activeClubTeamIds]);
+  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams]);
 
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
     
-    // Apply club filter if active, but fall back to team.club id until the async
-    // activeClubTeamIds query finishes so login doesn't briefly hide all team chats.
-    if (activeClubFilter) {
-      const hasResolvedActiveClubTeams = activeClubTeamIds.length > 0;
-      teamsToFilter = teamsToFilter.filter((team: any) => {
-        const matchesResolvedIds = hasResolvedActiveClubTeams && activeClubTeamIds.includes(team.id);
-        const matchesClubRelation = team.clubs?.id === activeClubFilter;
-        return matchesResolvedIds || matchesClubRelation;
-      });
+    if (effectiveClubFilter) {
+      if (activeClubFilter) {
+        // Theme filter: use resolved team IDs with fallback
+        const hasResolvedActiveClubTeams = activeClubTeamIds.length > 0;
+        teamsToFilter = teamsToFilter.filter((team: any) => {
+          const matchesResolvedIds = hasResolvedActiveClubTeams && activeClubTeamIds.includes(team.id);
+          const matchesClubRelation = team.clubs?.id === activeClubFilter;
+          return matchesResolvedIds || matchesClubRelation;
+        });
+      } else {
+        // Local filter: use club relation on team
+        teamsToFilter = teamsToFilter.filter((team: any) => team.clubs?.id === effectiveClubFilter);
+      }
     }
     
     if (!query) {
@@ -1009,21 +1027,21 @@ export default function MessagesPage() {
       .sort((a: any, b: any) =>
         (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" })
       );
-  }, [displayTeams, query, activeClubFilter, activeClubTeamIds]);
+  }, [displayTeams, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds]);
 
   const filteredClubs = useMemo(() => {
     let clubsToFilter = displayClubsWithAnnouncements || [];
     
     // Apply club filter if active - only show the active club
-    if (activeClubFilter) {
-      clubsToFilter = clubsToFilter.filter((club: any) => club.id === activeClubFilter);
+    if (effectiveClubFilter) {
+      clubsToFilter = clubsToFilter.filter((club: any) => club.id === effectiveClubFilter);
     }
     
     if (!query) return clubsToFilter;
     return clubsToFilter.filter((club: any) =>
       club.name.toLowerCase().includes(query)
     );
-  }, [displayClubsWithAnnouncements, query, activeClubFilter]);
+  }, [displayClubsWithAnnouncements, query, effectiveClubFilter]);
 
   // Always show broadcast in club mode - it's a global announcements channel
   const showBroadcast = !query || "announcements".includes(query);
@@ -1085,11 +1103,34 @@ export default function MessagesPage() {
             <RefreshCw className="h-4 w-4 text-muted-foreground animate-spin" />
           )}
         </div>
-        <NewMessageMenu 
-          onNewDM={() => setShowDMDialog(true)}
-          onNewGroup={() => setShowGroupDialog(true)}
-          canCreateGroups={!!canCreateGroups}
-        />
+        <div className="flex items-center gap-2">
+          {/* Club filter button - only show when not in club theme mode and user has multiple clubs */}
+          {!activeClubFilter && displayMemberClubs.length > 1 && (
+            <Button
+              variant={hasLocalFilter ? "default" : "outline"}
+              size="icon"
+              onClick={() => {
+                if (hasLocalFilter) {
+                  setLocalClubFilter("all");
+                } else {
+                  // Cycle: show a simple drawer with club options
+                  setShowClubFilterDrawer(true);
+                }
+              }}
+              className="h-10 w-10 relative"
+            >
+              <Filter className="h-5 w-5" />
+              {hasLocalFilter && (
+                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary-foreground" />
+              )}
+            </Button>
+          )}
+          <NewMessageMenu 
+            onNewDM={() => setShowDMDialog(true)}
+            onNewGroup={() => setShowGroupDialog(true)}
+            canCreateGroups={!!canCreateGroups}
+          />
+        </div>
       </div>
 
       {/* DM and Group dialogs */}
@@ -1106,6 +1147,58 @@ export default function MessagesPage() {
           className="pl-9"
         />
       </div>
+
+      {/* Active club filter indicator */}
+      {hasLocalFilter && (
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="gap-1.5 px-3 py-1">
+            <Building2 className="h-3 w-3" />
+            {displayMemberClubs.find((c: any) => c.id === localClubFilter)?.name || "Club"}
+          </Badge>
+          <Button variant="ghost" size="sm" onClick={() => setLocalClubFilter("all")} className="h-7 px-2 text-xs text-muted-foreground">
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Club filter drawer */}
+      <Drawer open={showClubFilterDrawer} onOpenChange={setShowClubFilterDrawer}>
+        <DrawerContent>
+          <DrawerHeader className="text-left border-b">
+            <DrawerTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Filter by Club
+            </DrawerTitle>
+          </DrawerHeader>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="p-4 space-y-2">
+              <button
+                type="button"
+                onClick={() => { setLocalClubFilter("all"); setShowClubFilterDrawer(false); }}
+                className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left hover:bg-accent/50 ${
+                  localClubFilter === "all" ? "border-primary bg-primary/5" : "border-border bg-card"
+                }`}
+              >
+                <span className="text-base font-medium">All Clubs</span>
+                {localClubFilter === "all" && <Check className="h-5 w-5 text-primary" />}
+              </button>
+              {displayMemberClubs.map((club: any) => (
+                <button
+                  key={club.id}
+                  type="button"
+                  onClick={() => { setLocalClubFilter(club.id); setShowClubFilterDrawer(false); }}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left hover:bg-accent/50 ${
+                    localClubFilter === club.id ? "border-primary bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  <span className="text-base font-medium">{club.name}</span>
+                  {localClubFilter === club.id && <Check className="h-5 w-5 text-primary" />}
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
 
       {/* All Messages List */}
       <div className="space-y-2">
