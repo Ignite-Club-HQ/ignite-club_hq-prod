@@ -381,6 +381,40 @@ export default function ClubUpgradePage() {
     },
   });
 
+  const cancelTrialMutation = useMutation({
+    mutationFn: async () => {
+      // Reset trial and pro flags
+      const { error } = await supabase
+        .from("club_subscriptions")
+        .update({
+          is_trial: false,
+          trial_ends_at: null,
+          trial_plan: null,
+          trial_tier: null,
+          trial_is_annual: null,
+          is_pro: false,
+          is_pro_football: false,
+          expires_at: null,
+        })
+        .eq("club_id", clubId!);
+      if (error) throw error;
+
+      // Also update clubs.is_pro for backward compatibility
+      await supabase
+        .from("clubs")
+        .update({ is_pro: false })
+        .eq("id", clubId!);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      queryClient.invalidateQueries({ queryKey: ["club", clubId] });
+      toast({ title: "Trial Cancelled", description: "Your free trial has been cancelled. No payment will be taken." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to cancel trial.", variant: "destructive" });
+    },
+  });
+
   const downgradeMutation = useMutation({
     mutationFn: async (targetTier: "free" | "pro") => {
       if (targetTier === "free") {
