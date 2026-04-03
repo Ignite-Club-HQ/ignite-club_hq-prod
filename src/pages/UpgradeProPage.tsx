@@ -282,6 +282,31 @@ export default function UpgradeProPage() {
     },
   });
 
+  const cancelTrialMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("team_subscriptions")
+        .update({
+          is_trial: false,
+          trial_ends_at: null,
+          trial_plan: null,
+          trial_tier: null,
+          is_pro: false,
+          is_pro_football: false,
+          expires_at: null,
+        })
+        .eq("team_id", teamId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      toast({ title: "Trial Cancelled", description: "Your free trial has been cancelled. No payment will be taken." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to cancel trial.", variant: "destructive" });
+    },
+  });
+
   const downgradeMutation = useMutation({
     mutationFn: async (targetTier: "free" | "pro") => {
       if (targetTier === "free") {
