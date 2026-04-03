@@ -47,9 +47,23 @@ export function useInitialChatBottomPin({
     if (pinnedKeyRef.current === resetKey) {
       // If we pinned while empty and content has now arrived, just re-snap
       // to the bottom without hiding. This avoids the flash.
+      // Use multi-pass rAF to ensure DOM has rendered the new messages.
       if (pinnedWhileEmptyRef.current && itemCount > 0) {
         pinnedWhileEmptyRef.current = false;
+        // First pass: immediate snap
         scrollChatToBottom(scrollContainerRef.current);
+        // Second pass: after React commit & browser paint
+        requestAnimationFrame(() => {
+          scrollChatToBottom(scrollContainerRef.current);
+          // Third pass: catch any async image/layout shifts
+          requestAnimationFrame(() => {
+            scrollChatToBottom(scrollContainerRef.current);
+            // Final pass after a short delay for any remaining layout
+            setTimeout(() => {
+              scrollChatToBottom(scrollContainerRef.current);
+            }, 150);
+          });
+        });
       }
       return;
     }
