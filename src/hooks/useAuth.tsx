@@ -406,17 +406,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null);
         
         if (event === 'SIGNED_IN') {
-          // FRESH LOGIN: Reset state to block AppLayout until profile is fetched
-          // This prevents the double-flash to complete-profile page
-          console.log('[Auth] SIGNED_IN event - processing login', isNative ? '(native app)' : '(web)');
-          // Clear all cached query data to force fresh fetches with the new session
-          // This prevents stale/empty RLS results from a previous logged-out window
-          queryClient.clear();
-          setIsFreshLogin(true);
-          setInitialized(false);
-          setLoading(true);
-          setProfileLoading(true);
-          handleSession(currentSession, false, true);
+          const incomingUserId = currentSession?.user?.id;
+          const previousUserId = user?.id;
+          const isSameUserResuming = !!previousUserId && previousUserId === incomingUserId;
+          
+          if (isSameUserResuming) {
+            // Same user resuming (e.g., phone lock/unlock, app background/foreground)
+            // Do NOT clear query cache — this causes data to flash/disappear
+            console.log('[Auth] SIGNED_IN event - same user resuming, skipping cache clear', isNative ? '(native app)' : '(web)');
+            handleSession(currentSession, false, false);
+          } else {
+            // FRESH LOGIN or different user: Reset state to block AppLayout until profile is fetched
+            console.log('[Auth] SIGNED_IN event - processing login', isNative ? '(native app)' : '(web)');
+            // Clear all cached query data to force fresh fetches with the new session
+            // This prevents stale/empty RLS results from a previous logged-out window
+            queryClient.clear();
+            setIsFreshLogin(true);
+            setInitialized(false);
+            setLoading(true);
+            setProfileLoading(true);
+            handleSession(currentSession, false, true);
+          }
         } else if ((event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
           // Page refresh or token refresh - don't override theme
           console.log('[Auth] Session restored:', event, isNative ? '(native app)' : '(web)');
