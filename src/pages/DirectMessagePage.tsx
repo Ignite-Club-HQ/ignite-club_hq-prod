@@ -401,7 +401,8 @@ export default function DirectMessagePage() {
 
   useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
-    if (!messages || !conversationId) return;
+    // Guard: never replace existing messages with an empty array (transient cache state during resume)
+    if (!messages || !conversationId || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
 
     setLocalMessages((prev) => {
       if (messages.length === 0 && messagesLoading) return prev;

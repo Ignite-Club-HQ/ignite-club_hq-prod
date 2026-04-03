@@ -397,7 +397,8 @@ export default function ClubChatPage() {
 
   useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
-    if (!messages || !clubId) return;
+    // Guard: never replace existing messages with an empty array (transient cache state during resume)
+    if (!messages || !clubId || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
 
     setLocalMessages((prev) => {
       const mergedMessages = !prev
