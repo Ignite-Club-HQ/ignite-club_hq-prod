@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
+import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +72,10 @@ export default function ClubAdminChatPage() {
   replyToRef.current = replyTo;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
+    [replyTo?.id, editingMessage?.id],
+    56,
+  );
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
@@ -255,9 +260,9 @@ export default function ClubAdminChatPage() {
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
-    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, 220)) return;
+    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current);
-  }, [replyTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
@@ -571,7 +576,7 @@ export default function ClubAdminChatPage() {
         className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
         style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
       >
-        <div className="p-4 space-y-4" style={{ paddingBottom: isKeyboardOpen ? "6rem" : "calc(var(--bottom-nav-offset, 0px) + 6rem)" }}>
+        <div className="p-4 space-y-4" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
           {showLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -617,7 +622,10 @@ export default function ClubAdminChatPage() {
                             ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
                             : null
                         }
-                        onReply={() => setReplyTo(msg)}
+                        onReply={() => {
+                          setReplyTo(msg);
+                          setTimeout(() => scrollToBottom(), 100);
+                        }}
                         onEdit={handleEdit}
                       />
                     </div>
@@ -629,18 +637,16 @@ export default function ClubAdminChatPage() {
         </div>
       </div>
 
-      {/* Reply preview */}
-      {replyTo && (
-        <ReplyPreview
-          replyingTo={{ id: replyTo.id, text: replyTo.text, authorName: replyTo.author?.display_name || null }}
-          onCancel={() => setReplyTo(null)}
-        />
-      )}
-      {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-
       {/* Input area */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 0px)" }}>
+        {replyTo && (
+          <ReplyPreview
+            replyingTo={{ id: replyTo.id, text: replyTo.text, authorName: replyTo.author?.display_name || null }}
+            onCancel={() => setReplyTo(null)}
+          />
+        )}
+        {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
         <div className="flex gap-1.5 items-center">
           <MentionInput
             value={message}
