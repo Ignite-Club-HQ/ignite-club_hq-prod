@@ -330,7 +330,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-[100dvh] flex flex-col bg-background">
       {/* Show progress indicator if in invite flow */}
       {isInInviteFlow && (
         <InviteFlowProgress 
@@ -341,8 +341,8 @@ export default function AuthPage() {
         />
       )}
       
-      <div className={`flex-1 flex flex-col items-center justify-center p-4 overflow-y-auto ${isInInviteFlow ? 'pt-16' : ''}`}>
-      <div className="w-full max-w-md space-y-8 animate-slide-up my-auto">
+      <div className={`flex-1 flex flex-col items-center p-4 overflow-y-auto ${isInInviteFlow ? 'pt-16' : ''}`}>
+      <div className="w-full max-w-md space-y-8 animate-slide-up my-auto py-8">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div className="p-4 rounded-2xl bg-primary glow-emerald">
