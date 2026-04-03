@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } fr
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
+import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -129,6 +130,11 @@ export default function BroadcastChatPage() {
     },
     enabled: !!user,
   });
+
+  const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
+    [isAppAdmin, replyingTo?.id, editingMessage?.id],
+    56,
+  );
 
   const { isOnline } = useOnlineStatus();
 
@@ -271,9 +277,9 @@ export default function BroadcastChatPage() {
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyingTo?.id || editingMessage?.id);
-    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, 220)) return;
+    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current);
-  }, [replyingTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyingTo?.id, editingMessage?.id, localMessages?.length]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -985,7 +991,7 @@ export default function BroadcastChatPage() {
 
       {/* Input (only for app admins) */}
       {isAppAdmin && (
-        <div className="border-t py-4">
+        <div ref={composerRef} className="border-t py-4">
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}

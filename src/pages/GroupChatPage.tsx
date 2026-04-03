@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } fr
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
+import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -146,6 +147,10 @@ export default function GroupChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
+  const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
+    [replyTo?.id, editingMessage?.id],
+    56,
+  );
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
@@ -401,9 +406,9 @@ export default function GroupChatPage() {
   // Scroll to bottom when replying, editing, or sending a new message
   useLayoutEffect(() => {
     const isReplyOrEdit = !!(replyTo?.id || editingMessage?.id);
-    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, 220)) return;
+    if (!isReplyOrEdit && !isNearBottom(scrollAreaRef.current, Math.max(220, composerHeight + 32))) return;
     scrollChatToBottom(scrollAreaRef.current);
-  }, [replyTo?.id, editingMessage?.id, localMessages?.length]);
+  }, [composerHeight, replyTo?.id, editingMessage?.id, localMessages?.length]);
  
   // Pull-to-refresh
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -1430,7 +1435,7 @@ export default function GroupChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "8rem" : "calc(var(--bottom-nav-offset, 0px) + 8rem)" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
             {/* Invisible trigger for infinite scroll */}
             {hasOlderMessages && !searchQuery && (
               <div ref={loadTriggerRef} className="h-1" />
@@ -1475,7 +1480,7 @@ export default function GroupChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview
