@@ -6,7 +6,7 @@ import { getShareUrl } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
@@ -2273,6 +2273,64 @@ export default function EventDetailPage() {
             </CardContent>
           </Card>
         )}
+        {/* Child RSVP - inline below parent RSVP */}
+        {childrenOnTeam && childrenOnTeam.length > 0 && (
+          <div className="pt-2">
+            <Separator />
+            <details className="mt-3 rounded-xl border border-border/50 bg-muted/20 group">
+              <summary className="flex items-center gap-2 cursor-pointer list-none p-3 [&::-webkit-details-marker]:hidden">
+                <Baby className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">Children's RSVP</h3>
+                {childRsvps.length > 0 && (
+                  <span className="text-xs text-muted-foreground ml-auto mr-1">
+                    {childRsvps.filter(r => r.status === "going").length > 0 && `${childRsvps.filter(r => r.status === "going").length} going`}
+                    {childRsvps.filter(r => r.status === "maybe").length > 0 && ` · ${childRsvps.filter(r => r.status === "maybe").length} maybe`}
+                  </span>
+                )}
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180 shrink-0" />
+              </summary>
+              <div className="space-y-3 px-3 pb-3">
+              {childrenOnTeam.map((child: any) => {
+              const childRsvp = childRsvps.find((r) => r.child_id === child.id);
+              return (
+                <div key={child.id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-7 w-7">
+                        <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                          {child.name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium">{child.name}</span>
+                    </div>
+                    {childRsvp && (
+                      <Badge variant={childRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
+                        {childRsvp.status === "going" ? "Going" : childRsvp.status === "maybe" ? "Maybe" : "Not Going"}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {rsvpOptions.map(({ value, label, icon }) => (
+                      <Button
+                        key={value}
+                        variant={childRsvp?.status === value ? "default" : "outline"}
+                        size="sm"
+                        className="flex flex-col h-auto py-2"
+                        onClick={() => childRsvpMutation.mutate({ childId: child.id, status: value, childName: child.name })}
+                        disabled={childRsvpMutation.isPending}
+                      >
+                        <span>{icon}</span>
+                        <span className="text-xs">{label}</span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+              </div>
+            </details>
+          </div>
+        )}
       </section>
 
       {/* Guest Management Section - only for social events with guests enabled */}
@@ -2285,56 +2343,6 @@ export default function EventDetailPage() {
         />
       )}
 
-      {/* Child RSVP Section - for parents with children on this team */}
-      {childrenOnTeam && childrenOnTeam.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Baby className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">RSVP for Children</h2>
-          </div>
-          <div className="space-y-3">
-            {childrenOnTeam.map((child: any) => {
-              const childRsvp = childRsvps.find((r) => r.child_id === child.id);
-              return (
-                <Card key={child.id} className="border-dashed">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
-                            {child.name.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{child.name}</span>
-                      </div>
-                      {childRsvp && (
-                        <Badge variant={childRsvp.status === "going" ? "default" : "secondary"}>
-                          {childRsvp.status === "going" ? "Going" : childRsvp.status === "maybe" ? "Maybe" : "Not Going"}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {rsvpOptions.map(({ value, label, icon }) => (
-                        <Button
-                          key={value}
-                          variant={childRsvp?.status === value ? "default" : "outline"}
-                          size="sm"
-                          className="flex flex-col h-auto py-2"
-                          onClick={() => childRsvpMutation.mutate({ childId: child.id, status: value, childName: child.name })}
-                          disabled={childRsvpMutation.isPending}
-                        >
-                          <span>{icon}</span>
-                          <span className="text-xs">{label}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       {/* Mini League Matches - rendered earlier for mini league events (moved above Responses) */}
       {!isMiniLeagueEvent && event.mini_league_id && null}

@@ -23,7 +23,8 @@ export function getChatScrollMetrics(container: HTMLElement | null | undefined) 
 
 /**
  * Scrolls a chat container to the absolute bottom.
- * Uses a single immediate snap + one rAF safety pass to catch pending layouts.
+ * Uses an immediate snap + double-rAF + a 150ms delayed pass to catch
+ * async layout changes (e.g. ResizeObserver updating composer height).
  */
 export function scrollChatToBottom(container: HTMLElement | null | undefined) {
   const viewport = resolveChatScrollViewport(container);
@@ -34,7 +35,13 @@ export function scrollChatToBottom(container: HTMLElement | null | undefined) {
   };
 
   snap();
-  requestAnimationFrame(snap);
+  requestAnimationFrame(() => {
+    snap();
+    requestAnimationFrame(snap);
+  });
+
+  // Catch async ResizeObserver → state update → re-render → layout cycle
+  setTimeout(snap, 150);
 }
 
 /**

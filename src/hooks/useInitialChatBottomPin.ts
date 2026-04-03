@@ -42,17 +42,22 @@ export function useInitialChatBottomPin({
       return;
     }
 
-    // If we previously pinned from empty content and now have items, reset to re-pin
-    if (pinnedWhileEmptyRef.current && itemCount > 0) {
-      pinnedWhileEmptyRef.current = false;
-      pinnedKeyRef.current = undefined; // Force re-pin
+    // Once pinned for this key, stay pinned — never flash visibility:hidden again.
+    // The only re-pin case is a genuinely new resetKey (navigating to a different chat).
+    if (pinnedKeyRef.current === resetKey) {
+      // If we pinned while empty and content has now arrived, just re-snap
+      // to the bottom without hiding. This avoids the flash.
+      if (pinnedWhileEmptyRef.current && itemCount > 0) {
+        pinnedWhileEmptyRef.current = false;
+        scrollChatToBottom(scrollContainerRef.current);
+      }
+      return;
     }
-
-    if (pinnedKeyRef.current === resetKey) return;
 
     if (itemCount <= 0) {
       pinnedWhileEmptyRef.current = true;
       setIsPinned(true);
+      pinnedKeyRef.current = resetKey;
       return;
     }
 

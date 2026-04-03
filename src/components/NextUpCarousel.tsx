@@ -1,7 +1,7 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock } from "lucide-react";
+import { MapPin, Check, HelpCircle, X, Loader2, Clock, ChevronRight, Users, CalendarClock, Baby, ChevronDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +104,60 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
         child_id: string;
         children: { name: string } | null;
       }>;
+    },
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+}
+
+function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id">, userId: string | undefined) {
+  return useQuery({
+    queryKey: ["event-children-card", event.id, event.team_id, event.club_id, userId],
+    queryFn: async () => {
+      const [ownChildren, guardianLinks] = await Promise.all([
+        event.team_id
+          ? supabase
+              .from("children")
+              .select("id, name, child_team_assignments!inner (team_id)")
+              .eq("parent_id", userId!)
+              .eq("child_team_assignments.team_id", event.team_id)
+          : supabase
+              .from("children")
+              .select("id, name")
+              .eq("parent_id", userId!),
+        supabase
+          .from("child_guardians")
+          .select("child_id, children!inner (id, name)")
+          .eq("guardian_id", userId!),
+      ]);
+
+      const directChildren = ownChildren.data || [];
+      const guardianChildren = (guardianLinks.data || [])
+        .map((guardianLink: any) => guardianLink.children)
+        .filter(Boolean);
+
+      let filteredGuardianChildren = guardianChildren;
+
+      if (event.team_id && guardianChildren.length > 0) {
+        const guardianChildIds = guardianChildren.map((child: any) => child.id);
+        const { data: assignments } = await supabase
+          .from("child_team_assignments")
+          .select("child_id")
+          .eq("team_id", event.team_id)
+          .in("child_id", guardianChildIds);
+
+        const assignedIds = new Set((assignments || []).map((assignment: any) => assignment.child_id));
+        filteredGuardianChildren = guardianChildren.filter((child: any) => assignedIds.has(child.id));
+      }
+
+      const seen = new Set<string>();
+
+      return [...directChildren, ...filteredGuardianChildren].filter((child: any) => {
+        if (seen.has(child.id)) return false;
+        seen.add(child.id);
+        return true;
+      }) as Array<{ id: string; name: string }>;
     },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
@@ -301,6 +355,8 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   });
 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
+  const { data: childrenOnEvent } = useChildrenForEvent(event, user?.id);
+  const { data: childRsvps } = useChildRsvps(event.id, user?.id);
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
@@ -337,6 +393,42 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
     },
     onError: () => {
       toast({ title: "Failed to update RSVP", variant: "destructive" });
+    },
+  });
+
+  const childRsvpMutation = useMutation({
+    mutationFn: async ({ childId, status }: { childId: string; status: RsvpStatus }) => {
+      const existingChildRsvp = childRsvps?.find((rsvp) => rsvp.child_id === childId);
+
+      if (existingChildRsvp) {
+        const { error } = await supabase
+          .from("rsvps")
+          .update({ status })
+          .eq("id", existingChildRsvp.id);
+
+        if (error) throw error;
+        return;
+      }
+
+      const { error } = await supabase
+        .from("rsvps")
+        .insert({
+          event_id: event.id,
+          child_id: childId,
+          user_id: user!.id,
+          status,
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
+      queryClient.invalidateQueries({ queryKey: ["hero-rsvp", event.id] });
+      queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+      queryClient.invalidateQueries({ queryKey: ["rsvp-summary", event.id] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update child RSVP", variant: "destructive" });
     },
   });
 
@@ -436,6 +528,62 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
                 );
               })}
             </div>
+
+            {childrenOnEvent && childrenOnEvent.length > 0 && (
+              <details className="rounded-xl border border-border/50 bg-muted/20 group">
+                <summary className="flex items-center gap-1.5 text-[11px] font-medium text-foreground cursor-pointer list-none p-2.5 [&::-webkit-details-marker]:hidden">
+                  <Baby className="h-3.5 w-3.5 text-primary" />
+                  <span>Children's RSVP</span>
+                  {childRsvps && childRsvps.length > 0 ? (
+                    <span className="text-[10px] text-muted-foreground ml-auto mr-1">
+                      {childRsvps.filter(r => r.status === "going").length > 0 && `${childRsvps.filter(r => r.status === "going").length} going`}
+                      {childRsvps.filter(r => r.status === "maybe").length > 0 && ` · ${childRsvps.filter(r => r.status === "maybe").length} maybe`}
+                    </span>
+                  ) : null}
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 shrink-0" />
+                </summary>
+                <div className="space-y-2 px-2.5 pb-2.5">
+                  {childrenOnEvent.map((child) => {
+                    const childRsvp = childRsvps?.find((rsvp) => rsvp.child_id === child.id);
+
+                    return (
+                      <div key={child.id} className="space-y-1.5">
+                        <div className="text-[11px] font-medium text-foreground">{child.name}</div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {rsvpOptions.map(({ status, label, icon, activeClass, inactiveHint }) => {
+                            const isActive = childRsvp?.status === status;
+
+                            return (
+                              <Button
+                                key={`${child.id}-${status}`}
+                                variant="outline"
+                                size="sm"
+                                aria-pressed={isActive}
+                                aria-label={`${child.name} RSVP ${label}`}
+                                className={`h-8 gap-1 px-2 text-[11px] font-medium rounded-full transition-all ${
+                                  isActive ? activeClass : inactiveHint
+                                }`}
+                                disabled={childRsvpMutation.isPending || isActive}
+                                onClick={() => !isActive && childRsvpMutation.mutate({ childId: child.id, status })}
+                              >
+                                {childRsvpMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                                ) : isActive ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  icon
+                                )}
+                                <span className="truncate">{label}</span>
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            )}
 
             {/* Helper text when no RSVP selected */}
             {!currentStatus && (
