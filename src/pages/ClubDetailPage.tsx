@@ -631,7 +631,11 @@ export default function ClubDetailPage() {
     },
   });
 
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDelete = async () => {
+    setIsDeleting(true);
     // Get all club members to notify them (from club-level and team-level roles)
     const { data: teamsData } = await supabase
       .from("teams")
@@ -673,8 +677,21 @@ export default function ClubDetailPage() {
       await supabase.from("notifications").insert(notifications);
     }
 
-    const { error } = await supabase.from("clubs").delete().eq("id", id!);
+    // Soft-delete: set deleted_at instead of hard delete
+    const { error } = await supabase.from("clubs").update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: user?.id,
+    } as any).eq("id", id!);
 
+    // Also soft-delete all teams in the club
+    if (!error && teamIds.length > 0) {
+      await supabase.from("teams").update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user?.id,
+      } as any).in("id", teamIds);
+    }
+
+    setIsDeleting(false);
     if (error) {
       toast({
         title: "Error",
@@ -684,8 +701,32 @@ export default function ClubDetailPage() {
       return;
     }
 
-    toast({ title: "Club deleted" });
+    setShowDeleteDialog(false);
+    toast({ title: "Club deleted", description: "You can restore it within 30 days from the clubs page." });
     navigate("/clubs");
+  };
+
+  const handleRestoreClub = async () => {
+    const { error } = await supabase.from("clubs").update({
+      deleted_at: null,
+      deleted_by: null,
+    } as any).eq("id", id!);
+
+    // Also restore all teams that were soft-deleted
+    if (!error) {
+      await supabase.from("teams").update({
+        deleted_at: null,
+        deleted_by: null,
+      } as any).eq("club_id", id!);
+    }
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to restore club.", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Club restored!" });
+    queryClient.invalidateQueries({ queryKey: ["club", id] });
   };
 
   // Mutation for app admins to toggle club Pro status

@@ -596,7 +596,11 @@ export default function TeamDetailPage() {
     },
   });
 
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDelete = async () => {
+    setIsDeleting(true);
     // Get all team members to notify them
     const { data: teamMembers } = await supabase
       .from("user_roles")
@@ -619,8 +623,13 @@ export default function TeamDetailPage() {
       }
     }
 
-    const { error } = await supabase.from("teams").delete().eq("id", id!);
+    // Soft-delete: set deleted_at instead of hard delete
+    const { error } = await supabase.from("teams").update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: user?.id,
+    } as any).eq("id", id!);
 
+    setIsDeleting(false);
     if (error) {
       toast({
         title: "Error",
@@ -630,8 +639,24 @@ export default function TeamDetailPage() {
       return;
     }
 
-    toast({ title: "Team deleted" });
+    setShowDeleteDialog(false);
+    toast({ title: "Team deleted", description: "You can restore it within 30 days." });
     navigate(`/clubs/${team?.club_id}`);
+  };
+
+  const handleRestoreTeam = async () => {
+    const { error } = await supabase.from("teams").update({
+      deleted_at: null,
+      deleted_by: null,
+    } as any).eq("id", id!);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to restore team.", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Team restored!" });
+    queryClient.invalidateQueries({ queryKey: ["team", id] });
   };
 
   if (isLoading) {
