@@ -51,12 +51,12 @@ export function ConfirmDeleteDialog({
           </div>
           <DialogDescription className="pt-2 space-y-3">
             <p>
-              This will soft-delete <strong>{entityName}</strong> and all its{" "}
+              This will remove <strong>{entityName}</strong> and all its{" "}
               {entityType === "club" || entityType === "organisation" ? "teams, " : ""}
               events, and data. Members will be notified.
             </p>
             <p className="text-xs text-muted-foreground">
-              You can restore this {entityType} within 30 days from the settings menu.
+              Changed your mind? You can restore this {entityType} within 30 days from the settings menu.
             </p>
             <p className="font-medium text-foreground">
               Type <span className="font-bold text-destructive">"{entityName}"</span> to confirm:
