@@ -952,7 +952,35 @@ export default function ClubUpgradePage() {
           )}
 
           <div className="flex flex-col gap-2">
-            {tier === "pro_football" && (
+            {isOnTrial && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10">
+                    Cancel Trial
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will immediately end your trial and remove Pro features from all teams. No payment will be taken.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => cancelTrialMutation.mutate()}
+                      disabled={cancelTrialMutation.isPending}
+                    >
+                      {cancelTrialMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      Cancel Trial
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            {!isOnTrial && tier === "pro_football" && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-muted-foreground">
@@ -980,33 +1008,35 @@ export default function ClubUpgradePage() {
                 </AlertDialogContent>
               </AlertDialog>
             )}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
-                  <ArrowDown className="h-4 w-4 mr-2" />
-                  Cancel Club Subscription
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Cancel Club Subscription?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will remove all Pro features from all teams in your club. Individual teams can still upgrade separately.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => downgradeMutation.mutate("free")}
-                    disabled={downgradeMutation.isPending}
-                  >
-                    {downgradeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                    Confirm Cancellation
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {!isOnTrial && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
+                    <ArrowDown className="h-4 w-4 mr-2" />
+                    Cancel Club Subscription
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel Club Subscription?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remove all Pro features from all teams in your club. Individual teams can still upgrade separately.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => downgradeMutation.mutate("free")}
+                      disabled={downgradeMutation.isPending}
+                    >
+                      {downgradeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      Confirm Cancellation
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </CardContent>
       </Card>
