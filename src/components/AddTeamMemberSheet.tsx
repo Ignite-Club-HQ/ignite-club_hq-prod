@@ -1723,6 +1723,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <div className="space-y-6 pb-6">
             <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
               <p className="font-medium mb-1">{nameInput}</p>
+              {selectedRole === "parent" && singleChildren.filter(c => c.name.trim()).length > 0 ? (
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Baby className="h-3.5 w-3.5" />
+                  {singleChildren.filter(c => c.name.trim()).length === 1
+                    ? `${singleChildren.find(c => c.name.trim())!.name.trim()} added to ${teamName || "the team"}`
+                    : `${singleChildren.filter(c => c.name.trim()).map(c => c.name.trim()).join(", ")} added to ${teamName || "the team"}`}
+                </p>
+              ) : null}
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5" />
                 {customEmail ? `Invite sent to ${customEmail}` : "Invite link created — share it with them"}
