@@ -241,10 +241,11 @@ export default function ClubAdminChatPage() {
 
   // Sync localMessages with fetched messages
   useLayoutEffect(() => {
+    // Guard: never replace existing messages with an empty array (transient cache state during resume)
     if (messages) {
       if (messages.length > 0) {
         setLocalMessages(messages);
-      } else if (!messagesLoading) {
+      } else if (!messagesLoading && (!localMessages || localMessages.length === 0)) {
         setLocalMessages(messages);
       }
     }

@@ -301,7 +301,8 @@ export default function BroadcastChatPage() {
 
   useLayoutEffect(() => {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
-    if (!messages) return;
+    // Guard: never replace existing messages with an empty array (transient cache state during resume)
+    if (!messages || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
 
     setLocalMessages((prev) => {
       const mergedMessages = !prev
