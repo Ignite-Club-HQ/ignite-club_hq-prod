@@ -1488,7 +1488,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
   });
 
-  const buildInviteShareMessage = () => {
+  const buildInviteShareMessage = (overrideLink?: string) => {
     const clubName = clubBranding?.name || "";
     const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
     const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(selectedRole);
@@ -1496,7 +1496,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     const email = customEmail.trim();
     const appDownload = `\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
     const emailNote = email ? `\n\nSign up with ${email} so your account links automatically.` : "";
-    const link = inviteShareLink || inviteLink || "";
+    const link = overrideLink || inviteShareLink || inviteLink || "";
 
     if (isAdminRole && teamName) {
       return `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}. Tap here to get started: ${link}${appDownload}${emailNote}`;
