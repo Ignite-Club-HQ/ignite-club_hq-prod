@@ -862,8 +862,11 @@ export default function UpgradeProPage() {
         </Card>
       )}
 
+      {/* Trial Banner */}
+      {isOnTrial && !hasClubProAccess && !hasClubProFootballAccess && renderTrialBanner()}
+
       {/* Expiry Banner for active subscriptions */}
-      {(isProActive || isProFootballActive) && !hasClubProAccess && !hasClubProFootballAccess && renderExpiryBanner()}
+      {(isProActive || isProFootballActive) && !hasClubProAccess && !hasClubProFootballAccess && !isOnTrial && renderExpiryBanner()}
 
       {showFootballOption ? (
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
