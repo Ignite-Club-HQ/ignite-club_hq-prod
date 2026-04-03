@@ -2273,6 +2273,53 @@ export default function EventDetailPage() {
             </CardContent>
           </Card>
         )}
+        {/* Child RSVP - inline below parent RSVP */}
+        {childrenOnTeam && childrenOnTeam.length > 0 && (
+          <div className="space-y-3 pt-2">
+            <Separator />
+            <div className="flex items-center gap-2">
+              <Baby className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">Children's RSVP</h3>
+            </div>
+            {childrenOnTeam.map((child: any) => {
+              const childRsvp = childRsvps.find((r) => r.child_id === child.id);
+              return (
+                <div key={child.id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-7 w-7">
+                        <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                          {child.name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium">{child.name}</span>
+                    </div>
+                    {childRsvp && (
+                      <Badge variant={childRsvp.status === "going" ? "default" : "secondary"} className="text-xs">
+                        {childRsvp.status === "going" ? "Going" : childRsvp.status === "maybe" ? "Maybe" : "Not Going"}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {rsvpOptions.map(({ value, label, icon }) => (
+                      <Button
+                        key={value}
+                        variant={childRsvp?.status === value ? "default" : "outline"}
+                        size="sm"
+                        className="flex flex-col h-auto py-2"
+                        onClick={() => childRsvpMutation.mutate({ childId: child.id, status: value, childName: child.name })}
+                        disabled={childRsvpMutation.isPending}
+                      >
+                        <span>{icon}</span>
+                        <span className="text-xs">{label}</span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Guest Management Section - only for social events with guests enabled */}
