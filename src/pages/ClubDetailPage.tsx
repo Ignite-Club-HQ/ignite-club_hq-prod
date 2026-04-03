@@ -832,31 +832,13 @@ export default function ClubDetailPage() {
                 <Pencil className="h-4 w-4 mr-2" />
                 {club?.class_mode_enabled ? "Edit Organisation" : "Edit Club"}
               </DropdownMenuItem>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    {club?.class_mode_enabled ? "Delete Organisation" : "Delete Club"}
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{club?.class_mode_enabled ? "Delete Organisation?" : "Delete Club?"}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete the {club?.class_mode_enabled ? "organisation" : "club"}, all {club?.class_mode_enabled ? "classes" : "teams"}, and events. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {club?.class_mode_enabled ? "Delete Organisation" : "Delete Club"}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
