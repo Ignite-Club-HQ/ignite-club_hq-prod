@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isNativePlatform } from "@/lib/nativePush";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, CreditCard } from "lucide-react";
+import { ArrowLeft, Check, Crown, Loader2, Ticket, Target, ArrowDown, Calendar, AlertCircle, Building2, CreditCard, Flame } from "lucide-react";
 import { isPast, parseISO, format, addMonths, addYears } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -198,6 +198,8 @@ export default function UpgradeProPage() {
   const showFootballOption = isSoccerClub(team?.clubs?.sport);
   const expiresAt = subscription?.expires_at ? parseISO(subscription.expires_at) : null;
   const isExpired = expiresAt ? isPast(expiresAt) : false;
+  const isOnTrial = subscription?.is_trial && subscription?.trial_ends_at && !isPast(parseISO(subscription.trial_ends_at));
+  const trialEndsAt = subscription?.trial_ends_at ? parseISO(subscription.trial_ends_at) : null;
   
 
   const applyPromoMutation = useMutation({
@@ -277,6 +279,23 @@ export default function UpgradeProPage() {
     },
     onError: (error: Error) => {
       toast({ title: "Invalid Code", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const cancelTrialMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('cancel-subscription', {
+        body: { subscription_type: 'team', entity_id: teamId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      toast({ title: "Trial Cancelled", description: "Your free trial has been cancelled. No payment will be taken." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to cancel trial.", variant: "destructive" });
     },
   });
 
@@ -490,25 +509,54 @@ export default function UpgradeProPage() {
     );
   }
 
-  const renderExpiryBanner = () => {
-    if (!expiresAt) return null;
-    
-    if (isExpired) {
-      return (
-        <Card className="border-destructive/50 bg-destructive/10 mb-4">
-          <CardContent className="p-4 flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-destructive">Subscription Expired</p>
+  const renderTrialBanner = () => {
+    if (!isOnTrial || !trialEndsAt) return null;
+    return (
+      <Card className="border-amber-500/50 bg-amber-500/10 mb-4">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <Flame className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-amber-700 dark:text-amber-400">Free Trial Active</p>
               <p className="text-sm text-muted-foreground">
-                Your subscription expired on {format(expiresAt, "dd MMM yyyy")}. 
-                Renew now to continue accessing Pro features.
+                Your trial ends on <strong>{format(trialEndsAt, "dd MMMM yyyy")}</strong>. 
+                After the trial, your subscription will begin and you'll be charged.
               </p>
             </div>
-          </CardContent>
-        </Card>
-      );
-    }
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full text-destructive border-destructive/30 hover:bg-destructive/10">
+                Cancel Trial
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will immediately end your trial and remove Pro features. No payment will be taken.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => cancelTrialMutation.mutate()}
+                  disabled={cancelTrialMutation.isPending}
+                >
+                  {cancelTrialMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  Cancel Trial
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderExpiryBanner = () => {
+    if (!expiresAt || isOnTrial) return null;
 
     return (
       <Card className="border-primary/30 bg-primary/5 mb-4">
@@ -556,10 +604,14 @@ export default function UpgradeProPage() {
     const isPro = tier === "pro";
     const Icon = isPro ? Crown : Target;
     const colorClass = isPro ? "yellow" : "emerald";
-    const title = isPro ? "Pro Active" : "Pro Football Active";
-    const description = isPro 
-      ? "This team has full access to all Pro features."
-      : "This team has access to the Soccer Pitch Board.";
+    const title = isOnTrial 
+      ? (isPro ? "Pro Trial Active" : "Pro Football Trial Active")
+      : (isPro ? "Pro Active" : "Pro Football Active");
+    const description = isOnTrial
+      ? `Your free trial ${isPro ? "gives this team full Pro access" : "includes the Soccer Pitch Board"}.`
+      : (isPro 
+        ? "This team has full access to all Pro features."
+        : "This team has access to the Soccer Pitch Board.");
 
     return (
       <Card className={`border-${colorClass}-500/50 bg-${colorClass}-500/10`}>
@@ -567,10 +619,24 @@ export default function UpgradeProPage() {
           <Icon className={`h-12 w-12 text-${colorClass}-500 mx-auto`} />
           <div>
             <h2 className="text-xl font-bold">{title}</h2>
+            {isOnTrial && (
+              <Badge className="mt-2 bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                Free Trial
+              </Badge>
+            )}
             <p className="text-muted-foreground mt-2">{description}</p>
           </div>
           
-          {expiresAt && (
+          {isOnTrial && trialEndsAt && (
+            <div className="p-3 rounded-lg bg-amber-500/10 flex items-center justify-center gap-2">
+              <Flame className="h-4 w-4 text-amber-500" />
+              <span className="text-sm">
+                Trial ends <strong>{format(trialEndsAt, "dd MMMM yyyy")}</strong>
+              </span>
+            </div>
+          )}
+
+          {!isOnTrial && expiresAt && (
             <div className={`p-3 rounded-lg ${isExpired ? 'bg-destructive/10' : 'bg-muted/50'} flex items-center justify-center gap-2`}>
               <Calendar className={`h-4 w-4 ${isExpired ? 'text-destructive' : 'text-muted-foreground'}`} />
               <span className={`text-sm ${isExpired ? 'text-destructive font-semibold' : ''}`}>
@@ -580,14 +646,42 @@ export default function UpgradeProPage() {
             </div>
           )}
 
-          {isExpired && (
+          {isExpired && !isOnTrial && (
             <p className="text-sm text-destructive">
               Your subscription has expired. Features will be disabled until you renew.
             </p>
           )}
 
           <div className="flex flex-col gap-2">
-            {tier === "pro_football" && (
+            {isOnTrial && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10">
+                    Cancel Trial
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will immediately end your trial and remove Pro features. No payment will be taken.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => cancelTrialMutation.mutate()}
+                      disabled={cancelTrialMutation.isPending}
+                    >
+                      {cancelTrialMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      Cancel Trial
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            {!isOnTrial && tier === "pro_football" && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-muted-foreground">
@@ -615,33 +709,35 @@ export default function UpgradeProPage() {
                 </AlertDialogContent>
               </AlertDialog>
             )}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
-                  <ArrowDown className="h-4 w-4 mr-2" />
-                  Downgrade to Free
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Downgrade to Free Plan?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will remove all Pro features from your team including Points & Rewards, club announcements, media uploads, and vault storage. This action can be reversed by upgrading again.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => downgradeMutation.mutate("free")}
-                    disabled={downgradeMutation.isPending}
-                  >
-                    {downgradeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                    Confirm Downgrade
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {!isOnTrial && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
+                    <ArrowDown className="h-4 w-4 mr-2" />
+                    Downgrade to Free
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Downgrade to Free Plan?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remove all Pro features from your team including Points & Rewards, club announcements, media uploads, and vault storage. This action can be reversed by upgrading again.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => downgradeMutation.mutate("free")}
+                      disabled={downgradeMutation.isPending}
+                    >
+                      {downgradeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      Confirm Downgrade
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -806,8 +902,11 @@ export default function UpgradeProPage() {
         </Card>
       )}
 
+      {/* Trial Banner */}
+      {isOnTrial && !hasClubProAccess && !hasClubProFootballAccess && renderTrialBanner()}
+
       {/* Expiry Banner for active subscriptions */}
-      {(isProActive || isProFootballActive) && !hasClubProAccess && !hasClubProFootballAccess && renderExpiryBanner()}
+      {(isProActive || isProFootballActive) && !hasClubProAccess && !hasClubProFootballAccess && !isOnTrial && renderExpiryBanner()}
 
       {showFootballOption ? (
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
