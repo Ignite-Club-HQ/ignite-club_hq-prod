@@ -127,7 +127,7 @@ interface Team {
   id: string;
   name: string;
   logo_url: string | null;
-  clubs: { name: string; logo_url: string | null; sport: string | null };
+  clubs: { id: string; name: string; logo_url: string | null; sport: string | null };
 }
 
 interface Club {
@@ -445,7 +445,7 @@ export default function MessagesPage() {
           id,
           name,
           logo_url,
-          clubs (name, logo_url, sport)
+          clubs (id, name, logo_url, sport)
         `)
         .in("id", teamIds);
 
@@ -985,9 +985,15 @@ export default function MessagesPage() {
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
     
-    // Apply club filter if active
+    // Apply club filter if active, but fall back to team.club id until the async
+    // activeClubTeamIds query finishes so login doesn't briefly hide all team chats.
     if (activeClubFilter) {
-      teamsToFilter = teamsToFilter.filter((team: any) => activeClubTeamIds.includes(team.id));
+      const hasResolvedActiveClubTeams = activeClubTeamIds.length > 0;
+      teamsToFilter = teamsToFilter.filter((team: any) => {
+        const matchesResolvedIds = hasResolvedActiveClubTeams && activeClubTeamIds.includes(team.id);
+        const matchesClubRelation = team.clubs?.id === activeClubFilter;
+        return matchesResolvedIds || matchesClubRelation;
+      });
     }
     
     if (!query) {
