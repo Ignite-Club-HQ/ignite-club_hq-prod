@@ -204,6 +204,8 @@ export default function ClubUpgradePage() {
   const isExpired = expiresAt ? isPast(expiresAt) : false;
   const currentPlan = subscription?.plan as PlanTier | undefined;
   const currentTeamLimit = subscription?.team_limit;
+  const isOnTrial = subscription?.is_trial && subscription?.trial_ends_at && !isPast(parseISO(subscription.trial_ends_at));
+  const trialEndsAt = subscription?.trial_ends_at ? parseISO(subscription.trial_ends_at) : null;
 
   // Check if subscription is near expiry (within 30 days) or expired
   const daysUntilExpiry = expiresAt ? differenceInDays(expiresAt, new Date()) : null;
