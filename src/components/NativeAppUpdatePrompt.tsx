@@ -43,6 +43,7 @@ export function NativeAppUpdatePrompt() {
 
   useEffect(() => {
     let cancelled = false;
+    let removeAppStateListener: (() => void) | undefined;
 
     async function check() {
       try {
@@ -89,7 +90,38 @@ export function NativeAppUpdatePrompt() {
     }
 
     check();
-    return () => { cancelled = true; };
+
+    void (async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        const listener = await App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            void check();
+          }
+        });
+        removeAppStateListener = () => {
+          void listener.remove();
+        };
+      } catch (err) {
+        console.warn('[UpdatePrompt] App state listener unavailable:', err);
+      }
+    })();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void check();
+      }
+    };
+
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      removeAppStateListener?.();
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const handleUpdate = async () => {
