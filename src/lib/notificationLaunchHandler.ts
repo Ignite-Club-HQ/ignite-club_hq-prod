@@ -64,6 +64,19 @@ export function initNotificationLaunchHandler() {
           // Extract the URL from notification data
           const data = notification.notification?.data;
           const url = data?.url || data?.link || data?.path;
+          const storeUrl = data?.store_url;
+          
+          // Handle store_url (e.g. from update reminders) — open externally
+          if (storeUrl) {
+            console.log('[NotificationLaunch] Store URL detected, opening in browser:', storeUrl);
+            import('@capacitor/browser').then(({ Browser }) => {
+              Browser.open({ url: storeUrl });
+            }).catch(() => {
+              window.open(storeUrl, '_system');
+            });
+            navigationHandled = true;
+            return;
+          }
           
           if (url) {
             console.log('[NotificationLaunch] Found URL in notification:', url);
