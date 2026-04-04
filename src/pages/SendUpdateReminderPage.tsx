@@ -193,9 +193,29 @@ export default function SendUpdateReminderPage() {
     setSelectedUserIds(next);
   };
 
-  // Send mutation
+  // Send mutation — also auto-updates minimum_app_version to latest detected
   const sendMutation = useMutation({
     mutationFn: async (userIds: string[]) => {
+      // Auto-set minimum version to latest detected so NativeAppUpdatePrompt fires
+      const autoMinIos = latestVersions.ios || minIos;
+      const autoMinAndroid = latestVersions.android || minAndroid;
+      if (autoMinIos !== minIos || autoMinAndroid !== minAndroid) {
+        const { error: settingsError } = await supabase
+          .from("app_settings")
+          .update({
+            value: { ios: autoMinIos, android: autoMinAndroid } as any,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("key", "minimum_app_version");
+        if (settingsError) {
+          console.warn("Failed to auto-update minimum version:", settingsError);
+        } else {
+          setMinIos(autoMinIos);
+          setMinAndroid(autoMinAndroid);
+          queryClient.invalidateQueries({ queryKey: ["min-app-version"] });
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("send-update-reminder", {
         body: { userIds },
       });
@@ -203,7 +223,7 @@ export default function SendUpdateReminderPage() {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(data.message || "Notifications sent!");
+      toast.success(data.message || "Notifications sent! Minimum version auto-updated to latest.");
       setSelectedUserIds(new Set());
     },
     onError: (err: any) => {
