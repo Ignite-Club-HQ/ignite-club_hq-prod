@@ -555,19 +555,33 @@ async function handleSubscriptionCancelled(supabase: any, subscription: any) {
     .update({ 
       is_pro: false, 
       is_pro_football: false,
-      stripe_subscription_id: null 
+      stripe_subscription_id: null,
+      is_trial: false,
+      trial_ends_at: null,
     })
     .eq('stripe_subscription_id', subscriptionId)
     .select('team_id, teams(created_by)')
     .maybeSingle();
 
-  if (teamSub?.teams?.created_by) {
-    await supabase.from('notifications').insert({
-      user_id: teamSub.teams.created_by,
-      type: 'subscription_cancelled',
-      message: 'Your subscription has been cancelled.',
-      related_id: teamSub.team_id,
-    });
+  if (teamSub) {
+    // Also update the teams table directly
+    await supabase
+      .from('teams')
+      .update({
+        is_pro: false,
+        pro_expires_at: null,
+        stripe_subscription_id: null,
+      })
+      .eq('id', teamSub.team_id);
+
+    if (teamSub.teams?.created_by) {
+      await supabase.from('notifications').insert({
+        user_id: teamSub.teams.created_by,
+        type: 'subscription_cancelled',
+        message: 'Your subscription has been cancelled.',
+        related_id: teamSub.team_id,
+      });
+    }
     return;
   }
 
