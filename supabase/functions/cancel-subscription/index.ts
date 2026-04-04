@@ -53,7 +53,7 @@ serve(async (req) => {
     if (subscription_type === 'team') {
       const { data: team } = await supabase
         .from('teams')
-        .select('id, created_by, club_id')
+        .select('id, created_by, club_id, stripe_subscription_id')
         .eq('id', entity_id)
         .single();
 
@@ -82,13 +82,14 @@ serve(async (req) => {
         });
       }
 
+      // Check team_subscriptions first, fall back to teams table (legacy)
       const { data: sub } = await supabase
         .from('team_subscriptions')
         .select('stripe_subscription_id')
         .eq('team_id', entity_id)
-        .single();
+        .maybeSingle();
 
-      stripeSubscriptionId = sub?.stripe_subscription_id;
+      stripeSubscriptionId = sub?.stripe_subscription_id || team.stripe_subscription_id;
       clubId = team.club_id;
     } else {
       // Club subscription - check club_admin or app_admin
