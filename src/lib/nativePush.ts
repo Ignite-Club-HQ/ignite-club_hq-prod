@@ -526,7 +526,17 @@ export function setupNativePushListeners(
         // Handle force_update_prompt from notification taps
         const data = notification.notification?.data;
         if (data?.force_update_prompt === 'true') {
-          console.log('[NativePush] Force update prompt detected, dispatching event');
+          if (data?.store_url) {
+            console.log('[NativePush] Force update notification tapped, opening store URL:', data.store_url);
+            import('@capacitor/browser').then(({ Browser }) => {
+              Browser.open({ url: data.store_url });
+            }).catch(() => {
+              window.open(data.store_url, '_system');
+            });
+            return;
+          }
+
+          console.log('[NativePush] Force update prompt detected without store URL, dispatching event');
           window.dispatchEvent(new CustomEvent('force-update-prompt', {
             detail: { storeUrl: data?.store_url },
           }));
