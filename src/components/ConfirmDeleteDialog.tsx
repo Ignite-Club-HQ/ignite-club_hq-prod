@@ -18,6 +18,7 @@ interface ConfirmDeleteDialogProps {
   entityType: "club" | "team" | "organisation" | "class";
   onConfirm: () => void;
   isLoading?: boolean;
+  permanent?: boolean;
 }
 
 export function ConfirmDeleteDialog({
