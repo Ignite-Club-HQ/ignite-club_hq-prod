@@ -73,8 +73,13 @@ export function NativeAppUpdatePrompt() {
 
         if (cancelled) return;
 
-        if (compareSemver(currentVersion, requiredVersion) < 0) {
-          console.log(`[UpdatePrompt] Current ${currentVersion} < required ${requiredVersion}, showing prompt`);
+        // Android uses numeric build numbers, iOS uses semver
+        const isOutdated = platform === 'android'
+          ? Number(info.build || '0') < Number(requiredVersion)
+          : compareSemver(currentVersion, requiredVersion) < 0;
+
+        if (isOutdated) {
+          console.log(`[UpdatePrompt] ${platform} current ${platform === 'android' ? info.build : currentVersion} < required ${requiredVersion}, showing prompt`);
           setStoreUrl(platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL);
           setShowPrompt(true);
         }
