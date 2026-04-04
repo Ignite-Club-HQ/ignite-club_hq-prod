@@ -592,6 +592,14 @@ export default function SettingsPage() {
                     onCheckedChange={(v) => handlePreferenceChange("pitch_board_enabled", v)}
                     disabled={prefsLoading}
                   />
+                  <NotificationToggle
+                    icon={Trophy}
+                    label="Points & Rewards"
+                    description="Points earned, rewards & engagement nudges"
+                    checked={preferences.rewards_enabled}
+                    onCheckedChange={(v) => handlePreferenceChange("rewards_enabled", v)}
+                    disabled={prefsLoading}
+                  />
                 </div>
               </div>
             )}
