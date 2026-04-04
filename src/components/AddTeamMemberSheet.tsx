@@ -2298,7 +2298,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {customEmail.trim() ? "An invite email will be sent to this address" : "Without email, you'll get a shareable invite link"}
+                      {customEmail.trim() ? "An invite email will be sent automatically" : "Skip to share the invite link yourself via message, WhatsApp, etc."}
                     </p>
                   </div>
                 )}
