@@ -264,13 +264,11 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
 
   const handleClose = () => {
     setOpen(false);
-    setSearchQuery("");
     setSelectedUser(null);
     setCustomName("");
     setCustomEmail("");
     setInviteLink(null);
     setInviteSent(false);
-    setMode("invite");
     setSelectedRole("club_admin");
     setDeliveryMethod("share");
   };
