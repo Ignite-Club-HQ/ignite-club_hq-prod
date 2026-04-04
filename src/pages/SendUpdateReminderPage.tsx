@@ -16,7 +16,6 @@ import { toast } from "sonner";
 interface UserWithVersion {
   userId: string;
   name: string;
-  email: string;
   platform: string;
   appVersion: string | null;
   buildNumber: string | null;
@@ -57,84 +56,15 @@ export default function SendUpdateReminderPage() {
     enabled: isAppAdmin === true,
   });
 
-  // Fetch users with FCM token data
+  // Fetch users via edge function (bypasses RLS on fcm_tokens)
   const { data: usersWithVersions, isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users-fcm", selectedClubId],
     queryFn: async () => {
-      // Get FCM token data (users with native app)
-      const { data: fcmTokens } = await supabase
-        .from("fcm_tokens" as any)
-        .select("user_id, platform, app_version, build_number");
-
-      if (!fcmTokens || fcmTokens.length === 0) return [];
-
-      const userIds = [...new Set((fcmTokens as any[]).map((t: any) => t.user_id))];
-
-      // If club filter, get members of that club
-      let filteredUserIds = userIds;
-      if (selectedClubId !== "all") {
-        const { data: clubRoles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("club_id", selectedClubId);
-        
-        // Also get users via team membership
-        const { data: clubTeams } = await supabase
-          .from("teams")
-          .select("id")
-          .eq("club_id", selectedClubId);
-        
-        const teamIds = clubTeams?.map(t => t.id) || [];
-        let teamUserIds: string[] = [];
-        if (teamIds.length > 0) {
-          const { data: teamRoles } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .in("team_id", teamIds);
-          teamUserIds = teamRoles?.map(r => r.user_id) || [];
-        }
-        
-        const clubUserIds = new Set([
-          ...(clubRoles?.map(r => r.user_id) || []),
-          ...teamUserIds,
-        ]);
-        filteredUserIds = userIds.filter(id => clubUserIds.has(id));
-      }
-
-      if (filteredUserIds.length === 0) return [];
-
-      // Fetch profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", filteredUserIds);
-
-      const profileMap = new Map(
-        (profiles || []).map(p => [p.id, p])
-      );
-
-      // Build user list with latest token info per user
-      const userMap = new Map<string, UserWithVersion>();
-      for (const token of fcmTokens as any[]) {
-        if (!filteredUserIds.includes(token.user_id)) continue;
-        const profile = profileMap.get(token.user_id);
-        if (!profile) continue;
-
-        const existing = userMap.get(token.user_id);
-        // Keep the most recent token info (by presence of version)
-        if (!existing || (token.app_version && !existing.appVersion)) {
-          userMap.set(token.user_id, {
-            userId: token.user_id,
-            name: profile.display_name || "Unknown",
-            email: "",
-            platform: token.platform || "unknown",
-            appVersion: token.app_version || null,
-            buildNumber: token.build_number || null,
-          });
-        }
-      }
-
-      return Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const { data, error } = await supabase.functions.invoke("send-update-reminder", {
+        body: { action: "list-users", clubId: selectedClubId },
+      });
+      if (error) throw error;
+      return (data?.users || []) as UserWithVersion[];
     },
     enabled: isAppAdmin === true,
   });
@@ -320,7 +250,7 @@ export default function SendUpdateReminderPage() {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{u.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                      
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <Badge variant="outline" className="text-xs">
