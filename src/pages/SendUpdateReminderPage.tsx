@@ -266,7 +266,7 @@ export default function SendUpdateReminderPage() {
           </div>
           {latestVersions.ios || latestVersions.android ? (
             <p className="text-xs text-muted-foreground">
-              Tip: Set to the latest version ({latestVersions.ios && `iOS ${latestVersions.ios}`}{latestVersions.ios && latestVersions.android && ', '}{latestVersions.android && `Android ${latestVersions.android}`}) to prompt all outdated users.
+              Tip: iOS uses semver (e.g. 1.2.6). Android uses numeric build numbers (e.g. 71206710). Set above these values to prompt all outdated users.
             </p>
           ) : null}
           <Button
