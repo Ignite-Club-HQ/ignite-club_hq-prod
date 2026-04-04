@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Share2, Copy } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,6 +61,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [mode, setMode] = useState<"existing" | "invite">("invite");
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
+  const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -270,6 +273,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
     setInviteSent(false);
     setMode("invite");
     setSelectedRole("club_admin");
+    setDeliveryMethod("share");
   };
 
   const handleDone = () => {
@@ -304,9 +308,11 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-2">
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
               </div>
-              <h3 className="font-semibold text-lg">Invite Sent!</h3>
+              <h3 className="font-semibold text-lg">Member Added!</h3>
               <p className="text-sm text-muted-foreground">
-                Email invitation sent to <span className="font-medium">{customEmail}</span>
+                {customEmail
+                  ? <>Invite sent to <span className="font-medium">{customEmail}</span></>
+                  : "Invite link created — share it with them"}
               </p>
             </div>
 
@@ -318,6 +324,49 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               </p>
             </div>
 
+            {/* Share options */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-center">Share invite via</p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    const msg = `You've been invited to join ${clubName} as ${roleConfig[selectedRole].label}. Tap here to get started: ${inviteLink}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.${customEmail ? `\n\nSign up with ${customEmail} so your account links automatically.` : ""}`.trim();
+                    if (Capacitor.isNativePlatform()) {
+                      try {
+                        await Share.share({
+                          title: `Join ${clubName}`,
+                          text: msg,
+                          dialogTitle: 'Share invite',
+                        });
+                        return;
+                      } catch { /* cancelled */ }
+                    }
+                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                  }}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteLink || "");
+                      toast({ title: "Invite link copied!" });
+                    } catch {
+                      toast({ title: "Failed to copy link", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Link
+                </Button>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-4">
               <Button 
                 variant="outline" 
@@ -326,6 +375,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   setInviteLink(null);
                   setCustomName("");
                   setCustomEmail("");
+                  setDeliveryMethod("share");
                 }}
               >
                 Add Another
@@ -364,18 +414,49 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Email *</Label>
-                  <Input
-                    type="email"
-                    placeholder="Enter email to send invite"
-                    value={customEmail}
-                    onChange={(e) => setCustomEmail(e.target.value)}
-                    className="h-11"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    An invite email will be sent to this address
-                  </p>
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">How should we deliver the invite?</Label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryMethod("email")}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "email"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMethod("share"); setCustomEmail(""); }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "share"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Share2 className="h-4 w-4" />
+                      Share Link
+                    </button>
+                  </div>
+                  {deliveryMethod === "email" ? (
+                    <div className="space-y-1.5">
+                      <Input
+                        type="email"
+                        placeholder="Enter email to send invite"
+                        value={customEmail}
+                        onChange={(e) => setCustomEmail(e.target.value)}
+                        className="h-11"
+                        autoFocus
+                      />
+                      <p className="text-xs text-muted-foreground">An invite email will be sent automatically</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">You'll be able to share via WhatsApp, Messenger, SMS, or copy the link after adding</p>
+                  )}
                 </div>
 
                 <MobileCardSelect
@@ -401,14 +482,14 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                 <Button
                   className="w-full h-12"
                   onClick={() => addPendingMemberMutation.mutate()}
-                  disabled={!customName.trim() || !customEmail.trim() || addPendingMemberMutation.isPending || isSendingNotification}
+                  disabled={!customName.trim() || (deliveryMethod === "email" && !customEmail.trim()) || addPendingMemberMutation.isPending || isSendingNotification}
                 >
                   {addPendingMemberMutation.isPending || isSendingNotification ? (
                     <Loader2 className="h-5 w-5 animate-spin mr-2" />
                   ) : (
-                    <Send className="h-5 w-5 mr-2" />
+                    <UserPlus className="h-5 w-5 mr-2" />
                   )}
-                  Send Invite
+                  {customName.trim() ? `Add ${customName.trim()} as ${roleConfig[selectedRole].label}` : "Enter name to continue"}
                 </Button>
               </TabsContent>
 
