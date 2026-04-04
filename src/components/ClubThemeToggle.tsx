@@ -66,7 +66,8 @@ export function ClubThemeToggle() {
           theme_enabled,
           club_subscriptions(is_pro, is_pro_football, expires_at)
         `)
-        .in("id", clubIds);
+        .in("id", clubIds)
+        .is("deleted_at", null);
 
       if (!clubs) return [];
 
