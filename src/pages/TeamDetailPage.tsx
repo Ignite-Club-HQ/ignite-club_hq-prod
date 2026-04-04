@@ -714,6 +714,9 @@ export default function TeamDetailPage() {
             {hasProFootball && (
               <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
             )}
+            {isOnTrial && isTeamPro && (
+              <Badge variant="outline" className="text-amber-600 border-amber-500 text-[10px] px-1.5 py-0 h-4 shrink-0">Free Trial</Badge>
+            )}
             <p className="text-[11px] text-muted-foreground leading-tight truncate">
               {(() => {
                 const coaches = Object.values(members).filter(m => m.roles.some(r => r.role === 'coach'));
