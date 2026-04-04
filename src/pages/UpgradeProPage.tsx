@@ -532,13 +532,13 @@ export default function UpgradeProPage() {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will immediately end your trial and remove Pro features. No payment will be taken.
+                  Your trial will remain active until the expiry date. After that, Pro features will be removed and no payment will be taken.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   onClick={() => cancelTrialMutation.mutate()}
@@ -662,13 +662,13 @@ export default function UpgradeProPage() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                    <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will immediately end your trial and remove Pro features. No payment will be taken.
+                      Your trial will remain active until the expiry date. After that, Pro features will be removed and no payment will be taken.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={() => cancelTrialMutation.mutate()}
