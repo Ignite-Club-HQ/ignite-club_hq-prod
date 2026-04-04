@@ -39,6 +39,7 @@ export default function SendUpdateReminderPage() {
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [selectedVersions, setSelectedVersions] = useState<Set<string>>(new Set());
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [showUpdatePreview, setShowUpdatePreview] = useState(false);
 
   // Check app_admin
   const { data: isAppAdmin, isLoading: adminLoading } = useQuery({
