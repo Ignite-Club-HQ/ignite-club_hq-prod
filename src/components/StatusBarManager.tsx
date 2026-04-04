@@ -48,10 +48,16 @@ export function StatusBarManager() {
     if (isNativePlatform) {
       Keyboard.addListener('keyboardDidShow', () => {
         setTimeout(() => {
-          const el = document.activeElement;
-          if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
-            (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
+          const activeElement = document.activeElement as HTMLElement | null;
+          if (!activeElement) return;
+
+          const isFormField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement.tagName);
+          if (!isFormField) return;
+
+          const hasKeyboardScrollLock = activeElement.closest('[data-lock-keyboard-scroll="true"]');
+          if (hasKeyboardScrollLock) return;
+
+          activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
       }).then(handle => { keyboardShowListener = handle; });
     }
