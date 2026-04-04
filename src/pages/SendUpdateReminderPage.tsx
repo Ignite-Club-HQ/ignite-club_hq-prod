@@ -59,7 +59,7 @@ export default function SendUpdateReminderPage() {
         .select("value")
         .eq("key", "minimum_app_version")
         .maybeSingle();
-      return (data?.value as Record<string, string>) || { ios: "1.0.0", android: "1.0.0" };
+      return (data?.value as Record<string, string>) || { ios: "1.0.0", android: "0" };
     },
     enabled: isAppAdmin === true,
   });
@@ -67,7 +67,7 @@ export default function SendUpdateReminderPage() {
   useEffect(() => {
     if (minVersionSetting) {
       setMinIos(minVersionSetting.ios || "1.0.0");
-      setMinAndroid(minVersionSetting.android || "1.0.0");
+      setMinAndroid(minVersionSetting.android || "0");
     }
   }, [minVersionSetting]);
 
@@ -255,18 +255,18 @@ export default function SendUpdateReminderPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Android Minimum</Label>
+              <Label className="text-xs">Android Minimum (Build Number)</Label>
               <Input
                 value={minAndroid}
                 onChange={e => setMinAndroid(e.target.value)}
-                placeholder="e.g. 1.2.0"
+                placeholder="e.g. 71206710"
                 className="h-9 text-sm"
               />
             </div>
           </div>
           {latestVersions.ios || latestVersions.android ? (
             <p className="text-xs text-muted-foreground">
-              Tip: Set to the latest version ({latestVersions.ios && `iOS ${latestVersions.ios}`}{latestVersions.ios && latestVersions.android && ', '}{latestVersions.android && `Android ${latestVersions.android}`}) to prompt all outdated users.
+              Tip: iOS uses semver (e.g. 1.2.6). Android uses numeric build numbers (e.g. 71206710). Set above these values to prompt all outdated users.
             </p>
           ) : null}
           <Button
