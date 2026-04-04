@@ -112,10 +112,12 @@ export default function SendUpdateReminderPage() {
 
   // Filtered users (platform + version)
   const filteredUsers = useMemo(() => {
-    if (versionFilter === "all") return platformFilteredUsers;
-    if (versionFilter === "null") return platformFilteredUsers.filter(u => !u.appVersion);
-    return platformFilteredUsers.filter(u => u.appVersion === versionFilter);
-  }, [platformFilteredUsers, versionFilter]);
+    if (selectedVersions.size === 0) return platformFilteredUsers;
+    return platformFilteredUsers.filter(u => {
+      const v = u.appVersion || "null";
+      return selectedVersions.has(v);
+    });
+  }, [platformFilteredUsers, selectedVersions]);
 
   // Select all / none
   const toggleSelectAll = () => {
