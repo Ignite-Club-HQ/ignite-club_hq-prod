@@ -379,7 +379,8 @@ async function sendFCMNotifications(
   url: string,
   notificationId: string | null,
   tag: string,
-  notificationType?: string
+  notificationType?: string,
+  data?: Record<string, unknown>
 ): Promise<{ sent: number; total: number }> {
   const hasSeparateSecrets = Boolean(
     Deno.env.get('FCM_PROJECT_ID') &&
@@ -402,14 +403,17 @@ async function sendFCMNotifications(
         userId,
         title: title || 'Ignite Club HQ',
         body: body || 'You have a new notification',
-        url: url || '/notifications',
+        url,
         notificationId,
         tag: tag || `notification-${notificationId || Date.now()}`,
         notificationType,
-        data: notificationType ? {
-          notificationType,
-          type: notificationType,
-        } : undefined,
+        data: {
+          ...(notificationType ? {
+            notificationType,
+            type: notificationType,
+          } : {}),
+          ...(data || {}),
+        },
       },
     });
 
@@ -541,7 +545,7 @@ serve(async (req) => {
   }
   
   try {
-    const { userId, title, body, url, notificationId, tag, notificationType } = await req.json();
+    const { userId, title, body, url, notificationId, tag, notificationType, data } = await req.json();
     
     console.log(`[PUSH] Starting push notification for user ${userId}, type: ${notificationType || 'unspecified'}`);
     
@@ -574,10 +578,11 @@ serve(async (req) => {
       userId,
       title || 'Ignite Club HQ',
       body || 'You have a new notification',
-      url || '/notifications',
+      url,
       notificationId,
       tag || `notification-${notificationId || Date.now()}`,
-      notificationType
+      notificationType,
+      data
     );
     
     // Check for web push subscriptions
