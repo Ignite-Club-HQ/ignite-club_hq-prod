@@ -1002,7 +1002,7 @@ export default function ClubDetailPage() {
         );
       })()}
 
-      {/* Cancel Trial Banner - Show for admins when club has an active trial */}
+      {/* Cancel Subscription Banner - Show for admins when club has an active trial */}
       {isAdmin && clubSubscription?.is_trial && (clubSubscription?.is_pro || clubSubscription?.is_pro_football) && (
         <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-amber-500/10">
           <CardContent className="p-4">
@@ -1019,18 +1019,18 @@ export default function ClubDetailPage() {
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0">
-                    Cancel Trial
+                    Cancel Subscription
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                    <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will immediately end your trial and remove Pro features from all teams. No payment will be taken.
+                      Your trial will remain active until {clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'the end of the trial period'}. After that, Pro features will be removed from all teams and no payment will be taken.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={async () => {
@@ -1041,13 +1041,13 @@ export default function ClubDetailPage() {
                           if (error || data?.error) throw new Error(data?.error || error?.message);
                           queryClient.invalidateQueries({ queryKey: ["club-subscription", id] });
                           queryClient.invalidateQueries({ queryKey: ["club", id] });
-                          toast({ title: "Trial Cancelled", description: "Your free trial has been cancelled. No payment will be taken." });
+                          toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
                         } catch (err: any) {
-                          toast({ title: "Error", description: err.message || "Failed to cancel trial.", variant: "destructive" });
+                          toast({ title: "Error", description: err.message || "Failed to cancel subscription.", variant: "destructive" });
                         }
                       }}
                     >
-                      Cancel Trial
+                      Cancel Subscription
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
