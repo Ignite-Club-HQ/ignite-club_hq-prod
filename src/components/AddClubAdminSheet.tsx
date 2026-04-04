@@ -59,11 +59,10 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
-  const [mode, setMode] = useState<"existing" | "invite">("invite");
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
   const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
 
-  const debouncedSearch = useDebounce(searchQuery, 300);
+  const debouncedSearch = useDebounce(customName, 300);
 
   // Fetch existing club admins
   const { data: existingMembers } = useQuery({
