@@ -85,7 +85,7 @@ export function NativeAppUpdatePrompt() {
           .eq('key', 'minimum_app_version')
           .maybeSingle();
 
-        if (error || !data?.value) return;
+        if (error) {
           console.log('[UpdatePrompt] Failed to fetch minimum_app_version:', error);
           return;
         }
