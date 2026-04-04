@@ -346,7 +346,8 @@ export default function MessagesPage() {
       const { data } = await supabase
         .from("clubs")
         .select("id, name, logo_url, sport")
-        .in("id", clubIds);
+        .in("id", clubIds)
+        .is("deleted_at", null);
 
       const clubs = data as Club[];
       
