@@ -2298,7 +2298,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {customEmail.trim() ? "An invite email will be sent to this address" : "Without email, you'll get a shareable invite link"}
+                      {customEmail.trim() ? "An invite email will be sent automatically" : "Skip to share the invite link yourself via message, WhatsApp, etc."}
                     </p>
                   </div>
                 )}
@@ -2608,8 +2608,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   ? `Add Parents to Team`
                   : `Add ${selectedUser.display_name} as ${selectedRoleOption?.label}`}
               </Button>
-            ) : customEmail.trim() ? (
-              /* Email provided: single send button */
+            ) : (
+              /* Unified submit button — delivery method shown on success screen */
               <Button
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => addPendingMemberMutation.mutate()}
@@ -2618,71 +2618,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 {addPendingMemberMutation.isPending ? (
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 ) : (
-                  <Send className="h-5 w-5 mr-2" />
+                  <UserPlus className="h-5 w-5 mr-2" />
                 )}
                 {nameInput.trim()
                   ? (selectedSecondParent
-                    ? `Send Invite & Add ${selectedSecondParent.display_name}`
+                    ? `Add ${nameInput.trim()} & ${selectedSecondParent.display_name}`
                     : secondParentName.trim() && secondParentEmail.trim()
-                      ? `Send Invites to ${nameInput} & ${secondParentName}`
-                      : `Send Invite to ${nameInput}`)
+                      ? `Add ${nameInput.trim()} & ${secondParentName.trim()}`
+                      : `Add ${nameInput.trim()} to Team`)
                   : "Enter name to continue"}
               </Button>
-            ) : (
-              /* No email: show share/copy options */
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground text-center">Choose how to deliver the invite</p>
-                <div className="flex gap-2">
-                  <Button
-                    className="flex-1 h-12 text-base font-semibold"
-                    onClick={() => {
-                      addPendingMemberMutation.mutate(undefined, {
-                        onSuccess: (result) => {
-                          const shareUrl = result.shareLink || result.link;
-                          const msg = buildInviteShareMessage(shareUrl).trim();
-                          if (Capacitor.isNativePlatform()) {
-                            Share.share({
-                              title: `Join ${clubBranding?.name || teamName}`,
-                              text: msg,
-                              dialogTitle: 'Share invite',
-                            }).catch(() => {});
-                          } else {
-                            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
-                          }
-                        },
-                      });
-                    }}
-                    disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
-                  >
-                    {addPendingMemberMutation.isPending ? (
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    ) : (
-                      <Share2 className="h-5 w-5 mr-2" />
-                    )}
-                    {nameInput.trim() ? `Share Invite` : "Enter name"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-12 px-4"
-                    onClick={() => {
-                      addPendingMemberMutation.mutate(undefined, {
-                        onSuccess: async (result) => {
-                          const shareUrl = result.shareLink || result.link;
-                          try {
-                            await navigator.clipboard.writeText(shareUrl);
-                            toast({ title: "Invite link copied!" });
-                          } catch {
-                            toast({ title: "Failed to copy", variant: "destructive" });
-                          }
-                        },
-                      });
-                    }}
-                    disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
-                  >
-                    <Copy className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
             )}
           </TabsContent>
 
