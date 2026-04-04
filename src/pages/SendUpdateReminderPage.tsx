@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone, Shield, Save } from "lucide-react";
+import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone, Shield, Save, TestTube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -235,6 +235,24 @@ export default function SendUpdateReminderPage() {
     setSelectedUserIds(new Set());
   };
 
+  // Send test to myself
+  const sendTestMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Not logged in");
+      const { data, error } = await supabase.functions.invoke("send-update-reminder", {
+        body: { userIds: [user.id] },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || "Test notification sent to your device!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to send test notification");
+    },
+  });
+
   if (adminLoading) return <PageLoading />;
   if (!isAppAdmin) {
     return (
@@ -263,8 +281,27 @@ export default function SendUpdateReminderPage() {
           </p>
         </div>
       </div>
-
-      {/* Latest versions summary */}
+      {/* Send test to myself */}
+      <Card className="border-dashed border-primary/40">
+        <CardContent className="pt-4 pb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Test Mode</p>
+            <p className="text-xs text-muted-foreground">
+              Send a test update reminder to yourself ({user?.email}) — works even if your app is up to date.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            disabled={sendTestMutation.isPending}
+            onClick={() => sendTestMutation.mutate()}
+          >
+            <TestTube className="h-4 w-4" />
+            {sendTestMutation.isPending ? "Sending..." : "Send Test"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Minimum version enforcement */}
       <Card>
