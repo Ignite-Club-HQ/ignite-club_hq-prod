@@ -1048,6 +1048,60 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
+      {/* Subscription Banner - Show for admins when team has an active trial */}
+      {!isClassMode && (isAdmin || isClubAdmin) && isOnTrial && isTeamPro && (() => {
+        // Determine trial source: team_subscriptions, club_subscriptions, or legacy teams table
+        const isLegacyTeamTrial = !teamSubscription?.is_trial && !clubSubscription?.is_trial && team?.is_pro && (team as any)?.pro_expires_at;
+        const isCancelled = teamSubscription?.is_trial 
+          ? !!(teamSubscription as any)?.cancelled_at 
+          : clubSubscription?.is_trial 
+            ? !!(clubSubscription as any)?.cancelled_at 
+            : false;
+        const trialEndDate = teamSubscription?.is_trial 
+          ? teamSubscription?.trial_ends_at 
+          : clubSubscription?.is_trial
+            ? clubSubscription?.trial_ends_at
+            : isLegacyTeamTrial
+              ? (team as any)?.pro_expires_at
+              : null;
+        const isClubTrial = !teamSubscription?.is_trial && clubSubscription?.is_trial && !isLegacyTeamTrial;
+        const canCancel = (teamSubscription?.is_trial && !isCancelled) || isLegacyTeamTrial;
+
+        return (
+          <Card className={`border-amber-500/30 ${isCancelled ? 'bg-gradient-to-br from-muted/50 to-muted/30' : 'bg-gradient-to-br from-amber-500/5 to-amber-500/10'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className={`rounded-full p-2 shrink-0 ${isCancelled ? 'bg-muted' : 'bg-amber-500/10'}`}>
+                  <Crown className={`h-5 w-5 ${isCancelled ? 'text-muted-foreground' : 'text-amber-500'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  {isCancelled ? (
+                    <>
+                      <p className="font-medium text-sm">Subscription Cancelled</p>
+                      <p className="text-xs text-muted-foreground">
+                        Pro features active until {trialEndDate ? new Date(trialEndDate).toLocaleDateString() : 'trial ends'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-sm">Free Trial Active</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isClubTrial ? 'Club trial' : 'Trial'} ends {trialEndDate ? new Date(trialEndDate).toLocaleDateString() : 'soon'}
+                      </p>
+                    </>
+                  )}
+                </div>
+                {isClubTrial && team?.club_id ? (
+                  <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate(`/clubs/${team.club_id}/upgrade`)}>
+                    Manage
+                  </Button>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Join Request Section for Non-members - hidden in class mode (use enrolment page instead) */}
       {!isClassMode && !isUserRoleLoading && !isMember && !isClubAdmin && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">

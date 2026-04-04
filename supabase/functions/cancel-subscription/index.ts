@@ -51,10 +51,9 @@ serve(async (req) => {
     let clubId: string | null = null;
 
     if (subscription_type === 'team') {
-      // Verify user is team admin/coach
       const { data: team } = await supabase
         .from('teams')
-        .select('id, created_by, club_id')
+        .select('id, created_by, club_id, stripe_subscription_id')
         .eq('id', entity_id)
         .single();
 
@@ -64,43 +63,42 @@ serve(async (req) => {
         });
       }
 
-      // Check if user is team creator or has admin/coach role
-      const { data: membership } = await supabase
-        .from('club_members')
-        .select('role')
-        .eq('club_id', team.club_id)
-        .eq('user_id', user.id)
-        .single();
+      // Check authorization using has_role RPC
+      const { data: isTeamAdmin } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'team_admin', _club_id: null, _team_id: entity_id });
+      const { data: isCoach } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'coach', _club_id: null, _team_id: entity_id });
+      let isClubAdmin = false;
+      if (team.club_id) {
+        const { data } = await supabase.rpc('has_role', { _user_id: user.id, _role: 'club_admin', _club_id: team.club_id, _team_id: null });
+        isClubAdmin = !!data;
+      }
+      const { data: isAppAdmin } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'app_admin', _club_id: null, _team_id: null });
 
-      const isAuthorized = team.created_by === user.id ||
-        (membership && ['admin', 'club_admin', 'coach'].includes(membership.role));
-
-      if (!isAuthorized) {
+      if (!isTeamAdmin && !isCoach && !isClubAdmin && !isAppAdmin) {
         return new Response(JSON.stringify({ error: 'Not authorized' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
+      // Check team_subscriptions first, fall back to teams table (legacy)
       const { data: sub } = await supabase
         .from('team_subscriptions')
         .select('stripe_subscription_id')
         .eq('team_id', entity_id)
-        .single();
+        .maybeSingle();
 
-      stripeSubscriptionId = sub?.stripe_subscription_id;
+      stripeSubscriptionId = sub?.stripe_subscription_id || team.stripe_subscription_id;
       clubId = team.club_id;
     } else {
-      // Club subscription
-      const { data: membership } = await supabase
-        .from('club_members')
-        .select('role')
-        .eq('club_id', entity_id)
-        .eq('user_id', user.id)
-        .single();
+      // Club subscription - check club_admin or app_admin
+      const { data: isClubAdmin } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'club_admin', _club_id: entity_id, _team_id: null });
+      const { data: isAppAdmin } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'app_admin', _club_id: null, _team_id: null });
 
-      const isAuthorized = membership && ['admin', 'club_admin'].includes(membership.role);
-
-      if (!isAuthorized) {
+      if (!isClubAdmin && !isAppAdmin) {
         return new Response(JSON.stringify({ error: 'Not authorized' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -176,41 +174,56 @@ serve(async (req) => {
       }
     }
 
-    // Reset the database subscription record
+    // Clear the Stripe subscription ID so it won't auto-renew, but keep trial active until expiry
     if (subscription_type === 'team') {
-      await supabase
+      // Update team_subscriptions if a row exists
+      const { data: existingSub } = await supabase
         .from('team_subscriptions')
-        .update({
-          is_trial: false,
-          trial_ends_at: null,
-          trial_plan: null,
-          is_pro: false,
-          is_pro_football: false,
-          expires_at: null,
-          stripe_subscription_id: null,
-        })
-        .eq('team_id', entity_id);
+        .select('id')
+        .eq('team_id', entity_id)
+        .maybeSingle();
+
+      if (existingSub) {
+        const { error: updateError } = await supabase
+          .from('team_subscriptions')
+          .update({
+            stripe_subscription_id: null,
+            cancelled_at: new Date().toISOString(),
+          })
+          .eq('team_id', entity_id);
+
+        if (updateError) {
+          console.error('Failed to update team_subscriptions:', updateError);
+          return new Response(JSON.stringify({ error: 'Failed to reset subscription' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // Also clear stripe_subscription_id on the teams table (legacy)
+      const { error: teamUpdateError } = await supabase
+        .from('teams')
+        .update({ stripe_subscription_id: null })
+        .eq('id', entity_id);
+
+      if (teamUpdateError) {
+        console.error('Failed to update teams.stripe_subscription_id:', teamUpdateError);
+      }
     } else {
-      await supabase
+      const { error: updateError } = await supabase
         .from('club_subscriptions')
         .update({
-          is_trial: false,
-          trial_ends_at: null,
-          trial_plan: null,
-          trial_tier: null,
-          trial_is_annual: null,
-          is_pro: false,
-          is_pro_football: false,
-          expires_at: null,
           stripe_subscription_id: null,
+          cancelled_at: new Date().toISOString(),
         })
         .eq('club_id', entity_id);
 
-      // Sync clubs.is_pro
-      await supabase
-        .from('clubs')
-        .update({ is_pro: false })
-        .eq('id', entity_id);
+      if (updateError) {
+        console.error('Failed to update club_subscriptions:', updateError);
+        return new Response(JSON.stringify({ error: 'Failed to reset subscription' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     console.log(`${subscription_type} trial/subscription cancelled for ${entity_id} by user ${user.id}`);

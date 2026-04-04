@@ -1002,6 +1002,36 @@ export default function ClubDetailPage() {
         );
       })()}
 
+      {/* Subscription Banner - Show for admins when club has an active trial */}
+      {isAdmin && clubSubscription?.is_trial && (clubSubscription?.is_pro || clubSubscription?.is_pro_football) && (
+        <Card className={`border-amber-500/30 ${(clubSubscription as any)?.cancelled_at ? 'bg-gradient-to-r from-muted/50 to-muted/30' : 'bg-gradient-to-r from-amber-500/5 to-amber-500/10'}`}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className={`rounded-full p-2 shrink-0 ${(clubSubscription as any)?.cancelled_at ? 'bg-muted' : 'bg-amber-500/10'}`}>
+                <Crown className={`h-5 w-5 ${(clubSubscription as any)?.cancelled_at ? 'text-muted-foreground' : 'text-amber-500'}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                {(clubSubscription as any)?.cancelled_at ? (
+                  <>
+                    <p className="font-medium text-sm">Subscription Cancelled</p>
+                    <p className="text-xs text-muted-foreground">
+                      Pro features active until {clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'trial ends'}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-sm">Free Trial Active</p>
+                    <p className="text-xs text-muted-foreground">
+                      Trial ends {clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'soon'}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Class Mode Onboarding Guide */}
       {isAdmin && club?.class_mode_enabled && (
         <ClassModeOnboardingGuide clubId={id!} />
