@@ -189,7 +189,7 @@ async function handleSubscriptionCreated(supabase: any, session: any, metadata: 
     : new Date(now.setMonth(now.getMonth() + 1));
 
   if (subscriptionType === 'team') {
-    // Update team subscription
+    // Update team subscription table
     const { error: subError } = await supabase
       .from('team_subscriptions')
       .upsert({
@@ -199,12 +199,24 @@ async function handleSubscriptionCreated(supabase: any, session: any, metadata: 
         stripe_subscription_id: stripeSubscriptionId,
         activated_at: new Date().toISOString(),
         expires_at: expiresAt.toISOString(),
+        is_trial: metadata.with_trial === 'true',
+        trial_ends_at: metadata.with_trial === 'true' ? expiresAt.toISOString() : null,
       }, { onConflict: 'team_id' });
 
     if (subError) {
       console.error('Error updating team subscription:', subError);
       throw subError;
     }
+
+    // Also update the teams table directly for backward compatibility
+    await supabase
+      .from('teams')
+      .update({
+        is_pro: true,
+        pro_expires_at: expiresAt.toISOString(),
+        stripe_subscription_id: stripeSubscriptionId,
+      })
+      .eq('id', entityId);
 
     // Notify user
     await supabase.from('notifications').insert({
@@ -272,8 +284,15 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
   if (teamSub) {
     await supabase
       .from('team_subscriptions')
-      .update({ expires_at: periodEnd.toISOString() })
+      .update({ expires_at: periodEnd.toISOString(), is_trial: false, trial_ends_at: null })
       .eq('stripe_subscription_id', subscriptionId);
+    
+    // Also update teams table
+    await supabase
+      .from('teams')
+      .update({ pro_expires_at: periodEnd.toISOString() })
+      .eq('id', teamSub.team_id);
+    
     console.log('Team subscription renewed:', teamSub.team_id);
 
     // Send email notification to team admins
@@ -543,19 +562,33 @@ async function handleSubscriptionCancelled(supabase: any, subscription: any) {
     .update({ 
       is_pro: false, 
       is_pro_football: false,
-      stripe_subscription_id: null 
+      stripe_subscription_id: null,
+      is_trial: false,
+      trial_ends_at: null,
     })
     .eq('stripe_subscription_id', subscriptionId)
     .select('team_id, teams(created_by)')
     .maybeSingle();
 
-  if (teamSub?.teams?.created_by) {
-    await supabase.from('notifications').insert({
-      user_id: teamSub.teams.created_by,
-      type: 'subscription_cancelled',
-      message: 'Your subscription has been cancelled.',
-      related_id: teamSub.team_id,
-    });
+  if (teamSub) {
+    // Also update the teams table directly
+    await supabase
+      .from('teams')
+      .update({
+        is_pro: false,
+        pro_expires_at: null,
+        stripe_subscription_id: null,
+      })
+      .eq('id', teamSub.team_id);
+
+    if (teamSub.teams?.created_by) {
+      await supabase.from('notifications').insert({
+        user_id: teamSub.teams.created_by,
+        type: 'subscription_cancelled',
+        message: 'Your subscription has been cancelled.',
+        related_id: teamSub.team_id,
+      });
+    }
     return;
   }
 

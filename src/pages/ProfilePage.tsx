@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, isPast, parseISO } from "date-fns";
 import RewardRedemptionCard from "@/components/RewardRedemptionCard";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -348,7 +348,7 @@ export default function ProfilePage() {
         
         const { data: subscriptions } = await supabase
           .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb")
+          .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb, is_trial, trial_ends_at")
           .in("club_id", allClubs.map(c => c.id));
         
         return allClubs.map(club => ({
@@ -366,7 +366,7 @@ export default function ProfilePage() {
         
         const { data: subscription } = await supabase
           .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb")
+          .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb, is_trial, trial_ends_at")
           .eq("club_id", activeClubFilter)
           .maybeSingle();
         
@@ -381,7 +381,7 @@ export default function ProfilePage() {
 
       const { data: subscriptions } = await supabase
         .from("club_subscriptions")
-        .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb")
+        .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb, is_trial, trial_ends_at")
         .in("club_id", clubIds);
 
       return clubs.map(club => ({
@@ -420,7 +420,7 @@ export default function ProfilePage() {
 
       let teamsQuery = supabase
         .from("teams")
-        .select(`id, name, club_id, clubs (name, sport), team_subscriptions (is_pro, is_pro_football)`);
+        .select(`id, name, club_id, is_pro, pro_expires_at, stripe_subscription_id, clubs (name, sport), team_subscriptions (is_pro, is_pro_football, is_trial, trial_ends_at)`);
 
       if (activeClubFilter) {
         teamsQuery = teamsQuery.eq("club_id", activeClubFilter);
@@ -725,33 +725,37 @@ export default function ProfilePage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 mt-2">
                 {upgradableClubs.map((club: any) => {
-                  const sub = club.subscription;
-                  const currentPlan = sub?.is_pro_football ? "Pro Football" : sub?.is_pro ? "Pro" : "Free";
-                  const sport = club.sport?.toLowerCase() || "";
-                  const isSoccer = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
-                  
-                  return (
-                    <Card 
-                      key={club.id}
-                      className="cursor-pointer hover:border-primary/50 transition-colors"
-                      onClick={() => navigate(`/clubs/${club.id}/upgrade`)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium">{club.name}</span>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
-                            {currentPlan}
-                          </Badge>
-                          {currentPlan === "Free" && (
-                            <>
-                              <Badge variant="outline" className="text-primary border-primary">Pro $50/mo</Badge>
-                              {isSoccer && <Badge variant="outline" className="text-primary border-primary">Pro Football $75/mo</Badge>}
-                            </>
-                          )}
-                        </div>
+                   const sub = club.subscription;
+                   const currentPlan = sub?.is_pro_football ? "Pro Football" : sub?.is_pro ? "Pro" : "Free";
+                   const isOnClubTrial = sub?.is_trial && sub?.trial_ends_at && !isPast(parseISO(sub.trial_ends_at));
+                   const sport = club.sport?.toLowerCase() || "";
+                   const isSoccer = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
+                   
+                   return (
+                     <Card 
+                       key={club.id}
+                       className="cursor-pointer hover:border-primary/50 transition-colors"
+                       onClick={() => navigate(`/clubs/${club.id}/upgrade`)}
+                     >
+                       <CardContent className="p-4">
+                         <div className="flex items-center justify-between mb-2">
+                           <span className="font-medium">{club.name}</span>
+                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                         </div>
+                         <div className="flex items-center gap-2 flex-wrap">
+                           <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
+                             {currentPlan}
+                           </Badge>
+                           {isOnClubTrial && (
+                             <Badge variant="outline" className="text-amber-600 border-amber-500">Free Trial</Badge>
+                           )}
+                           {currentPlan === "Free" && !isOnClubTrial && (
+                             <>
+                               <Badge variant="outline" className="text-primary border-primary">Pro $50/mo</Badge>
+                               {isSoccer && <Badge variant="outline" className="text-primary border-primary">Pro Football $75/mo</Badge>}
+                             </>
+                           )}
+                         </div>
                       </CardContent>
                     </Card>
                   );
@@ -769,28 +773,30 @@ export default function ProfilePage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 mt-2">
                 {upgradableTeams.map((team: any) => {
-                  const subscription = team.team_subscriptions?.[0];
-                  const teamIsPro = subscription?.is_pro;
-                  const teamIsProFootball = subscription?.is_pro_football;
-                  const sport = team.clubs?.sport?.toLowerCase() || "";
-                  const isSoccerTeam = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
-                  
-                  const clubSub = team.clubSubscription;
-                  const clubHasPro = clubSub?.is_pro === true;
-                  const clubHasProFootball = clubSub?.is_pro_football === true;
-                  
-                  const effectiveIsProFootball = teamIsProFootball || clubHasProFootball;
-                  const effectiveIsPro = teamIsPro || clubHasPro || clubHasProFootball;
-                  
-                  let currentPlan = "Free";
-                  let planSource = "";
-                  if (effectiveIsProFootball) {
-                    currentPlan = "Pro Football";
-                    planSource = (clubHasProFootball && !teamIsProFootball) ? " (via Club)" : "";
-                  } else if (effectiveIsPro) {
-                    currentPlan = "Pro";
-                    planSource = ((clubHasPro || clubHasProFootball) && !teamIsPro) ? " (via Club)" : "";
-                  }
+                   const subscription = team.team_subscriptions?.[0];
+                   const teamIsPro = subscription?.is_pro || team.is_pro;
+                   const teamIsProFootball = subscription?.is_pro_football;
+                   const teamIsOnTrial = (subscription?.is_trial && subscription?.trial_ends_at && !isPast(parseISO(subscription.trial_ends_at))) || 
+                     (team.is_pro && team.pro_expires_at && !isPast(parseISO(team.pro_expires_at)) && !subscription?.is_pro);
+                   const sport = team.clubs?.sport?.toLowerCase() || "";
+                   const isSoccerTeam = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
+                   
+                   const clubSub = team.clubSubscription;
+                   const clubHasPro = clubSub?.is_pro === true;
+                   const clubHasProFootball = clubSub?.is_pro_football === true;
+                   
+                   const effectiveIsProFootball = teamIsProFootball || clubHasProFootball;
+                   const effectiveIsPro = teamIsPro || clubHasPro || clubHasProFootball;
+                   
+                   let currentPlan = "Free";
+                   let planSource = "";
+                   if (effectiveIsProFootball) {
+                     currentPlan = "Pro Football";
+                     planSource = (clubHasProFootball && !teamIsProFootball) ? " (via Club)" : "";
+                   } else if (effectiveIsPro) {
+                     currentPlan = "Pro";
+                     planSource = ((clubHasPro || clubHasProFootball) && !teamIsPro) ? " (via Club)" : "";
+                   }
                   
                   const hasClubAccess = clubHasPro || clubHasProFootball;
                   
@@ -809,15 +815,18 @@ export default function ProfilePage() {
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
-                            {currentPlan}{planSource}
-                          </Badge>
-                          {!hasClubAccess && currentPlan === "Free" && (
-                            <>
-                              <Badge variant="outline" className="text-primary border-primary">Pro $25/mo</Badge>
-                              {isSoccerTeam && <Badge variant="outline" className="text-primary border-primary">Pro Football $40/mo</Badge>}
-                            </>
-                          )}
+                           <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
+                             {currentPlan}{planSource}
+                           </Badge>
+                           {teamIsOnTrial && (
+                             <Badge variant="outline" className="text-amber-600 border-amber-500">Free Trial</Badge>
+                           )}
+                           {!hasClubAccess && currentPlan === "Free" && !teamIsOnTrial && (
+                             <>
+                               <Badge variant="outline" className="text-primary border-primary">Pro $25/mo</Badge>
+                               {isSoccerTeam && <Badge variant="outline" className="text-primary border-primary">Pro Football $40/mo</Badge>}
+                             </>
+                           )}
                           {hasClubAccess && (
                             <Badge variant="outline" className="text-muted-foreground">Managed via Club</Badge>
                           )}
