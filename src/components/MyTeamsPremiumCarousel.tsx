@@ -318,7 +318,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       if (teamIds.length > 0) {
         const { data: teams } = await supabase
           .from("teams")
-          .select("id, name, logo_url, club_id, clubs(name, sport, logo_url)")
+          .select("id, name, logo_url, club_id, is_pro, pro_expires_at, clubs(name, sport, logo_url)")
           .in("id", teamIds);
 
         if (teams) {
@@ -338,6 +338,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
               type: "team",
               club_name: team.clubs?.name || "", sport: team.clubs?.sport || null,
               club_id: team.club_id, canManage,
+              isOnTrial: !!(team.is_pro && team.pro_expires_at),
             });
           }
         }
