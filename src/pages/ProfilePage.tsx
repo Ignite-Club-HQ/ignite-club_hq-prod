@@ -815,15 +815,18 @@ export default function ProfilePage() {
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
-                            {currentPlan}{planSource}
-                          </Badge>
-                          {!hasClubAccess && currentPlan === "Free" && (
-                            <>
-                              <Badge variant="outline" className="text-primary border-primary">Pro $25/mo</Badge>
-                              {isSoccerTeam && <Badge variant="outline" className="text-primary border-primary">Pro Football $40/mo</Badge>}
-                            </>
-                          )}
+                           <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
+                             {currentPlan}{planSource}
+                           </Badge>
+                           {teamIsOnTrial && (
+                             <Badge variant="outline" className="text-amber-600 border-amber-500">Free Trial</Badge>
+                           )}
+                           {!hasClubAccess && currentPlan === "Free" && !teamIsOnTrial && (
+                             <>
+                               <Badge variant="outline" className="text-primary border-primary">Pro $25/mo</Badge>
+                               {isSoccerTeam && <Badge variant="outline" className="text-primary border-primary">Pro Football $40/mo</Badge>}
+                             </>
+                           )}
                           {hasClubAccess && (
                             <Badge variant="outline" className="text-muted-foreground">Managed via Club</Badge>
                           )}
