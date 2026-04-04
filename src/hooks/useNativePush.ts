@@ -243,6 +243,19 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
     try {
       const data = notification.notification?.data;
       const url = data?.url || data?.link || data?.path;
+      const storeUrl = data?.store_url;
+      
+      // Handle store_url (e.g. from update reminders) — open externally
+      if (storeUrl) {
+        console.log('[useNativePush] Store URL detected, opening in browser:', storeUrl);
+        import('@capacitor/browser').then(({ Browser }) => {
+          Browser.open({ url: storeUrl });
+        }).catch(() => {
+          window.open(storeUrl, '_system');
+        });
+        return;
+      }
+      
       if (url) {
         // Check if external URL (e.g. App Store / Play Store)
         if (isExternalUrl(url)) {
