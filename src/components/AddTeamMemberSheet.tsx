@@ -119,6 +119,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     avatar_url: string | null;
   } | null>(null);
   const [customEmail, setCustomEmail] = useState("");
+  const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
   const [selectedRole, setSelectedRole] = useState<TeamRole>(getDefaultRole());
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
