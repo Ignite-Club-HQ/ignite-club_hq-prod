@@ -275,6 +275,13 @@ export default function TeamDetailPage() {
   // During loading, assume Pro access to avoid flashing Pro locks
   const hasProFootball = isSubscriptionLoading ? true : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
 
+  // Trial detection: team is on trial if subscription says so OR if team.is_pro with pro_expires_at (website signup)
+  const isOnTrial = !!(
+    teamSubscription?.is_trial ||
+    clubSubscription?.is_trial ||
+    (team?.is_pro && (team as any)?.pro_expires_at)
+  );
+
   // Note: refetchOnMount: 'always' on the queries ensures fresh data
   // without clearing the cache (which would cause a flash of empty state)
 
