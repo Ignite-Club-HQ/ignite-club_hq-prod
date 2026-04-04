@@ -433,13 +433,16 @@ export default function HomePage() {
       const { clubIds, teamIds } = userMemberships;
       if (clubIds.length === 0 && teamIds.length === 0) return false;
 
-      // Check club and team subscriptions in parallel
-      const [clubSubsResult, teamSubsResult] = await Promise.all([
+      // Check club subs, team subs, and teams table (for trial is_pro) in parallel
+      const [clubSubsResult, teamSubsResult, teamsResult] = await Promise.all([
         clubIds.length > 0
           ? supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds)
           : Promise.resolve({ data: [] }),
         teamIds.length > 0
           ? supabase.from("team_subscriptions").select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("team_id", teamIds)
+          : Promise.resolve({ data: [] }),
+        teamIds.length > 0
+          ? supabase.from("teams").select("id, is_pro").in("id", teamIds)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -447,7 +450,11 @@ export default function HomePage() {
       if (hasClubPro) return true;
 
       const hasTeamPro = (teamSubsResult.data || []).some((s: any) => s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override);
-      return hasTeamPro;
+      if (hasTeamPro) return true;
+
+      // Fallback: check teams.is_pro (set by website trial signup)
+      const hasTeamLegacyPro = (teamsResult.data || []).some((t: any) => t.is_pro);
+      return hasTeamLegacyPro;
     },
     enabled: !!user && !!userMemberships,
     staleTime: 5 * 60 * 1000,
