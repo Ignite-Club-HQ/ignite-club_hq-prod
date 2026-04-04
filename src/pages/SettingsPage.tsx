@@ -130,6 +130,7 @@ export default function SettingsPage() {
           media_enabled: data.media_enabled,
           membership_enabled: data.membership_enabled,
           pitch_board_enabled: data.pitch_board_enabled ?? true,
+          rewards_enabled: data.rewards_enabled ?? true,
         });
         setEmailPreferences({
           email_messages_enabled: data.email_messages_enabled ?? true,
