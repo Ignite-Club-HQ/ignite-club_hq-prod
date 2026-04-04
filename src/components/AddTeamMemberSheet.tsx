@@ -1795,6 +1795,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 setInviteShareLink(null);
                 setNameInput("");
                 setCustomEmail("");
+                setDeliveryMethod("share");
                 setSingleChildren([]);
                 setSecondParentName("");
                 setSecondParentEmail("");
