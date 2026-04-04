@@ -750,7 +750,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         });
       }
 
-      // Send child-added email to primary parent (existing user)
+      // Send team-invite email to primary parent (existing user) — uses full onboarding template with download links
       if (selectedRole === "parent" && selectedUser) {
         const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
         if (childrenNames.length > 0) {
@@ -761,7 +761,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 subject: childrenNames.length === 1
                   ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
                   : `${clubBranding?.name || 'Your club'}: Your children have been added to ${teamName} ⚽`,
-                template: "child-added",
+                template: "team-invite",
                 senderName: clubBranding?.name || undefined,
                 replyTo: (clubBranding as any)?.contact_email || undefined,
                 templateData: {
@@ -769,13 +769,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   childrenNames,
                   teamName,
                   clubName: clubBranding?.name || "The Club",
+                  roleName: "Parent",
                   clubLogoUrl: clubBranding?.logo_url || undefined,
+                  customMessage: customMessage?.trim() || undefined,
                   inviteLink: `${window.location.origin}/teams/${teamId}`,
                 },
               },
             });
           } catch (err) {
-            console.error("[AddMember] Failed to send child-added email to primary parent:", err);
+            console.error("[AddMember] Failed to send team-invite email to primary parent:", err);
           }
         }
       }
