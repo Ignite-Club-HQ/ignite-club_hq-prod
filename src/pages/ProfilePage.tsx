@@ -20,6 +20,12 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 
 import igniteIcon from "@/assets/ignite-icon.png";
 
+function getOrdinalSuffix(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "settings");
@@ -320,7 +326,77 @@ export default function ProfilePage() {
     return pointsHistory.filter(p => p.type === 'spent').reduce((sum, p) => sum + p.points, 0);
   }, [pointsHistory]);
 
-  // Fetch upgradable clubs
+  // Fetch user's points rank among club members
+  const { data: rankData } = useQuery({
+    queryKey: ["points-rank", user?.id, activeClubFilter],
+    queryFn: async () => {
+      // Get club IDs the user belongs to
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id, team_id")
+        .eq("user_id", user!.id);
+
+      if (!roles || roles.length === 0) return null;
+
+      const directClubIds = roles.map(r => r.club_id).filter(Boolean) as string[];
+      const teamIds = roles.map(r => r.team_id).filter(Boolean) as string[];
+      let teamClubIds: string[] = [];
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("club_id")
+          .in("id", teamIds);
+        teamClubIds = (teams || []).map(t => t.club_id).filter(Boolean) as string[];
+      }
+
+      let clubIds = [...new Set([...directClubIds, ...teamClubIds])];
+      if (activeClubFilter) clubIds = clubIds.filter(id => id === activeClubFilter);
+      if (clubIds.length === 0) return null;
+
+      // Get all unique member user IDs in these clubs
+      const { data: clubRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("club_id", clubIds);
+
+      const { data: teamRolesForClub } = await supabase
+        .from("user_roles")
+        .select("user_id, team_id")
+        .is("club_id", null)
+        .not("team_id", "is", null);
+
+      // Filter team roles to only those in our clubs
+      const { data: clubTeams } = await supabase
+        .from("teams")
+        .select("id")
+        .in("club_id", clubIds);
+      const clubTeamIdSet = new Set((clubTeams || []).map(t => t.id));
+
+      const memberIds = new Set<string>();
+      (clubRoles || []).forEach(r => memberIds.add(r.user_id));
+      (teamRolesForClub || []).forEach(r => {
+        if (r.team_id && clubTeamIdSet.has(r.team_id)) memberIds.add(r.user_id);
+      });
+
+      if (memberIds.size === 0) return null;
+
+      // Get profiles with points, ordered by points descending
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, ignite_points")
+        .in("id", Array.from(memberIds))
+        .order("ignite_points", { ascending: false });
+
+      if (!profiles) return null;
+
+      const totalMembers = profiles.length;
+      const userRank = profiles.findIndex(p => p.id === user!.id) + 1;
+
+      return userRank > 0 ? { rank: userRank, total: totalMembers } : null;
+    },
+    enabled: !!user && hasProAccess === true,
+  });
+
   const { data: upgradableClubs } = useQuery({
     queryKey: ["upgradable-clubs", user?.id, activeClubFilter],
     queryFn: async () => {
@@ -610,6 +686,14 @@ export default function ProfilePage() {
                   <div className="text-xs text-muted-foreground">Balance</div>
                 </div>
               </div>
+              {rankData && (
+                <div className="flex items-center justify-center gap-2 mt-3 p-2 bg-primary/10 rounded-lg">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">
+                    You are <span className="text-primary font-bold">{rankData.rank}{getOrdinalSuffix(rankData.rank)}</span> out of {rankData.total} member{rankData.total !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
               {(() => {
                 const balance = profile?.ignite_points || 0;
                 const calculatedBalance = pointsEarned - pointsSpent;
