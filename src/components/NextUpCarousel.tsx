@@ -590,10 +590,6 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               <p className="text-[10px] text-muted-foreground/60 text-center">Tap to update your attendance</p>
             )}
 
-            {/* Attendees */}
-            <div className="flex min-h-[32px] items-end justify-end">
-              <AttendeeAvatars eventId={event.id} eventType={event.type} />
-            </div>
           </div>
         )}
       </CardContent>
