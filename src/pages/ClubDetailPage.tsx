@@ -1002,6 +1002,61 @@ export default function ClubDetailPage() {
         );
       })()}
 
+      {/* Cancel Trial Banner - Show for admins when club has an active trial */}
+      {isAdmin && clubSubscription?.is_trial && (clubSubscription?.is_pro || clubSubscription?.is_pro_football) && (
+        <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-amber-500/10">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-amber-500/10 p-2 shrink-0">
+                <Crown className="h-5 w-5 text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm">Free Trial Active</p>
+                <p className="text-xs text-muted-foreground">
+                  Trial ends {clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'soon'}
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0">
+                    Cancel Trial
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will immediately end your trial and remove Pro features from all teams. No payment will be taken.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={async () => {
+                        try {
+                          const { data, error } = await supabase.functions.invoke('cancel-subscription', {
+                            body: { subscription_type: 'club', entity_id: id },
+                          });
+                          if (error || data?.error) throw new Error(data?.error || error?.message);
+                          queryClient.invalidateQueries({ queryKey: ["club-subscription", id] });
+                          queryClient.invalidateQueries({ queryKey: ["club", id] });
+                          toast({ title: "Trial Cancelled", description: "Your free trial has been cancelled. No payment will be taken." });
+                        } catch (err: any) {
+                          toast({ title: "Error", description: err.message || "Failed to cancel trial.", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      Cancel Trial
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Class Mode Onboarding Guide */}
       {isAdmin && club?.class_mode_enabled && (
         <ClassModeOnboardingGuide clubId={id!} />
