@@ -414,18 +414,49 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Email *</Label>
-                  <Input
-                    type="email"
-                    placeholder="Enter email to send invite"
-                    value={customEmail}
-                    onChange={(e) => setCustomEmail(e.target.value)}
-                    className="h-11"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    An invite email will be sent to this address
-                  </p>
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">How should we deliver the invite?</Label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryMethod("email")}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "email"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMethod("share"); setCustomEmail(""); }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "share"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Share2 className="h-4 w-4" />
+                      Share Link
+                    </button>
+                  </div>
+                  {deliveryMethod === "email" ? (
+                    <div className="space-y-1.5">
+                      <Input
+                        type="email"
+                        placeholder="Enter email to send invite"
+                        value={customEmail}
+                        onChange={(e) => setCustomEmail(e.target.value)}
+                        className="h-11"
+                        autoFocus
+                      />
+                      <p className="text-xs text-muted-foreground">An invite email will be sent automatically</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">You'll be able to share via WhatsApp, Messenger, SMS, or copy the link after adding</p>
+                  )}
                 </div>
 
                 <MobileCardSelect
@@ -451,14 +482,14 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                 <Button
                   className="w-full h-12"
                   onClick={() => addPendingMemberMutation.mutate()}
-                  disabled={!customName.trim() || !customEmail.trim() || addPendingMemberMutation.isPending || isSendingNotification}
+                  disabled={!customName.trim() || (deliveryMethod === "email" && !customEmail.trim()) || addPendingMemberMutation.isPending || isSendingNotification}
                 >
                   {addPendingMemberMutation.isPending || isSendingNotification ? (
                     <Loader2 className="h-5 w-5 animate-spin mr-2" />
                   ) : (
-                    <Send className="h-5 w-5 mr-2" />
+                    <UserPlus className="h-5 w-5 mr-2" />
                   )}
-                  Send Invite
+                  {customName.trim() ? `Add ${customName.trim()} as ${roleConfig[selectedRole].label}` : "Enter name to continue"}
                 </Button>
               </TabsContent>
 
