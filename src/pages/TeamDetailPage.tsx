@@ -669,6 +669,25 @@ export default function TeamDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["team", id] });
   };
 
+  const handlePermanentDeleteTeam = async () => {
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("permanent-delete-entity", {
+        body: { entityType: "team", entityId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      setShowPermanentDeleteDialog(false);
+      toast({ title: "Team permanently deleted", description: "All data has been removed." });
+      navigate(`/clubs/${team?.club_id}`);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to permanently delete team.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="py-6 space-y-6" role="status" aria-label="Loading team">
