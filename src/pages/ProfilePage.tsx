@@ -420,7 +420,7 @@ export default function ProfilePage() {
 
       let teamsQuery = supabase
         .from("teams")
-        .select(`id, name, club_id, clubs (name, sport), team_subscriptions (is_pro, is_pro_football)`);
+        .select(`id, name, club_id, is_pro, pro_expires_at, stripe_subscription_id, clubs (name, sport), team_subscriptions (is_pro, is_pro_football, is_trial, trial_ends_at)`);
 
       if (activeClubFilter) {
         teamsQuery = teamsQuery.eq("club_id", activeClubFilter);
