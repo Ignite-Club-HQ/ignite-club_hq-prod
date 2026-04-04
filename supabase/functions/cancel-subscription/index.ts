@@ -51,7 +51,6 @@ serve(async (req) => {
     let clubId: string | null = null;
 
     if (subscription_type === 'team') {
-      // Verify user is team admin/coach
       const { data: team } = await supabase
         .from('teams')
         .select('id, created_by, club_id')
@@ -64,18 +63,18 @@ serve(async (req) => {
         });
       }
 
-      // Check if user is team creator or has admin/coach role
-      const { data: membership } = await supabase
-        .from('club_members')
-        .select('role')
-        .eq('club_id', team.club_id)
-        .eq('user_id', user.id)
-        .single();
+      // Check authorization using has_role RPC
+      const { data: isTeamAdmin } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'team_admin', _club_id: null, _team_id: entity_id });
+      const { data: isCoach } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'coach', _club_id: null, _team_id: entity_id });
+      const { data: isClubAdmin } = team.club_id
+        ? (await supabase.rpc('has_role', { _user_id: user.id, _role: 'club_admin', _club_id: team.club_id, _team_id: null })).data
+        : false;
+      const { data: isAppAdmin } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'app_admin', _club_id: null, _team_id: null });
 
-      const isAuthorized = team.created_by === user.id ||
-        (membership && ['admin', 'club_admin', 'coach'].includes(membership.role));
-
-      if (!isAuthorized) {
+      if (!isTeamAdmin && !isCoach && !isClubAdmin && !isAppAdmin) {
         return new Response(JSON.stringify({ error: 'Not authorized' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -90,17 +89,13 @@ serve(async (req) => {
       stripeSubscriptionId = sub?.stripe_subscription_id;
       clubId = team.club_id;
     } else {
-      // Club subscription
-      const { data: membership } = await supabase
-        .from('club_members')
-        .select('role')
-        .eq('club_id', entity_id)
-        .eq('user_id', user.id)
-        .single();
+      // Club subscription - check club_admin or app_admin
+      const { data: isClubAdmin } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'club_admin', _club_id: entity_id, _team_id: null });
+      const { data: isAppAdmin } = await supabase
+        .rpc('has_role', { _user_id: user.id, _role: 'app_admin', _club_id: null, _team_id: null });
 
-      const isAuthorized = membership && ['admin', 'club_admin'].includes(membership.role);
-
-      if (!isAuthorized) {
+      if (!isClubAdmin && !isAppAdmin) {
         return new Response(JSON.stringify({ error: 'Not authorized' }), {
           status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
