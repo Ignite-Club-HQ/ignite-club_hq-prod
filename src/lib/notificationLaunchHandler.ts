@@ -15,6 +15,18 @@ import { Capacitor } from '@capacitor/core';
 let pendingNavigationUrl: string | null = null;
 let navigationHandled = false;
 
+// Global flag for pending force-update prompt (survives timing races)
+let pendingForceUpdatePrompt: { storeUrl?: string } | null = null;
+
+/**
+ * Check and consume any pending force-update prompt that fired before the component mounted
+ */
+export function consumePendingForceUpdatePrompt(): { storeUrl?: string } | null {
+  const pending = pendingForceUpdatePrompt;
+  pendingForceUpdatePrompt = null;
+  return pending;
+}
+
 /**
  * Get any pending navigation URL from a notification tap
  */
@@ -69,7 +81,9 @@ export function initNotificationLaunchHandler() {
           
           // Handle force_update_prompt — show update dialog with the correct store link
           if (forceUpdatePrompt === 'true') {
-            console.log('[NotificationLaunch] Force update prompt detected, dispatching event');
+            console.log('[NotificationLaunch] Force update prompt detected, storing globally + dispatching event');
+            // Store globally so NativeAppUpdatePrompt can pick it up even if not mounted yet
+            pendingForceUpdatePrompt = { storeUrl };
             window.dispatchEvent(new CustomEvent('force-update-prompt', {
               detail: { storeUrl },
             }));
