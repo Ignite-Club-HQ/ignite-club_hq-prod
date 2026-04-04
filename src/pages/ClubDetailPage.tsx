@@ -1002,56 +1002,69 @@ export default function ClubDetailPage() {
         );
       })()}
 
-      {/* Cancel Subscription Banner - Show for admins when club has an active trial */}
+      {/* Subscription Banner - Show for admins when club has an active trial */}
       {isAdmin && clubSubscription?.is_trial && (clubSubscription?.is_pro || clubSubscription?.is_pro_football) && (
-        <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-amber-500/10">
+        <Card className={`border-amber-500/30 ${(clubSubscription as any)?.cancelled_at ? 'bg-gradient-to-r from-muted/50 to-muted/30' : 'bg-gradient-to-r from-amber-500/5 to-amber-500/10'}`}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="rounded-full bg-amber-500/10 p-2 shrink-0">
-                <Crown className="h-5 w-5 text-amber-500" />
+              <div className={`rounded-full p-2 shrink-0 ${(clubSubscription as any)?.cancelled_at ? 'bg-muted' : 'bg-amber-500/10'}`}>
+                <Crown className={`h-5 w-5 ${(clubSubscription as any)?.cancelled_at ? 'text-muted-foreground' : 'text-amber-500'}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm">Free Trial Active</p>
-                <p className="text-xs text-muted-foreground">
-                  Trial ends {clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'soon'}
-                </p>
+                {(clubSubscription as any)?.cancelled_at ? (
+                  <>
+                    <p className="font-medium text-sm">Subscription Cancelled</p>
+                    <p className="text-xs text-muted-foreground">
+                      Pro features active until {clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'trial ends'}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-sm">Free Trial Active</p>
+                    <p className="text-xs text-muted-foreground">
+                      Trial ends {clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'soon'}
+                    </p>
+                  </>
+                )}
               </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0">
-                    Cancel Subscription
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Your trial will remain active until {clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'the end of the trial period'}. After that, Pro features will be removed from all teams and no payment will be taken.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={async () => {
-                        try {
-                          const { data, error } = await supabase.functions.invoke('cancel-subscription', {
-                            body: { subscription_type: 'club', entity_id: id },
-                          });
-                          if (error || data?.error) throw new Error(data?.error || error?.message);
-                          queryClient.invalidateQueries({ queryKey: ["club-subscription", id] });
-                          queryClient.invalidateQueries({ queryKey: ["club", id] });
-                          toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
-                        } catch (err: any) {
-                          toast({ title: "Error", description: err.message || "Failed to cancel subscription.", variant: "destructive" });
-                        }
-                      }}
-                    >
+              {!(clubSubscription as any)?.cancelled_at && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0">
                       Cancel Subscription
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Your trial will remain active until {clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'the end of the trial period'}. After that, Pro features will be removed from all teams and no payment will be taken.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={async () => {
+                          try {
+                            const { data, error } = await supabase.functions.invoke('cancel-subscription', {
+                              body: { subscription_type: 'club', entity_id: id },
+                            });
+                            if (error || data?.error) throw new Error(data?.error || error?.message);
+                            queryClient.invalidateQueries({ queryKey: ["club-subscription", id] });
+                            queryClient.invalidateQueries({ queryKey: ["club", id] });
+                            toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
+                          } catch (err: any) {
+                            toast({ title: "Error", description: err.message || "Failed to cancel subscription.", variant: "destructive" });
+                          }
+                        }}
+                      >
+                        Cancel Subscription
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           </CardContent>
         </Card>
