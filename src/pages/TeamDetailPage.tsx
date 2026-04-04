@@ -1049,81 +1049,88 @@ export default function TeamDetailPage() {
       )}
 
       {/* Subscription Banner - Show for admins when team has an active trial */}
-      {!isClassMode && (isAdmin || isClubAdmin) && isOnTrial && isTeamPro && (
-        <Card className={`border-amber-500/30 ${(teamSubscription as any)?.cancelled_at ? 'bg-gradient-to-br from-muted/50 to-muted/30' : 'bg-gradient-to-br from-amber-500/5 to-amber-500/10'}`}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`rounded-full p-2 shrink-0 ${(teamSubscription as any)?.cancelled_at ? 'bg-muted' : 'bg-amber-500/10'}`}>
-                <Crown className={`h-5 w-5 ${(teamSubscription as any)?.cancelled_at ? 'text-muted-foreground' : 'text-amber-500'}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                {teamSubscription?.is_trial && (teamSubscription as any)?.cancelled_at ? (
-                  <>
-                    <p className="font-medium text-sm">Subscription Cancelled</p>
-                    <p className="text-xs text-muted-foreground">
-                      Pro features active until {teamSubscription?.trial_ends_at ? new Date(teamSubscription.trial_ends_at).toLocaleDateString() : 'trial ends'}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium text-sm">Free Trial Active</p>
-                    <p className="text-xs text-muted-foreground">
-                      {teamSubscription?.is_trial 
-                        ? `Trial ends ${teamSubscription?.trial_ends_at ? new Date(teamSubscription.trial_ends_at).toLocaleDateString() : 'soon'}`
-                        : clubSubscription?.is_trial
-                          ? `Club trial ends ${clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'soon'}`
-                          : 'Trial active'
-                      }
-                    </p>
-                  </>
-                )}
-              </div>
-              {teamSubscription?.is_trial && !(teamSubscription as any)?.cancelled_at ? (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0">
-                      Cancel Subscription
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Your trial will remain active until {teamSubscription?.trial_ends_at ? new Date(teamSubscription.trial_ends_at).toLocaleDateString() : 'the end of the trial period'}. After that, Pro features will be removed and no payment will be taken.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
-                      <AlertDialogAction
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        onClick={async () => {
-                          try {
-                            const { data, error } = await supabase.functions.invoke('cancel-subscription', {
-                              body: { subscription_type: 'team', entity_id: id },
-                            });
-                            if (error || data?.error) throw new Error(data?.error || error?.message);
-                            queryClient.invalidateQueries({ queryKey: ["team-subscription", id] });
-                            queryClient.invalidateQueries({ queryKey: ["team", id] });
-                            toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
-                          } catch (err: any) {
-                            toast({ title: "Error", description: err.message || "Failed to cancel subscription.", variant: "destructive" });
-                          }
-                        }}
-                      >
+      {!isClassMode && (isAdmin || isClubAdmin) && isOnTrial && isTeamPro && (() => {
+        const isCancelled = teamSubscription?.is_trial 
+          ? !!(teamSubscription as any)?.cancelled_at 
+          : clubSubscription?.is_trial 
+            ? !!(clubSubscription as any)?.cancelled_at 
+            : false;
+        const trialEndDate = teamSubscription?.is_trial 
+          ? teamSubscription?.trial_ends_at 
+          : clubSubscription?.trial_ends_at;
+        const isClubTrial = !teamSubscription?.is_trial && clubSubscription?.is_trial;
+
+        return (
+          <Card className={`border-amber-500/30 ${isCancelled ? 'bg-gradient-to-br from-muted/50 to-muted/30' : 'bg-gradient-to-br from-amber-500/5 to-amber-500/10'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className={`rounded-full p-2 shrink-0 ${isCancelled ? 'bg-muted' : 'bg-amber-500/10'}`}>
+                  <Crown className={`h-5 w-5 ${isCancelled ? 'text-muted-foreground' : 'text-amber-500'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  {isCancelled ? (
+                    <>
+                      <p className="font-medium text-sm">Subscription Cancelled</p>
+                      <p className="text-xs text-muted-foreground">
+                        Pro features active until {trialEndDate ? new Date(trialEndDate).toLocaleDateString() : 'trial ends'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-sm">Free Trial Active</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isClubTrial ? 'Club trial' : 'Trial'} ends {trialEndDate ? new Date(trialEndDate).toLocaleDateString() : 'soon'}
+                      </p>
+                    </>
+                  )}
+                </div>
+                {teamSubscription?.is_trial && !isCancelled ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0">
                         Cancel Subscription
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              ) : !teamSubscription?.is_trial && clubSubscription?.is_trial && team?.club_id ? (
-                <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0" onClick={() => navigate(`/clubs/${team.club_id}/upgrade`)}>
-                  Manage
-                </Button>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Your trial will remain active until {trialEndDate ? new Date(trialEndDate).toLocaleDateString() : 'the end of the trial period'}. After that, Pro features will be removed and no payment will be taken.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={async () => {
+                            try {
+                              const { data, error } = await supabase.functions.invoke('cancel-subscription', {
+                                body: { subscription_type: 'team', entity_id: id },
+                              });
+                              if (error || data?.error) throw new Error(data?.error || error?.message);
+                              queryClient.invalidateQueries({ queryKey: ["team-subscription", id] });
+                              queryClient.invalidateQueries({ queryKey: ["team", id] });
+                              toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
+                            } catch (err: any) {
+                              toast({ title: "Error", description: err.message || "Failed to cancel subscription.", variant: "destructive" });
+                            }
+                          }}
+                        >
+                          Cancel Subscription
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : isClubTrial && team?.club_id && !isCancelled ? (
+                  <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0" onClick={() => navigate(`/clubs/${team.club_id}/upgrade`)}>
+                    Manage
+                  </Button>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Join Request Section for Non-members - hidden in class mode (use enrolment page instead) */}
       {!isClassMode && !isUserRoleLoading && !isMember && !isClubAdmin && (
