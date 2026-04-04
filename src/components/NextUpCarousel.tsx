@@ -694,13 +694,8 @@ function CompactCard({ event }: { event: EventItem }) {
           )}
         </div>
 
-        {/* RSVP Status + Children */}
-        {!event.is_cancelled && (
-          <div className="space-y-1.5">
-            {rsvpIndicator}
-            <HouseholdRsvpSummary eventId={event.id} userId={user?.id} currentStatus={currentStatus} />
-          </div>
-        )}
+        {/* RSVP Status */}
+        {!event.is_cancelled && rsvpIndicator}
       </CardContent>
     </Card>
   );
