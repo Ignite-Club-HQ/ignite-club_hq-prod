@@ -1,11 +1,19 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushSubscriptionHealth } from "@/hooks/usePushSubscriptionHealth";
 import { useMissedNotificationSync } from "@/hooks/useMissedNotificationSync";
 import { clearStalePushLocks } from "@/lib/pushNotifications";
 import { useNativePush } from "@/hooks/useNativePush";
-import { isNativePlatform } from "@/lib/nativePush";
+import { getPlatform, isNativePlatform } from "@/lib/nativePush";
+
+const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub";
+
+function getNativeStoreUrl() {
+  return getPlatform() === "ios" ? APP_STORE_URL : PLAY_STORE_URL;
+}
 
 /**
  * Component that manages push notification health checks and missed notification sync.
@@ -76,6 +84,76 @@ export function PushNotificationManager() {
       navigator.serviceWorker?.removeEventListener('message', handleSWMessage);
     };
   }, [navigate]);
+
+  // Native fallback: if Android drops push tap payload on legacy builds,
+  // show the update prompt on app open whenever an unread system_update exists.
+  useEffect(() => {
+    if (!user?.id || !isNativePlatform()) return;
+
+    let cancelled = false;
+    let removeAppStateListener: (() => void) | undefined;
+
+    const checkPendingSystemUpdate = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("type", "system_update")
+          .eq("is_read", false)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (error) {
+          console.warn("[PushManager] Failed to check system update notifications:", error);
+          return;
+        }
+
+        if (!data?.length || cancelled) return;
+
+        console.log("[PushManager] Pending system update notification found, dispatching update prompt");
+        window.dispatchEvent(new CustomEvent("force-update-prompt", {
+          detail: { storeUrl: getNativeStoreUrl() },
+        }));
+      } catch (err) {
+        console.warn("[PushManager] Error checking system update notifications:", err);
+      }
+    };
+
+    void checkPendingSystemUpdate();
+
+    void (async () => {
+      try {
+        const { App } = await import("@capacitor/app");
+        const listener = await App.addListener("appStateChange", ({ isActive }) => {
+          if (isActive) {
+            void checkPendingSystemUpdate();
+          }
+        });
+        removeAppStateListener = () => {
+          void listener.remove();
+        };
+      } catch (err) {
+        console.warn("[PushManager] App state listener unavailable:", err);
+      }
+    })();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void checkPendingSystemUpdate();
+      }
+    };
+
+    window.addEventListener("focus", checkPendingSystemUpdate);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      cancelled = true;
+      removeAppStateListener?.();
+      window.removeEventListener("focus", checkPendingSystemUpdate);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [user?.id]);
   
   // Clear stale push locks on startup and visibility change (web only)
   useEffect(() => {

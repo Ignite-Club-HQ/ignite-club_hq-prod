@@ -181,10 +181,11 @@ serve(async (req) => {
         try {
           const platform = platformMap.get(userId) || 'unknown';
           const storeUrl = platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
+          const title = testMode ? '🧪 Test: App Update Available' : '📲 App Update Available';
+          const message = testMode
+            ? 'This is a test. Open the app to see the update prompt.'
+            : 'A new version of Ignite Club HQ is available. Open the app to update.';
 
-          // Always include both store_url and force_update_prompt.
-          // Modern apps show the in-app update dialog, while older builds can still
-          // fall back to opening the store directly if they only understand store_url.
           const notificationData = {
             store_url: storeUrl,
             force_update_prompt: 'true',
@@ -192,13 +193,24 @@ serve(async (req) => {
             mode: testMode ? 'test' : 'reminder',
           };
 
+          const { error: notificationInsertError } = await adminClient
+            .from('notifications')
+            .insert({
+              user_id: userId,
+              type: 'system_update',
+              message,
+              skip_push: true,
+            });
+
+          if (notificationInsertError) {
+            console.error(`Failed to insert system_update notification for ${userId}:`, notificationInsertError);
+          }
+
           const { error } = await adminClient.functions.invoke('send-push-notification', {
             body: {
               userId,
-              title: testMode ? '🧪 Test: App Update Available' : '📲 App Update Available',
-              body: testMode
-                ? 'This is a test. Tap to see the update prompt users would see.'
-                : 'A new version of Ignite Club HQ is available. Tap to update!',
+              title,
+              body: message,
               tag: `app-update-reminder-${Date.now()}`,
               notificationType: 'system_update',
               data: notificationData,
