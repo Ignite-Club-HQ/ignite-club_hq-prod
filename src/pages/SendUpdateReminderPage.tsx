@@ -255,11 +255,11 @@ export default function SendUpdateReminderPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Android Minimum</Label>
+              <Label className="text-xs">Android Minimum (Build Number)</Label>
               <Input
                 value={minAndroid}
                 onChange={e => setMinAndroid(e.target.value)}
-                placeholder="e.g. 1.2.0"
+                placeholder="e.g. 71206710"
                 className="h-9 text-sm"
               />
             </div>
