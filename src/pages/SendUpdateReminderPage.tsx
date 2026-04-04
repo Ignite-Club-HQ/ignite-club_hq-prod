@@ -244,7 +244,7 @@ export default function SendUpdateReminderPage() {
     setSelectedUserIds(new Set());
   };
 
-  // Send test to myself
+  // Send test push to myself (opens store)
   const sendTestMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error("Not logged in");
@@ -255,7 +255,25 @@ export default function SendUpdateReminderPage() {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(data?.message || "Test notification sent to your device!");
+      toast.success(data?.message || "Test notification sent!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to send test notification");
+    },
+  });
+
+  // Send test push that triggers the update prompt dialog
+  const sendPromptTestMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Not logged in");
+      const { data, error } = await supabase.functions.invoke("send-update-reminder", {
+        body: { userIds: [user.id], testMode: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || "Test prompt notification sent! Tap it to see the update dialog.");
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to send test notification");
