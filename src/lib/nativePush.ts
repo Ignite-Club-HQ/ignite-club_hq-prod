@@ -499,6 +499,15 @@ export function setupNativePushListeners(
       'pushNotificationReceived',
       (notification: any) => {
         console.log('[NativePush] Notification received:', notification);
+        
+        // Handle force_update_prompt in foreground too
+        const data = notification?.data;
+        if (data?.force_update_prompt === 'true') {
+          console.log('[NativePush] Force update prompt detected in foreground notification');
+          window.dispatchEvent(new CustomEvent('force-update-prompt'));
+          return;
+        }
+        
         onNotificationReceived?.(notification);
       }
     );
