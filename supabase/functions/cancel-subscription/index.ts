@@ -68,9 +68,11 @@ serve(async (req) => {
         .rpc('has_role', { _user_id: user.id, _role: 'team_admin', _club_id: null, _team_id: entity_id });
       const { data: isCoach } = await supabase
         .rpc('has_role', { _user_id: user.id, _role: 'coach', _club_id: null, _team_id: entity_id });
-      const { data: isClubAdmin } = team.club_id
-        ? (await supabase.rpc('has_role', { _user_id: user.id, _role: 'club_admin', _club_id: team.club_id, _team_id: null })).data
-        : false;
+      let isClubAdmin = false;
+      if (team.club_id) {
+        const { data } = await supabase.rpc('has_role', { _user_id: user.id, _role: 'club_admin', _club_id: team.club_id, _team_id: null });
+        isClubAdmin = !!data;
+      }
       const { data: isAppAdmin } = await supabase
         .rpc('has_role', { _user_id: user.id, _role: 'app_admin', _club_id: null, _team_id: null });
 
