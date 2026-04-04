@@ -1,13 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone, Shield, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PageLoading } from "@/components/ui/page-loading";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +26,7 @@ interface UserWithVersion {
 export default function SendUpdateReminderPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [selectedVersions, setSelectedVersions] = useState<Set<string>>(new Set());
@@ -42,6 +45,47 @@ export default function SendUpdateReminderPage() {
       return !!data;
     },
     enabled: !!user?.id,
+  });
+
+  // Minimum version settings
+  const [minIos, setMinIos] = useState("");
+  const [minAndroid, setMinAndroid] = useState("");
+
+  const { data: minVersionSetting } = useQuery({
+    queryKey: ["min-app-version"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "minimum_app_version")
+        .maybeSingle();
+      return (data?.value as Record<string, string>) || { ios: "1.0.0", android: "1.0.0" };
+    },
+    enabled: isAppAdmin === true,
+  });
+
+  useEffect(() => {
+    if (minVersionSetting) {
+      setMinIos(minVersionSetting.ios || "1.0.0");
+      setMinAndroid(minVersionSetting.android || "1.0.0");
+    }
+  }, [minVersionSetting]);
+
+  const saveMinVersionMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("app_settings")
+        .update({ value: { ios: minIos, android: minAndroid } as any, updated_at: new Date().toISOString() })
+        .eq("key", "minimum_app_version");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Minimum version updated! Users on older builds will see an update prompt.");
+      queryClient.invalidateQueries({ queryKey: ["min-app-version"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save");
+    },
   });
 
   // Fetch clubs
@@ -185,6 +229,56 @@ export default function SendUpdateReminderPage() {
           </p>
         </div>
       </div>
+
+      {/* Latest versions summary */}
+
+      {/* Minimum version enforcement */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Force Update Prompt
+          </CardTitle>
+          <CardDescription>
+            Users on a version below these minimums will see an update popup every time they open the app.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">iOS Minimum</Label>
+              <Input
+                value={minIos}
+                onChange={e => setMinIos(e.target.value)}
+                placeholder="e.g. 1.2.0"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Android Minimum</Label>
+              <Input
+                value={minAndroid}
+                onChange={e => setMinAndroid(e.target.value)}
+                placeholder="e.g. 1.2.0"
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+          {latestVersions.ios || latestVersions.android ? (
+            <p className="text-xs text-muted-foreground">
+              Tip: Set to the latest version ({latestVersions.ios && `iOS ${latestVersions.ios}`}{latestVersions.ios && latestVersions.android && ', '}{latestVersions.android && `Android ${latestVersions.android}`}) to prompt all outdated users.
+            </p>
+          ) : null}
+          <Button
+            size="sm"
+            onClick={() => saveMinVersionMutation.mutate()}
+            disabled={saveMinVersionMutation.isPending}
+          >
+            <Save className="h-4 w-4 mr-1.5" />
+            {saveMinVersionMutation.isPending ? "Saving..." : "Save Minimum Versions"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Latest versions summary */}
       {(latestVersions.ios || latestVersions.android) && (
