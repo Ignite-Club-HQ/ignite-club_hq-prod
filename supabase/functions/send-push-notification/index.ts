@@ -379,7 +379,8 @@ async function sendFCMNotifications(
   url: string,
   notificationId: string | null,
   tag: string,
-  notificationType?: string
+  notificationType?: string,
+  extraData?: Record<string, unknown>
 ): Promise<{ sent: number; total: number }> {
   const hasSeparateSecrets = Boolean(
     Deno.env.get('FCM_PROJECT_ID') &&
@@ -397,19 +398,22 @@ async function sendFCMNotifications(
     // Call the dedicated FCM edge function
     console.log(`[PUSH] Invoking send-fcm-notification for user ${userId}`);
     
-    const { data, error } = await supabase.functions.invoke('send-fcm-notification', {
+    const { data: responseData, error } = await supabase.functions.invoke('send-fcm-notification', {
       body: {
         userId,
         title: title || 'Ignite Club HQ',
         body: body || 'You have a new notification',
-        url: url || '/notifications',
+        url,
         notificationId,
         tag: tag || `notification-${notificationId || Date.now()}`,
         notificationType,
-        data: notificationType ? {
-          notificationType,
-          type: notificationType,
-        } : undefined,
+        data: {
+          ...(notificationType ? {
+            notificationType,
+            type: notificationType,
+          } : {}),
+          ...(extraData || {}),
+        },
       },
     });
 
@@ -418,8 +422,8 @@ async function sendFCMNotifications(
       return { sent: 0, total: 0 };
     }
 
-    console.log('[PUSH] FCM function response:', JSON.stringify(data));
-    return { sent: data?.sent || 0, total: data?.total || 0 };
+    console.log('[PUSH] FCM function response:', JSON.stringify(responseData));
+    return { sent: responseData?.sent || 0, total: responseData?.total || 0 };
   } catch (err) {
     console.error('[PUSH] Error calling FCM function:', err);
     return { sent: 0, total: 0 };
@@ -541,7 +545,7 @@ serve(async (req) => {
   }
   
   try {
-    const { userId, title, body, url, notificationId, tag, notificationType } = await req.json();
+    const { userId, title, body, url, notificationId, tag, notificationType, data } = await req.json();
     
     console.log(`[PUSH] Starting push notification for user ${userId}, type: ${notificationType || 'unspecified'}`);
     
@@ -574,10 +578,11 @@ serve(async (req) => {
       userId,
       title || 'Ignite Club HQ',
       body || 'You have a new notification',
-      url || '/notifications',
+      url,
       notificationId,
       tag || `notification-${notificationId || Date.now()}`,
-      notificationType
+      notificationType,
+      data
     );
     
     // Check for web push subscriptions

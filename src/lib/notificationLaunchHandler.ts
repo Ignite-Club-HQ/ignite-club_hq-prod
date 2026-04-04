@@ -64,12 +64,43 @@ export function initNotificationLaunchHandler() {
           // Extract the URL from notification data
           const data = notification.notification?.data;
           const url = data?.url || data?.link || data?.path;
+          const storeUrl = data?.store_url;
+          
+          // Handle store_url (e.g. from update reminders) — open externally
+          if (storeUrl) {
+            console.log('[NotificationLaunch] Store URL detected, opening in browser:', storeUrl);
+            import('@capacitor/browser').then(({ Browser }) => {
+              Browser.open({ url: storeUrl });
+            }).catch(() => {
+              window.open(storeUrl, '_system');
+            });
+            navigationHandled = true;
+            return;
+          }
           
           if (url) {
             console.log('[NotificationLaunch] Found URL in notification:', url);
             
-            // Always store for React Router to handle via processPendingNotificationNavigation
-            // Do NOT use window.location.href - it bypasses the SPA router and causes 404s on Capacitor
+            // Check if this is an external URL (e.g. App Store / Play Store)
+            try {
+              const parsed = new URL(url);
+              const appDomains = ['igniteclubhq.app', 'lovable.app', 'lovableproject.com', 'localhost'];
+              const isExternal = !appDomains.some(d => parsed.hostname.endsWith(d));
+              if (isExternal) {
+                console.log('[NotificationLaunch] External URL detected, opening in browser:', url);
+                import('@capacitor/browser').then(({ Browser }) => {
+                  Browser.open({ url });
+                }).catch(() => {
+                  window.open(url, '_system');
+                });
+                navigationHandled = true;
+                return;
+              }
+            } catch {
+              // Not a full URL, treat as internal path
+            }
+            
+            // Store for React Router navigation
             console.log('[NotificationLaunch] Storing URL for React Router navigation');
             pendingNavigationUrl = url;
           } else {

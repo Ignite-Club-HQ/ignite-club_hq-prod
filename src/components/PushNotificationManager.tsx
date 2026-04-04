@@ -23,8 +23,16 @@ export function PushNotificationManager() {
   // Helper to navigate from a push notification URL
   const navigateToUrl = (url: string) => {
     try {
+      // Check if external URL (e.g. App Store / Play Store)
       if (url.startsWith('http://') || url.startsWith('https://')) {
         const parsed = new URL(url);
+        const appDomains = ['igniteclubhq.app', 'lovable.app', 'lovableproject.com', 'localhost'];
+        const isExternal = !appDomains.some(d => parsed.hostname.endsWith(d));
+        if (isExternal) {
+          console.log('[PushManager] External URL detected, opening in new tab:', url);
+          window.open(url, '_blank');
+          return;
+        }
         navigate(parsed.pathname + parsed.search + parsed.hash);
       } else {
         navigate(url);

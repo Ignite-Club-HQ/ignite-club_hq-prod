@@ -1,13 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone, Shield, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PageLoading } from "@/components/ui/page-loading";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +18,6 @@ import { toast } from "sonner";
 interface UserWithVersion {
   userId: string;
   name: string;
-  email: string;
   platform: string;
   appVersion: string | null;
   buildNumber: string | null;
@@ -25,8 +26,10 @@ interface UserWithVersion {
 export default function SendUpdateReminderPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
-  const [versionFilter, setVersionFilter] = useState<string>("all");
+  const [platformFilter, setPlatformFilter] = useState<string>("all");
+  const [selectedVersions, setSelectedVersions] = useState<Set<string>>(new Set());
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
 
   // Check app_admin
@@ -44,6 +47,47 @@ export default function SendUpdateReminderPage() {
     enabled: !!user?.id,
   });
 
+  // Minimum version settings
+  const [minIos, setMinIos] = useState("");
+  const [minAndroid, setMinAndroid] = useState("");
+
+  const { data: minVersionSetting } = useQuery({
+    queryKey: ["min-app-version"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "minimum_app_version")
+        .maybeSingle();
+      return (data?.value as Record<string, string>) || { ios: "1.0.0", android: "1.0.0" };
+    },
+    enabled: isAppAdmin === true,
+  });
+
+  useEffect(() => {
+    if (minVersionSetting) {
+      setMinIos(minVersionSetting.ios || "1.0.0");
+      setMinAndroid(minVersionSetting.android || "1.0.0");
+    }
+  }, [minVersionSetting]);
+
+  const saveMinVersionMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("app_settings")
+        .update({ value: { ios: minIos, android: minAndroid } as any, updated_at: new Date().toISOString() })
+        .eq("key", "minimum_app_version");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Minimum version updated! Users on older builds will see an update prompt.");
+      queryClient.invalidateQueries({ queryKey: ["min-app-version"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to save");
+    },
+  });
+
   // Fetch clubs
   const { data: clubs } = useQuery({
     queryKey: ["admin-clubs-list"],
@@ -57,109 +101,67 @@ export default function SendUpdateReminderPage() {
     enabled: isAppAdmin === true,
   });
 
-  // Fetch users with FCM token data
+  // Fetch users via edge function (bypasses RLS on fcm_tokens)
   const { data: usersWithVersions, isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users-fcm", selectedClubId],
     queryFn: async () => {
-      // Get FCM token data (users with native app)
-      const { data: fcmTokens } = await supabase
-        .from("fcm_tokens" as any)
-        .select("user_id, platform, app_version, build_number");
-
-      if (!fcmTokens || fcmTokens.length === 0) return [];
-
-      const userIds = [...new Set((fcmTokens as any[]).map((t: any) => t.user_id))];
-
-      // If club filter, get members of that club
-      let filteredUserIds = userIds;
-      if (selectedClubId !== "all") {
-        const { data: clubRoles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("club_id", selectedClubId);
-        
-        // Also get users via team membership
-        const { data: clubTeams } = await supabase
-          .from("teams")
-          .select("id")
-          .eq("club_id", selectedClubId);
-        
-        const teamIds = clubTeams?.map(t => t.id) || [];
-        let teamUserIds: string[] = [];
-        if (teamIds.length > 0) {
-          const { data: teamRoles } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .in("team_id", teamIds);
-          teamUserIds = teamRoles?.map(r => r.user_id) || [];
-        }
-        
-        const clubUserIds = new Set([
-          ...(clubRoles?.map(r => r.user_id) || []),
-          ...teamUserIds,
-        ]);
-        filteredUserIds = userIds.filter(id => clubUserIds.has(id));
-      }
-
-      if (filteredUserIds.length === 0) return [];
-
-      // Fetch profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", filteredUserIds);
-
-      const profileMap = new Map(
-        (profiles || []).map(p => [p.id, p])
-      );
-
-      // Build user list with latest token info per user
-      const userMap = new Map<string, UserWithVersion>();
-      for (const token of fcmTokens as any[]) {
-        if (!filteredUserIds.includes(token.user_id)) continue;
-        const profile = profileMap.get(token.user_id);
-        if (!profile) continue;
-
-        const existing = userMap.get(token.user_id);
-        // Keep the most recent token info (by presence of version)
-        if (!existing || (token.app_version && !existing.appVersion)) {
-          userMap.set(token.user_id, {
-            userId: token.user_id,
-            name: profile.display_name || "Unknown",
-            email: "",
-            platform: token.platform || "unknown",
-            appVersion: token.app_version || null,
-            buildNumber: token.build_number || null,
-          });
-        }
-      }
-
-      return Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const { data, error } = await supabase.functions.invoke("send-update-reminder", {
+        body: { action: "list-users", clubId: selectedClubId },
+      });
+      if (error) throw error;
+      return (data?.users || []) as UserWithVersion[];
     },
     enabled: isAppAdmin === true,
   });
 
-  // Get unique versions for filter dropdown
-  const versions = useMemo(() => {
+  // Compute latest versions per platform
+  const latestVersions = useMemo(() => {
+    if (!usersWithVersions) return { ios: null as string | null, android: null as string | null };
+    let latestIos: string | null = null;
+    let latestAndroid: string | null = null;
+    for (const u of usersWithVersions) {
+      if (!u.appVersion) continue;
+      if (u.platform === 'ios') {
+        if (!latestIos || u.appVersion.localeCompare(latestIos, undefined, { numeric: true }) > 0) {
+          latestIos = u.appVersion;
+        }
+      } else if (u.platform === 'android') {
+        if (!latestAndroid || u.appVersion.localeCompare(latestAndroid, undefined, { numeric: true }) > 0) {
+          latestAndroid = u.appVersion;
+        }
+      }
+    }
+    return { ios: latestIos, android: latestAndroid };
+  }, [usersWithVersions]);
+
+  // Platform-filtered users
+  const platformFilteredUsers = useMemo(() => {
     if (!usersWithVersions) return [];
+    if (platformFilter === "all") return usersWithVersions;
+    return usersWithVersions.filter(u => u.platform === platformFilter);
+  }, [usersWithVersions, platformFilter]);
+
+  // Get unique versions for filter dropdown (scoped to platform filter)
+  const versions = useMemo(() => {
     const vSet = new Set<string>();
-    usersWithVersions.forEach(u => {
+    platformFilteredUsers.forEach(u => {
       vSet.add(u.appVersion || "null");
     });
     return Array.from(vSet).sort((a, b) => {
       if (a === "null") return 1;
       if (b === "null") return -1;
-      return a.localeCompare(b);
+      return a.localeCompare(b, undefined, { numeric: true });
     });
-  }, [usersWithVersions]);
+  }, [platformFilteredUsers]);
 
-  // Filtered users
+  // Filtered users (platform + version)
   const filteredUsers = useMemo(() => {
-    if (!usersWithVersions) return [];
-    if (versionFilter === "all") return usersWithVersions;
-    if (versionFilter === "null") return usersWithVersions.filter(u => !u.appVersion);
-    return usersWithVersions.filter(u => u.appVersion === versionFilter);
-  }, [usersWithVersions, versionFilter]);
+    if (selectedVersions.size === 0) return platformFilteredUsers;
+    return platformFilteredUsers.filter(u => {
+      const v = u.appVersion || "null";
+      return selectedVersions.has(v);
+    });
+  }, [platformFilteredUsers, selectedVersions]);
 
   // Select all / none
   const toggleSelectAll = () => {
@@ -195,6 +197,10 @@ export default function SendUpdateReminderPage() {
     },
   });
 
+  const resetFilters = () => {
+    setSelectedUserIds(new Set());
+  };
+
   if (adminLoading) return <PageLoading />;
   if (!isAppAdmin) {
     return (
@@ -224,6 +230,79 @@ export default function SendUpdateReminderPage() {
         </div>
       </div>
 
+      {/* Latest versions summary */}
+
+      {/* Minimum version enforcement */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Force Update Prompt
+          </CardTitle>
+          <CardDescription>
+            Users on a version below these minimums will see an update popup every time they open the app.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">iOS Minimum</Label>
+              <Input
+                value={minIos}
+                onChange={e => setMinIos(e.target.value)}
+                placeholder="e.g. 1.2.0"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Android Minimum</Label>
+              <Input
+                value={minAndroid}
+                onChange={e => setMinAndroid(e.target.value)}
+                placeholder="e.g. 1.2.0"
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+          {latestVersions.ios || latestVersions.android ? (
+            <p className="text-xs text-muted-foreground">
+              Tip: Set to the latest version ({latestVersions.ios && `iOS ${latestVersions.ios}`}{latestVersions.ios && latestVersions.android && ', '}{latestVersions.android && `Android ${latestVersions.android}`}) to prompt all outdated users.
+            </p>
+          ) : null}
+          <Button
+            size="sm"
+            onClick={() => saveMinVersionMutation.mutate()}
+            disabled={saveMinVersionMutation.isPending}
+          >
+            <Save className="h-4 w-4 mr-1.5" />
+            {saveMinVersionMutation.isPending ? "Saving..." : "Save Minimum Versions"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Latest versions summary */}
+      {(latestVersions.ios || latestVersions.android) && (
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Latest Detected Versions</p>
+            <div className="flex items-center gap-3">
+              {latestVersions.ios && (
+                <Badge variant="outline" className="text-xs gap-1">
+                  <Smartphone className="h-3 w-3" />
+                  iOS: {latestVersions.ios}
+                </Badge>
+              )}
+              {latestVersions.android && (
+                <Badge variant="outline" className="text-xs gap-1">
+                  <Smartphone className="h-3 w-3" />
+                  Android: {latestVersions.android}
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -233,12 +312,12 @@ export default function SendUpdateReminderPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Club</label>
               <Select value={selectedClubId} onValueChange={(v) => {
                 setSelectedClubId(v);
-                setSelectedUserIds(new Set());
+                resetFilters();
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="All clubs" />
@@ -252,23 +331,59 @@ export default function SendUpdateReminderPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">App Version</label>
-              <Select value={versionFilter} onValueChange={(v) => {
-                setVersionFilter(v);
-                setSelectedUserIds(new Set());
+              <label className="text-sm font-medium">Platform</label>
+              <Select value={platformFilter} onValueChange={(v) => {
+                setPlatformFilter(v);
+                setSelectedVersions(new Set());
+                resetFilters();
               }}>
                 <SelectTrigger>
-                  <SelectValue placeholder="All versions" />
+                  <SelectValue placeholder="All platforms" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All versions</SelectItem>
-                  {versions.map(v => (
-                    <SelectItem key={v} value={v}>
-                      {v === "null" ? "No version (not tracked)" : v}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">All platforms</SelectItem>
+                  <SelectItem value="ios">iOS</SelectItem>
+                  <SelectItem value="android">Android</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">App Version {selectedVersions.size > 0 && `(${selectedVersions.size})`}</label>
+              <div className="flex flex-wrap gap-2">
+                {versions.map(v => {
+                  const label = v === "null" ? "No version" : v;
+                  const isSelected = selectedVersions.has(v);
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => {
+                        const next = new Set(selectedVersions);
+                        if (isSelected) next.delete(v);
+                        else next.add(v);
+                        setSelectedVersions(next);
+                        setSelectedUserIds(new Set());
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                        isSelected
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-foreground border-border hover:bg-muted'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedVersions.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setSelectedVersions(new Set()); setSelectedUserIds(new Set()); }}
+                  className="text-xs text-muted-foreground underline"
+                >
+                  Clear version filter
+                </button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -320,16 +435,15 @@ export default function SendUpdateReminderPage() {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{u.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Badge variant="outline" className="text-xs">
-                        <Smartphone className="h-3 w-3 mr-1" />
-                        {u.platform}
-                      </Badge>
-                      <Badge variant={u.appVersion ? "secondary" : "destructive"} className="text-xs">
-                        {u.appVersion || "No version"}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                          <Smartphone className="h-2.5 w-2.5 mr-0.5" />
+                          {u.platform === 'ios' ? 'iOS' : u.platform === 'android' ? 'Android' : 'None'}
+                        </Badge>
+                        <Badge variant={u.appVersion ? "secondary" : "destructive"} className="text-[10px] px-1.5 py-0">
+                          {u.appVersion || "No version"}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 ))}

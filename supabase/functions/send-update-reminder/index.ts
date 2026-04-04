@@ -27,15 +27,13 @@ serve(async (req) => {
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } }
     });
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(
-      authHeader.replace('Bearer ', '')
-    );
-    if (claimsError || !claimsData?.claims?.sub) {
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
-    const callerUserId = claimsData.claims.sub;
+    const callerUserId = user.id;
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -53,7 +51,104 @@ serve(async (req) => {
       });
     }
 
-    const { userIds } = await req.json();
+    const body = await req.json();
+    const { action } = body;
+
+    // LIST USERS MODE - returns FCM token users with version info
+    if (action === 'list-users') {
+      const { clubId } = body;
+
+      // Get all FCM tokens using service role (bypasses RLS)
+      const { data: fcmTokens, error: fcmError } = await adminClient
+        .from('fcm_tokens')
+        .select('user_id, platform, app_version, build_number');
+
+      if (fcmError) {
+        console.error('FCM tokens fetch error:', fcmError);
+        return new Response(JSON.stringify({ error: 'Failed to fetch FCM tokens' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (!fcmTokens || fcmTokens.length === 0) {
+        return new Response(JSON.stringify({ users: [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      let userIds = [...new Set(fcmTokens.map((t: any) => t.user_id))];
+
+      // Filter by club if specified
+      if (clubId && clubId !== 'all') {
+        const { data: clubRoles } = await adminClient
+          .from('user_roles')
+          .select('user_id')
+          .eq('club_id', clubId);
+
+        const { data: clubTeams } = await adminClient
+          .from('teams')
+          .select('id')
+          .eq('club_id', clubId);
+
+        const teamIds = clubTeams?.map(t => t.id) || [];
+        let teamUserIds: string[] = [];
+        if (teamIds.length > 0) {
+          const { data: teamRoles } = await adminClient
+            .from('user_roles')
+            .select('user_id')
+            .in('team_id', teamIds);
+          teamUserIds = teamRoles?.map(r => r.user_id) || [];
+        }
+
+        const clubUserIds = new Set([
+          ...(clubRoles?.map(r => r.user_id) || []),
+          ...teamUserIds,
+        ]);
+        userIds = userIds.filter(id => clubUserIds.has(id));
+      }
+
+      if (userIds.length === 0) {
+        return new Response(JSON.stringify({ users: [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Fetch profiles
+      const { data: profiles } = await adminClient
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', userIds);
+
+      const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+
+      // Build user list with latest token info per user
+      const userMap = new Map();
+      for (const token of fcmTokens) {
+        if (!userIds.includes(token.user_id)) continue;
+        const profile = profileMap.get(token.user_id);
+        if (!profile) continue;
+
+        const existing = userMap.get(token.user_id);
+        if (!existing || (token.app_version && !existing.appVersion)) {
+          userMap.set(token.user_id, {
+            userId: token.user_id,
+            name: profile.display_name || 'Unknown',
+            platform: token.platform || 'unknown',
+            appVersion: token.app_version || null,
+            buildNumber: token.build_number || null,
+          });
+        }
+      }
+
+      const users = Array.from(userMap.values()).sort((a: any, b: any) => a.name.localeCompare(b.name));
+
+      return new Response(JSON.stringify({ users }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // SEND MODE (default) - send update reminder notifications
+    const { userIds } = body;
 
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return new Response(JSON.stringify({ error: 'userIds array required' }), {
@@ -91,10 +186,16 @@ serve(async (req) => {
             body: {
               userId,
               title: '📲 App Update Available',
-              body: 'A new version of Ignite Club HQ is available. Please update for the best experience!',
-              url: storeUrl,
+              body: 'A new version of Ignite Club HQ is available. Tap to update!',
+              // Don't put store URL in 'url' — old app builds try to route it internally → 404.
+              // Instead, omit 'url' so old builds do nothing on tap, and pass store_url
+              // in data so new builds can open the store externally.
               tag: `app-update-reminder-${Date.now()}`,
               notificationType: 'system_update',
+              data: {
+                store_url: storeUrl,
+                platform,
+              },
             },
           });
 
