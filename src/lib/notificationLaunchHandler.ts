@@ -15,6 +15,18 @@ import { Capacitor } from '@capacitor/core';
 let pendingNavigationUrl: string | null = null;
 let navigationHandled = false;
 
+// Global flag for pending force-update prompt (survives timing races)
+let pendingForceUpdatePrompt: { storeUrl?: string } | null = null;
+
+/**
+ * Check and consume any pending force-update prompt that fired before the component mounted
+ */
+export function consumePendingForceUpdatePrompt(): { storeUrl?: string } | null {
+  const pending = pendingForceUpdatePrompt;
+  pendingForceUpdatePrompt = null;
+  return pending;
+}
+
 /**
  * Get any pending navigation URL from a notification tap
  */
@@ -67,10 +79,26 @@ export function initNotificationLaunchHandler() {
           const storeUrl = data?.store_url;
           const forceUpdatePrompt = data?.force_update_prompt;
           
-          // Handle force_update_prompt (test mode) — show update dialog
+          // Handle force_update_prompt — open the store directly on notification tap when available
           if (forceUpdatePrompt === 'true') {
-            console.log('[NotificationLaunch] Force update prompt detected, dispatching event');
-            window.dispatchEvent(new CustomEvent('force-update-prompt'));
+            console.log('[NotificationLaunch] Force update prompt detected');
+
+            if (storeUrl) {
+              console.log('[NotificationLaunch] Opening store URL from notification tap:', storeUrl);
+              import('@capacitor/browser').then(({ Browser }) => {
+                Browser.open({ url: storeUrl });
+              }).catch(() => {
+                window.open(storeUrl, '_system');
+              });
+              navigationHandled = true;
+              return;
+            }
+
+            console.log('[NotificationLaunch] No store URL provided, storing prompt fallback');
+            pendingForceUpdatePrompt = { storeUrl };
+            window.dispatchEvent(new CustomEvent('force-update-prompt', {
+              detail: { storeUrl },
+            }));
             navigationHandled = true;
             return;
           }

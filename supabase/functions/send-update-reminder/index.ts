@@ -181,20 +181,36 @@ serve(async (req) => {
         try {
           const platform = platformMap.get(userId) || 'unknown';
           const storeUrl = platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
+          const title = testMode ? '🧪 Test: App Update Available' : '📲 App Update Available';
+          const message = testMode
+            ? 'This is a test. Open the app to see the update prompt.'
+            : 'A new version of Ignite Club HQ is available. Open the app to update.';
 
-          // In test mode, send force_update_prompt flag instead of store_url
-          // so the app shows the update dialog instead of opening the store
-          const notificationData = testMode
-            ? { force_update_prompt: 'true', platform }
-            : { store_url: storeUrl, platform };
+          const notificationData = {
+            store_url: storeUrl,
+            force_update_prompt: 'true',
+            platform,
+            mode: testMode ? 'test' : 'reminder',
+          };
+
+          const { error: notificationInsertError } = await adminClient
+            .from('notifications')
+            .insert({
+              user_id: userId,
+              type: 'system_update',
+              message,
+              skip_push: true,
+            });
+
+          if (notificationInsertError) {
+            console.error(`Failed to insert system_update notification for ${userId}:`, notificationInsertError);
+          }
 
           const { error } = await adminClient.functions.invoke('send-push-notification', {
             body: {
               userId,
-              title: testMode ? '🧪 Test: App Update Available' : '📲 App Update Available',
-              body: testMode
-                ? 'This is a test. Tap to see the update prompt users would see.'
-                : 'A new version of Ignite Club HQ is available. Tap to update!',
+              title,
+              body: message,
               tag: `app-update-reminder-${Date.now()}`,
               notificationType: 'system_update',
               data: notificationData,

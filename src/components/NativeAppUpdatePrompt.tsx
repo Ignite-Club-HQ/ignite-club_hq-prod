@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { consumePendingForceUpdatePrompt } from '@/lib/notificationLaunchHandler';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -42,9 +43,21 @@ export function NativeAppUpdatePrompt() {
   const [storeUrl, setStoreUrl] = useState(PLAY_STORE_URL);
 
   useEffect(() => {
-    // Listen for force-update-prompt event (from test push notifications)
-    const handleForcePrompt = () => {
-      console.log('[UpdatePrompt] Force update prompt triggered via event');
+    // Check for any pending force-update prompt that fired before this component mounted
+    const pending = consumePendingForceUpdatePrompt();
+    if (pending) {
+      console.log('[UpdatePrompt] Found pending force-update prompt from cold start:', pending);
+      if (pending.storeUrl) setStoreUrl(pending.storeUrl);
+      setShowPrompt(true);
+    }
+
+    // Listen for force-update-prompt event from push notifications
+    const handleForcePrompt = (event: Event) => {
+      const customEvent = event as CustomEvent<{ storeUrl?: string }>;
+      console.log('[UpdatePrompt] Force update prompt triggered via event', customEvent.detail);
+      if (customEvent.detail?.storeUrl) {
+        setStoreUrl(customEvent.detail.storeUrl);
+      }
       setShowPrompt(true);
     };
     window.addEventListener('force-update-prompt', handleForcePrompt);
@@ -57,30 +70,47 @@ export function NativeAppUpdatePrompt() {
 
     async function check() {
       try {
+        console.log('[UpdatePrompt] Starting version check...');
+        
         // Only run on native platforms
         const { Capacitor } = await import('@capacitor/core');
-        if (!Capacitor.isNativePlatform()) return;
+        const isNative = Capacitor.isNativePlatform();
+        console.log('[UpdatePrompt] isNativePlatform:', isNative);
+        if (!isNative) return;
 
         const platform = Capacitor.getPlatform(); // 'ios' | 'android'
+        console.log('[UpdatePrompt] Platform:', platform);
 
         // Get current app version
         const { App } = await import('@capacitor/app');
         const info = await App.getInfo();
         const currentVersion = info.version; // e.g. "1.2.0"
-        if (!currentVersion) return;
+        console.log('[UpdatePrompt] App info:', JSON.stringify({ version: info.version, build: info.build }));
+        if (!currentVersion) {
+          console.log('[UpdatePrompt] No currentVersion, skipping');
+          return;
+        }
 
-        // Fetch minimum version from app_settings
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('value')
-          .eq('key', 'minimum_app_version')
-          .maybeSingle();
+        const { data, error } = await supabase.functions.invoke('public-minimum-app-version', {
+          method: 'GET',
+        });
 
-        if (error || !data?.value) return;
+        if (error) {
+          console.log('[UpdatePrompt] Failed to fetch minimum_app_version from public function:', error);
+          return;
+        }
+        if (!data?.value) {
+          console.log('[UpdatePrompt] No minimum_app_version data found');
+          return;
+        }
 
         const minVersions = data.value as Record<string, string>;
         const requiredVersion = minVersions[platform];
-        if (!requiredVersion) return;
+        console.log('[UpdatePrompt] Required version for', platform, ':', requiredVersion, 'minVersions:', JSON.stringify(minVersions));
+        if (!requiredVersion) {
+          console.log('[UpdatePrompt] No required version for platform', platform);
+          return;
+        }
 
         if (cancelled) return;
 
@@ -89,10 +119,20 @@ export function NativeAppUpdatePrompt() {
           ? Number(info.build || '0') < Number(requiredVersion)
           : compareSemver(currentVersion, requiredVersion) < 0;
 
+        console.log('[UpdatePrompt] Outdated check:', {
+          platform,
+          currentBuild: info.build,
+          currentVersion,
+          requiredVersion,
+          isOutdated,
+        });
+
         if (isOutdated) {
           console.log(`[UpdatePrompt] ${platform} current ${platform === 'android' ? info.build : currentVersion} < required ${requiredVersion}, showing prompt`);
           setStoreUrl(platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL);
           setShowPrompt(true);
+        } else {
+          console.log('[UpdatePrompt] App is up to date');
         }
       } catch (err) {
         console.warn('[UpdatePrompt] Check failed:', err);
