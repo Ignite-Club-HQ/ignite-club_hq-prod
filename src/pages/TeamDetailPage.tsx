@@ -924,17 +924,28 @@ export default function TeamDetailPage() {
       {/* Soft-deleted banner */}
       {(team as any)?.deleted_at && isAdmin && (
         <Card className="border-destructive/40 bg-destructive/5">
-          <CardContent className="p-3 flex items-center gap-3">
-            <Trash2 className="h-5 w-5 text-destructive shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-destructive">This team was deleted</p>
-              <p className="text-xs text-muted-foreground">
-                Deleted {new Date((team as any).deleted_at).toLocaleDateString()} · Will be permanently removed after 30 days
-              </p>
+          <CardContent className="p-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <Trash2 className="h-5 w-5 text-destructive shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-destructive">This team has been removed</p>
+                <p className="text-xs text-muted-foreground">
+                  Removed {new Date((team as any).deleted_at).toLocaleDateString()} · Will be permanently deleted after 30 days
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleRestoreTeam}>
+                <ArchiveRestore className="h-4 w-4 mr-1" />
+                Restore
+              </Button>
             </div>
-            <Button size="sm" variant="outline" onClick={handleRestoreTeam}>
-              <ArchiveRestore className="h-4 w-4 mr-1" />
-              Restore
+            <Button
+              size="sm"
+              variant="destructive"
+              className="w-full"
+              onClick={() => setShowPermanentDeleteDialog(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Permanently Delete
             </Button>
           </CardContent>
         </Card>
@@ -947,6 +958,16 @@ export default function TeamDetailPage() {
         entityType="team"
         onConfirm={handleDelete}
         isLoading={isDeleting}
+      />
+
+      <ConfirmDeleteDialog
+        open={showPermanentDeleteDialog}
+        onOpenChange={setShowPermanentDeleteDialog}
+        entityName={team?.name || ""}
+        entityType="team"
+        onConfirm={handlePermanentDeleteTeam}
+        isLoading={isDeleting}
+        permanent
       />
 
       {/* Archived Banner */}
