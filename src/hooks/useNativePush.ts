@@ -230,15 +230,20 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
   const handleNotificationAction = useCallback((notification: any) => {
     try {
       const data = notification.notification?.data;
-      if (data?.url) {
-        // Parse the URL and navigate
-        try {
-          const url = new URL(data.url, window.location.origin);
-          navigate(url.pathname + url.search);
-        } catch {
-          // Fallback to direct navigation
-          navigate(data.url);
+      const url = data?.url || data?.link || data?.path;
+      if (url) {
+        // Check if external URL (e.g. App Store / Play Store)
+        if (isExternalUrl(url)) {
+          console.log('[useNativePush] External URL detected, opening in browser:', url);
+          import('@capacitor/browser').then(({ Browser }) => {
+            Browser.open({ url });
+          }).catch(() => {
+            window.open(url, '_system');
+          });
+          return;
         }
+        // Internal URL - navigate via React Router
+        navigate(normalizeNotificationPath(url));
       }
     } catch (err) {
       console.error('[useNativePush] Error handling notification action:', err);
