@@ -182,11 +182,15 @@ serve(async (req) => {
           const platform = platformMap.get(userId) || 'unknown';
           const storeUrl = platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
 
-          // In test mode, send force_update_prompt flag instead of store_url
-          // so the app shows the update dialog instead of opening the store
-          const notificationData = testMode
-            ? { force_update_prompt: 'true', platform }
-            : { store_url: storeUrl, platform };
+          // Always include both store_url and force_update_prompt.
+          // Modern apps show the in-app update dialog, while older builds can still
+          // fall back to opening the store directly if they only understand store_url.
+          const notificationData = {
+            store_url: storeUrl,
+            force_update_prompt: 'true',
+            platform,
+            mode: testMode ? 'test' : 'reminder',
+          };
 
           const { error } = await adminClient.functions.invoke('send-push-notification', {
             body: {

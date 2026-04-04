@@ -504,7 +504,9 @@ export function setupNativePushListeners(
         const data = notification?.data;
         if (data?.force_update_prompt === 'true') {
           console.log('[NativePush] Force update prompt detected in foreground notification');
-          window.dispatchEvent(new CustomEvent('force-update-prompt'));
+          window.dispatchEvent(new CustomEvent('force-update-prompt', {
+            detail: { storeUrl: data?.store_url },
+          }));
           return;
         }
         
@@ -521,11 +523,13 @@ export function setupNativePushListeners(
       (notification: any) => {
         console.log('[NativePush] Notification action:', notification);
         
-        // Handle force_update_prompt (test mode)
+        // Handle force_update_prompt from notification taps
         const data = notification.notification?.data;
         if (data?.force_update_prompt === 'true') {
           console.log('[NativePush] Force update prompt detected, dispatching event');
-          window.dispatchEvent(new CustomEvent('force-update-prompt'));
+          window.dispatchEvent(new CustomEvent('force-update-prompt', {
+            detail: { storeUrl: data?.store_url },
+          }));
           return;
         }
         
