@@ -179,6 +179,7 @@ serve(async (req) => {
         .from('team_subscriptions')
         .update({
           stripe_subscription_id: null,
+          cancelled_at: new Date().toISOString(),
         })
         .eq('team_id', entity_id);
 
