@@ -59,7 +59,7 @@ export default function SendUpdateReminderPage() {
         .select("value")
         .eq("key", "minimum_app_version")
         .maybeSingle();
-      return (data?.value as Record<string, string>) || { ios: "1.0.0", android: "1.0.0" };
+      return (data?.value as Record<string, string>) || { ios: "1.0.0", android: "0" };
     },
     enabled: isAppAdmin === true,
   });
@@ -67,7 +67,7 @@ export default function SendUpdateReminderPage() {
   useEffect(() => {
     if (minVersionSetting) {
       setMinIos(minVersionSetting.ios || "1.0.0");
-      setMinAndroid(minVersionSetting.android || "1.0.0");
+      setMinAndroid(minVersionSetting.android || "0");
     }
   }, [minVersionSetting]);
 
@@ -119,18 +119,25 @@ export default function SendUpdateReminderPage() {
     if (!usersWithVersions) return { ios: null as string | null, android: null as string | null };
     let latestIos: string | null = null;
     let latestAndroid: string | null = null;
+
     for (const u of usersWithVersions) {
-      if (!u.appVersion) continue;
-      if (u.platform === 'ios') {
-        if (!latestIos || u.appVersion.localeCompare(latestIos, undefined, { numeric: true }) > 0) {
-          latestIos = u.appVersion;
+      const versionValue = u.platform === "android"
+        ? (u.buildNumber || u.appVersion)
+        : (u.appVersion || u.buildNumber);
+
+      if (!versionValue) continue;
+
+      if (u.platform === "ios") {
+        if (!latestIos || versionValue.localeCompare(latestIos, undefined, { numeric: true }) > 0) {
+          latestIos = versionValue;
         }
-      } else if (u.platform === 'android') {
-        if (!latestAndroid || u.appVersion.localeCompare(latestAndroid, undefined, { numeric: true }) > 0) {
-          latestAndroid = u.appVersion;
+      } else if (u.platform === "android") {
+        if (!latestAndroid || Number(versionValue) > Number(latestAndroid)) {
+          latestAndroid = versionValue;
         }
       }
     }
+
     return { ios: latestIos, android: latestAndroid };
   }, [usersWithVersions]);
 
@@ -141,25 +148,32 @@ export default function SendUpdateReminderPage() {
     return usersWithVersions.filter(u => u.platform === platformFilter);
   }, [usersWithVersions, platformFilter]);
 
-  // Get unique versions for filter dropdown (scoped to platform filter)
+  // Get unique versions for filter chips (scoped to platform filter)
   const versions = useMemo(() => {
     const vSet = new Set<string>();
     platformFilteredUsers.forEach(u => {
-      vSet.add(u.appVersion || "null");
+      const versionValue = u.platform === "android"
+        ? (u.buildNumber || u.appVersion)
+        : (u.appVersion || u.buildNumber);
+      vSet.add(versionValue || "null");
     });
+
     return Array.from(vSet).sort((a, b) => {
       if (a === "null") return 1;
       if (b === "null") return -1;
+      if (platformFilter === "android") return Number(a) - Number(b);
       return a.localeCompare(b, undefined, { numeric: true });
     });
-  }, [platformFilteredUsers]);
+  }, [platformFilteredUsers, platformFilter]);
 
-  // Filtered users (platform + version)
+  // Filtered users (platform + version/build)
   const filteredUsers = useMemo(() => {
     if (selectedVersions.size === 0) return platformFilteredUsers;
     return platformFilteredUsers.filter(u => {
-      const v = u.appVersion || "null";
-      return selectedVersions.has(v);
+      const versionValue = u.platform === "android"
+        ? (u.buildNumber || u.appVersion)
+        : (u.appVersion || u.buildNumber);
+      return selectedVersions.has(versionValue || "null");
     });
   }, [platformFilteredUsers, selectedVersions]);
 
@@ -255,18 +269,18 @@ export default function SendUpdateReminderPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Android Minimum</Label>
+              <Label className="text-xs">Android Minimum (Build Number)</Label>
               <Input
                 value={minAndroid}
                 onChange={e => setMinAndroid(e.target.value)}
-                placeholder="e.g. 1.2.0"
+                placeholder="e.g. 71206710"
                 className="h-9 text-sm"
               />
             </div>
           </div>
           {latestVersions.ios || latestVersions.android ? (
             <p className="text-xs text-muted-foreground">
-              Tip: Set to the latest version ({latestVersions.ios && `iOS ${latestVersions.ios}`}{latestVersions.ios && latestVersions.android && ', '}{latestVersions.android && `Android ${latestVersions.android}`}) to prompt all outdated users.
+              Tip: iOS uses semver (e.g. 1.2.6). Android uses numeric build numbers (e.g. 71206710).
             </p>
           ) : null}
           <Button
@@ -295,7 +309,7 @@ export default function SendUpdateReminderPage() {
               {latestVersions.android && (
                 <Badge variant="outline" className="text-xs gap-1">
                   <Smartphone className="h-3 w-3" />
-                  Android: {latestVersions.android}
+                  Android build: {latestVersions.android}
                 </Badge>
               )}
             </div>
@@ -348,7 +362,7 @@ export default function SendUpdateReminderPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">App Version {selectedVersions.size > 0 && `(${selectedVersions.size})`}</label>
+              <label className="text-sm font-medium">Version / Build {selectedVersions.size > 0 && `(${selectedVersions.size})`}</label>
               <div className="flex flex-wrap gap-2">
                 {versions.map(v => {
                   const label = v === "null" ? "No version" : v;
@@ -423,30 +437,36 @@ export default function SendUpdateReminderPage() {
           ) : (
             <ScrollArea className="h-[400px]">
               <div className="space-y-1">
-                {filteredUsers.map(u => (
-                  <div
-                    key={u.userId}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer transition-colors"
-                    onClick={() => toggleUser(u.userId)}
-                  >
-                    <Checkbox
-                      checked={selectedUserIds.has(u.userId)}
-                      onCheckedChange={() => toggleUser(u.userId)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{u.name}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                          <Smartphone className="h-2.5 w-2.5 mr-0.5" />
-                          {u.platform === 'ios' ? 'iOS' : u.platform === 'android' ? 'Android' : 'None'}
-                        </Badge>
-                        <Badge variant={u.appVersion ? "secondary" : "destructive"} className="text-[10px] px-1.5 py-0">
-                          {u.appVersion || "No version"}
-                        </Badge>
+                {filteredUsers.map(u => {
+                  const versionValue = u.platform === "android"
+                    ? (u.buildNumber || u.appVersion)
+                    : (u.appVersion || u.buildNumber);
+
+                  return (
+                    <div
+                      key={u.userId}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer transition-colors"
+                      onClick={() => toggleUser(u.userId)}
+                    >
+                      <Checkbox
+                        checked={selectedUserIds.has(u.userId)}
+                        onCheckedChange={() => toggleUser(u.userId)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{u.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            <Smartphone className="h-2.5 w-2.5 mr-0.5" />
+                            {u.platform === 'ios' ? 'iOS' : u.platform === 'android' ? 'Android' : 'None'}
+                          </Badge>
+                          <Badge variant={versionValue ? "secondary" : "destructive"} className="text-[10px] px-1.5 py-0">
+                            {versionValue || "No version"}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </ScrollArea>
           )}
