@@ -18,6 +18,7 @@ interface ConfirmDeleteDialogProps {
   entityType: "club" | "team" | "organisation" | "class";
   onConfirm: () => void;
   isLoading?: boolean;
+  permanent?: boolean;
 }
 
 export function ConfirmDeleteDialog({
@@ -27,6 +28,7 @@ export function ConfirmDeleteDialog({
   entityType,
   onConfirm,
   isLoading,
+  permanent,
 }: ConfirmDeleteDialogProps) {
   const [confirmText, setConfirmText] = useState("");
 
@@ -47,17 +49,32 @@ export function ConfirmDeleteDialog({
             <div className="rounded-full bg-destructive/10 p-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
             </div>
-            <DialogTitle>Delete {entityType}?</DialogTitle>
+            <DialogTitle>{permanent ? "Permanently delete" : "Delete"} {entityType}?</DialogTitle>
           </div>
           <DialogDescription className="pt-2 space-y-3">
-            <p>
-              This will remove <strong>{entityName}</strong> and all its{" "}
-              {entityType === "club" || entityType === "organisation" ? "teams, " : ""}
-              events, and data. Members will be notified.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Changed your mind? You can restore this {entityType} within 30 days from the settings menu.
-            </p>
+            {permanent ? (
+              <>
+                <p className="text-destructive font-medium">
+                  ⚠️ This action is irreversible. All data associated with <strong>{entityName}</strong> will be permanently deleted and cannot be recovered.
+                </p>
+                <p>
+                  This includes all{" "}
+                  {entityType === "club" || entityType === "organisation" ? "teams, " : ""}
+                  events, messages, photos, files, and member data.
+                </p>
+              </>
+            ) : (
+              <>
+                <p>
+                  This will remove <strong>{entityName}</strong> and all its{" "}
+                  {entityType === "club" || entityType === "organisation" ? "teams, " : ""}
+                  events, and data. Members will be notified.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Changed your mind? You can restore this {entityType} within 30 days from the settings menu.
+                </p>
+              </>
+            )}
             <p className="font-medium text-foreground">
               Type <span className="font-bold text-destructive">"{entityName}"</span> to confirm:
             </p>
@@ -78,7 +95,7 @@ export function ConfirmDeleteDialog({
             disabled={!isMatch || isLoading}
             onClick={handleConfirm}
           >
-            {isLoading ? "Deleting…" : `Delete ${entityType}`}
+            {isLoading ? "Deleting…" : permanent ? `Permanently delete ${entityType}` : `Delete ${entityType}`}
           </Button>
         </DialogFooter>
       </DialogContent>
