@@ -260,7 +260,7 @@ serve(async (req) => {
                   body: body || 'You have a new notification',
                 },
                 data: {
-                  url: url || '/notifications',
+                  ...(url ? { url } : {}),
                   notificationId: notificationId?.toString() || '',
                   tag: tag || `notification-${notificationId || Date.now()}`,
                   notificationType: String(notificationType || data?.notificationType || ''),
