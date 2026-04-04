@@ -381,7 +381,7 @@ export default function ProfilePage() {
 
       const { data: subscriptions } = await supabase
         .from("club_subscriptions")
-        .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb")
+        .select("club_id, is_pro, is_pro_football, plan, team_limit, expires_at, storage_purchased_gb, is_trial, trial_ends_at")
         .in("club_id", clubIds);
 
       return clubs.map(club => ({
