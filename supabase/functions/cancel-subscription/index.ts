@@ -173,7 +173,7 @@ serve(async (req) => {
 
     // Reset the database subscription record
     if (subscription_type === 'team') {
-      await supabase
+      const { error: updateError } = await supabase
         .from('team_subscriptions')
         .update({
           is_trial: false,
@@ -185,8 +185,15 @@ serve(async (req) => {
           stripe_subscription_id: null,
         })
         .eq('team_id', entity_id);
+
+      if (updateError) {
+        console.error('Failed to update team_subscriptions:', updateError);
+        return new Response(JSON.stringify({ error: 'Failed to reset subscription' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     } else {
-      await supabase
+      const { error: updateError } = await supabase
         .from('club_subscriptions')
         .update({
           is_trial: false,
@@ -201,11 +208,22 @@ serve(async (req) => {
         })
         .eq('club_id', entity_id);
 
+      if (updateError) {
+        console.error('Failed to update club_subscriptions:', updateError);
+        return new Response(JSON.stringify({ error: 'Failed to reset subscription' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Sync clubs.is_pro
-      await supabase
+      const { error: clubUpdateError } = await supabase
         .from('clubs')
         .update({ is_pro: false })
         .eq('id', entity_id);
+
+      if (clubUpdateError) {
+        console.error('Failed to update clubs.is_pro:', clubUpdateError);
+      }
     }
 
     console.log(`${subscription_type} trial/subscription cancelled for ${entity_id} by user ${user.id}`);
