@@ -308,9 +308,11 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-2">
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
               </div>
-              <h3 className="font-semibold text-lg">Invite Sent!</h3>
+              <h3 className="font-semibold text-lg">Member Added!</h3>
               <p className="text-sm text-muted-foreground">
-                Email invitation sent to <span className="font-medium">{customEmail}</span>
+                {customEmail
+                  ? <>Invite sent to <span className="font-medium">{customEmail}</span></>
+                  : "Invite link created — share it with them"}
               </p>
             </div>
 
@@ -322,6 +324,49 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               </p>
             </div>
 
+            {/* Share options */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-center">Share invite via</p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    const msg = `You've been invited to join ${clubName} as ${roleConfig[selectedRole].label}. Tap here to get started: ${inviteLink}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.${customEmail ? `\n\nSign up with ${customEmail} so your account links automatically.` : ""}`.trim();
+                    if (Capacitor.isNativePlatform()) {
+                      try {
+                        await Share.share({
+                          title: `Join ${clubName}`,
+                          text: msg,
+                          dialogTitle: 'Share invite',
+                        });
+                        return;
+                      } catch { /* cancelled */ }
+                    }
+                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                  }}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteLink || "");
+                      toast({ title: "Invite link copied!" });
+                    } catch {
+                      toast({ title: "Failed to copy link", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Link
+                </Button>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-4">
               <Button 
                 variant="outline" 
@@ -330,6 +375,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   setInviteLink(null);
                   setCustomName("");
                   setCustomEmail("");
+                  setDeliveryMethod("share");
                 }}
               >
                 Add Another
