@@ -81,7 +81,9 @@ export function initNotificationLaunchHandler() {
           
           // Handle force_update_prompt — show update dialog with the correct store link
           if (forceUpdatePrompt === 'true') {
-            console.log('[NotificationLaunch] Force update prompt detected, dispatching event');
+            console.log('[NotificationLaunch] Force update prompt detected, storing globally + dispatching event');
+            // Store globally so NativeAppUpdatePrompt can pick it up even if not mounted yet
+            pendingForceUpdatePrompt = { storeUrl };
             window.dispatchEvent(new CustomEvent('force-update-prompt', {
               detail: { storeUrl },
             }));
