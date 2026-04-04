@@ -41,6 +41,7 @@ interface NotificationPreferences {
   media_enabled: boolean;
   membership_enabled: boolean;
   pitch_board_enabled: boolean;
+  rewards_enabled: boolean;
 }
 
 interface EmailPreferences {
@@ -94,6 +95,7 @@ export default function SettingsPage() {
     media_enabled: true,
     membership_enabled: true,
     pitch_board_enabled: true,
+    rewards_enabled: true,
   });
   const [emailPreferences, setEmailPreferences] = useState<EmailPreferences>({
     email_messages_enabled: true,
@@ -128,6 +130,7 @@ export default function SettingsPage() {
           media_enabled: data.media_enabled,
           membership_enabled: data.membership_enabled,
           pitch_board_enabled: data.pitch_board_enabled ?? true,
+          rewards_enabled: data.rewards_enabled ?? true,
         });
         setEmailPreferences({
           email_messages_enabled: data.email_messages_enabled ?? true,
@@ -587,6 +590,14 @@ export default function SettingsPage() {
                     description="Substitution alerts & game updates"
                     checked={preferences.pitch_board_enabled}
                     onCheckedChange={(v) => handlePreferenceChange("pitch_board_enabled", v)}
+                    disabled={prefsLoading}
+                  />
+                  <NotificationToggle
+                    icon={Trophy}
+                    label="Points & Rewards"
+                    description="Points earned, rewards & engagement nudges"
+                    checked={preferences.rewards_enabled}
+                    onCheckedChange={(v) => handlePreferenceChange("rewards_enabled", v)}
                     disabled={prefsLoading}
                   />
                 </div>

@@ -114,11 +114,26 @@ serve(async (req) => {
       .gte("sent_at", twoDaysAgo);
 
     const recentlyReminded = new Set((recentReminders || []).map(r => r.user_id));
-    const eligibleUsers = uniqueUserIds.filter(uid => !recentlyReminded.has(uid));
+    let eligibleUsers = uniqueUserIds.filter(uid => !recentlyReminded.has(uid));
     console.log(`[EngagementReminder] ${eligibleUsers.length} eligible (after cooldown filter)`);
 
+    // 4b. Filter out users who have disabled rewards/points notifications
+    if (eligibleUsers.length > 0) {
+      const { data: disabledPrefs } = await supabase
+        .from("notification_preferences")
+        .select("user_id")
+        .in("user_id", eligibleUsers)
+        .eq("rewards_enabled", false);
+
+      if (disabledPrefs && disabledPrefs.length > 0) {
+        const disabledSet = new Set(disabledPrefs.map(p => p.user_id));
+        eligibleUsers = eligibleUsers.filter(uid => !disabledSet.has(uid));
+        console.log(`[EngagementReminder] ${disabledPrefs.length} users opted out of points notifications, ${eligibleUsers.length} remaining`);
+      }
+    }
+
     if (eligibleUsers.length === 0) {
-      return new Response(JSON.stringify({ success: true, sent: 0, reason: "all on cooldown" }), {
+      return new Response(JSON.stringify({ success: true, sent: 0, reason: "all on cooldown or opted out" }), {
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
