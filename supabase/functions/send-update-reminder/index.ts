@@ -181,10 +181,11 @@ serve(async (req) => {
         try {
           const platform = platformMap.get(userId) || 'unknown';
           const storeUrl = platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
-          const title = testMode ? '🧪 Test: App Update Available' : '📲 App Update Available';
+          const storeName = platform === 'ios' ? 'App Store' : 'Google Play Store';
+          const title = testMode ? '🧪 Test: Update Available' : '📲 Ignite App Update';
           const message = testMode
-            ? 'This is a test. Open the app to see the update prompt.'
-            : 'A new version of Ignite Club HQ is available. Open the app to update.';
+            ? `This is a test notification. Please open the ${storeName}, search for "Ignite Club HQ", and update to the latest version.`
+            : `A new version of the Ignite app is available! Please open the ${storeName}, search for "Ignite Club HQ", and update to get the latest features.`;
 
           const notificationData = {
             store_url: storeUrl,
