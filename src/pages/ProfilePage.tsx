@@ -680,6 +680,14 @@ export default function ProfilePage() {
                   <div className="text-xs text-muted-foreground">Balance</div>
                 </div>
               </div>
+              {rankData && (
+                <div className="flex items-center justify-center gap-2 mt-3 p-2 bg-primary/10 rounded-lg">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">
+                    You are <span className="text-primary font-bold">{rankData.rank}{getOrdinalSuffix(rankData.rank)}</span> out of {rankData.total} member{rankData.total !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
               {(() => {
                 const balance = profile?.ignite_points || 0;
                 const calculatedBalance = pointsEarned - pointsSpent;
