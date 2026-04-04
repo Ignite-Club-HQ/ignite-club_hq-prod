@@ -78,23 +78,12 @@ export function NativeAppUpdatePrompt() {
           return;
         }
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!session) {
-          console.log('[UpdatePrompt] No auth session yet, waiting for auth restore');
-          return;
-        }
-
-        // Fetch minimum version from app_settings
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('value')
-          .eq('key', 'minimum_app_version')
-          .maybeSingle();
+        const { data, error } = await supabase.functions.invoke('public-minimum-app-version', {
+          method: 'GET',
+        });
 
         if (error) {
-          console.log('[UpdatePrompt] Failed to fetch minimum_app_version:', error);
+          console.log('[UpdatePrompt] Failed to fetch minimum_app_version from public function:', error);
           return;
         }
         if (!data?.value) {
@@ -139,16 +128,6 @@ export function NativeAppUpdatePrompt() {
 
     check();
 
-    const {
-      data: { subscription: authSubscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) return;
-      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-        console.log('[UpdatePrompt] Auth restored, re-checking version gate:', event);
-        void check();
-      }
-    });
-
     void (async () => {
       try {
         const { App } = await import('@capacitor/app');
@@ -176,7 +155,6 @@ export function NativeAppUpdatePrompt() {
 
     return () => {
       cancelled = true;
-      authSubscription.unsubscribe();
       removeAppStateListener?.();
       window.removeEventListener('focus', check);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
