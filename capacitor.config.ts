@@ -10,6 +10,12 @@ const config: CapacitorConfig = {
     App: {
       url: "igniteclubhq" // registers igniteclubhq:// scheme
     },
+    Keyboard: {
+      // Prevent viewport resize on Android when keyboard opens
+      // Pages that need keyboard-aware layout handle it via keyboardDidShow events
+      resize: 'none',
+      resizeOnFullScreen: false,
+    },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
