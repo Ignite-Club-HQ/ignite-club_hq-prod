@@ -263,8 +263,27 @@ export default function SendUpdateReminderPage() {
           </p>
         </div>
       </div>
-
-      {/* Latest versions summary */}
+      {/* Send test to myself */}
+      <Card className="border-dashed border-primary/40">
+        <CardContent className="pt-4 pb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Test Mode</p>
+            <p className="text-xs text-muted-foreground">
+              Send a test update reminder to yourself ({user?.email}) — works even if your app is up to date.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            disabled={sendTestMutation.isPending}
+            onClick={() => sendTestMutation.mutate()}
+          >
+            <TestTube className="h-4 w-4" />
+            {sendTestMutation.isPending ? "Sending..." : "Send Test"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Minimum version enforcement */}
       <Card>
