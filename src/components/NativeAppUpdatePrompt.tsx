@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { consumePendingForceUpdatePrompt } from '@/lib/notificationLaunchHandler';
 import {
   AlertDialog,
   AlertDialogContent,
