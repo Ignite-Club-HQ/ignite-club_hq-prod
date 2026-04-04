@@ -2286,21 +2286,52 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </div>
 
                 {nameInput.trim() && (
-                  <div className="space-y-2">
-                    <Label>Email (optional)</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="email"
-                        placeholder="e.g., john@example.com"
-                        value={customEmail}
-                        onChange={(e) => setCustomEmail(e.target.value)}
-                        className="pl-10"
-                      />
+                  <div className="space-y-3">
+                    <Label>How should we deliver the invite?</Label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setDeliveryMethod("email"); }}
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                          deliveryMethod === "email"
+                            ? "bg-primary/10 border-primary text-primary"
+                            : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                        }`}
+                      >
+                        <Mail className="h-4 w-4" />
+                        Email
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDeliveryMethod("share"); setCustomEmail(""); }}
+                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                          deliveryMethod === "share"
+                            ? "bg-primary/10 border-primary text-primary"
+                            : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                        }`}
+                      >
+                        <Share2 className="h-4 w-4" />
+                        Share Link
+                      </button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {customEmail.trim() ? "An invite email will be sent automatically" : "Skip to share the invite link yourself via message, WhatsApp, etc."}
-                    </p>
+                    {deliveryMethod === "email" ? (
+                      <div className="space-y-1.5">
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            type="email"
+                            placeholder="e.g., john@example.com"
+                            value={customEmail}
+                            onChange={(e) => setCustomEmail(e.target.value)}
+                            className="pl-10"
+                            autoFocus
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">An invite email will be sent automatically</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">You'll be able to share via WhatsApp, Messenger, SMS, or copy the link after adding</p>
+                    )}
                   </div>
                 )}
 
