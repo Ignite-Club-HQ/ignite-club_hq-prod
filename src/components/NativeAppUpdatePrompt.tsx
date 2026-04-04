@@ -43,6 +43,14 @@ export function NativeAppUpdatePrompt() {
   const [storeUrl, setStoreUrl] = useState(PLAY_STORE_URL);
 
   useEffect(() => {
+    // Check for any pending force-update prompt that fired before this component mounted
+    const pending = consumePendingForceUpdatePrompt();
+    if (pending) {
+      console.log('[UpdatePrompt] Found pending force-update prompt from cold start:', pending);
+      if (pending.storeUrl) setStoreUrl(pending.storeUrl);
+      setShowPrompt(true);
+    }
+
     // Listen for force-update-prompt event from push notifications
     const handleForcePrompt = (event: Event) => {
       const customEvent = event as CustomEvent<{ storeUrl?: string }>;
