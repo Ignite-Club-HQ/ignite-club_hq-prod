@@ -1,10 +1,18 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone, Shield, Save, TestTube } from "lucide-react";
+import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone, Shield, Save, TestTube, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,6 +39,7 @@ export default function SendUpdateReminderPage() {
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [selectedVersions, setSelectedVersions] = useState<Set<string>>(new Set());
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [showUpdatePreview, setShowUpdatePreview] = useState(false);
 
   // Check app_admin
   const { data: isAppAdmin, isLoading: adminLoading } = useQuery({
@@ -283,25 +292,65 @@ export default function SendUpdateReminderPage() {
       </div>
       {/* Send test to myself */}
       <Card className="border-dashed border-primary/40">
-        <CardContent className="pt-4 pb-3 flex items-center justify-between gap-3">
+        <CardContent className="pt-4 pb-3 space-y-3">
           <div>
             <p className="text-sm font-medium">Test Mode</p>
             <p className="text-xs text-muted-foreground">
-              Send a test update reminder to yourself ({user?.email}) — works even if your app is up to date.
+              Send a test update reminder to yourself ({user?.email}) or preview the update prompt users see.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="shrink-0 gap-1.5"
-            disabled={sendTestMutation.isPending}
-            onClick={() => sendTestMutation.mutate()}
-          >
-            <TestTube className="h-4 w-4" />
-            {sendTestMutation.isPending ? "Sending..." : "Send Test"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={sendTestMutation.isPending}
+              onClick={() => sendTestMutation.mutate()}
+            >
+              <TestTube className="h-4 w-4" />
+              {sendTestMutation.isPending ? "Sending..." : "Send Test Push"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setShowUpdatePreview(true)}
+            >
+              <Eye className="h-4 w-4" />
+              Preview Update Prompt
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Update prompt preview dialog */}
+      <AlertDialog open={showUpdatePreview} onOpenChange={setShowUpdatePreview}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              📲 Update Required
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              A new version of Ignite Club HQ is available with important improvements. Please update to continue using the app.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button onClick={() => setShowUpdatePreview(false)} className="w-full">
+              Update Now
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full text-xs text-muted-foreground"
+              onClick={() => setShowUpdatePreview(false)}
+            >
+              Remind me later
+            </Button>
+          </AlertDialogFooter>
+          <p className="text-[10px] text-center text-muted-foreground/60 -mt-2">
+            This is a preview — no action will be taken.
+          </p>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Minimum version enforcement */}
       <Card>
