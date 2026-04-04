@@ -725,33 +725,37 @@ export default function ProfilePage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 mt-2">
                 {upgradableClubs.map((club: any) => {
-                  const sub = club.subscription;
-                  const currentPlan = sub?.is_pro_football ? "Pro Football" : sub?.is_pro ? "Pro" : "Free";
-                  const sport = club.sport?.toLowerCase() || "";
-                  const isSoccer = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
-                  
-                  return (
-                    <Card 
-                      key={club.id}
-                      className="cursor-pointer hover:border-primary/50 transition-colors"
-                      onClick={() => navigate(`/clubs/${club.id}/upgrade`)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium">{club.name}</span>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
-                            {currentPlan}
-                          </Badge>
-                          {currentPlan === "Free" && (
-                            <>
-                              <Badge variant="outline" className="text-primary border-primary">Pro $50/mo</Badge>
-                              {isSoccer && <Badge variant="outline" className="text-primary border-primary">Pro Football $75/mo</Badge>}
-                            </>
-                          )}
-                        </div>
+                   const sub = club.subscription;
+                   const currentPlan = sub?.is_pro_football ? "Pro Football" : sub?.is_pro ? "Pro" : "Free";
+                   const isOnClubTrial = sub?.is_trial && sub?.trial_ends_at && !isPast(parseISO(sub.trial_ends_at));
+                   const sport = club.sport?.toLowerCase() || "";
+                   const isSoccer = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
+                   
+                   return (
+                     <Card 
+                       key={club.id}
+                       className="cursor-pointer hover:border-primary/50 transition-colors"
+                       onClick={() => navigate(`/clubs/${club.id}/upgrade`)}
+                     >
+                       <CardContent className="p-4">
+                         <div className="flex items-center justify-between mb-2">
+                           <span className="font-medium">{club.name}</span>
+                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                         </div>
+                         <div className="flex items-center gap-2 flex-wrap">
+                           <Badge variant={currentPlan === "Free" ? "outline" : "default"} className={currentPlan === "Free" ? "text-muted-foreground" : ""}>
+                             {currentPlan}
+                           </Badge>
+                           {isOnClubTrial && (
+                             <Badge variant="outline" className="text-amber-600 border-amber-500">Free Trial</Badge>
+                           )}
+                           {currentPlan === "Free" && !isOnClubTrial && (
+                             <>
+                               <Badge variant="outline" className="text-primary border-primary">Pro $50/mo</Badge>
+                               {isSoccer && <Badge variant="outline" className="text-primary border-primary">Pro Football $75/mo</Badge>}
+                             </>
+                           )}
+                         </div>
                       </CardContent>
                     </Card>
                   );
