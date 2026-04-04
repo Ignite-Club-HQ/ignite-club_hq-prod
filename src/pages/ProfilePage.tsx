@@ -20,6 +20,12 @@ import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 
 import igniteIcon from "@/assets/ignite-icon.png";
 
+function getOrdinalSuffix(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
 export default function ProfilePage() {
   const { user, profile, signOut } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "settings");
