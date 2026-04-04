@@ -511,6 +511,15 @@ export function setupNativePushListeners(
       'pushNotificationActionPerformed',
       (notification: any) => {
         console.log('[NativePush] Notification action:', notification);
+        
+        // Handle force_update_prompt (test mode)
+        const data = notification.notification?.data;
+        if (data?.force_update_prompt === 'true') {
+          console.log('[NativePush] Force update prompt detected, dispatching event');
+          window.dispatchEvent(new CustomEvent('force-update-prompt'));
+          return;
+        }
+        
         onNotificationAction?.(notification);
         // Navigation is handled by onNotificationAction callback via React Router
         // Do NOT use window.location.href here - it bypasses the SPA router and causes 404s
