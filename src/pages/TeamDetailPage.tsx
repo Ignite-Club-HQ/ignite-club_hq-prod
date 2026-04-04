@@ -1050,6 +1050,8 @@ export default function TeamDetailPage() {
 
       {/* Subscription Banner - Show for admins when team has an active trial */}
       {!isClassMode && (isAdmin || isClubAdmin) && isOnTrial && isTeamPro && (() => {
+        // Determine trial source: team_subscriptions, club_subscriptions, or legacy teams table
+        const isLegacyTeamTrial = !teamSubscription?.is_trial && !clubSubscription?.is_trial && team?.is_pro && (team as any)?.pro_expires_at;
         const isCancelled = teamSubscription?.is_trial 
           ? !!(teamSubscription as any)?.cancelled_at 
           : clubSubscription?.is_trial 
@@ -1057,8 +1059,13 @@ export default function TeamDetailPage() {
             : false;
         const trialEndDate = teamSubscription?.is_trial 
           ? teamSubscription?.trial_ends_at 
-          : clubSubscription?.trial_ends_at;
-        const isClubTrial = !teamSubscription?.is_trial && clubSubscription?.is_trial;
+          : clubSubscription?.is_trial
+            ? clubSubscription?.trial_ends_at
+            : isLegacyTeamTrial
+              ? (team as any)?.pro_expires_at
+              : null;
+        const isClubTrial = !teamSubscription?.is_trial && clubSubscription?.is_trial && !isLegacyTeamTrial;
+        const canCancel = (teamSubscription?.is_trial && !isCancelled) || isLegacyTeamTrial;
 
         return (
           <Card className={`border-amber-500/30 ${isCancelled ? 'bg-gradient-to-br from-muted/50 to-muted/30' : 'bg-gradient-to-br from-amber-500/5 to-amber-500/10'}`}>
@@ -1084,7 +1091,7 @@ export default function TeamDetailPage() {
                     </>
                   )}
                 </div>
-                {teamSubscription?.is_trial && !isCancelled ? (
+                {canCancel ? (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0">

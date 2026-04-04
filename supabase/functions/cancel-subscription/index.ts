@@ -53,7 +53,7 @@ serve(async (req) => {
     if (subscription_type === 'team') {
       const { data: team } = await supabase
         .from('teams')
-        .select('id, created_by, club_id')
+        .select('id, created_by, club_id, stripe_subscription_id')
         .eq('id', entity_id)
         .single();
 
@@ -82,13 +82,14 @@ serve(async (req) => {
         });
       }
 
+      // Check team_subscriptions first, fall back to teams table (legacy)
       const { data: sub } = await supabase
         .from('team_subscriptions')
         .select('stripe_subscription_id')
         .eq('team_id', entity_id)
-        .single();
+        .maybeSingle();
 
-      stripeSubscriptionId = sub?.stripe_subscription_id;
+      stripeSubscriptionId = sub?.stripe_subscription_id || team.stripe_subscription_id;
       clubId = team.club_id;
     } else {
       // Club subscription - check club_admin or app_admin
@@ -175,19 +176,38 @@ serve(async (req) => {
 
     // Clear the Stripe subscription ID so it won't auto-renew, but keep trial active until expiry
     if (subscription_type === 'team') {
-      const { error: updateError } = await supabase
+      // Update team_subscriptions if a row exists
+      const { data: existingSub } = await supabase
         .from('team_subscriptions')
-        .update({
-          stripe_subscription_id: null,
-          cancelled_at: new Date().toISOString(),
-        })
-        .eq('team_id', entity_id);
+        .select('id')
+        .eq('team_id', entity_id)
+        .maybeSingle();
 
-      if (updateError) {
-        console.error('Failed to update team_subscriptions:', updateError);
-        return new Response(JSON.stringify({ error: 'Failed to reset subscription' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      if (existingSub) {
+        const { error: updateError } = await supabase
+          .from('team_subscriptions')
+          .update({
+            stripe_subscription_id: null,
+            cancelled_at: new Date().toISOString(),
+          })
+          .eq('team_id', entity_id);
+
+        if (updateError) {
+          console.error('Failed to update team_subscriptions:', updateError);
+          return new Response(JSON.stringify({ error: 'Failed to reset subscription' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // Also clear stripe_subscription_id on the teams table (legacy)
+      const { error: teamUpdateError } = await supabase
+        .from('teams')
+        .update({ stripe_subscription_id: null })
+        .eq('id', entity_id);
+
+      if (teamUpdateError) {
+        console.error('Failed to update teams.stripe_subscription_id:', teamUpdateError);
       }
     } else {
       const { error: updateError } = await supabase
