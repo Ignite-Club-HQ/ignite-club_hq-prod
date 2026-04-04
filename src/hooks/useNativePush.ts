@@ -59,6 +59,17 @@ interface UseNativePushOptions {
   enabled?: boolean;
 }
 
+/** Check if a URL points to an external domain (not our app) */
+const isExternalUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    const appDomains = ['igniteclubhq.app', 'lovable.app', 'lovableproject.com', 'localhost'];
+    return !appDomains.some(d => parsed.hostname.endsWith(d));
+  } catch {
+    return false;
+  }
+};
+
 const normalizeNotificationPath = (url: string): string => {
   try {
     const parsed = new URL(url, window.location.origin);
@@ -119,6 +130,18 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
                   const data = notification.notification?.data;
                   const type = data?.notificationType || data?.type;
                   const url = data?.url || data?.link || data?.path;
+                  
+                  // Check if URL is external (e.g. App Store / Play Store)
+                  if (url && isExternalUrl(url)) {
+                    console.log('[useNativePush] External URL detected, opening in browser:', url);
+                    import('@capacitor/browser').then(({ Browser }) => {
+                      Browser.open({ url });
+                    }).catch(() => {
+                      window.open(url, '_system');
+                    });
+                    return;
+                  }
+                  
                   const pitchBoardTypes = ['pending_sub', 'half_time', 'game_finished', 'formation_change'];
                   const isPitchBoard = pitchBoardTypes.includes(type);
                   const path = isPitchBoard ? '/' : (url ? normalizeNotificationPath(url) : null);
@@ -207,15 +230,20 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
   const handleNotificationAction = useCallback((notification: any) => {
     try {
       const data = notification.notification?.data;
-      if (data?.url) {
-        // Parse the URL and navigate
-        try {
-          const url = new URL(data.url, window.location.origin);
-          navigate(url.pathname + url.search);
-        } catch {
-          // Fallback to direct navigation
-          navigate(data.url);
+      const url = data?.url || data?.link || data?.path;
+      if (url) {
+        // Check if external URL (e.g. App Store / Play Store)
+        if (isExternalUrl(url)) {
+          console.log('[useNativePush] External URL detected, opening in browser:', url);
+          import('@capacitor/browser').then(({ Browser }) => {
+            Browser.open({ url });
+          }).catch(() => {
+            window.open(url, '_system');
+          });
+          return;
         }
+        // Internal URL - navigate via React Router
+        navigate(normalizeNotificationPath(url));
       }
     } catch (err) {
       console.error('[useNativePush] Error handling notification action:', err);
