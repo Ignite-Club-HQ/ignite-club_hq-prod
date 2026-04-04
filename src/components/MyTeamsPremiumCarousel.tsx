@@ -23,6 +23,7 @@ interface TeamOrLeague {
   sport: string | null;
   club_id: string;
   canManage: boolean;
+  isOnTrial?: boolean;
 }
 
 interface NextEventInfo {
