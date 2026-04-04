@@ -254,23 +254,42 @@ export default function SendUpdateReminderPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">App Version</label>
-              <Select value={versionFilter} onValueChange={(v) => {
-                setVersionFilter(v);
-                resetFilters();
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All versions" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All versions</SelectItem>
-                  {versions.map(v => (
-                    <SelectItem key={v} value={v}>
-                      {v === "null" ? "No version (not tracked)" : v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium">App Version {selectedVersions.size > 0 && `(${selectedVersions.size})`}</label>
+              <div className="flex flex-wrap gap-2">
+                {versions.map(v => {
+                  const label = v === "null" ? "No version" : v;
+                  const isSelected = selectedVersions.has(v);
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => {
+                        const next = new Set(selectedVersions);
+                        if (isSelected) next.delete(v);
+                        else next.add(v);
+                        setSelectedVersions(next);
+                        setSelectedUserIds(new Set());
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                        isSelected
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-foreground border-border hover:bg-muted'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedVersions.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setSelectedVersions(new Set()); setSelectedUserIds(new Set()); }}
+                  className="text-xs text-muted-foreground underline"
+                >
+                  Clear version filter
+                </button>
+              )}
             </div>
           </div>
         </CardContent>
