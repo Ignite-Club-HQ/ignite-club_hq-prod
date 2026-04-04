@@ -16,7 +16,6 @@ import { toast } from "sonner";
 interface UserWithVersion {
   userId: string;
   name: string;
-  email: string;
   platform: string;
   appVersion: string | null;
   buildNumber: string | null;
