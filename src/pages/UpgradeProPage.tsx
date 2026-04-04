@@ -292,10 +292,10 @@ export default function UpgradeProPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
-      toast({ title: "Trial Cancelled", description: "Your free trial has been cancelled. No payment will be taken." });
+      toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
     },
     onError: (error: Error) => {
-      toast({ title: "Error", description: error.message || "Failed to cancel trial.", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to cancel subscription.", variant: "destructive" });
     },
   });
 
@@ -527,25 +527,25 @@ export default function UpgradeProPage() {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" className="w-full text-destructive border-destructive/30 hover:bg-destructive/10">
-                Cancel Trial
+                Cancel Subscription
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will immediately end your trial and remove Pro features. No payment will be taken.
+                  Your trial will remain active until the expiry date. After that, Pro features will be removed and no payment will be taken.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   onClick={() => cancelTrialMutation.mutate()}
                   disabled={cancelTrialMutation.isPending}
                 >
                   {cancelTrialMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  Cancel Trial
+                  Cancel Subscription
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -657,25 +657,25 @@ export default function UpgradeProPage() {
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10">
-                    Cancel Trial
+                    Cancel Subscription
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel Free Trial?</AlertDialogTitle>
+                    <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will immediately end your trial and remove Pro features. No payment will be taken.
+                      Your trial will remain active until the expiry date. After that, Pro features will be removed and no payment will be taken.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Keep Trial</AlertDialogCancel>
+                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={() => cancelTrialMutation.mutate()}
                       disabled={cancelTrialMutation.isPending}
                     >
                       {cancelTrialMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      Cancel Trial
+                      Cancel Subscription
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

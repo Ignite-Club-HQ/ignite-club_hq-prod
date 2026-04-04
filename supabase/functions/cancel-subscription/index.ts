@@ -173,17 +173,11 @@ serve(async (req) => {
       }
     }
 
-    // Reset the database subscription record
+    // Clear the Stripe subscription ID so it won't auto-renew, but keep trial active until expiry
     if (subscription_type === 'team') {
       const { error: updateError } = await supabase
         .from('team_subscriptions')
         .update({
-          is_trial: false,
-          trial_ends_at: null,
-          trial_plan: null,
-          is_pro: false,
-          is_pro_football: false,
-          expires_at: null,
           stripe_subscription_id: null,
         })
         .eq('team_id', entity_id);
@@ -198,14 +192,6 @@ serve(async (req) => {
       const { error: updateError } = await supabase
         .from('club_subscriptions')
         .update({
-          is_trial: false,
-          trial_ends_at: null,
-          trial_plan: null,
-          trial_tier: null,
-          trial_is_annual: null,
-          is_pro: false,
-          is_pro_football: false,
-          expires_at: null,
           stripe_subscription_id: null,
         })
         .eq('club_id', entity_id);
@@ -215,16 +201,6 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Failed to reset subscription' }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
-      }
-
-      // Sync clubs.is_pro
-      const { error: clubUpdateError } = await supabase
-        .from('clubs')
-        .update({ is_pro: false })
-        .eq('id', entity_id);
-
-      if (clubUpdateError) {
-        console.error('Failed to update clubs.is_pro:', clubUpdateError);
       }
     }
 
