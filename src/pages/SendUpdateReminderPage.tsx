@@ -59,7 +59,7 @@ export default function SendUpdateReminderPage() {
         .select("value")
         .eq("key", "minimum_app_version")
         .maybeSingle();
-      return (data?.value as Record<string, string>) || { ios: "1.0.0", android: "1.0.0" };
+      return (data?.value as Record<string, string>) || { ios: "1.0.0", android: "0" };
     },
     enabled: isAppAdmin === true,
   });
