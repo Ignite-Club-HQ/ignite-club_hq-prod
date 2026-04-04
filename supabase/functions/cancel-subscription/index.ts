@@ -68,9 +68,11 @@ serve(async (req) => {
         .rpc('has_role', { _user_id: user.id, _role: 'team_admin', _club_id: null, _team_id: entity_id });
       const { data: isCoach } = await supabase
         .rpc('has_role', { _user_id: user.id, _role: 'coach', _club_id: null, _team_id: entity_id });
-      const { data: isClubAdmin } = team.club_id
-        ? (await supabase.rpc('has_role', { _user_id: user.id, _role: 'club_admin', _club_id: team.club_id, _team_id: null })).data
-        : false;
+      let isClubAdmin = false;
+      if (team.club_id) {
+        const { data } = await supabase.rpc('has_role', { _user_id: user.id, _role: 'club_admin', _club_id: team.club_id, _team_id: null });
+        isClubAdmin = !!data;
+      }
       const { data: isAppAdmin } = await supabase
         .rpc('has_role', { _user_id: user.id, _role: 'app_admin', _club_id: null, _team_id: null });
 
@@ -173,7 +175,7 @@ serve(async (req) => {
 
     // Reset the database subscription record
     if (subscription_type === 'team') {
-      await supabase
+      const { error: updateError } = await supabase
         .from('team_subscriptions')
         .update({
           is_trial: false,
@@ -185,8 +187,15 @@ serve(async (req) => {
           stripe_subscription_id: null,
         })
         .eq('team_id', entity_id);
+
+      if (updateError) {
+        console.error('Failed to update team_subscriptions:', updateError);
+        return new Response(JSON.stringify({ error: 'Failed to reset subscription' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     } else {
-      await supabase
+      const { error: updateError } = await supabase
         .from('club_subscriptions')
         .update({
           is_trial: false,
@@ -201,11 +210,22 @@ serve(async (req) => {
         })
         .eq('club_id', entity_id);
 
+      if (updateError) {
+        console.error('Failed to update club_subscriptions:', updateError);
+        return new Response(JSON.stringify({ error: 'Failed to reset subscription' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Sync clubs.is_pro
-      await supabase
+      const { error: clubUpdateError } = await supabase
         .from('clubs')
         .update({ is_pro: false })
         .eq('id', entity_id);
+
+      if (clubUpdateError) {
+        console.error('Failed to update clubs.is_pro:', clubUpdateError);
+      }
     }
 
     console.log(`${subscription_type} trial/subscription cancelled for ${entity_id} by user ${user.id}`);
