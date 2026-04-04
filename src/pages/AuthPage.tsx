@@ -330,7 +330,11 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-background overflow-hidden">
+    <div
+      className="flex flex-col bg-background overflow-hidden"
+      data-lock-keyboard-scroll="true"
+      style={{ height: 'var(--stable-vh, 100dvh)' }}
+    >
       {/* Show progress indicator if in invite flow */}
       {isInInviteFlow && (
         <InviteFlowProgress 
@@ -341,8 +345,8 @@ export default function AuthPage() {
         />
       )}
       
-      <div className={`flex-1 flex flex-col items-center p-4 overflow-y-auto ${isInInviteFlow ? 'pt-16' : ''}`}>
-      <div className="w-full max-w-md space-y-8 animate-slide-up py-8 my-auto">
+      <div className={`flex-1 flex flex-col items-center p-4 ${authMode === "signin" ? 'justify-center overflow-hidden' : 'overflow-y-auto'} ${isInInviteFlow ? 'pt-16' : ''}`}>
+      <div className={`w-full max-w-md space-y-8 animate-slide-up ${authMode === "signin" ? 'py-4' : 'py-8 my-auto'}`}>
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div className="p-4 rounded-2xl bg-primary glow-emerald">

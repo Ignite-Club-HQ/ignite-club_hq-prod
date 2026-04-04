@@ -291,6 +291,7 @@ export default function CompleteProfilePage() {
     try {
       // Use upsert to handle both new users (insert) and existing users (update)
       // Default new users to light mode
+      const now = new Date().toISOString();
       const { error } = await supabase
         .from("profiles")
         .upsert({
@@ -298,7 +299,9 @@ export default function CompleteProfilePage() {
           display_name: displayName.trim(),
           avatar_url: avatarUrl || null,
           theme_preference: 'light',
-        }, { onConflict: 'id' });
+          terms_accepted_at: now,
+          privacy_accepted_at: now,
+        } as any, { onConflict: 'id' });
 
       if (error) {
         console.error("Profile update error:", error);
