@@ -186,10 +186,16 @@ serve(async (req) => {
             body: {
               userId,
               title: '📲 App Update Available',
-              body: 'A new version of Ignite Club HQ is available. Please update for the best experience!',
-              url: storeUrl,
+              body: 'A new version of Ignite Club HQ is available. Tap to update!',
+              // Don't put store URL in 'url' — old app builds try to route it internally → 404.
+              // Instead, omit 'url' so old builds do nothing on tap, and pass store_url
+              // in data so new builds can open the store externally.
               tag: `app-update-reminder-${Date.now()}`,
               notificationType: 'system_update',
+              data: {
+                store_url: storeUrl,
+                platform,
+              },
             },
           });
 
