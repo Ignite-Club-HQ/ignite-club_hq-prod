@@ -2226,6 +2226,7 @@ export type Database = {
           opponent: string | null
           parent_event_id: string | null
           player_of_match: string | null
+          points_reminder_sent: boolean | null
           postcode: string | null
           preview_image_url: string | null
           recurrence_end_date: string | null
@@ -2265,6 +2266,7 @@ export type Database = {
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
+          points_reminder_sent?: boolean | null
           postcode?: string | null
           preview_image_url?: string | null
           recurrence_end_date?: string | null
@@ -2304,6 +2306,7 @@ export type Database = {
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
+          points_reminder_sent?: boolean | null
           postcode?: string | null
           preview_image_url?: string | null
           recurrence_end_date?: string | null
