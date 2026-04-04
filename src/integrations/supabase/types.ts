@@ -4353,8 +4353,10 @@ export type Database = {
           last_seen_at: string | null
           photo_consent: boolean | null
           photo_consent_given_at: string | null
+          privacy_accepted_at: string | null
           profile_visibility: string | null
           scheduled_deletion_at: string | null
+          terms_accepted_at: string | null
           theme_preference: string | null
           updated_at: string
         }
@@ -4371,8 +4373,10 @@ export type Database = {
           last_seen_at?: string | null
           photo_consent?: boolean | null
           photo_consent_given_at?: string | null
+          privacy_accepted_at?: string | null
           profile_visibility?: string | null
           scheduled_deletion_at?: string | null
+          terms_accepted_at?: string | null
           theme_preference?: string | null
           updated_at?: string
         }
@@ -4389,8 +4393,10 @@ export type Database = {
           last_seen_at?: string | null
           photo_consent?: boolean | null
           photo_consent_given_at?: string | null
+          privacy_accepted_at?: string | null
           profile_visibility?: string | null
           scheduled_deletion_at?: string | null
+          terms_accepted_at?: string | null
           theme_preference?: string | null
           updated_at?: string
         }
