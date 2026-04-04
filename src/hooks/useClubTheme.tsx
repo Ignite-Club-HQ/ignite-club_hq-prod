@@ -669,7 +669,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           theme_dark_accent_l,
           club_subscriptions(is_pro, is_pro_football, expires_at)
         `)
-        .in("id", clubIds);
+        .in("id", clubIds)
+        .is("deleted_at", null);
 
       if (clubsError || !clubs) return [];
 

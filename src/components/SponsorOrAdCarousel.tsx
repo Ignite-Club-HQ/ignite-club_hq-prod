@@ -10,12 +10,12 @@ interface SponsorOrAdCarouselProps {
 }
 
 export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdCarouselProps) {
-  // Check if user is a Pro user (any club they belong to has Pro)
-  const { data: isProUser, isLoading: isProLoading } = useQuery({
-    queryKey: ["user-is-pro", activeClubFilter],
+  // Check Pro status per-club (filtered club) or globally (no filter)
+  const { data: proStatus, isLoading: isProLoading } = useQuery({
+    queryKey: ["user-pro-status-per-club", activeClubFilter],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
+      if (!user) return { isProFiltered: false, hasAnyPro: false };
 
       // Get all clubs the user belongs to
       const { data: roles } = await supabase
@@ -23,7 +23,7 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
         .select("club_id, team_id")
         .eq("user_id", user.id);
 
-      if (!roles || roles.length === 0) return false;
+      if (!roles || roles.length === 0) return { isProFiltered: false, hasAnyPro: false };
 
       const clubIds = roles.filter(r => r.club_id).map(r => r.club_id);
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id);
@@ -41,17 +41,22 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       }
 
       const uniqueClubIds = [...new Set(clubIds.filter(Boolean))];
-      if (uniqueClubIds.length === 0) return false;
+      if (uniqueClubIds.length === 0) return { isProFiltered: false, hasAnyPro: false };
 
-      // Check if any of these clubs have Pro subscription
+      // Fetch Pro subscriptions for all user clubs
       const { data: subscriptions } = await supabase
         .from("club_subscriptions")
-        .select("is_pro")
+        .select("club_id, is_pro")
         .in("club_id", uniqueClubIds)
-        .eq("is_pro", true)
-        .limit(1);
+        .eq("is_pro", true);
 
-      return subscriptions && subscriptions.length > 0;
+      const proClubIds = new Set(subscriptions?.map(s => s.club_id) || []);
+      const hasAnyPro = proClubIds.size > 0;
+
+      // If filtered to a specific club, check if THAT club is Pro
+      const isProFiltered = activeClubFilter ? proClubIds.has(activeClubFilter) : hasAnyPro;
+
+      return { isProFiltered, hasAnyPro };
     },
   });
 
@@ -70,23 +75,25 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
     },
   });
 
-  // Check if user has any sponsors (for fallback logic)
+  // Check if user has any ACTIVE sponsors (from sponsors table, not primary_sponsor_id)
   const { data: hasSponsors } = useQuery({
-    queryKey: ["user-has-sponsors", activeClubFilter],
+    queryKey: ["user-has-active-sponsors", activeClubFilter],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
       if (activeClubFilter) {
+        // Check if this specific club has active sponsors
         const { data } = await supabase
-          .from("clubs")
-          .select("primary_sponsor_id")
-          .eq("id", activeClubFilter)
-          .single();
-        return !!data?.primary_sponsor_id;
+          .from("sponsors")
+          .select("id")
+          .eq("club_id", activeClubFilter)
+          .eq("is_active", true)
+          .limit(1);
+        return !!data && data.length > 0;
       }
 
-      // Check all user's clubs for sponsors
+      // Check all user's clubs for active sponsors
       const { data: roles } = await supabase
         .from("user_roles")
         .select("club_id, team_id")
@@ -94,15 +101,9 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
 
       if (!roles || roles.length === 0) return false;
 
-      const clubIds = roles
-        .filter(r => r.club_id)
-        .map(r => r.club_id);
+      const clubIds = roles.filter(r => r.club_id).map(r => r.club_id);
+      const teamIds = roles.filter(r => r.team_id).map(r => r.team_id);
 
-      const teamIds = roles
-        .filter(r => r.team_id)
-        .map(r => r.team_id);
-
-      // Get club IDs from teams
       if (teamIds.length > 0) {
         const { data: teams } = await supabase
           .from("teams")
@@ -117,100 +118,56 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
       const uniqueClubIds = [...new Set(clubIds.filter(Boolean))];
       if (uniqueClubIds.length === 0) return false;
 
-      const { data: clubs } = await supabase
-        .from("clubs")
-        .select("primary_sponsor_id")
-        .in("id", uniqueClubIds)
-        .not("primary_sponsor_id", "is", null);
+      const { data: sponsors } = await supabase
+        .from("sponsors")
+        .select("id")
+        .in("club_id", uniqueClubIds)
+        .eq("is_active", true)
+        .limit(1);
 
-      return clubs && clubs.length > 0;
+      return !!sponsors && sponsors.length > 0;
     },
   });
 
-  // While loading Pro status, don't show ads (err on the side of not showing ads to potential Pro users)
+  const isProFiltered = proStatus?.isProFiltered ?? false;
+  const isNative = !!(window as any).Capacitor;
+
+  // While loading Pro status, don't show ads
   if (isProLoading) {
-    // For home, show nothing while loading
-    if (location === "home") return null;
-    // For other pages, show sponsor carousel (safe for both Pro and non-Pro)
-    return <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />;
+    return null;
   }
 
-  // For HOME page: sponsors are already shown separately, this component only shows ads
-  if (location === "home") {
-    // Pro users never see app ads
-    if (isProUser) return null;
-    
-    // Show native AdMob banner for non-Pro on native
-    const isNative = !!(window as any).Capacitor;
-    
-    // Only show ads if enabled AND (override is on OR no sponsors exist and show_only_when_no_sponsors is on)
-    if (!settings?.is_enabled) {
-      return isNative ? <AdMobBannerZone show={true} /> : null;
-    }
-    
-    if (settings.override_sponsors) {
+  // === PRO CLUB ===
+  if (isProFiltered) {
+    // Pro club WITH sponsors → show club sponsor banners
+    if (hasSponsors) {
+      if (location === "home") {
+        // On home, sponsors are shown separately via ClubSponsorSection
+        return null;
+      }
       return (
         <>
-          <AppAdCarousel location={location} hasSponsorAds={!!hasSponsors} />
+          <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />
           {isNative && <AdMobBannerZone show={true} />}
         </>
       );
     }
-    
-    if (settings.show_only_when_no_sponsors && !hasSponsors) {
-      return (
-        <>
-          <AppAdCarousel location={location} hasSponsorAds={false} />
-          {isNative && <AdMobBannerZone show={true} />}
-        </>
-      );
-    }
-    
+    // Pro club WITHOUT sponsors → show nothing (no ads for Pro)
     return isNative ? <AdMobBannerZone show={true} /> : null;
   }
 
-  // For EVENTS and MESSAGES pages: this component handles both sponsors and ads
-  const isNative = !!(window as any).Capacitor;
-  
-  // Pro users never see app ads, only sponsors
-  if (isProUser) {
-    return <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />;
-  }
-  
-  // If ads enabled and override sponsors, only show ads
-  if (settings?.is_enabled && settings?.override_sponsors) {
+  // === FREE CLUB ===
+  // Free clubs CANNOT have their own sponsors (Pro-only feature)
+  // Only app admin ads are shown to free clubs
+  if (settings?.is_enabled) {
     return (
       <>
-        <AppAdCarousel location={location} hasSponsorAds={!!hasSponsors} />
+        <AppAdCarousel location={location} hasSponsorAds={false} />
         {isNative && <AdMobBannerZone show={true} />}
       </>
     );
   }
 
-  // If ads enabled and show only when no sponsors
-  if (settings?.is_enabled && settings?.show_only_when_no_sponsors) {
-    if (!hasSponsors) {
-      return (
-        <>
-          <AppAdCarousel location={location} hasSponsorAds={false} />
-          {isNative && <AdMobBannerZone show={true} />}
-        </>
-      );
-    }
-    // Has sponsors, show sponsor carousel
-    return (
-      <>
-        <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />
-        {isNative && <AdMobBannerZone show={true} />}
-      </>
-    );
-  }
-
-  // Default: show sponsor carousel + native ads
-  return (
-    <>
-      <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />
-      {isNative && <AdMobBannerZone show={true} />}
-    </>
-  );
+  // No ads enabled
+  return isNative ? <AdMobBannerZone show={true} /> : null;
 }

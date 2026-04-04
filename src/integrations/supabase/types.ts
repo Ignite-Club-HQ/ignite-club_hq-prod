@@ -1914,6 +1914,30 @@ export type Database = {
           },
         ]
       }
+      engagement_reminder_log: {
+        Row: {
+          id: string
+          sent_at: string
+          unread_messages_count: number
+          unread_photos_count: number
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          sent_at?: string
+          unread_messages_count?: number
+          unread_photos_count?: number
+          user_id: string
+        }
+        Update: {
+          id?: string
+          sent_at?: string
+          unread_messages_count?: number
+          unread_photos_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       event_group_duties: {
         Row: {
           assigned_to: string | null
@@ -2226,6 +2250,7 @@ export type Database = {
           opponent: string | null
           parent_event_id: string | null
           player_of_match: string | null
+          points_reminder_sent: boolean | null
           postcode: string | null
           preview_image_url: string | null
           recurrence_end_date: string | null
@@ -2265,6 +2290,7 @@ export type Database = {
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
+          points_reminder_sent?: boolean | null
           postcode?: string | null
           preview_image_url?: string | null
           recurrence_end_date?: string | null
@@ -2304,6 +2330,7 @@ export type Database = {
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
+          points_reminder_sent?: boolean | null
           postcode?: string | null
           preview_image_url?: string | null
           recurrence_end_date?: string | null
