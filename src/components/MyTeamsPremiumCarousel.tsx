@@ -23,6 +23,7 @@ interface TeamOrLeague {
   sport: string | null;
   club_id: string;
   canManage: boolean;
+  isOnTrial?: boolean;
 }
 
 interface NextEventInfo {
@@ -184,7 +185,12 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
                 </Badge>
               )}
             </div>
-            <p className="text-[11px] text-muted-foreground/70 truncate">{item.club_name}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] text-muted-foreground/70 truncate">{item.club_name}</p>
+              {item.isOnTrial && (
+                <Badge variant="outline" className="text-amber-600 border-amber-500 text-[9px] px-1 py-0 h-3.5 shrink-0">Trial</Badge>
+              )}
+            </div>
           </div>
           {showDots && (
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -317,7 +323,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
       if (teamIds.length > 0) {
         const { data: teams } = await supabase
           .from("teams")
-          .select("id, name, logo_url, club_id, clubs(name, sport, logo_url)")
+          .select("id, name, logo_url, club_id, is_pro, pro_expires_at, clubs(name, sport, logo_url)")
           .in("id", teamIds);
 
         if (teams) {
@@ -337,6 +343,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
               type: "team",
               club_name: team.clubs?.name || "", sport: team.clubs?.sport || null,
               club_id: team.club_id, canManage,
+              isOnTrial: !!(team.is_pro && team.pro_expires_at),
             });
           }
         }

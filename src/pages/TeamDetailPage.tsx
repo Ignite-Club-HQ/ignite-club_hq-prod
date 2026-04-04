@@ -275,6 +275,13 @@ export default function TeamDetailPage() {
   // During loading, assume Pro access to avoid flashing Pro locks
   const hasProFootball = isSubscriptionLoading ? true : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
 
+  // Trial detection: team is on trial if subscription says so OR if team.is_pro with pro_expires_at (website signup)
+  const isOnTrial = !!(
+    teamSubscription?.is_trial ||
+    clubSubscription?.is_trial ||
+    (team?.is_pro && (team as any)?.pro_expires_at)
+  );
+
   // Note: refetchOnMount: 'always' on the queries ensures fresh data
   // without clearing the cache (which would cause a flash of empty state)
 
@@ -706,6 +713,9 @@ export default function TeamDetailPage() {
             )}
             {hasProFootball && (
               <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
+            )}
+            {isOnTrial && isTeamPro && (
+              <Badge variant="outline" className="text-amber-600 border-amber-500 text-[10px] px-1.5 py-0 h-4 shrink-0">Free Trial</Badge>
             )}
             <p className="text-[11px] text-muted-foreground leading-tight truncate">
               {(() => {
