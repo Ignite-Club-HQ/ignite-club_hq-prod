@@ -240,7 +240,7 @@ export default function SendUpdateReminderPage() {
               <label className="text-sm font-medium">Platform</label>
               <Select value={platformFilter} onValueChange={(v) => {
                 setPlatformFilter(v);
-                setVersionFilter("all");
+                setSelectedVersions(new Set());
                 resetFilters();
               }}>
                 <SelectTrigger>
