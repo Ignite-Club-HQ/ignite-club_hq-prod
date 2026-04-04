@@ -67,7 +67,7 @@ export default function SendUpdateReminderPage() {
   useEffect(() => {
     if (minVersionSetting) {
       setMinIos(minVersionSetting.ios || "1.0.0");
-      setMinAndroid(minVersionSetting.android || "1.0.0");
+      setMinAndroid(minVersionSetting.android || "0");
     }
   }, [minVersionSetting]);
 
