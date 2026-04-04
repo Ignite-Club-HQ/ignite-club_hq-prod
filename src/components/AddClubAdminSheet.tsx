@@ -47,7 +47,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [customName, setCustomName] = useState("");
+  const [selectedUser, setSelectedUser] = useState<{
     id: string;
     display_name: string | null;
     avatar_url: string | null;
