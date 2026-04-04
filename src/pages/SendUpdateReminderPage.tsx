@@ -26,7 +26,7 @@ export default function SendUpdateReminderPage() {
   const navigate = useNavigate();
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
-  const [versionFilter, setVersionFilter] = useState<string>("all");
+  const [selectedVersions, setSelectedVersions] = useState<Set<string>>(new Set());
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
 
   // Check app_admin
