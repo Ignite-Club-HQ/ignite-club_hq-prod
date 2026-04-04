@@ -96,7 +96,7 @@ export const ChildAddedEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  Open the Ignite Club HQ app to see their team, teammates, and any updates for the season.
+                  Tap the button below to see their team, teammates, and any updates for the season. If you don't have the app yet, you can download it from the App Store or Google Play.
                 </Text>
               </>
             )}
