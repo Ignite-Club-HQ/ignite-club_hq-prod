@@ -263,7 +263,8 @@ export default function TeamDetailPage() {
                      clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override;
   
   const teamHasIndividualPro = teamSubscription?.is_pro || teamSubscription?.is_pro_football ||
-                               (teamSubscription as any)?.admin_pro_override || (teamSubscription as any)?.admin_pro_football_override;
+                                (teamSubscription as any)?.admin_pro_override || (teamSubscription as any)?.admin_pro_football_override ||
+                                team?.is_pro;
   
   // Team has Pro if: club has Pro (inherited) OR (club is free AND team has individual Pro)
   // IMPORTANT: During loading, assume Pro access (optimistic) to avoid flashing Pro locks
@@ -273,6 +274,13 @@ export default function TeamDetailPage() {
   const teamHasIndividualProFootball = teamSubscription?.is_pro_football || (teamSubscription as any)?.admin_pro_football_override;
   // During loading, assume Pro access to avoid flashing Pro locks
   const hasProFootball = isSubscriptionLoading ? true : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
+
+  // Trial detection: team is on trial if subscription says so OR if team.is_pro with pro_expires_at (website signup)
+  const isOnTrial = !!(
+    teamSubscription?.is_trial ||
+    clubSubscription?.is_trial ||
+    (team?.is_pro && (team as any)?.pro_expires_at)
+  );
 
   // Note: refetchOnMount: 'always' on the queries ensures fresh data
   // without clearing the cache (which would cause a flash of empty state)
@@ -598,6 +606,7 @@ export default function TeamDetailPage() {
   });
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPermanentDeleteDialog, setShowPermanentDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
@@ -660,6 +669,25 @@ export default function TeamDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["team", id] });
   };
 
+  const handlePermanentDeleteTeam = async () => {
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("permanent-delete-entity", {
+        body: { entityType: "team", entityId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      setShowPermanentDeleteDialog(false);
+      toast({ title: "Team permanently deleted", description: "All data has been removed." });
+      navigate(`/clubs/${team?.club_id}`);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to permanently delete team.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="py-6 space-y-6" role="status" aria-label="Loading team">
@@ -705,6 +733,9 @@ export default function TeamDetailPage() {
             )}
             {hasProFootball && (
               <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
+            )}
+            {isOnTrial && isTeamPro && (
+              <Badge variant="outline" className="text-amber-600 border-amber-500 text-[10px] px-1.5 py-0 h-4 shrink-0">Free Trial</Badge>
             )}
             <p className="text-[11px] text-muted-foreground leading-tight truncate">
               {(() => {
@@ -893,17 +924,28 @@ export default function TeamDetailPage() {
       {/* Soft-deleted banner */}
       {(team as any)?.deleted_at && isAdmin && (
         <Card className="border-destructive/40 bg-destructive/5">
-          <CardContent className="p-3 flex items-center gap-3">
-            <Trash2 className="h-5 w-5 text-destructive shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-destructive">This team was deleted</p>
-              <p className="text-xs text-muted-foreground">
-                Deleted {new Date((team as any).deleted_at).toLocaleDateString()} · Will be permanently removed after 30 days
-              </p>
+          <CardContent className="p-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <Trash2 className="h-5 w-5 text-destructive shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-destructive">This team has been removed</p>
+                <p className="text-xs text-muted-foreground">
+                  Removed {new Date((team as any).deleted_at).toLocaleDateString()} · Will be permanently deleted after 30 days
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleRestoreTeam}>
+                <ArchiveRestore className="h-4 w-4 mr-1" />
+                Restore
+              </Button>
             </div>
-            <Button size="sm" variant="outline" onClick={handleRestoreTeam}>
-              <ArchiveRestore className="h-4 w-4 mr-1" />
-              Restore
+            <Button
+              size="sm"
+              variant="destructive"
+              className="w-full"
+              onClick={() => setShowPermanentDeleteDialog(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Permanently Delete
             </Button>
           </CardContent>
         </Card>
@@ -916,6 +958,16 @@ export default function TeamDetailPage() {
         entityType="team"
         onConfirm={handleDelete}
         isLoading={isDeleting}
+      />
+
+      <ConfirmDeleteDialog
+        open={showPermanentDeleteDialog}
+        onOpenChange={setShowPermanentDeleteDialog}
+        entityName={team?.name || ""}
+        entityType="team"
+        onConfirm={handlePermanentDeleteTeam}
+        isLoading={isDeleting}
+        permanent
       />
 
       {/* Archived Banner */}

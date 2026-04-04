@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Users, Share2, Copy } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +17,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -46,7 +47,6 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<{
     id: string;
     display_name: string | null;
@@ -57,10 +57,10 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
-  const [mode, setMode] = useState<"existing" | "invite">("invite");
   const [selectedRole, setSelectedRole] = useState<ClubRole>("club_admin");
+  const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
 
-  const debouncedSearch = useDebounce(searchQuery, 300);
+  const debouncedSearch = useDebounce(customName, 300);
 
   // Fetch existing club admins
   const { data: existingMembers } = useQuery({
@@ -262,14 +262,13 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
 
   const handleClose = () => {
     setOpen(false);
-    setSearchQuery("");
     setSelectedUser(null);
     setCustomName("");
     setCustomEmail("");
     setInviteLink(null);
     setInviteSent(false);
-    setMode("invite");
     setSelectedRole("club_admin");
+    setDeliveryMethod("share");
   };
 
   const handleDone = () => {
@@ -304,9 +303,11 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-2">
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
               </div>
-              <h3 className="font-semibold text-lg">Invite Sent!</h3>
+              <h3 className="font-semibold text-lg">Member Added!</h3>
               <p className="text-sm text-muted-foreground">
-                Email invitation sent to <span className="font-medium">{customEmail}</span>
+                {customEmail
+                  ? <>Invite sent to <span className="font-medium">{customEmail}</span></>
+                  : "Invite link created — share it with them"}
               </p>
             </div>
 
@@ -318,6 +319,49 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               </p>
             </div>
 
+            {/* Share options */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-center">Share invite via</p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    const msg = `You've been invited to join ${clubName} as ${roleConfig[selectedRole].label}. Tap here to get started: ${inviteLink}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.${customEmail ? `\n\nSign up with ${customEmail} so your account links automatically.` : ""}`.trim();
+                    if (Capacitor.isNativePlatform()) {
+                      try {
+                        await Share.share({
+                          title: `Join ${clubName}`,
+                          text: msg,
+                          dialogTitle: 'Share invite',
+                        });
+                        return;
+                      } catch { /* cancelled */ }
+                    }
+                    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                  }}
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteLink || "");
+                      toast({ title: "Invite link copied!" });
+                    } catch {
+                      toast({ title: "Failed to copy link", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Link
+                </Button>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-4">
               <Button 
                 variant="outline" 
@@ -326,6 +370,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                   setInviteLink(null);
                   setCustomName("");
                   setCustomEmail("");
+                  setDeliveryMethod("share");
                 }}
               >
                 Add Another
@@ -340,194 +385,182 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
         {/* Main Form */}
         {!inviteLink && (
           <div className="space-y-5 pt-6">
-            <Tabs value={mode} onValueChange={(v) => setMode(v as "existing" | "invite")}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="invite">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Invite New
-                </TabsTrigger>
-                <TabsTrigger value="existing">
-                  <Search className="h-4 w-4 mr-2" />
-                  Add Existing
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Invite New Admin */}
-              <TabsContent value="invite" className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Name *</Label>
-                  <Input
-                    placeholder="Enter admin's name"
-                    value={customName}
-                    onChange={(e) => setCustomName(e.target.value)}
-                    className="h-11"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Email *</Label>
-                  <Input
-                    type="email"
-                    placeholder="Enter email to send invite"
-                    value={customEmail}
-                    onChange={(e) => setCustomEmail(e.target.value)}
-                    className="h-11"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    An invite email will be sent to this address
-                  </p>
-                </div>
-
-                <MobileCardSelect
-                  value={selectedRole}
-                  onValueChange={(v) => setSelectedRole(v as ClubRole)}
-                  options={[
-                    { value: "club_admin", label: "Club Admin" },
-                    { value: "committee_member", label: "Committee Member" },
-                  ]}
-                  label="Role"
-                  required
-                />
-
-                <div className={`p-3 rounded-lg ${selectedRole === "club_admin" ? "bg-purple-500/10 border-purple-500/20" : "bg-cyan-500/10 border-cyan-500/20"} border`}>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={roleConfig[selectedRole].colorClass}>
-                      {roleConfig[selectedRole].label}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">{roleConfig[selectedRole].description}</span>
+            {/* Unified Name field with autocomplete */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Name *</Label>
+              <div className="relative">
+                {selectedUser ? (
+                  <div className="flex items-center gap-3 h-11 px-3 rounded-md border border-emerald-500 bg-emerald-500/5">
+                    <Avatar className="h-7 w-7 border border-emerald-500/30">
+                      <AvatarImage src={selectedUser.avatar_url || undefined} />
+                      <AvatarFallback className="bg-emerald-500/20 text-emerald-600 text-xs font-semibold">
+                        {selectedUser.display_name?.charAt(0) || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium text-sm flex-1 text-emerald-700 dark:text-emerald-400">{selectedUser.display_name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setCustomName("");
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                </div>
-
-                <Button
-                  className="w-full h-12"
-                  onClick={() => addPendingMemberMutation.mutate()}
-                  disabled={!customName.trim() || !customEmail.trim() || addPendingMemberMutation.isPending || isSendingNotification}
-                >
-                  {addPendingMemberMutation.isPending || isSendingNotification ? (
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                  ) : (
-                    <Send className="h-5 w-5 mr-2" />
-                  )}
-                  Send Invite
-                </Button>
-              </TabsContent>
-
-              {/* Add Existing User */}
-              <TabsContent value="existing" className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Search User</Label>
-                  <div className="relative">
+                ) : (
+                  <>
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Type a name to search..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Type a name..."
+                      value={customName}
+                      onChange={(e) => {
+                        setCustomName(e.target.value);
+                        setSelectedUser(null);
+                      }}
                       className="pl-10 h-11"
                     />
-                    {searchQuery && (
+                    {customName && (
                       <Button
                         variant="ghost"
                         size="icon"
                         className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                        onClick={() => {
-                          setSearchQuery("");
-                          setSelectedUser(null);
-                        }}
+                        onClick={() => { setCustomName(""); setSelectedUser(null); }}
                       >
                         <X className="h-4 w-4" />
                       </Button>
                     )}
-                  </div>
-                </div>
-
-                {/* Search Results */}
-                {debouncedSearch.length >= 2 && (
-                  <div className="space-y-1.5 max-h-52 overflow-y-auto rounded-lg border bg-muted/30 p-2">
-                    {isSearching ? (
-                      <div className="flex items-center justify-center py-6">
-                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                      </div>
-                    ) : filteredResults.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-6">
-                        No users found
-                      </p>
-                    ) : (
-                      filteredResults.map((result) => (
-                        <div
-                          key={result.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                            selectedUser?.id === result.id
-                              ? "bg-primary text-primary-foreground shadow-sm"
-                              : "hover:bg-background border border-transparent hover:border-border"
-                          }`}
-                          onClick={() => setSelectedUser(result)}
-                        >
-                          <Avatar className="h-9 w-9 border-2 border-background">
-                            <AvatarImage src={result.avatar_url || undefined} />
-                            <AvatarFallback className={selectedUser?.id === result.id ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/20 text-primary"}>
-                              {result.display_name?.charAt(0) || "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="font-medium text-sm flex-1">{result.display_name || "Unknown"}</span>
-                          {selectedUser?.id === result.id && (
-                            <CheckCircle2 className="h-5 w-5" />
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
+                  </>
                 )}
+              </div>
 
-                {/* Selected User Preview */}
-                {selectedUser && (
-                  <div className={`p-4 rounded-xl bg-gradient-to-br ${selectedRole === "club_admin" ? "from-purple-500/5 to-purple-500/10 border-purple-500/20" : "from-cyan-500/5 to-cyan-500/10 border-cyan-500/20"} border`}>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Selected User</p>
-                    <div className="flex items-center gap-3">
-                      <Avatar className={`h-10 w-10 border-2 ${selectedRole === "club_admin" ? "border-purple-500/20" : "border-cyan-500/20"}`}>
-                        <AvatarImage src={selectedUser.avatar_url || undefined} />
-                        <AvatarFallback className={selectedRole === "club_admin" ? "bg-purple-500/20 text-purple-600 font-semibold" : "bg-cyan-500/20 text-cyan-600 font-semibold"}>
-                          {selectedUser.display_name?.charAt(0) || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-semibold">{selectedUser.display_name}</span>
+              {/* Autocomplete dropdown */}
+              {!selectedUser && debouncedSearch.length >= 2 && (
+                <div className="space-y-1 max-h-44 overflow-y-auto rounded-lg border bg-muted/30 p-1.5">
+                  {isSearching ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
-                  </div>
-                )}
-
-                <MobileCardSelect
-                  value={selectedRole}
-                  onValueChange={(v) => setSelectedRole(v as ClubRole)}
-                  options={[
-                    { value: "club_admin", label: "Club Admin" },
-                    { value: "committee_member", label: "Committee Member" },
-                  ]}
-                  label="Role"
-                  required
-                />
-
-                <div className={`p-3 rounded-lg ${selectedRole === "club_admin" ? "bg-purple-500/10 border-purple-500/20" : "bg-cyan-500/10 border-cyan-500/20"} border`}>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={roleConfig[selectedRole].colorClass}>
-                      {roleConfig[selectedRole].label}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">{roleConfig[selectedRole].description}</span>
-                  </div>
+                  ) : filteredResults.length > 0 ? (
+                    filteredResults.map((result) => (
+                      <div
+                        key={result.id}
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-background border border-transparent hover:border-border transition-all"
+                        onClick={() => {
+                          setSelectedUser(result);
+                          setCustomName(result.display_name || "");
+                        }}
+                      >
+                        <Avatar className="h-8 w-8 border border-border">
+                          <AvatarImage src={result.avatar_url || undefined} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                            {result.display_name?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium text-sm">{result.display_name || "Unknown"}</span>
+                        <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0">Existing</Badge>
+                      </div>
+                    ))
+                  ) : null}
                 </div>
+              )}
+            </div>
 
-                <Button
-                  className="w-full h-12"
-                  onClick={() => addExistingUserMutation.mutate()}
-                  disabled={!selectedUser || addExistingUserMutation.isPending}
-                >
-                  {addExistingUserMutation.isPending ? (
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                  ) : (
-                    <UserPlus className="h-5 w-5 mr-2" />
-                  )}
-                  Add as {roleConfig[selectedRole].label}
-                </Button>
-              </TabsContent>
-            </Tabs>
+            {/* Delivery method - only show for new users (not selected existing) */}
+            {!selectedUser && (
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">How should we deliver the invite?</Label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryMethod("email")}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                      deliveryMethod === "email"
+                        ? "bg-primary/10 border-primary text-primary"
+                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                    }`}
+                  >
+                    <Mail className="h-4 w-4" />
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDeliveryMethod("share"); setCustomEmail(""); }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                      deliveryMethod === "share"
+                        ? "bg-primary/10 border-primary text-primary"
+                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                    }`}
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Share Link
+                  </button>
+                </div>
+                {deliveryMethod === "email" ? (
+                  <div className="space-y-1.5">
+                    <Input
+                      type="email"
+                      placeholder="Enter email to send invite"
+                      value={customEmail}
+                      onChange={(e) => setCustomEmail(e.target.value)}
+                      className="h-11"
+                    />
+                    <p className="text-xs text-muted-foreground">An invite email will be sent automatically</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">You'll be able to share via WhatsApp, Messenger, SMS, or copy the link after adding</p>
+                )}
+              </div>
+            )}
+
+            <MobileCardSelect
+              value={selectedRole}
+              onValueChange={(v) => setSelectedRole(v as ClubRole)}
+              options={[
+                { value: "club_admin", label: "Club Admin" },
+                { value: "committee_member", label: "Committee Member" },
+              ]}
+              label="Role"
+              required
+            />
+
+            <div className={`p-3 rounded-lg ${selectedRole === "club_admin" ? "bg-purple-500/10 border-purple-500/20" : "bg-cyan-500/10 border-cyan-500/20"} border`}>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className={roleConfig[selectedRole].colorClass}>
+                  {roleConfig[selectedRole].label}
+                </Badge>
+                <span className="text-xs text-muted-foreground">{roleConfig[selectedRole].description}</span>
+              </div>
+            </div>
+
+            <Button
+              className="w-full h-12"
+              onClick={() => {
+                if (selectedUser) {
+                  addExistingUserMutation.mutate();
+                } else {
+                  addPendingMemberMutation.mutate();
+                }
+              }}
+              disabled={
+                (!customName.trim() && !selectedUser) ||
+                (!selectedUser && deliveryMethod === "email" && !customEmail.trim()) ||
+                addPendingMemberMutation.isPending ||
+                addExistingUserMutation.isPending ||
+                isSendingNotification
+              }
+            >
+              {addPendingMemberMutation.isPending || addExistingUserMutation.isPending || isSendingNotification ? (
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              ) : (
+                <UserPlus className="h-5 w-5 mr-2" />
+              )}
+              {(customName.trim() || selectedUser)
+                ? `Add ${selectedUser?.display_name || customName.trim()} as ${roleConfig[selectedRole].label}`
+                : "Enter name to continue"}
+            </Button>
           </div>
         )}
       </SheetContent>

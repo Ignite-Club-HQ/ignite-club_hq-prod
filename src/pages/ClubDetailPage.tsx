@@ -634,6 +634,7 @@ export default function ClubDetailPage() {
   });
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPermanentDeleteDialog, setShowPermanentDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
@@ -729,6 +730,25 @@ export default function ClubDetailPage() {
 
     toast({ title: "Club restored!" });
     queryClient.invalidateQueries({ queryKey: ["club", id] });
+  };
+
+  const handlePermanentDeleteClub = async () => {
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("permanent-delete-entity", {
+        body: { entityType: "club", entityId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      setShowPermanentDeleteDialog(false);
+      toast({ title: "Club permanently deleted", description: "All data has been removed." });
+      navigate("/clubs");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to permanently delete club.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Mutation for app admins to toggle club Pro status
@@ -849,19 +869,30 @@ export default function ClubDetailPage() {
       {/* Soft-deleted banner */}
       {(club as any)?.deleted_at && isAdmin && (
         <Card className="border-destructive/40 bg-destructive/5">
-          <CardContent className="p-3 flex items-center gap-3">
-            <Trash2 className="h-5 w-5 text-destructive shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-destructive">
-                This {club?.class_mode_enabled ? "organisation" : "club"} was deleted
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Deleted {new Date((club as any).deleted_at).toLocaleDateString()} · Will be permanently removed after 30 days
-              </p>
+          <CardContent className="p-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <Trash2 className="h-5 w-5 text-destructive shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-destructive">
+                  This {club?.class_mode_enabled ? "organisation" : "club"} has been removed
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Removed {new Date((club as any).deleted_at).toLocaleDateString()} · Will be permanently deleted after 30 days
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleRestoreClub}>
+                <ArchiveRestore className="h-4 w-4 mr-1" />
+                Restore
+              </Button>
             </div>
-            <Button size="sm" variant="outline" onClick={handleRestoreClub}>
-              <ArchiveRestore className="h-4 w-4 mr-1" />
-              Restore
+            <Button
+              size="sm"
+              variant="destructive"
+              className="w-full"
+              onClick={() => setShowPermanentDeleteDialog(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Permanently Delete
             </Button>
           </CardContent>
         </Card>
@@ -874,6 +905,16 @@ export default function ClubDetailPage() {
         entityType={club?.class_mode_enabled ? "organisation" : "club"}
         onConfirm={handleDelete}
         isLoading={isDeleting}
+      />
+
+      <ConfirmDeleteDialog
+        open={showPermanentDeleteDialog}
+        onOpenChange={setShowPermanentDeleteDialog}
+        entityName={club.name}
+        entityType={club?.class_mode_enabled ? "organisation" : "club"}
+        onConfirm={handlePermanentDeleteClub}
+        isLoading={isDeleting}
+        permanent
       />
 
       {/* Club Card */}
