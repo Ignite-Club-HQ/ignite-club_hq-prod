@@ -59,6 +59,17 @@ interface UseNativePushOptions {
   enabled?: boolean;
 }
 
+/** Check if a URL points to an external domain (not our app) */
+const isExternalUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    const appDomains = ['igniteclubhq.app', 'lovable.app', 'lovableproject.com', 'localhost'];
+    return !appDomains.some(d => parsed.hostname.endsWith(d));
+  } catch {
+    return false;
+  }
+};
+
 const normalizeNotificationPath = (url: string): string => {
   try {
     const parsed = new URL(url, window.location.origin);
