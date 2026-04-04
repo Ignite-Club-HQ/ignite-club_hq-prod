@@ -392,10 +392,10 @@ export default function ClubUpgradePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club", clubId] });
-      toast({ title: "Trial Cancelled", description: "Your free trial has been cancelled. No payment will be taken." });
+      toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to cancel trial.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to cancel subscription.", variant: "destructive" });
     },
   });
 
@@ -640,7 +640,7 @@ export default function ClubUpgradePage() {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" className="w-full text-destructive border-destructive/30 hover:bg-destructive/10">
-                Cancel Trial
+                Cancel Subscription
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -658,7 +658,7 @@ export default function ClubUpgradePage() {
                   disabled={cancelTrialMutation.isPending}
                 >
                   {cancelTrialMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  Cancel Trial
+                  Cancel Subscription
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -940,7 +940,7 @@ export default function ClubUpgradePage() {
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10">
-                    Cancel Trial
+                    Cancel Subscription
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -958,7 +958,7 @@ export default function ClubUpgradePage() {
                       disabled={cancelTrialMutation.isPending}
                     >
                       {cancelTrialMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      Cancel Trial
+                      Cancel Subscription
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
