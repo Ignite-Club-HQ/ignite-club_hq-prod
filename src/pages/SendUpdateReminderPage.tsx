@@ -25,6 +25,7 @@ export default function SendUpdateReminderPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
+  const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [versionFilter, setVersionFilter] = useState<string>("all");
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
 
@@ -69,27 +70,52 @@ export default function SendUpdateReminderPage() {
     enabled: isAppAdmin === true,
   });
 
-  // Get unique versions for filter dropdown
-  const versions = useMemo(() => {
+  // Compute latest versions per platform
+  const latestVersions = useMemo(() => {
+    if (!usersWithVersions) return { ios: null as string | null, android: null as string | null };
+    let latestIos: string | null = null;
+    let latestAndroid: string | null = null;
+    for (const u of usersWithVersions) {
+      if (!u.appVersion) continue;
+      if (u.platform === 'ios') {
+        if (!latestIos || u.appVersion.localeCompare(latestIos, undefined, { numeric: true }) > 0) {
+          latestIos = u.appVersion;
+        }
+      } else if (u.platform === 'android') {
+        if (!latestAndroid || u.appVersion.localeCompare(latestAndroid, undefined, { numeric: true }) > 0) {
+          latestAndroid = u.appVersion;
+        }
+      }
+    }
+    return { ios: latestIos, android: latestAndroid };
+  }, [usersWithVersions]);
+
+  // Platform-filtered users
+  const platformFilteredUsers = useMemo(() => {
     if (!usersWithVersions) return [];
+    if (platformFilter === "all") return usersWithVersions;
+    return usersWithVersions.filter(u => u.platform === platformFilter);
+  }, [usersWithVersions, platformFilter]);
+
+  // Get unique versions for filter dropdown (scoped to platform filter)
+  const versions = useMemo(() => {
     const vSet = new Set<string>();
-    usersWithVersions.forEach(u => {
+    platformFilteredUsers.forEach(u => {
       vSet.add(u.appVersion || "null");
     });
     return Array.from(vSet).sort((a, b) => {
       if (a === "null") return 1;
       if (b === "null") return -1;
-      return a.localeCompare(b);
+      return a.localeCompare(b, undefined, { numeric: true });
     });
-  }, [usersWithVersions]);
+  }, [platformFilteredUsers]);
 
-  // Filtered users
+  // Filtered users (platform + version)
   const filteredUsers = useMemo(() => {
-    if (!usersWithVersions) return [];
-    if (versionFilter === "all") return usersWithVersions;
-    if (versionFilter === "null") return usersWithVersions.filter(u => !u.appVersion);
-    return usersWithVersions.filter(u => u.appVersion === versionFilter);
-  }, [usersWithVersions, versionFilter]);
+    if (versionFilter === "all") return platformFilteredUsers;
+    if (versionFilter === "null") return platformFilteredUsers.filter(u => !u.appVersion);
+    return platformFilteredUsers.filter(u => u.appVersion === versionFilter);
+  }, [platformFilteredUsers, versionFilter]);
 
   // Select all / none
   const toggleSelectAll = () => {
@@ -125,6 +151,10 @@ export default function SendUpdateReminderPage() {
     },
   });
 
+  const resetFilters = () => {
+    setSelectedUserIds(new Set());
+  };
+
   if (adminLoading) return <PageLoading />;
   if (!isAppAdmin) {
     return (
@@ -154,6 +184,29 @@ export default function SendUpdateReminderPage() {
         </div>
       </div>
 
+      {/* Latest versions summary */}
+      {(latestVersions.ios || latestVersions.android) && (
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Latest Detected Versions</p>
+            <div className="flex items-center gap-3">
+              {latestVersions.ios && (
+                <Badge variant="outline" className="text-xs gap-1">
+                  <Smartphone className="h-3 w-3" />
+                  iOS: {latestVersions.ios}
+                </Badge>
+              )}
+              {latestVersions.android && (
+                <Badge variant="outline" className="text-xs gap-1">
+                  <Smartphone className="h-3 w-3" />
+                  Android: {latestVersions.android}
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -163,12 +216,12 @@ export default function SendUpdateReminderPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Club</label>
               <Select value={selectedClubId} onValueChange={(v) => {
                 setSelectedClubId(v);
-                setSelectedUserIds(new Set());
+                resetFilters();
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="All clubs" />
@@ -182,10 +235,27 @@ export default function SendUpdateReminderPage() {
               </Select>
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">Platform</label>
+              <Select value={platformFilter} onValueChange={(v) => {
+                setPlatformFilter(v);
+                setVersionFilter("all");
+                resetFilters();
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All platforms" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All platforms</SelectItem>
+                  <SelectItem value="ios">iOS</SelectItem>
+                  <SelectItem value="android">Android</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">App Version</label>
               <Select value={versionFilter} onValueChange={(v) => {
                 setVersionFilter(v);
-                setSelectedUserIds(new Set());
+                resetFilters();
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="All versions" />
