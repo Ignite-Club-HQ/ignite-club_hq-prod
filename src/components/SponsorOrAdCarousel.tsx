@@ -132,85 +132,36 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   const isProFiltered = proStatus?.isProFiltered ?? false;
   const isNative = !!(window as any).Capacitor;
 
-  // While loading Pro status, don't show ads (err on the side of not showing ads to potential Pro users)
+  const isProFiltered = proStatus?.isProFiltered ?? false;
+  const isNative = !!(window as any).Capacitor;
+
+  // While loading Pro status, don't show ads
   if (isProLoading) {
-    if (location === "home") return null;
-    return <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />;
+    return null;
   }
 
-  // === HOME PAGE ===
-  // On home, sponsors are shown separately via ClubSponsorSection/MultiClubSponsorCarousel
-  // This component only handles app ads on home
-  if (location === "home") {
-    // Pro clubs with sponsors → no app ads needed (sponsors shown separately)
-    if (isProFiltered) return null;
-    
-    if (!settings?.is_enabled) {
-      return isNative ? <AdMobBannerZone show={true} /> : null;
-    }
-
-    // For free clubs or Pro clubs without sponsors: show app ads
-    if (settings.override_sponsors || (settings.show_only_when_no_sponsors && !hasSponsors) || !hasSponsors) {
+  // === PRO CLUB ===
+  if (isProFiltered) {
+    // Pro club WITH sponsors → show club sponsor banners
+    if (hasSponsors) {
+      if (location === "home") {
+        // On home, sponsors are shown separately via ClubSponsorSection
+        return null;
+      }
       return (
         <>
-          <AppAdCarousel location={location} hasSponsorAds={!!hasSponsors} />
+          <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />
           {isNative && <AdMobBannerZone show={true} />}
         </>
       );
     }
-    
+    // Pro club WITHOUT sponsors → show nothing (no ads for Pro)
     return isNative ? <AdMobBannerZone show={true} /> : null;
   }
 
-  // === EVENTS & MESSAGES PAGES ===
-  
-  // Pro club (filtered or all-Pro) WITH sponsors → show sponsors only, no app ads
-  if (isProFiltered && hasSponsors) {
-    return (
-      <>
-        <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />
-        {isNative && <AdMobBannerZone show={true} />}
-      </>
-    );
-  }
-
-  // Pro club WITHOUT sponsors → show nothing (no ads for Pro, no sponsors to show)
-  if (isProFiltered && !hasSponsors) {
-    return isNative ? <AdMobBannerZone show={true} /> : null;
-  }
-
-  // Free club (not Pro): show app ads if enabled, otherwise show sponsors if any exist
-  if (settings?.is_enabled) {
-    if (settings.override_sponsors) {
-      return (
-        <>
-          <AppAdCarousel location={location} hasSponsorAds={!!hasSponsors} />
-          {isNative && <AdMobBannerZone show={true} />}
-        </>
-      );
-    }
-
-    if (settings.show_only_when_no_sponsors && !hasSponsors) {
-      return (
-        <>
-          <AppAdCarousel location={location} hasSponsorAds={false} />
-          {isNative && <AdMobBannerZone show={true} />}
-        </>
-      );
-    }
-  }
-
-  // Free club with sponsors → show sponsors
-  if (hasSponsors) {
-    return (
-      <>
-        <MessagesSponsorCarousel activeClubFilter={activeClubFilter} />
-        {isNative && <AdMobBannerZone show={true} />}
-      </>
-    );
-  }
-
-  // Free club, no sponsors, ads not explicitly enabled → show app ads as fallback
+  // === FREE CLUB ===
+  // Free clubs CANNOT have their own sponsors (Pro-only feature)
+  // Only app admin ads are shown to free clubs
   if (settings?.is_enabled) {
     return (
       <>
@@ -220,6 +171,6 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
     );
   }
 
-  // Nothing to show
+  // No ads enabled
   return isNative ? <AdMobBannerZone show={true} /> : null;
 }
