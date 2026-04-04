@@ -132,9 +132,6 @@ export function SponsorOrAdCarousel({ location, activeClubFilter }: SponsorOrAdC
   const isProFiltered = proStatus?.isProFiltered ?? false;
   const isNative = !!(window as any).Capacitor;
 
-  const isProFiltered = proStatus?.isProFiltered ?? false;
-  const isNative = !!(window as any).Capacitor;
-
   // While loading Pro status, don't show ads
   if (isProLoading) {
     return null;
