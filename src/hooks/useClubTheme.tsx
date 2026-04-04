@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useState, useCallback, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -229,27 +229,40 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   // During Google OAuth return, useAuth updates DOM class synchronously when profile is fetched,
   // but localStorage and next-themes may still have stale values from the previous user.
   // The DOM class is the authoritative source after auth updates it.
-  const getEffectiveTheme = (): 'light' | 'dark' => {
+  const getEffectiveTheme = useCallback((): 'light' | 'dark' => {
     if (typeof window !== 'undefined') {
-      // First check DOM class - this is updated synchronously by useAuth on fresh login
       const isDarkClass = document.documentElement.classList.contains('dark');
       if (isDarkClass) return 'dark';
       if (document.documentElement.classList.contains('light')) return 'light';
       
-      // Fallback to localStorage
       const stored = localStorage.getItem('app-theme');
       if (stored === 'dark' || stored === 'light') {
         return stored;
       }
     }
     return 'light';
-  };
+  }, []);
   
-  // CRITICAL: Always use DOM class as the source of truth for dark mode
-  // resolvedTheme from next-themes can be stale during initialization (reports light when user prefers dark)
-  // especially after the "light mode default" change in index.html
-  // The DOM class is updated synchronously when theme changes, so it's always accurate
-  const isDarkMode = getEffectiveTheme() === "dark";
+  // REACTIVE dark mode state: track DOM class changes via MutationObserver
+  // This ensures club theme CSS is immediately re-applied when theme toggles,
+  // preventing the "washed out" flash on first toggle.
+  const [isDarkMode, setIsDarkMode] = useState(() => getEffectiveTheme() === "dark");
+  
+  useEffect(() => {
+    // Sync on mount
+    setIsDarkMode(getEffectiveTheme() === "dark");
+    
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(getEffectiveTheme() === "dark");
+    });
+    
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    
+    return () => observer.disconnect();
+  }, [getEffectiveTheme]);
 
   // SYNCHRONOUS INITIALIZATION: Read from localStorage during initial state setup
   // This ensures theme is available immediately on first render, not after an effect
