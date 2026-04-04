@@ -244,7 +244,7 @@ export default function SendUpdateReminderPage() {
     setSelectedUserIds(new Set());
   };
 
-  // Send test to myself
+  // Send test push to myself (opens store)
   const sendTestMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error("Not logged in");
@@ -255,7 +255,25 @@ export default function SendUpdateReminderPage() {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(data?.message || "Test notification sent to your device!");
+      toast.success(data?.message || "Test notification sent!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to send test notification");
+    },
+  });
+
+  // Send test push that triggers the update prompt dialog
+  const sendPromptTestMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Not logged in");
+      const { data, error } = await supabase.functions.invoke("send-update-reminder", {
+        body: { userIds: [user.id], testMode: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || "Test prompt notification sent! Tap it to see the update dialog.");
     },
     onError: (err: any) => {
       toast.error(err.message || "Failed to send test notification");
@@ -296,29 +314,32 @@ export default function SendUpdateReminderPage() {
           <div>
             <p className="text-sm font-medium">Test Mode</p>
             <p className="text-xs text-muted-foreground">
-              Send a test update reminder to yourself ({user?.email}) or preview the update prompt users see.
+              Send test notifications to yourself ({user?.email}).
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
+              className="gap-1.5 justify-start"
               disabled={sendTestMutation.isPending}
               onClick={() => sendTestMutation.mutate()}
             >
               <TestTube className="h-4 w-4" />
-              {sendTestMutation.isPending ? "Sending..." : "Send Test Push"}
+              {sendTestMutation.isPending ? "Sending..." : "Test: Opens Store"}
             </Button>
+            <p className="text-[10px] text-muted-foreground -mt-1 ml-6">Simulates the real update reminder — tapping opens the app store.</p>
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
-              onClick={() => setShowUpdatePreview(true)}
+              className="gap-1.5 justify-start"
+              disabled={sendPromptTestMutation.isPending}
+              onClick={() => sendPromptTestMutation.mutate()}
             >
               <Eye className="h-4 w-4" />
-              Preview Update Prompt
+              {sendPromptTestMutation.isPending ? "Sending..." : "Test: Shows Update Prompt"}
             </Button>
+            <p className="text-[10px] text-muted-foreground -mt-1 ml-6">Simulates what outdated users see — tapping shows the "Update Required" popup.</p>
           </div>
         </CardContent>
       </Card>
