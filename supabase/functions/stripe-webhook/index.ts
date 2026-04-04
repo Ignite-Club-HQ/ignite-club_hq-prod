@@ -284,8 +284,15 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
   if (teamSub) {
     await supabase
       .from('team_subscriptions')
-      .update({ expires_at: periodEnd.toISOString() })
+      .update({ expires_at: periodEnd.toISOString(), is_trial: false, trial_ends_at: null })
       .eq('stripe_subscription_id', subscriptionId);
+    
+    // Also update teams table
+    await supabase
+      .from('teams')
+      .update({ pro_expires_at: periodEnd.toISOString() })
+      .eq('id', teamSub.team_id);
+    
     console.log('Team subscription renewed:', teamSub.team_id);
 
     // Send email notification to team admins
