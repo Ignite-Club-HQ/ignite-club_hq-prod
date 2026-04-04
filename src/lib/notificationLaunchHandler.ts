@@ -15,6 +15,18 @@ import { Capacitor } from '@capacitor/core';
 let pendingNavigationUrl: string | null = null;
 let navigationHandled = false;
 
+// Global flag for pending force-update prompt (survives timing races)
+let pendingForceUpdatePrompt: { storeUrl?: string } | null = null;
+
+/**
+ * Check and consume any pending force-update prompt that fired before the component mounted
+ */
+export function consumePendingForceUpdatePrompt(): { storeUrl?: string } | null {
+  const pending = pendingForceUpdatePrompt;
+  pendingForceUpdatePrompt = null;
+  return pending;
+}
+
 /**
  * Get any pending navigation URL from a notification tap
  */
