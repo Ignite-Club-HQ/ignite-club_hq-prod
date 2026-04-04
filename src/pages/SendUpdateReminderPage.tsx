@@ -250,16 +250,15 @@ export default function SendUpdateReminderPage() {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{u.name}</p>
-                      
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Badge variant="outline" className="text-xs">
-                        <Smartphone className="h-3 w-3 mr-1" />
-                        {u.platform === 'ios' ? 'iOS' : u.platform === 'android' ? 'Android' : 'None'}
-                      </Badge>
-                      <Badge variant={u.appVersion ? "secondary" : "destructive"} className="text-xs">
-                        {u.appVersion || "No version"}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                          <Smartphone className="h-2.5 w-2.5 mr-0.5" />
+                          {u.platform === 'ios' ? 'iOS' : u.platform === 'android' ? 'Android' : 'None'}
+                        </Badge>
+                        <Badge variant={u.appVersion ? "secondary" : "destructive"} className="text-[10px] px-1.5 py-0">
+                          {u.appVersion || "No version"}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 ))}
