@@ -180,16 +180,14 @@ serve(async (req) => {
       const promises = batch.map(async (userId: string) => {
         try {
           const platform = platformMap.get(userId) || 'unknown';
+          const storeUrl = platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
 
           const { error } = await adminClient.functions.invoke('send-push-notification', {
             body: {
               userId,
               title: '📲 App Update Available',
               body: 'A new version of Ignite Club HQ is available. Please update for the best experience!',
-              // Don't send store URL as the notification url — it gets routed through
-              // the SPA router on tap and causes a 404. Instead, send a safe internal path.
-              // The notification message itself tells the user to update.
-              url: '/notifications',
+              url: storeUrl,
               tag: `app-update-reminder-${Date.now()}`,
               notificationType: 'system_update',
             },
