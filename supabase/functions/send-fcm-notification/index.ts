@@ -259,14 +259,23 @@ serve(async (req) => {
                   title: title || 'Ignite Club HQ',
                   body: body || 'You have a new notification',
                 },
-                data: {
-                  ...(url ? { url } : {}),
-                  notificationId: notificationId?.toString() || '',
-                  tag: tag || `notification-${notificationId || Date.now()}`,
-                  notificationType: String(notificationType || data?.notificationType || ''),
-                  type: String(data?.type || notificationType || ''),
-                  ...(data || {}),
-                },
+                data: (() => {
+                  const raw: Record<string, unknown> = {
+                    ...(url ? { url } : {}),
+                    notificationId: notificationId?.toString() || '',
+                    tag: tag || `notification-${notificationId || Date.now()}`,
+                    notificationType: String(notificationType || data?.notificationType || ''),
+                    type: String(data?.type || notificationType || ''),
+                    ...(data || {}),
+                  };
+                  // FCM v1 API requires ALL data values to be strings
+                  const stringified: Record<string, string> = {};
+                  for (const [k, v] of Object.entries(raw)) {
+                    if (v === null || v === undefined) continue;
+                    stringified[k] = typeof v === 'string' ? v : JSON.stringify(v);
+                  }
+                  return stringified;
+                })(),
                 android: {
                   priority: 'high',
                   notification: {
