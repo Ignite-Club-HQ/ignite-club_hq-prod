@@ -28,6 +28,7 @@ export function ConfirmDeleteDialog({
   entityType,
   onConfirm,
   isLoading,
+  permanent,
 }: ConfirmDeleteDialogProps) {
   const [confirmText, setConfirmText] = useState("");
 
