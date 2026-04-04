@@ -1091,45 +1091,8 @@ export default function TeamDetailPage() {
                     </>
                   )}
                 </div>
-                {canCancel ? (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0">
-                        Cancel Subscription
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Your trial will remain active until {trialEndDate ? new Date(trialEndDate).toLocaleDateString() : 'the end of the trial period'}. After that, Pro features will be removed and no payment will be taken.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          onClick={async () => {
-                            try {
-                              const { data, error } = await supabase.functions.invoke('cancel-subscription', {
-                                body: { subscription_type: 'team', entity_id: id },
-                              });
-                              if (error || data?.error) throw new Error(data?.error || error?.message);
-                              queryClient.invalidateQueries({ queryKey: ["team-subscription", id] });
-                              queryClient.invalidateQueries({ queryKey: ["team", id] });
-                              toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
-                            } catch (err: any) {
-                              toast({ title: "Error", description: err.message || "Failed to cancel subscription.", variant: "destructive" });
-                            }
-                          }}
-                        >
-                          Cancel Subscription
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                ) : isClubTrial && team?.club_id && !isCancelled ? (
-                  <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0" onClick={() => navigate(`/clubs/${team.club_id}/upgrade`)}>
+                {isClubTrial && team?.club_id ? (
+                  <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate(`/clubs/${team.club_id}/upgrade`)}>
                     Manage
                   </Button>
                 ) : null}
