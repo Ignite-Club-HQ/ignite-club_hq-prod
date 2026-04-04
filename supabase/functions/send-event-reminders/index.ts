@@ -228,7 +228,105 @@ serve(async (req) => {
       }
     }
 
+    // ============================================
+    // Early RSVP Points Reminder (4 days before event, Pro clubs only)
+    // ============================================
+    console.log("Checking for early RSVP points reminders (4 days before)...");
+
+    const fourDaysFromNow = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000);
+    const threeDaysThreeHoursFromNow = new Date(now.getTime() + (3 * 24 + 23) * 60 * 60 * 1000);
+
+    // Find events ~4 days away that haven't had points reminder sent
+    const { data: pointsReminderEvents, error: pointsEventsError } = await supabase
+      .from("events")
+      .select(`
+        id,
+        title,
+        event_date,
+        club_id,
+        team_id,
+        type,
+        teams (
+          name,
+          clubs (
+            name,
+            points_display_name
+          )
+        )
+      `)
+      .eq("points_reminder_sent", false)
+      .eq("is_cancelled", false)
+      .gte("event_date", threeDaysThreeHoursFromNow.toISOString())
+      .lte("event_date", fourDaysFromNow.toISOString());
+
+    if (pointsEventsError) {
+      console.error("Error fetching events for points reminder:", pointsEventsError);
+    } else {
+      console.log(`Found ${pointsReminderEvents?.length || 0} events eligible for points reminder`);
+
+      for (const event of pointsReminderEvents || []) {
+        // Check if club has Pro subscription with points enabled
+        const { data: clubSub } = await supabase
+          .from("club_subscriptions")
+          .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, disable_points_system")
+          .eq("club_id", event.club_id)
+          .maybeSingle();
+
+        const hasPro = clubSub?.is_pro || clubSub?.is_pro_football ||
+                       clubSub?.admin_pro_override || clubSub?.admin_pro_football_override;
+
+        if (!hasPro || clubSub?.disable_points_system) {
+          // Mark as sent so we don't re-check non-Pro events
+          await supabase.from("events").update({ points_reminder_sent: true }).eq("id", event.id);
+          continue;
+        }
+
+        const pointsName = (event.teams?.clubs as any)?.points_display_name || 'reward points';
+        const clubName = event.teams?.clubs?.name || "Your Club";
+
+        // Get users who haven't RSVP'd "going"
+        const { data: rsvps } = await supabase
+          .from("rsvps")
+          .select("user_id, status")
+          .eq("event_id", event.id)
+          .not("user_id", "is", null);
+
+        const nonGoingUsers = (rsvps || [])
+          .filter(r => r.status !== "going")
+          .map(r => r.user_id)
+          .filter((id, i, arr) => arr.indexOf(id) === i);
+
+        if (nonGoingUsers.length > 0) {
+          const hoursLeft = Math.round((new Date(event.event_date).getTime() - now.getTime() - 3 * 24 * 60 * 60 * 1000) / (1000 * 60 * 60));
+          const timeText = hoursLeft > 1 ? `${hoursLeft} hours` : "1 hour";
+
+          const notifications = nonGoingUsers.map(userId => ({
+            user_id: userId,
+            type: "early_rsvp_points" as const,
+            message: `🎯 RSVP to "${event.title}" within the next ${timeText} to earn 3 ${pointsName}!`,
+            related_id: event.id,
+          }));
+
+          const { error: notifError } = await supabase
+            .from("notifications")
+            .insert(notifications);
+
+          if (notifError) {
+            console.error(`Error creating points reminder notifications for event ${event.id}:`, notifError);
+          } else {
+            console.log(`Sent ${nonGoingUsers.length} early RSVP points reminders for "${event.title}" (${clubName})`);
+            totalReminders += nonGoingUsers.length;
+          }
+        }
+
+        // Mark points reminder as sent
+        await supabase.from("events").update({ points_reminder_sent: true }).eq("id", event.id);
+      }
+    }
+
+    // ============================================
     // Send 24-hour duty reminders for upcoming events
+    // ============================================
     console.log("Checking for duty reminders (24 hours before event)...");
     
     const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
