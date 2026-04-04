@@ -37,7 +37,7 @@ interface NextUpCarouselProps {
   isLoading?: boolean;
 }
 
-const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[280px]";
+const NEXT_UP_CARD_MIN_HEIGHT = "";
 
 function formatContextualDate(dateStr: string) {
   const date = parseISO(dateStr);

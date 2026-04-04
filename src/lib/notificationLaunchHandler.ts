@@ -65,6 +65,15 @@ export function initNotificationLaunchHandler() {
           const data = notification.notification?.data;
           const url = data?.url || data?.link || data?.path;
           const storeUrl = data?.store_url;
+          const forceUpdatePrompt = data?.force_update_prompt;
+          
+          // Handle force_update_prompt (test mode) — show update dialog
+          if (forceUpdatePrompt === 'true') {
+            console.log('[NotificationLaunch] Force update prompt detected, dispatching event');
+            window.dispatchEvent(new CustomEvent('force-update-prompt'));
+            navigationHandled = true;
+            return;
+          }
           
           // Handle store_url (e.g. from update reminders) — open externally
           if (storeUrl) {

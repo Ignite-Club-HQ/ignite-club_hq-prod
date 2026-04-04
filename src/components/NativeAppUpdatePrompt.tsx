@@ -42,6 +42,16 @@ export function NativeAppUpdatePrompt() {
   const [storeUrl, setStoreUrl] = useState(PLAY_STORE_URL);
 
   useEffect(() => {
+    // Listen for force-update-prompt event (from test push notifications)
+    const handleForcePrompt = () => {
+      console.log('[UpdatePrompt] Force update prompt triggered via event');
+      setShowPrompt(true);
+    };
+    window.addEventListener('force-update-prompt', handleForcePrompt);
+    return () => window.removeEventListener('force-update-prompt', handleForcePrompt);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     let removeAppStateListener: (() => void) | undefined;
 

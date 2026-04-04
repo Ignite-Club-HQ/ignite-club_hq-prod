@@ -1,10 +1,18 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone, Shield, Save } from "lucide-react";
+import { ArrowLeft, Send, Filter, Users, CheckSquare, Square, Smartphone, Shield, Save, TestTube, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,6 +39,7 @@ export default function SendUpdateReminderPage() {
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [selectedVersions, setSelectedVersions] = useState<Set<string>>(new Set());
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [showUpdatePreview, setShowUpdatePreview] = useState(false);
 
   // Check app_admin
   const { data: isAppAdmin, isLoading: adminLoading } = useQuery({
@@ -235,6 +244,42 @@ export default function SendUpdateReminderPage() {
     setSelectedUserIds(new Set());
   };
 
+  // Send test push to myself (opens store)
+  const sendTestMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Not logged in");
+      const { data, error } = await supabase.functions.invoke("send-update-reminder", {
+        body: { userIds: [user.id] },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || "Test notification sent!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to send test notification");
+    },
+  });
+
+  // Send test push that triggers the update prompt dialog
+  const sendPromptTestMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Not logged in");
+      const { data, error } = await supabase.functions.invoke("send-update-reminder", {
+        body: { userIds: [user.id], testMode: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || "Test prompt notification sent! Tap it to see the update dialog.");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to send test notification");
+    },
+  });
+
   if (adminLoading) return <PageLoading />;
   if (!isAppAdmin) {
     return (
@@ -263,8 +308,70 @@ export default function SendUpdateReminderPage() {
           </p>
         </div>
       </div>
+      {/* Send test to myself */}
+      <Card className="border-dashed border-primary/40">
+        <CardContent className="pt-4 pb-3 space-y-3">
+          <div>
+            <p className="text-sm font-medium">Test Mode</p>
+            <p className="text-xs text-muted-foreground">
+              Send test notifications to yourself ({user?.email}).
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 justify-start"
+              disabled={sendTestMutation.isPending}
+              onClick={() => sendTestMutation.mutate()}
+            >
+              <TestTube className="h-4 w-4" />
+              {sendTestMutation.isPending ? "Sending..." : "Test: Opens Store"}
+            </Button>
+            <p className="text-[10px] text-muted-foreground -mt-1 ml-6">Simulates the real update reminder — tapping opens the app store.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 justify-start"
+              disabled={sendPromptTestMutation.isPending}
+              onClick={() => sendPromptTestMutation.mutate()}
+            >
+              <Eye className="h-4 w-4" />
+              {sendPromptTestMutation.isPending ? "Sending..." : "Test: Shows Update Prompt"}
+            </Button>
+            <p className="text-[10px] text-muted-foreground -mt-1 ml-6">Simulates what outdated users see — tapping shows the "Update Required" popup.</p>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Latest versions summary */}
+      {/* Update prompt preview dialog */}
+      <AlertDialog open={showUpdatePreview} onOpenChange={setShowUpdatePreview}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              📲 Update Required
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              A new version of Ignite Club HQ is available with important improvements. Please update to continue using the app.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button onClick={() => setShowUpdatePreview(false)} className="w-full">
+              Update Now
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full text-xs text-muted-foreground"
+              onClick={() => setShowUpdatePreview(false)}
+            >
+              Remind me later
+            </Button>
+          </AlertDialogFooter>
+          <p className="text-[10px] text-center text-muted-foreground/60 -mt-2">
+            This is a preview — no action will be taken.
+          </p>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Minimum version enforcement */}
       <Card>

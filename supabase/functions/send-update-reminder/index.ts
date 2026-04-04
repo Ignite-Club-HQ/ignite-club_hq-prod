@@ -148,7 +148,7 @@ serve(async (req) => {
     }
 
     // SEND MODE (default) - send update reminder notifications
-    const { userIds } = body;
+    const { userIds, testMode } = body;
 
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return new Response(JSON.stringify({ error: 'userIds array required' }), {
@@ -182,20 +182,22 @@ serve(async (req) => {
           const platform = platformMap.get(userId) || 'unknown';
           const storeUrl = platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
 
+          // In test mode, send force_update_prompt flag instead of store_url
+          // so the app shows the update dialog instead of opening the store
+          const notificationData = testMode
+            ? { force_update_prompt: 'true', platform }
+            : { store_url: storeUrl, platform };
+
           const { error } = await adminClient.functions.invoke('send-push-notification', {
             body: {
               userId,
-              title: '📲 App Update Available',
-              body: 'A new version of Ignite Club HQ is available. Tap to update!',
-              // Don't put store URL in 'url' — old app builds try to route it internally → 404.
-              // Instead, omit 'url' so old builds do nothing on tap, and pass store_url
-              // in data so new builds can open the store externally.
+              title: testMode ? '🧪 Test: App Update Available' : '📲 App Update Available',
+              body: testMode
+                ? 'This is a test. Tap to see the update prompt users would see.'
+                : 'A new version of Ignite Club HQ is available. Tap to update!',
               tag: `app-update-reminder-${Date.now()}`,
               notificationType: 'system_update',
-              data: {
-                store_url: storeUrl,
-                platform,
-              },
+              data: notificationData,
             },
           });
 
