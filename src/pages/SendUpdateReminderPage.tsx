@@ -235,6 +235,24 @@ export default function SendUpdateReminderPage() {
     setSelectedUserIds(new Set());
   };
 
+  // Send test to myself
+  const sendTestMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Not logged in");
+      const { data, error } = await supabase.functions.invoke("send-update-reminder", {
+        body: { userIds: [user.id] },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || "Test notification sent to your device!");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to send test notification");
+    },
+  });
+
   if (adminLoading) return <PageLoading />;
   if (!isAppAdmin) {
     return (
