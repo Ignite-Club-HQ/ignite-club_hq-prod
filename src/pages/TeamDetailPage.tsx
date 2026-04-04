@@ -263,7 +263,8 @@ export default function TeamDetailPage() {
                      clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override;
   
   const teamHasIndividualPro = teamSubscription?.is_pro || teamSubscription?.is_pro_football ||
-                               (teamSubscription as any)?.admin_pro_override || (teamSubscription as any)?.admin_pro_football_override;
+                                (teamSubscription as any)?.admin_pro_override || (teamSubscription as any)?.admin_pro_football_override ||
+                                team?.is_pro;
   
   // Team has Pro if: club has Pro (inherited) OR (club is free AND team has individual Pro)
   // IMPORTANT: During loading, assume Pro access (optimistic) to avoid flashing Pro locks
