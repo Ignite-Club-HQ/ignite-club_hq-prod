@@ -1404,6 +1404,7 @@ export type Database = {
           activated_at: string | null
           admin_pro_football_override: boolean
           admin_pro_override: boolean
+          cancelled_at: string | null
           club_id: string
           created_at: string
           disable_points_system: boolean
@@ -1432,6 +1433,7 @@ export type Database = {
           activated_at?: string | null
           admin_pro_football_override?: boolean
           admin_pro_override?: boolean
+          cancelled_at?: string | null
           club_id: string
           created_at?: string
           disable_points_system?: boolean
@@ -1460,6 +1462,7 @@ export type Database = {
           activated_at?: string | null
           admin_pro_football_override?: boolean
           admin_pro_override?: boolean
+          cancelled_at?: string | null
           club_id?: string
           created_at?: string
           disable_points_system?: boolean
@@ -5403,6 +5406,7 @@ export type Database = {
         Row: {
           admin_pro_football_override: boolean
           admin_pro_override: boolean
+          cancelled_at: string | null
           created_at: string
           disable_auto_subs: boolean | null
           disable_batch_subs: boolean | null
@@ -5426,6 +5430,7 @@ export type Database = {
         Insert: {
           admin_pro_football_override?: boolean
           admin_pro_override?: boolean
+          cancelled_at?: string | null
           created_at?: string
           disable_auto_subs?: boolean | null
           disable_batch_subs?: boolean | null
@@ -5449,6 +5454,7 @@ export type Database = {
         Update: {
           admin_pro_football_override?: boolean
           admin_pro_override?: boolean
+          cancelled_at?: string | null
           created_at?: string
           disable_auto_subs?: boolean | null
           disable_batch_subs?: boolean | null

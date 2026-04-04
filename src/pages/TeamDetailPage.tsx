@@ -1048,26 +1048,37 @@ export default function TeamDetailPage() {
         </Card>
       )}
 
-      {/* Cancel Subscription Banner - Show for admins when team has an active trial */}
+      {/* Subscription Banner - Show for admins when team has an active trial */}
       {!isClassMode && (isAdmin || isClubAdmin) && isOnTrial && isTeamPro && (
-        <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-amber-500/10">
+        <Card className={`border-amber-500/30 ${(teamSubscription as any)?.cancelled_at ? 'bg-gradient-to-br from-muted/50 to-muted/30' : 'bg-gradient-to-br from-amber-500/5 to-amber-500/10'}`}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="rounded-full bg-amber-500/10 p-2 shrink-0">
-                <Crown className="h-5 w-5 text-amber-500" />
+              <div className={`rounded-full p-2 shrink-0 ${(teamSubscription as any)?.cancelled_at ? 'bg-muted' : 'bg-amber-500/10'}`}>
+                <Crown className={`h-5 w-5 ${(teamSubscription as any)?.cancelled_at ? 'text-muted-foreground' : 'text-amber-500'}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm">Free Trial Active</p>
-                <p className="text-xs text-muted-foreground">
-                  {teamSubscription?.is_trial 
-                    ? `Trial ends ${teamSubscription?.trial_ends_at ? new Date(teamSubscription.trial_ends_at).toLocaleDateString() : 'soon'}`
-                    : clubSubscription?.is_trial
-                      ? `Club trial ends ${clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'soon'}`
-                      : 'Trial active'
-                  }
-                </p>
+                {teamSubscription?.is_trial && (teamSubscription as any)?.cancelled_at ? (
+                  <>
+                    <p className="font-medium text-sm">Subscription Cancelled</p>
+                    <p className="text-xs text-muted-foreground">
+                      Pro features active until {teamSubscription?.trial_ends_at ? new Date(teamSubscription.trial_ends_at).toLocaleDateString() : 'trial ends'}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-sm">Free Trial Active</p>
+                    <p className="text-xs text-muted-foreground">
+                      {teamSubscription?.is_trial 
+                        ? `Trial ends ${teamSubscription?.trial_ends_at ? new Date(teamSubscription.trial_ends_at).toLocaleDateString() : 'soon'}`
+                        : clubSubscription?.is_trial
+                          ? `Club trial ends ${clubSubscription?.trial_ends_at ? new Date(clubSubscription.trial_ends_at).toLocaleDateString() : 'soon'}`
+                          : 'Trial active'
+                      }
+                    </p>
+                  </>
+                )}
               </div>
-              {teamSubscription?.is_trial ? (
+              {teamSubscription?.is_trial && !(teamSubscription as any)?.cancelled_at ? (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0">
@@ -1104,7 +1115,7 @@ export default function TeamDetailPage() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-              ) : clubSubscription?.is_trial && team?.club_id ? (
+              ) : !teamSubscription?.is_trial && clubSubscription?.is_trial && team?.club_id ? (
                 <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0" onClick={() => navigate(`/clubs/${team.club_id}/upgrade`)}>
                   Manage
                 </Button>
