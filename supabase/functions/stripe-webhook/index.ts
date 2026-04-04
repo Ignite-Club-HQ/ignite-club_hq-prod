@@ -189,7 +189,7 @@ async function handleSubscriptionCreated(supabase: any, session: any, metadata: 
     : new Date(now.setMonth(now.getMonth() + 1));
 
   if (subscriptionType === 'team') {
-    // Update team subscription
+    // Update team subscription table
     const { error: subError } = await supabase
       .from('team_subscriptions')
       .upsert({
@@ -199,12 +199,24 @@ async function handleSubscriptionCreated(supabase: any, session: any, metadata: 
         stripe_subscription_id: stripeSubscriptionId,
         activated_at: new Date().toISOString(),
         expires_at: expiresAt.toISOString(),
+        is_trial: metadata.with_trial === 'true',
+        trial_ends_at: metadata.with_trial === 'true' ? expiresAt.toISOString() : null,
       }, { onConflict: 'team_id' });
 
     if (subError) {
       console.error('Error updating team subscription:', subError);
       throw subError;
     }
+
+    // Also update the teams table directly for backward compatibility
+    await supabase
+      .from('teams')
+      .update({
+        is_pro: true,
+        pro_expires_at: expiresAt.toISOString(),
+        stripe_subscription_id: stripeSubscriptionId,
+      })
+      .eq('id', entityId);
 
     // Notify user
     await supabase.from('notifications').insert({
