@@ -330,7 +330,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-background overflow-hidden">
+    <div className="h-[100dvh] flex flex-col bg-background overflow-hidden" data-lock-keyboard-scroll="true">
       {/* Show progress indicator if in invite flow */}
       {isInInviteFlow && (
         <InviteFlowProgress 
