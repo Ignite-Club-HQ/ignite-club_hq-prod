@@ -273,6 +273,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
     setInviteSent(false);
     setMode("invite");
     setSelectedRole("club_admin");
+    setDeliveryMethod("share");
   };
 
   const handleDone = () => {
