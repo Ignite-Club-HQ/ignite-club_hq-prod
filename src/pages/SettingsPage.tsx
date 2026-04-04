@@ -95,6 +95,7 @@ export default function SettingsPage() {
     media_enabled: true,
     membership_enabled: true,
     pitch_board_enabled: true,
+    rewards_enabled: true,
   });
   const [emailPreferences, setEmailPreferences] = useState<EmailPreferences>({
     email_messages_enabled: true,
