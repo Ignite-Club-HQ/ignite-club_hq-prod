@@ -57,17 +57,26 @@ export function NativeAppUpdatePrompt() {
 
     async function check() {
       try {
+        console.log('[UpdatePrompt] Starting version check...');
+        
         // Only run on native platforms
         const { Capacitor } = await import('@capacitor/core');
-        if (!Capacitor.isNativePlatform()) return;
+        const isNative = Capacitor.isNativePlatform();
+        console.log('[UpdatePrompt] isNativePlatform:', isNative);
+        if (!isNative) return;
 
         const platform = Capacitor.getPlatform(); // 'ios' | 'android'
+        console.log('[UpdatePrompt] Platform:', platform);
 
         // Get current app version
         const { App } = await import('@capacitor/app');
         const info = await App.getInfo();
         const currentVersion = info.version; // e.g. "1.2.0"
-        if (!currentVersion) return;
+        console.log('[UpdatePrompt] App info:', JSON.stringify({ version: info.version, build: info.build }));
+        if (!currentVersion) {
+          console.log('[UpdatePrompt] No currentVersion, skipping');
+          return;
+        }
 
         // Fetch minimum version from app_settings
         const { data, error } = await supabase
@@ -77,10 +86,21 @@ export function NativeAppUpdatePrompt() {
           .maybeSingle();
 
         if (error || !data?.value) return;
+          console.log('[UpdatePrompt] Failed to fetch minimum_app_version:', error);
+          return;
+        }
+        if (!data?.value) {
+          console.log('[UpdatePrompt] No minimum_app_version data found');
+          return;
+        }
 
         const minVersions = data.value as Record<string, string>;
         const requiredVersion = minVersions[platform];
-        if (!requiredVersion) return;
+        console.log('[UpdatePrompt] Required version for', platform, ':', requiredVersion, 'minVersions:', JSON.stringify(minVersions));
+        if (!requiredVersion) {
+          console.log('[UpdatePrompt] No required version for platform', platform);
+          return;
+        }
 
         if (cancelled) return;
 
@@ -89,10 +109,20 @@ export function NativeAppUpdatePrompt() {
           ? Number(info.build || '0') < Number(requiredVersion)
           : compareSemver(currentVersion, requiredVersion) < 0;
 
+        console.log('[UpdatePrompt] Outdated check:', {
+          platform,
+          currentBuild: info.build,
+          currentVersion,
+          requiredVersion,
+          isOutdated,
+        });
+
         if (isOutdated) {
           console.log(`[UpdatePrompt] ${platform} current ${platform === 'android' ? info.build : currentVersion} < required ${requiredVersion}, showing prompt`);
           setStoreUrl(platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL);
           setShowPrompt(true);
+        } else {
+          console.log('[UpdatePrompt] App is up to date');
         }
       } catch (err) {
         console.warn('[UpdatePrompt] Check failed:', err);
