@@ -253,12 +253,10 @@ export default function SendUpdateReminderPage() {
                       
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {u.platform && u.platform !== 'unknown' && (
-                        <Badge variant="outline" className="text-xs">
-                          <Smartphone className="h-3 w-3 mr-1" />
-                          {u.platform}
-                        </Badge>
-                      )}
+                      <Badge variant="outline" className="text-xs">
+                        <Smartphone className="h-3 w-3 mr-1" />
+                        {u.platform === 'ios' ? 'iOS' : u.platform === 'android' ? 'Android' : 'None'}
+                      </Badge>
                       <Badge variant={u.appVersion ? "secondary" : "destructive"} className="text-xs">
                         {u.appVersion || "No version"}
                       </Badge>
