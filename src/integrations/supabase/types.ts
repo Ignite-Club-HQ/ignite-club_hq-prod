@@ -1914,6 +1914,30 @@ export type Database = {
           },
         ]
       }
+      engagement_reminder_log: {
+        Row: {
+          id: string
+          sent_at: string
+          unread_messages_count: number
+          unread_photos_count: number
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          sent_at?: string
+          unread_messages_count?: number
+          unread_photos_count?: number
+          user_id: string
+        }
+        Update: {
+          id?: string
+          sent_at?: string
+          unread_messages_count?: number
+          unread_photos_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       event_group_duties: {
         Row: {
           assigned_to: string | null
