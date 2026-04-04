@@ -732,6 +732,25 @@ export default function ClubDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["club", id] });
   };
 
+  const handlePermanentDeleteClub = async () => {
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("permanent-delete-entity", {
+        body: { entityType: "club", entityId: id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      setShowPermanentDeleteDialog(false);
+      toast({ title: "Club permanently deleted", description: "All data has been removed." });
+      navigate("/clubs");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to permanently delete club.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Mutation for app admins to toggle club Pro status
   const toggleClubProMutation = useMutation({
     mutationFn: async ({ isPro, isProFootball }: { isPro: boolean; isProFootball: boolean }) => {
