@@ -95,7 +95,7 @@ export function ConfirmDeleteDialog({
             disabled={!isMatch || isLoading}
             onClick={handleConfirm}
           >
-            {isLoading ? "Deleting…" : `Delete ${entityType}`}
+            {isLoading ? "Deleting…" : permanent ? `Permanently delete ${entityType}` : `Delete ${entityType}`}
           </Button>
         </DialogFooter>
       </DialogContent>
