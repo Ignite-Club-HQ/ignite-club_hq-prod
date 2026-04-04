@@ -380,7 +380,7 @@ async function sendFCMNotifications(
   notificationId: string | null,
   tag: string,
   notificationType?: string,
-  data?: Record<string, unknown>
+  extraData?: Record<string, unknown>
 ): Promise<{ sent: number; total: number }> {
   const hasSeparateSecrets = Boolean(
     Deno.env.get('FCM_PROJECT_ID') &&
@@ -398,7 +398,7 @@ async function sendFCMNotifications(
     // Call the dedicated FCM edge function
     console.log(`[PUSH] Invoking send-fcm-notification for user ${userId}`);
     
-    const { data, error } = await supabase.functions.invoke('send-fcm-notification', {
+    const { data: responseData, error } = await supabase.functions.invoke('send-fcm-notification', {
       body: {
         userId,
         title: title || 'Ignite Club HQ',
@@ -412,7 +412,7 @@ async function sendFCMNotifications(
             notificationType,
             type: notificationType,
           } : {}),
-          ...(data || {}),
+          ...(extraData || {}),
         },
       },
     });
@@ -422,8 +422,8 @@ async function sendFCMNotifications(
       return { sent: 0, total: 0 };
     }
 
-    console.log('[PUSH] FCM function response:', JSON.stringify(data));
-    return { sent: data?.sent || 0, total: data?.total || 0 };
+    console.log('[PUSH] FCM function response:', JSON.stringify(responseData));
+    return { sent: responseData?.sent || 0, total: responseData?.total || 0 };
   } catch (err) {
     console.error('[PUSH] Error calling FCM function:', err);
     return { sent: 0, total: 0 };
