@@ -773,28 +773,30 @@ export default function ProfilePage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 mt-2">
                 {upgradableTeams.map((team: any) => {
-                  const subscription = team.team_subscriptions?.[0];
-                  const teamIsPro = subscription?.is_pro;
-                  const teamIsProFootball = subscription?.is_pro_football;
-                  const sport = team.clubs?.sport?.toLowerCase() || "";
-                  const isSoccerTeam = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
-                  
-                  const clubSub = team.clubSubscription;
-                  const clubHasPro = clubSub?.is_pro === true;
-                  const clubHasProFootball = clubSub?.is_pro_football === true;
-                  
-                  const effectiveIsProFootball = teamIsProFootball || clubHasProFootball;
-                  const effectiveIsPro = teamIsPro || clubHasPro || clubHasProFootball;
-                  
-                  let currentPlan = "Free";
-                  let planSource = "";
-                  if (effectiveIsProFootball) {
-                    currentPlan = "Pro Football";
-                    planSource = (clubHasProFootball && !teamIsProFootball) ? " (via Club)" : "";
-                  } else if (effectiveIsPro) {
-                    currentPlan = "Pro";
-                    planSource = ((clubHasPro || clubHasProFootball) && !teamIsPro) ? " (via Club)" : "";
-                  }
+                   const subscription = team.team_subscriptions?.[0];
+                   const teamIsPro = subscription?.is_pro || team.is_pro;
+                   const teamIsProFootball = subscription?.is_pro_football;
+                   const teamIsOnTrial = (subscription?.is_trial && subscription?.trial_ends_at && !isPast(parseISO(subscription.trial_ends_at))) || 
+                     (team.is_pro && team.pro_expires_at && !isPast(parseISO(team.pro_expires_at)) && !subscription?.is_pro);
+                   const sport = team.clubs?.sport?.toLowerCase() || "";
+                   const isSoccerTeam = sport.includes("soccer") || sport.includes("football") || sport.includes("futsal");
+                   
+                   const clubSub = team.clubSubscription;
+                   const clubHasPro = clubSub?.is_pro === true;
+                   const clubHasProFootball = clubSub?.is_pro_football === true;
+                   
+                   const effectiveIsProFootball = teamIsProFootball || clubHasProFootball;
+                   const effectiveIsPro = teamIsPro || clubHasPro || clubHasProFootball;
+                   
+                   let currentPlan = "Free";
+                   let planSource = "";
+                   if (effectiveIsProFootball) {
+                     currentPlan = "Pro Football";
+                     planSource = (clubHasProFootball && !teamIsProFootball) ? " (via Club)" : "";
+                   } else if (effectiveIsPro) {
+                     currentPlan = "Pro";
+                     planSource = ((clubHasPro || clubHasProFootball) && !teamIsPro) ? " (via Club)" : "";
+                   }
                   
                   const hasClubAccess = clubHasPro || clubHasProFootball;
                   
