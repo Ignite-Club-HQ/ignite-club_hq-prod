@@ -46,8 +46,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   preventIfGuarded,
 }: MessageReactionsProps) {
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
-  const lastTouchReactionAtRef = useRef(0);
-  // On iOS, synthesized click/touch events can fire immediately after the picker opens.
+  const lastTouchReactionAtRef = useRef<{ at: number; type: string } | null>(null);
   // Ignore dismiss events for a short window after mount.
   const mountedAtRef = useRef(0);
 
@@ -112,9 +111,17 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 
   const triggerEmojiSelection = (type: string) => {
     const now = Date.now();
-    if (now - mountedAtRef.current < 120) return;
-    if (now - lastTouchReactionAtRef.current < 120) return;
-    lastTouchReactionAtRef.current = now;
+    const lastTouchReaction = lastTouchReactionAtRef.current;
+
+    if (
+      lastTouchReaction &&
+      lastTouchReaction.type === type &&
+      now - lastTouchReaction.at < 350
+    ) {
+      return;
+    }
+
+    lastTouchReactionAtRef.current = { at: now, type };
     handleEmojiClick(type);
   };
 
@@ -166,8 +173,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                 <button
                   key={type}
                   type="button"
-                  onPointerUp={(e) => {
+                  onTouchEnd={(e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                     triggerEmojiSelection(type);
                   }}
                   onClick={(e) => {
