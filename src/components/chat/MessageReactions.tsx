@@ -199,6 +199,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   }}
                   onPointerDown={(e) => {
                     e.stopPropagation();
+                    e.preventDefault();
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
