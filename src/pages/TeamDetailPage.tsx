@@ -875,13 +875,29 @@ export default function TeamDetailPage() {
                             if (error) {
                               toast({ title: "Failed to leave team", variant: "destructive" });
                             } else {
+                              // Delete RSVPs for future events on this team
+                              const today = new Date().toISOString().slice(0, 10);
+                              const { data: futureEvents } = await supabase
+                                .from("events")
+                                .select("id")
+                                .eq("team_id", id!)
+                                .gte("event_date", today);
+                              if (futureEvents && futureEvents.length > 0) {
+                                await supabase
+                                  .from("rsvps")
+                                  .delete()
+                                  .eq("user_id", user!.id)
+                                  .in("event_id", futureEvents.map(e => e.id));
+                              }
                               toast({ title: `You left ${team?.name || "the team"}` });
                               queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
                               queryClient.invalidateQueries({ queryKey: ["user-roles"] });
                               queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events"] });
                               queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
                               queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
                               queryClient.invalidateQueries({ queryKey: ["events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
                               navigate(`/clubs/${team?.club_id}`);
                             }
                           }}
