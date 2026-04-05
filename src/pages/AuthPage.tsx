@@ -422,7 +422,7 @@ export default function AuthPage() {
       
       <div
         ref={signInScrollRef}
-        className={`flex-1 flex flex-col items-center px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''}`}
+        className={`flex-1 flex flex-col items-center px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''} ${isSignInKeyboardOpen ? 'overflow-hidden' : ''}`}
       >
       <div className={`w-full max-w-md animate-slide-up transition-all duration-200 ${signInStackClassName}`}>
         {/* Logo — compacts when keyboard is open on native sign-in */}
