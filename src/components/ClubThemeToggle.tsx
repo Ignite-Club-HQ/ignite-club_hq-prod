@@ -99,20 +99,19 @@ export function ClubThemeToggle() {
             l: club.theme_primary_l!,
           } : null,
         };
-      // Keep only clubs that are selectable (Pro + has theme + theme enabled)
-      }).filter(club => club.isSelectable);
+      });
       
       return result;
     },
     enabled: !!user?.id,
   });
 
-  // Only show non-Pro clubs in locked section that aren't already in availableClubThemes
+  // Show non-selectable clubs with appropriate messaging
   const availableClubIds = new Set(availableClubThemes.map(t => t.clubId));
-  const lockedClubs = allUserClubs.filter(c => !c.hasPro && !availableClubIds.has(c.clubId));
+  const nonSelectableClubs = allUserClubs.filter(c => !c.isSelectable && !availableClubIds.has(c.clubId));
 
   // Don't show if no clubs at all
-  if (isLoading || (availableClubThemes.length === 0 && lockedClubs.length === 0)) {
+  if (isLoading || (availableClubThemes.length === 0 && nonSelectableClubs.length === 0)) {
     return null;
   }
 
@@ -216,9 +215,9 @@ export function ClubThemeToggle() {
           </DropdownMenuItem>
         ))}
 
-        {/* Locked clubs (non-Pro) */}
-        {lockedClubs.length > 0 && availableClubThemes.length > 0 && <DropdownMenuSeparator />}
-        {lockedClubs.map((club) => (
+        {/* Non-selectable clubs */}
+        {nonSelectableClubs.length > 0 && availableClubThemes.length > 0 && <DropdownMenuSeparator />}
+        {nonSelectableClubs.map((club) => (
           <DropdownMenuItem
             key={club.clubId}
             disabled
@@ -234,7 +233,9 @@ export function ClubThemeToggle() {
               <p className="text-sm font-medium truncate">{club.clubName}</p>
               <div className="flex items-center gap-1 mt-0.5">
                 <Lock className="h-3 w-3" />
-                <span className="text-xs">Pro only</span>
+                <span className="text-xs">
+                  {!club.hasPro ? "Pro only" : !club.hasTheme ? "No theme set" : "Theme disabled"}
+                </span>
               </div>
             </div>
           </DropdownMenuItem>
