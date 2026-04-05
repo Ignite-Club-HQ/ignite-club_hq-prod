@@ -587,14 +587,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setActiveClubThemeState(null);
       // Clear CSS variables but DON'T remove localStorage - restore on re-login
-      const root = document.documentElement;
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
     }
   }, [user]);
 
