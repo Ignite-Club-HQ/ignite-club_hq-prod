@@ -105,11 +105,14 @@ export const ChatMessage = memo(function ChatMessage({
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
+  const [optimisticReactions, setOptimisticReactions] = useState<Reaction[]>(reactions);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const longPressTriggeredRef = useRef(false);
   const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
+  const optimisticReactionsRef = useRef<Reaction[]>(reactions);
+  const isReactionMutatingRef = useRef(false);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
   const {
@@ -118,6 +121,22 @@ export const ChatMessage = memo(function ChatMessage({
     consumeContextMenuGuard,
     preventIfGuarded,
   } = useLongPressDismissGuard();
+
+  const setLocalReactions = useCallback((updater: Reaction[] | ((prev: Reaction[]) => Reaction[])) => {
+    setOptimisticReactions((prev) => {
+      const next = typeof updater === "function"
+        ? (updater as (prev: Reaction[]) => Reaction[])(prev)
+        : updater;
+      optimisticReactionsRef.current = next;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isReactionMutatingRef.current) return;
+    optimisticReactionsRef.current = reactions;
+    setOptimisticReactions(reactions);
+  }, [reactions]);
 
 
   const getMessageIdField = () => {
@@ -169,8 +188,8 @@ export const ChatMessage = memo(function ChatMessage({
     const cacheEntry = queryClient.getQueryData<any>(queryKey);
     const messages = Array.isArray(cacheEntry) ? cacheEntry : cacheEntry?.messages || [];
     const cachedMessage = messages.find((message: any) => message.id === id);
-    return (cachedMessage?.reactions || reactions) as Reaction[];
-  }, [queryClient, queryKey, id, reactions]);
+    return (cachedMessage?.reactions || optimisticReactionsRef.current) as Reaction[];
+  }, [queryClient, queryKey, id]);
 
   const addReactionMutation = useMutation({
     mutationFn: async ({
@@ -251,42 +270,51 @@ export const ChatMessage = memo(function ChatMessage({
       return { action: "insert" as const, reaction: insertedReaction };
     },
     onMutate: ({ reactionType, existingReaction }) => {
-      // Don't block optimistic UI while waiting for query cancellation.
-      // This keeps deselect/removal feeling instant.
+      isReactionMutatingRef.current = true;
       void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
+      const previousReactions = optimisticReactionsRef.current;
 
       if (!currentUserId) {
-        return { previousMessages, tempReactionId: null };
+        return { previousMessages, previousReactions, tempReactionId: null };
       }
 
       const shouldRemoveReaction = existingReaction?.reaction_type === reactionType;
       const tempReactionId = shouldRemoveReaction ? null : `temp-${Date.now()}`;
+      const filteredReactions = previousReactions.filter(
+        (reaction) => reaction.user_id !== currentUserId
+      );
+      const nextReactions = shouldRemoveReaction || !tempReactionId
+        ? filteredReactions
+        : [
+            ...filteredReactions,
+            { id: tempReactionId, user_id: currentUserId, reaction_type: reactionType },
+          ];
 
+      setLocalReactions(nextReactions);
       updateReactionMessages((msgs) =>
         msgs.map((msg: any) => {
           if (msg.id !== id) return msg;
-
-          const filteredReactions = (msg.reactions || []).filter(
-            (reaction: any) => reaction.user_id !== currentUserId
-          );
-
           return {
             ...msg,
-            reactions: shouldRemoveReaction || !tempReactionId
-              ? filteredReactions
-              : [
-                  ...filteredReactions,
-                  { id: tempReactionId, user_id: currentUserId, reaction_type: reactionType },
-                ],
+            reactions: nextReactions,
           };
         })
       );
 
-      return { previousMessages, tempReactionId };
+      return { previousMessages, previousReactions, tempReactionId };
     },
     onSuccess: (result) => {
       if (!result) return;
+
+      if (result.action === "delete") {
+        setLocalReactions((prev) => prev.filter((reaction) => reaction.id !== result.reactionId));
+      } else {
+        setLocalReactions((prev) => [
+          ...prev.filter((reaction) => reaction.user_id !== result.reaction.user_id),
+          result.reaction,
+        ]);
+      }
 
       updateReactionMessages((msgs) =>
         msgs.map((msg: any) => {
@@ -314,7 +342,13 @@ export const ChatMessage = memo(function ChatMessage({
       if (context?.previousMessages) {
         queryClient.setQueryData(queryKey, context.previousMessages);
       }
+      if (context?.previousReactions) {
+        setLocalReactions(context.previousReactions);
+      }
       toast.error("Failed to add reaction");
+    },
+    onSettled: () => {
+      isReactionMutatingRef.current = false;
     },
   });
 
@@ -330,10 +364,12 @@ export const ChatMessage = memo(function ChatMessage({
       if (error) throw error;
     },
     onMutate: (reactionId: string) => {
-      // Do not await cancellation — optimistic removal must feel instant
+      isReactionMutatingRef.current = true;
       void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
+      const previousReactions = optimisticReactionsRef.current;
 
+      setLocalReactions((prev) => prev.filter((reaction) => reaction.id !== reactionId));
       updateReactionMessages((msgs) =>
         msgs.map((msg: any) => {
           if (msg.id !== id) return msg;
@@ -344,14 +380,18 @@ export const ChatMessage = memo(function ChatMessage({
         })
       );
 
-      return { previousMessages };
+      return { previousMessages, previousReactions };
     },
     onError: (err, variables, context) => {
       if (context?.previousMessages) {
         queryClient.setQueryData(queryKey, context.previousMessages);
       }
+      if (context?.previousReactions) {
+        setLocalReactions(context.previousReactions);
+      }
     },
     onSettled: () => {
+      isReactionMutatingRef.current = false;
     },
   });
 
@@ -697,7 +737,7 @@ export const ChatMessage = memo(function ChatMessage({
                 />
               </div>
               <MessageReactionsPopover
-                reactions={reactions}
+                reactions={optimisticReactions}
                 currentUserId={currentUserId}
                 onReact={(type) => handleReactionClick(type)}
                 onRemove={(reactionId) => {
@@ -746,7 +786,7 @@ export const ChatMessage = memo(function ChatMessage({
         <MessageContent text={text} previewsOnly />
         
         <MessageReactionsDisplay
-          reactions={reactions}
+          reactions={optimisticReactions}
           currentUserId={currentUserId}
           onReactionClick={handleReactionClick}
         />

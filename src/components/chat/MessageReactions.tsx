@@ -110,6 +110,14 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     onOpenChange(false);
   };
 
+  const triggerEmojiSelection = (type: string) => {
+    const now = Date.now();
+    if (now - mountedAtRef.current < 120) return;
+    if (now - lastTouchReactionAtRef.current < 120) return;
+    lastTouchReactionAtRef.current = now;
+    handleEmojiClick(type);
+  };
+
   if (!isOpen || !position) return null;
 
   return createPortal(
@@ -121,7 +129,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          // Ignore synthesized clicks within 400ms of mount (iOS WebView issue)
           if (Date.now() - mountedAtRef.current < 400) return;
           e.stopPropagation();
           onOpenChange(false);
@@ -129,7 +136,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       }}
       onTouchEnd={(e) => {
         if (e.target === e.currentTarget) {
-          // Ignore synthesized touch events within 400ms of mount (iOS WebView issue)
           if (Date.now() - mountedAtRef.current < 400) return;
           e.stopPropagation();
           e.preventDefault();
@@ -160,25 +166,18 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                 <button
                   key={type}
                   type="button"
-                  onTouchEnd={(e) => {
-                    if (preventIfGuarded?.(e)) return;
+                  onPointerUp={(e) => {
                     e.stopPropagation();
-                    e.preventDefault();
-                    if (Date.now() - lastTouchReactionAtRef.current < 500) return;
-                    lastTouchReactionAtRef.current = Date.now();
-                    handleEmojiClick(type);
+                    triggerEmojiSelection(type);
                   }}
                   onClick={(e) => {
-                    if (preventIfGuarded?.(e)) return;
                     e.stopPropagation();
                     e.preventDefault();
-                    if (Date.now() - lastTouchReactionAtRef.current < 500) return;
-                    lastTouchReactionAtRef.current = Date.now();
-                    handleEmojiClick(type);
+                    triggerEmojiSelection(type);
                   }}
                   onTouchStart={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
-                  className={`inline-flex items-center justify-center h-9 w-9 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 ${
+                  className={`inline-flex items-center justify-center h-10 w-10 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 touch-manipulation ${
                     userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
                   }`}
                 >
