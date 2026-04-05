@@ -1390,16 +1390,21 @@ export default function GroupChatPage() {
 
   const messageReactionsMap = useMemo(() => {
     const map = new Map<string, MessageReaction[]>();
+    const reactionsByMessage = new Map<string, MessageReaction[]>();
+
+    reactions.forEach((reaction) => {
+      if (!reaction.group_message_id) return;
+      if (!reactionsByMessage.has(reaction.group_message_id)) {
+        reactionsByMessage.set(reaction.group_message_id, []);
+      }
+      reactionsByMessage.get(reaction.group_message_id)!.push(reaction);
+    });
+
     for (const msg of (localMessages || [])) {
-      // Reactions are now embedded on each message by useLayoutEffect merge
       const embedded: MessageReaction[] = (msg as any).reactions || [];
-      // Also include any from the top-level array not already embedded (e.g. realtime arrivals)
-      const embeddedIds = new Set(embedded.map(r => r.id));
-      const extras = reactions.filter(
-        (r) => r.group_message_id === msg.id && !embeddedIds.has(r.id)
-      );
-      map.set(msg.id, extras.length > 0 ? [...embedded, ...extras] : embedded);
+      map.set(msg.id, reactionsByMessage.get(msg.id) || embedded);
     }
+
     return map;
   }, [localMessages, reactions]);
 
