@@ -152,13 +152,14 @@ export default function AuthPage() {
 
     Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
       setNativeKeyboardHeight(keyboardHeight || 0);
+      setNativeKeyboardVisible(true);
     }).then(handle => {
       keyboardShowListener = handle;
     });
 
     Keyboard.addListener('keyboardDidHide', () => {
       setNativeKeyboardHeight(0);
-      signInScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      setNativeKeyboardVisible(false);
     }).then(handle => {
       keyboardHideListener = handle;
     });
