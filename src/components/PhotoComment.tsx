@@ -1,16 +1,21 @@
 import { useState, useRef, useCallback, useEffect, memo } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, Pencil, Trash2, Check, X, Reply, ShieldAlert, Flag } from "lucide-react";
+import { Pencil, Trash2, Check, X, Reply, ShieldAlert, Flag } from "lucide-react";
 import { formatTimeShort } from "@/lib/formatTimeShort";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
@@ -18,6 +23,9 @@ import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { ReportCommentDialog } from "@/components/ReportCommentDialog";
 import { CommentReactionPicker } from "@/components/CommentReactionPicker";
 import { CommentReactionsDisplay } from "@/components/CommentReactionsDisplay";
+import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
+import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
+import { hapticImpactLight, hapticSelectionTick } from "@/lib/haptics";
 
 const REACTION_EMOJIS = [
   { type: "like", emoji: "❤️" },
@@ -62,16 +70,27 @@ export const PhotoComment = memo(function PhotoComment({
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
   const [displayText, setDisplayText] = useState(text);
-  const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showActionSheet, setShowActionSheet] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [tapFlash, setTapFlash] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const commentRef = useRef<HTMLDivElement>(null);
+  const longPressTriggeredRef = useRef(false);
+  const reactionPickerOpenedAtRef = useRef(0);
   const queryClient = useQueryClient();
   const isOwn = userId === currentUserId;
   const { isBlocked } = useBlockedUsers();
+  const {
+    armDismissGuard,
+    clearDismissGuard,
+    consumeContextMenuGuard,
+  } = useLongPressDismissGuard();
+
+  const isInteracting = showReactionPicker || showActionSheet;
 
   // Fetch reactions for this comment
   const { data: reactions = [] } = useQuery({
@@ -116,6 +135,9 @@ export const PhotoComment = memo(function PhotoComment({
       }
       toast.error("Failed to add reaction");
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["comment-reactions", id] });
+    },
   });
 
   const removeReactionMutation = useMutation({
@@ -144,6 +166,9 @@ export const PhotoComment = memo(function PhotoComment({
       }
       toast.error("Failed to remove reaction");
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["comment-reactions", id] });
+    },
   });
 
   const handleEmojiClick = useCallback((type: string) => {
@@ -153,8 +178,9 @@ export const PhotoComment = memo(function PhotoComment({
     } else {
       addReactionMutation.mutate(type);
     }
+    clearDismissGuard();
     setShowReactionPicker(false);
-  }, [reactions, currentUserId, removeReactionMutation, addReactionMutation]);
+  }, [reactions, currentUserId, removeReactionMutation, addReactionMutation, clearDismissGuard]);
 
   const editMutation = useMutation({
     mutationFn: async (newText: string) => {
@@ -201,16 +227,18 @@ export const PhotoComment = memo(function PhotoComment({
     }
   };
 
-  // Long press handlers
+  // Long press → emoji reaction picker (matches message thread)
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     longPressTimer.current = setTimeout(() => {
-      setShowMenu(true);
-      if (currentUserId) {
-        setShowReactionPicker(true);
-      }
-    }, 600);
-  }, [currentUserId]);
+      longPressTriggeredRef.current = true;
+      armDismissGuard();
+      hapticImpactLight();
+      reactionPickerOpenedAtRef.current = Date.now();
+      setShowReactionPicker(true);
+    }, 400);
+  }, [armDismissGuard]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current && touchStartPos.current) {
@@ -224,55 +252,64 @@ export const PhotoComment = memo(function PhotoComment({
     }
   }, []);
 
-  const handleLongPressEnd = useCallback(() => {
+  // Short tap → action sheet, long press end → keep reaction picker open
+  const handleLongPressEnd = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+
+    const recentlyOpenedPicker = Date.now() - reactionPickerOpenedAtRef.current < 600;
+
+    if (longPressTriggeredRef.current || recentlyOpenedPicker) {
+      e.preventDefault();
+      e.stopPropagation();
+      armDismissGuard();
+      reactionPickerOpenedAtRef.current = Date.now();
+      requestAnimationFrame(() => {
+        longPressTriggeredRef.current = false;
+      });
+    } else if (touchStartPos.current) {
+      // Short tap → action sheet
+      e.preventDefault();
+      e.stopPropagation();
+      setTapFlash(true);
+      hapticSelectionTick();
+      setTimeout(() => {
+        setTapFlash(false);
+        setShowActionSheet(true);
+      }, 200);
+    }
+
     touchStartPos.current = null;
-  }, []);
+  }, [armDismissGuard]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setShowMenu(true);
-  }, []);
+    if (consumeContextMenuGuard()) return;
+    setShowReactionPicker(true);
+  }, [consumeContextMenuGuard]);
+
+  const closeInteraction = useCallback(() => {
+    clearDismissGuard();
+    setShowReactionPicker(false);
+    setShowActionSheet(false);
+  }, [clearDismissGuard]);
 
   // Cleanup timer on unmount
   useEffect(() => {
-    return () => {
-      if (longPressTimer.current) {
-        clearTimeout(longPressTimer.current);
+    const handlePointerCancel = () => {
+      if (!showReactionPicker) {
+        longPressTriggeredRef.current = false;
+        clearDismissGuard();
       }
     };
-  }, []);
-
-  // Close reaction picker when clicking/touching outside (with delay to avoid touchend dismissal)
-  useEffect(() => {
-    if (!showReactionPicker) return;
-    const handleClickOutside = () => setShowReactionPicker(false);
-    const timer = setTimeout(() => {
-      document.addEventListener('click', handleClickOutside);
-      document.addEventListener('touchend', handleClickOutside);
-    }, 300);
+    window.addEventListener('pointercancel', handlePointerCancel, true);
     return () => {
-      clearTimeout(timer);
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('touchend', handleClickOutside);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      window.removeEventListener('pointercancel', handlePointerCancel, true);
     };
-  }, [showReactionPicker]);
-
-  // Close menu when tapping outside
-  useEffect(() => {
-    if (!showMenu) return;
-    const handleClickOutside = () => setShowMenu(false);
-    const timer = setTimeout(() => {
-      document.addEventListener('click', handleClickOutside);
-    }, 0);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [showMenu]);
+  }, [clearDismissGuard, showReactionPicker]);
 
   if (isEditing) {
     return (
@@ -318,7 +355,27 @@ export const PhotoComment = memo(function PhotoComment({
   if (!isOwn && isBlocked(userId)) return null;
 
   return (
-    <div className={`flex flex-col gap-1 ${isReply ? "ml-8" : ""}`}>
+    <div className={`flex flex-col gap-1 ${isReply ? "ml-8" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
+      {/* Dimmed backdrop when interacting (matches message thread) */}
+      {isInteracting && createPortal(
+        <div
+          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
+          style={{ animationDuration: '120ms' }}
+          onClick={(e) => {
+            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
+            e.preventDefault();
+            e.stopPropagation();
+            closeInteraction();
+          }}
+          onTouchEnd={(e) => {
+            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
+            e.preventDefault();
+            e.stopPropagation();
+            closeInteraction();
+          }}
+        />,
+        document.body
+      )}
       <div className="flex gap-2">
         <Avatar className="h-6 w-6">
           <AvatarImage src={avatarUrl || undefined} />
@@ -329,7 +386,9 @@ export const PhotoComment = memo(function PhotoComment({
         <div className="flex-1">
           <div
             ref={commentRef}
-            className="select-none"
+            className={`select-none rounded-lg px-2 py-1 transition-all duration-100 ${
+              tapFlash ? "bg-muted/60 scale-[0.98]" : ""
+            } ${isInteracting ? "bg-muted/40 scale-[1.01]" : ""}`}
             onTouchStart={handleLongPressStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleLongPressEnd}
@@ -345,8 +404,8 @@ export const PhotoComment = memo(function PhotoComment({
               {displayText}
               {createdAt && (
                 <span className="text-xs text-muted-foreground ml-2">
-                                    · {formatTimeShort(createdAt)}
-                                  </span>
+                  · {formatTimeShort(createdAt)}
+                </span>
               )}
             </p>
           </div>
@@ -356,7 +415,7 @@ export const PhotoComment = memo(function PhotoComment({
             reactions={reactions}
             currentUserId={currentUserId}
             onEmojiClick={handleEmojiClick}
-            onClose={() => setShowReactionPicker(false)}
+            onClose={closeInteraction}
             anchorRef={commentRef}
           />
           {/* Reaction display */}
@@ -366,54 +425,27 @@ export const PhotoComment = memo(function PhotoComment({
             onReactionClick={handleEmojiClick}
           />
         </div>
-        <div className="flex items-center gap-0.5">
-          {/* Three-dot menu - visible on long press */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`h-6 w-6 transition-opacity ${showMenu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-              >
-                <MoreVertical className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top" collisionPadding={16} className="bg-popover border" onCloseAutoFocus={() => setShowMenu(false)}>
-              {currentUserId && onReply && (
-                <DropdownMenuItem onClick={() => onReply(id, displayName || "Unknown")}>
-                  <Reply className="h-3 w-3 mr-2" /> Reply
-                </DropdownMenuItem>
-              )}
-              {isOwn && (
-                <>
-                  <DropdownMenuItem onClick={() => setIsEditing(true)}>
-                    <Pencil className="h-3 w-3 mr-2" /> Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => deleteMutation.mutate()}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-3 w-3 mr-2" /> Delete
-                  </DropdownMenuItem>
-                </>
-              )}
-              {!isOwn && (
-                <>
-                  <DropdownMenuItem onClick={() => setShowReportDialog(true)}>
-                    <Flag className="h-3 w-3 mr-2" /> Report Comment
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setShowBlockDialog(true)}
-                    className="text-destructive"
-                  >
-                    <ShieldAlert className="h-3 w-3 mr-2" /> Block User
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </div>
+
+      {/* Action sheet - same as message thread */}
+      <MessageActionSheet
+        open={showActionSheet}
+        onOpenChange={(open) => {
+          setShowActionSheet(open);
+          if (!open) closeInteraction();
+        }}
+        isOwn={isOwn}
+        canReply={!!onReply}
+        canEdit={isOwn}
+        canDelete={isOwn}
+        isSystemMessage={false}
+        onReply={() => onReply?.(id, displayName || "Unknown")}
+        onEdit={() => setIsEditing(true)}
+        onDelete={() => setShowDeleteConfirm(true)}
+        onReport={() => setShowReportDialog(true)}
+        onBlock={() => setShowBlockDialog(true)}
+      />
+
       {showBlockDialog && (
         <BlockUserDialog
           open={showBlockDialog}
@@ -429,6 +461,22 @@ export const PhotoComment = memo(function PhotoComment({
           commentId={id}
         />
       )}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete comment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This comment will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { deleteMutation.mutate(); setShowDeleteConfirm(false); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });
