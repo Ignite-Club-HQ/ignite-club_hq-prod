@@ -20,6 +20,8 @@ interface CommentRepliesThreadProps {
   currentUserId?: string;
   onReply: (commentId: string, name: string) => void;
   initialVisibleCount?: number;
+  onInteractionChange?: (active: boolean) => void;
+  onLongPressGestureStateChange?: (active: boolean) => void;
 }
 
 export const CommentRepliesThread = memo(function CommentRepliesThread({
@@ -28,6 +30,8 @@ export const CommentRepliesThread = memo(function CommentRepliesThread({
   currentUserId,
   onReply,
   initialVisibleCount = 2,
+  onInteractionChange,
+  onLongPressGestureStateChange,
 }: CommentRepliesThreadProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -54,6 +58,8 @@ export const CommentRepliesThread = memo(function CommentRepliesThread({
           createdAt={reply.created_at}
           isReply
           onReply={onReply}
+          onInteractionChange={onInteractionChange}
+          onLongPressGestureStateChange={onLongPressGestureStateChange}
         />
       ))}
       

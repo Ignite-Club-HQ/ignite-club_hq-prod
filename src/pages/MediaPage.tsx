@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Lock, Crown, Plus, MessageCircle, Send, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
+import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
@@ -25,11 +25,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { format, formatDistanceToNow, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import { format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import { formatTimeShort } from "@/lib/formatTimeShort";
 import { Link } from "react-router-dom";
 import { EmojiReactions } from "@/components/EmojiReactions";
-import { PhotoComment } from "@/components/PhotoComment";
-import { CommentRepliesThread } from "@/components/CommentRepliesThread";
+
+import { MediaCommentSheet } from "@/components/MediaCommentSheet";
 import { LazyImage } from "@/components/LazyImage";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { UploadPhotoSheet } from "@/components/UploadPhotoSheet";
@@ -84,6 +85,7 @@ export default function MediaPage() {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [replyingTo, setReplyingTo] = useState<Record<string, { id: string; name: string } | undefined>>({});
+  const [activeCommentPhotoId, setActiveCommentPhotoId] = useState<string | null>(null);
   const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [selectedDeleteOption, setSelectedDeleteOption] = useState<'feed' | 'vault' | null>(null);
@@ -1146,7 +1148,7 @@ export default function MediaPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => toggleComments(photo.id)}
+                      onClick={() => setActiveCommentPhotoId(photo.id)}
                       className="gap-1 p-0 h-auto hover:bg-transparent ml-auto"
                     >
                       <MessageCircle className="h-5 w-5" />
@@ -1162,103 +1164,17 @@ export default function MediaPage() {
                   )}
 
                   <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(photo.created_at), { addSuffix: true })}
+                    {formatTimeShort(photo.created_at)}
                   </p>
 
-                  {comments.length > 0 && !isExpanded && (
+                  {comments.length > 0 && (
                     <button 
-                      onClick={() => toggleComments(photo.id)}
+                      onClick={() => setActiveCommentPhotoId(photo.id)}
                       className="text-sm text-muted-foreground"
                     >
                       View all {comments.length} comment{comments.length !== 1 ? "s" : ""}
                     </button>
                   )}
-
-                  {/* Inline Comments */}
-                  <Collapsible open={isExpanded}>
-                    <CollapsibleContent className="space-y-2">
-                      {comments
-                        .filter((c: any) => !c.reply_to_id)
-                        .map((comment: any) => {
-                          const replies = comments.filter((c: any) => c.reply_to_id === comment.id);
-                          return (
-                            <div key={comment.id}>
-                              <PhotoComment
-                                id={comment.id}
-                                text={comment.text}
-                                userId={comment.user_id}
-                                displayName={comment.profiles?.display_name}
-                                avatarUrl={comment.profiles?.avatar_url}
-                                currentUserId={user?.id}
-                                createdAt={comment.created_at}
-                                onReply={(commentId, name) => {
-                                  setReplyingTo(prev => ({ ...prev, [photo.id]: { id: commentId, name } }));
-                                }}
-                              />
-                              <CommentRepliesThread
-                                replies={replies}
-                                parentDisplayName={comment.profiles?.display_name}
-                                currentUserId={user?.id}
-                                onReply={(commentId, name) => {
-                                  setReplyingTo(prev => ({ ...prev, [photo.id]: { id: commentId, name } }));
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
-                    </CollapsibleContent>
-                  </Collapsible>
-
-                  {/* Reply indicator */}
-                  {replyingTo[photo.id] && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
-                      <span>Replying to {replyingTo[photo.id]!.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 px-1 text-xs"
-                        onClick={() => setReplyingTo(prev => ({ ...prev, [photo.id]: undefined }))}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Add Comment */}
-                  <div className="flex gap-2 pt-2 border-t">
-                    <Input
-                      value={commentInput}
-                      onChange={(e) => setCommentInputs(prev => ({ ...prev, [photo.id]: e.target.value }))}
-                      placeholder={replyingTo[photo.id] ? `Reply to ${replyingTo[photo.id]!.name}...` : "Add a comment..."}
-                      className="flex-1 h-8 text-sm"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && commentInput.trim()) {
-                          addCommentMutation.mutate({ 
-                            photoId: photo.id, 
-                            text: commentInput.trim(),
-                            replyToId: replyingTo[photo.id]?.id
-                          });
-                        }
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        const trimmedText = commentInput.trim();
-                        if (!trimmedText) return;
-                        addCommentMutation.mutate({ 
-                          photoId: photo.id, 
-                          text: trimmedText,
-                          replyToId: replyingTo[photo.id]?.id
-                        });
-                      }}
-                      disabled={!commentInput.trim() || addCommentMutation.isPending}
-                      className="h-8"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
                 </div>
               </Card>
             );
@@ -1275,6 +1191,42 @@ export default function MediaPage() {
           )}
         </div>
       )}
+
+      {/* Comment Bottom Sheet */}
+      {activeCommentPhotoId && (() => {
+        const activePhoto = allPhotos.find(p => p.id === activeCommentPhotoId);
+        if (!activePhoto) return null;
+        const activeComments = getPhotoComments(activeCommentPhotoId);
+        const activeInput = commentInputs[activeCommentPhotoId] || "";
+        const cachedProfileSheet = getProfile(activePhoto.uploader_id);
+        const sheetDisplayName = (activePhoto as any).profiles?.display_name || cachedProfileSheet?.display_name || null;
+        const sheetAvatarUrl = (activePhoto as any).profiles?.avatar_url || cachedProfileSheet?.avatar_url || null;
+        return (
+          <MediaCommentSheet
+            open={!!activeCommentPhotoId}
+            onOpenChange={(open) => { if (!open) setActiveCommentPhotoId(null); }}
+            photoUrl={activePhoto.file_url || activePhoto.image_url}
+            uploaderName={sheetDisplayName}
+            uploaderAvatar={sheetAvatarUrl}
+            comments={activeComments}
+            commentInput={activeInput}
+            onCommentInputChange={(val) => setCommentInputs(prev => ({ ...prev, [activeCommentPhotoId]: val }))}
+            onSubmitComment={() => {
+              const trimmedText = activeInput.trim();
+              if (!trimmedText) return;
+              addCommentMutation.mutate({
+                photoId: activeCommentPhotoId,
+                text: trimmedText,
+                replyToId: replyingTo[activeCommentPhotoId]?.id
+              });
+            }}
+            isPending={addCommentMutation.isPending}
+            replyingTo={replyingTo[activeCommentPhotoId]}
+            onSetReplyingTo={(reply) => setReplyingTo(prev => ({ ...prev, [activeCommentPhotoId]: reply }))}
+            currentUserId={user?.id}
+          />
+        );
+      })()}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deletePhotoId} onOpenChange={() => {
