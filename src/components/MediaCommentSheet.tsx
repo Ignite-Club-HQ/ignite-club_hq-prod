@@ -53,6 +53,40 @@ export function MediaCommentSheet({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const [isCommentInteracting, setIsCommentInteracting] = useState(false);
+  const [lockedHeight, setLockedHeight] = useState<number | null>(null);
+
+  // Lock sheet height when keyboard is visible to prevent layout shift during reactions
+  useEffect(() => {
+    if (!open) {
+      setLockedHeight(null);
+      return;
+    }
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const onResize = () => {
+      // When keyboard opens, visualViewport shrinks — lock the sheet to 50% of it
+      // Only update if we're NOT in an interaction (reaction picker open)
+      if (!isCommentInteracting) {
+        setLockedHeight(Math.round(vv.height * 0.5));
+      }
+    };
+
+    onResize();
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, [open, isCommentInteracting]);
+
+  // Re-focus textarea when reaction picker opens (keyboard may have been dismissed)
+  useEffect(() => {
+    if (isCommentInteracting && textareaRef.current) {
+      // Use a micro-delay to refocus after the browser processes the touch
+      const t = setTimeout(() => {
+        textareaRef.current?.focus({ preventScroll: true });
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [isCommentInteracting]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -98,11 +132,16 @@ export function MediaCommentSheet({
 
   const topLevelComments = comments.filter(c => !c.reply_to_id);
 
+  const sheetStyle = lockedHeight
+    ? { height: `${lockedHeight}px`, maxHeight: `${lockedHeight}px` }
+    : {};
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
       <SheetContent
         side="bottom"
-        className="h-[50vh] max-h-[50vh] rounded-t-2xl p-0 flex flex-col"
+        className={`rounded-t-2xl p-0 flex flex-col ${!lockedHeight ? "h-[50vh] max-h-[50vh]" : ""}`}
+        style={sheetStyle}
         enableDragToClose
         dragCloseThreshold={80}
         hideCloseButton
