@@ -99,7 +99,7 @@ export function MediaCommentSheet({
   const topLevelComments = comments.filter(c => !c.reply_to_id);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
       <SheetContent
         side="bottom"
         className="h-[50vh] max-h-[50vh] rounded-t-2xl p-0 flex flex-col"
