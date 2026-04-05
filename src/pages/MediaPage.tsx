@@ -1163,7 +1163,7 @@ export default function MediaPage() {
                   )}
 
                   <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(photo.created_at), { addSuffix: true })}
+                    {formatTimeShort(photo.created_at)}
                   </p>
 
                   {comments.length > 0 && !isExpanded && (
