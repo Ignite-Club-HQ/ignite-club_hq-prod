@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Lock, Crown, Plus, MessageCircle, Send, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
+import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
@@ -25,10 +25,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { format, formatDistanceToNow, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import { format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
+import { formatTimeShort } from "@/lib/formatTimeShort";
 import { Link } from "react-router-dom";
 import { EmojiReactions } from "@/components/EmojiReactions";
 import { PhotoComment } from "@/components/PhotoComment";
+import { MediaCommentInput } from "@/components/MediaCommentInput";
 import { CommentRepliesThread } from "@/components/CommentRepliesThread";
 import { LazyImage } from "@/components/LazyImage";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
@@ -1162,7 +1164,7 @@ export default function MediaPage() {
                   )}
 
                   <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(photo.created_at), { addSuffix: true })}
+                    {formatTimeShort(photo.created_at)}
                   </p>
 
                   {comments.length > 0 && !isExpanded && (
@@ -1209,56 +1211,35 @@ export default function MediaPage() {
                     </CollapsibleContent>
                   </Collapsible>
 
-                  {/* Reply indicator */}
-                  {replyingTo[photo.id] && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
-                      <span>Replying to {replyingTo[photo.id]!.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 px-1 text-xs"
-                        onClick={() => setReplyingTo(prev => ({ ...prev, [photo.id]: undefined }))}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
-
                   {/* Add Comment */}
-                  <div className="flex gap-2 pt-2 border-t">
-                    <Input
-                      value={commentInput}
-                      onChange={(e) => setCommentInputs(prev => ({ ...prev, [photo.id]: e.target.value }))}
-                      placeholder={replyingTo[photo.id] ? `Reply to ${replyingTo[photo.id]!.name}...` : "Add a comment..."}
-                      className="flex-1 h-8 text-sm"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && commentInput.trim()) {
-                          addCommentMutation.mutate({ 
-                            photoId: photo.id, 
-                            text: commentInput.trim(),
-                            replyToId: replyingTo[photo.id]?.id
-                          });
-                        }
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        const trimmedText = commentInput.trim();
-                        if (!trimmedText) return;
-                        addCommentMutation.mutate({ 
-                          photoId: photo.id, 
-                          text: trimmedText,
-                          replyToId: replyingTo[photo.id]?.id
-                        });
-                      }}
-                      disabled={!commentInput.trim() || addCommentMutation.isPending}
-                      className="h-8"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <MediaCommentInput
+                    photoId={photo.id}
+                    photoUrl={photo.file_url || photo.image_url}
+                    uploaderName={displayName}
+                    value={commentInput}
+                    onChange={(val) => setCommentInputs(prev => ({ ...prev, [photo.id]: val }))}
+                    onSubmit={() => {
+                      const trimmedText = commentInput.trim();
+                      if (!trimmedText) return;
+                      addCommentMutation.mutate({ 
+                        photoId: photo.id, 
+                        text: trimmedText,
+                        replyToId: replyingTo[photo.id]?.id
+                      });
+                    }}
+                    isPending={addCommentMutation.isPending}
+                    replyingTo={replyingTo[photo.id]}
+                    onCancelReply={() => setReplyingTo(prev => ({ ...prev, [photo.id]: undefined }))}
+                    onFocus={() => {
+                      // Scroll post into view when focusing comment input
+                      const el = photoRefs.current.get(photo.id);
+                      if (el) {
+                        setTimeout(() => {
+                          el.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }, 300);
+                      }
+                    }}
+                  />
                 </div>
               </Card>
             );
