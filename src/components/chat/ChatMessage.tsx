@@ -270,6 +270,7 @@ export const ChatMessage = memo(function ChatMessage({
       return { action: "insert" as const, reaction: insertedReaction };
     },
     onMutate: ({ reactionType, existingReaction }) => {
+      isReactionMutatingRef.current = true;
       void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
       const previousReactions = optimisticReactionsRef.current;
@@ -345,6 +346,8 @@ export const ChatMessage = memo(function ChatMessage({
         setLocalReactions(context.previousReactions);
       }
       toast.error("Failed to add reaction");
+    onSettled: () => {
+      isReactionMutatingRef.current = false;
     },
   });
 
@@ -360,6 +363,7 @@ export const ChatMessage = memo(function ChatMessage({
       if (error) throw error;
     },
     onMutate: (reactionId: string) => {
+      isReactionMutatingRef.current = true;
       void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
       const previousReactions = optimisticReactionsRef.current;
@@ -386,6 +390,7 @@ export const ChatMessage = memo(function ChatMessage({
       }
     },
     onSettled: () => {
+      isReactionMutatingRef.current = false;
     },
   });
 
