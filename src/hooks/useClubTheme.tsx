@@ -794,13 +794,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
     // Don't apply theme if not logged in
     if (!user) {
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
       return;
     }
 
