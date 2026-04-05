@@ -131,8 +131,13 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     <div
       className="fixed inset-0 z-[100001]"
       data-reaction-picker="true"
+      style={{ touchAction: "none" }}
       onTouchStart={(e) => {
         e.stopPropagation();
+      }}
+      onTouchMove={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -156,10 +161,15 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
           top: position.top,
           left: position.left,
           width: position.width,
+          touchAction: "none",
         }}
         onClick={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+        }}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="dark:bg-popover/90 bg-muted/90 backdrop-blur-md dark:border dark:border-border/20 border border-black/[0.03] rounded-2xl px-1.5 py-1 shadow-none dark:shadow-sm animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150">
@@ -173,18 +183,24 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                 <button
                   key={type}
                   type="button"
-                  onTouchEnd={(e) => {
+                  onTouchStart={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
                     triggerEmojiSelection(type);
+                  }}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
                     triggerEmojiSelection(type);
                   }}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
+                  style={{ touchAction: "none" }}
                   className={`inline-flex items-center justify-center h-10 w-10 rounded-full text-lg shrink-0 transition-all duration-75 active:scale-110 touch-manipulation ${
                     userHasReaction ? "bg-primary/10 scale-[1.08]" : "hover:bg-accent/50"
                   }`}
