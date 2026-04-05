@@ -6,7 +6,9 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 
-type SheetProps = React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root>;
+type SheetProps = React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root> & {
+  modal?: boolean;
+};
 
 type SheetOpenContextValue = {
   onOpenChange: (open: boolean) => void;
