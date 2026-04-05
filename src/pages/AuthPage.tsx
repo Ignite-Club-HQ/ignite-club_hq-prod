@@ -418,7 +418,7 @@ export default function AuthPage() {
                         className="pl-10"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                         onFocus={(e) => revealSignInField(e.currentTarget)}
+                      />
                       />
                     </div>
                   </div>
