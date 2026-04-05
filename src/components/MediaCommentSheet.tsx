@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { PhotoComment } from "@/components/PhotoComment";
 import { CommentRepliesThread } from "@/components/CommentRepliesThread";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 
 interface CommentData {
   id: string;
@@ -56,6 +56,7 @@ export function MediaCommentSheet({
   const [isCommentInteracting, setIsCommentInteracting] = useState(false);
   const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [lockedHeight, setLockedHeight] = useState<number | null>(null);
+  const isKeyboardOpen = useKeyboardOpen();
 
   const restoreInputFocus = useCallback(() => {
     const textarea = textareaRef.current;
@@ -94,7 +95,7 @@ export function MediaCommentSheet({
     restoreInputFocus();
   }, [restoreInputFocus]);
 
-  // Lock sheet height when keyboard is visible to prevent layout shift during reactions
+  // Lock sheet height based on visualViewport — use more space when keyboard is open
   useEffect(() => {
     if (!open) {
       setLockedHeight(null);
@@ -105,10 +106,10 @@ export function MediaCommentSheet({
     if (!vv) return;
 
     const onResize = () => {
-      // When keyboard opens, visualViewport shrinks — lock the sheet to 50% of it
-      // Only update if we're NOT in an interaction (reaction picker open)
       if (!isCommentInteracting && !isReactionGestureActive) {
-        setLockedHeight(Math.round(vv.height * 0.5));
+        // Use 70% of visible viewport when keyboard is open to show more comments
+        const ratio = vv.height < window.innerHeight * 0.8 ? 0.7 : 0.5;
+        setLockedHeight(Math.round(vv.height * ratio));
       }
     };
 
@@ -117,10 +118,9 @@ export function MediaCommentSheet({
     return () => vv.removeEventListener("resize", onResize);
   }, [open, isCommentInteracting, isReactionGestureActive]);
 
-  // Re-focus textarea when reaction picker opens (keyboard may have been dismissed)
+  // Re-focus textarea when reaction picker opens
   useEffect(() => {
     if (isCommentInteracting && textareaRef.current) {
-      // Use a micro-delay to refocus after the browser processes the touch
       const t = setTimeout(() => {
         textareaRef.current?.focus({ preventScroll: true });
       }, 50);
@@ -166,12 +166,12 @@ export function MediaCommentSheet({
     }
   }, [open]);
 
-  // Scroll to bottom when new comments appear
+  // Scroll to bottom when new comments appear or keyboard opens
   useEffect(() => {
     if (open && scrollEndRef.current) {
       scrollEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [comments.length, open]);
+  }, [comments.length, open, isKeyboardOpen]);
 
   const handleSubmit = useCallback(() => {
     if (!commentInput.trim()) return;
@@ -204,27 +204,29 @@ export function MediaCommentSheet({
         dragCloseThreshold={80}
         hideCloseButton
       >
-        {/* Drag handle is rendered by SheetContent via enableDragToClose */}
-
-        {/* Header with post context */}
-        <div className="flex items-center gap-3 px-4 py-2 border-b border-border flex-shrink-0">
+        {/* Compact header — collapses image when keyboard is open */}
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border flex-shrink-0">
           <SheetTitle className="sr-only">Comments</SheetTitle>
-          <img
-            src={photoUrl}
-            alt=""
-            className="h-10 w-10 rounded-lg object-cover flex-shrink-0"
-          />
+          {!isKeyboardOpen && (
+            <img
+              src={photoUrl}
+              alt=""
+              className="h-7 w-7 rounded object-cover flex-shrink-0"
+            />
+          )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{uploaderName || "Unknown"}</p>
-            <p className="text-xs text-muted-foreground">Comments</p>
+            <p className="text-xs font-medium truncate">{uploaderName || "Unknown"}'s post</p>
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              {comments.length} comment{comments.length !== 1 ? "s" : ""}
+            </p>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 flex-shrink-0"
+            className="h-7 w-7 flex-shrink-0"
             onClick={() => onOpenChange(false)}
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </Button>
         </div>
 
@@ -233,9 +235,9 @@ export function MediaCommentSheet({
           className="flex-1 min-h-0"
           style={{ pointerEvents: isCommentInteracting ? "none" : "auto" }}
         >
-          <div className="px-4 py-3 space-y-3">
+          <div className="px-3 py-2 space-y-2">
             {topLevelComments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                 <p className="text-sm">No comments yet</p>
                 <p className="text-xs mt-1">Be the first to comment</p>
               </div>
@@ -278,11 +280,11 @@ export function MediaCommentSheet({
           </div>
         </ScrollArea>
 
-        {/* Input bar - sticky at bottom */}
+        {/* Input bar — compact, sticky at bottom */}
         <div className="flex-shrink-0 border-t border-border bg-background" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           {/* Reply indicator */}
           {replyingTo && (
-            <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/30 border-b border-border">
+            <div className="flex items-center gap-2 px-3 py-1 bg-muted/30 border-b border-border">
               <span className="text-xs text-muted-foreground truncate flex-1">
                 Replying to {replyingTo.name}
               </span>
@@ -297,7 +299,7 @@ export function MediaCommentSheet({
             </div>
           )}
 
-          <div className="flex items-end gap-2 px-4 py-2">
+          <div className="flex items-end gap-1.5 px-3 py-1.5">
             <textarea
               ref={textareaRef}
               value={commentInput}
@@ -305,14 +307,14 @@ export function MediaCommentSheet({
               onKeyDown={handleKeyDown}
               placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Write a comment…"}
               rows={1}
-              className="flex-1 resize-none bg-muted/50 rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[36px] max-h-[100px] px-3 py-2"
+              className="flex-1 resize-none bg-muted/50 rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[34px] max-h-[80px] px-3 py-1.5"
             />
             {hasText && (
               <Button
                 size="sm"
                 onClick={handleSubmit}
                 disabled={isPending}
-                className="h-9 w-9 p-0 flex-shrink-0 rounded-full"
+                className="h-8 w-8 p-0 flex-shrink-0 rounded-full"
               >
                 <Send className="h-4 w-4" />
               </Button>
