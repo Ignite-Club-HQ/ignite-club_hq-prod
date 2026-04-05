@@ -99,8 +99,7 @@ export function ClubThemeToggle() {
             l: club.theme_primary_l!,
           } : null,
         };
-      // Keep only clubs that are selectable (Pro + has theme + theme enabled)
-      }).filter(club => club.isSelectable);
+      });
       
       return result;
     },
