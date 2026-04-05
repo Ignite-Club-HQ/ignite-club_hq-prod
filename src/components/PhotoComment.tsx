@@ -476,20 +476,8 @@ export const PhotoComment = memo(function PhotoComment({
     <div className={`flex flex-col gap-1 ${isReply ? "ml-8" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
       {isInteracting && createPortal(
         <div
-          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
+          className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in pointer-events-none"
           style={{ animationDuration: "120ms" }}
-          onClick={(e) => {
-            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
-            e.preventDefault();
-            e.stopPropagation();
-            closeInteraction();
-          }}
-          onTouchEnd={(e) => {
-            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
-            e.preventDefault();
-            e.stopPropagation();
-            closeInteraction();
-          }}
         />,
         document.body
       )}
