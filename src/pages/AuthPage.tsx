@@ -380,21 +380,20 @@ export default function AuthPage() {
       
       <div
         ref={signInScrollRef}
-        className={`flex-1 flex flex-col items-center p-4 ${authMode === "signin" ? 'justify-center overflow-y-auto overscroll-contain' : 'overflow-y-auto'} ${isInInviteFlow ? 'pt-16' : ''}`}
-        style={{
-          paddingBottom: authMode === "signin" && isNativePlatform && nativeKeyboardHeight > 0
-            ? `${nativeKeyboardHeight + 16}px`
-            : undefined,
-        }}
+        className={`flex-1 flex flex-col items-center p-4 ${authMode === "signin" ? 'justify-center' : 'overflow-y-auto'} ${isInInviteFlow ? 'pt-16' : ''}`}
       >
       <div className={`w-full max-w-md space-y-8 animate-slide-up ${authMode === "signin" ? 'py-4' : 'py-8 my-auto'}`}>
-        {/* Logo */}
-        <div className="flex flex-col items-center gap-3">
-          <div className="p-4 rounded-2xl bg-primary glow-emerald">
-            <Flame className="h-10 w-10 text-primary-foreground" />
+        {/* Logo — compacts when keyboard is open on native sign-in */}
+        <div className={`flex flex-col items-center transition-all duration-200 ${isSignInKeyboardOpen ? 'gap-1' : 'gap-3'}`}>
+          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isSignInKeyboardOpen ? 'p-2' : 'p-4'}`}>
+            <Flame className={`text-primary-foreground transition-all duration-200 ${isSignInKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
           </div>
-          <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
-          <p className="text-sm font-medium text-muted-foreground">Club HQ</p>
+          {!isSignInKeyboardOpen && (
+            <>
+              <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
+              <p className="text-sm font-medium text-muted-foreground">Club HQ</p>
+            </>
+          )}
         </div>
 
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
