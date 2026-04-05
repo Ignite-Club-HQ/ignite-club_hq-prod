@@ -1924,34 +1924,39 @@ export default function HomePage() {
             );
           })()}
 
-          {/* Children's reward progress */}
+           {/* Children's reward progress - collapsible */}
           {userChildren.length > 0 && minRewardThreshold !== null && (
-            <div className="space-y-2 pt-1 border-t border-border/50">
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Children</p>
-              {userChildren.map((child: any) => {
-                const childPoints = child.ignite_points || 0;
-                const childProgress = Math.min(100, (childPoints / minRewardThreshold) * 100);
-                const childHasReward = childPoints >= minRewardThreshold;
-                return (
-                  <div key={child.id} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium truncate">{child.name}</span>
-                      <span className={`text-xs font-medium ${childHasReward ? 'text-primary' : 'text-muted-foreground'}`}>
-                        {childHasReward ? '🎉 Reward available!' : `${childPoints}/${minRewardThreshold} pts`}
-                      </span>
-                    </div>
-                    {!childHasReward && (
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div 
-                          className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary/40 transition-all duration-1000 ease-out"
-                          style={{ width: `${childProgress}%` }}
-                        />
+            <Collapsible className="pt-1 border-t border-border/50">
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-1 group">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Children</p>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2 pt-1">
+                {userChildren.map((child: any) => {
+                  const childPoints = child.ignite_points || 0;
+                  const childProgress = Math.min(100, (childPoints / minRewardThreshold) * 100);
+                  const childHasReward = childPoints >= minRewardThreshold;
+                  return (
+                    <div key={child.id} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium truncate">{child.name}</span>
+                        <span className={`text-xs font-medium ${childHasReward ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {childHasReward ? '🎉 Reward available!' : `${childPoints}/${minRewardThreshold} pts`}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      {!childHasReward && (
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div 
+                            className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary/40 transition-all duration-1000 ease-out"
+                            style={{ width: `${childProgress}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
           )}
         </CardContent>
       </Card>
