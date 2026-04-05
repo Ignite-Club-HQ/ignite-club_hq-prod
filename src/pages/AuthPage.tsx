@@ -738,30 +738,32 @@ export default function AuthPage() {
           defaultEmail={email}
         />
 
-        {/* Footer Links */}
-        <div className="text-center text-xs text-muted-foreground space-y-2">
-          <div className="flex justify-center gap-4">
-            {Capacitor.isNativePlatform() ? (
-              <>
-                <Link to="/terms" className="hover:text-foreground hover:underline">Terms</Link>
-                <Link to="/privacy" className="hover:text-foreground hover:underline">Privacy</Link>
-                <Link to="/cancellation" className="hover:text-foreground hover:underline">Cancellation</Link>
-              </>
-            ) : (
-              <>
-                <a href="https://igniteclubhq.com/terms" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/terms")); }} className="hover:text-foreground hover:underline cursor-pointer">Terms</a>
-                <a href="https://igniteclubhq.com/privacy" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/privacy")); }} className="hover:text-foreground hover:underline cursor-pointer">Privacy</a>
-                <a href="https://igniteclubhq.com/refunds" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/refunds")); }} className="hover:text-foreground hover:underline cursor-pointer">Cancellation</a>
-              </>
+        {/* Footer Links — hidden when keyboard is open on native sign-in */}
+        {!isSignInKeyboardOpen && (
+          <div className="text-center text-xs text-muted-foreground space-y-2">
+            <div className="flex justify-center gap-4">
+              {Capacitor.isNativePlatform() ? (
+                <>
+                  <Link to="/terms" className="hover:text-foreground hover:underline">Terms</Link>
+                  <Link to="/privacy" className="hover:text-foreground hover:underline">Privacy</Link>
+                  <Link to="/cancellation" className="hover:text-foreground hover:underline">Cancellation</Link>
+                </>
+              ) : (
+                <>
+                  <a href="https://igniteclubhq.com/terms" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/terms")); }} className="hover:text-foreground hover:underline cursor-pointer">Terms</a>
+                  <a href="https://igniteclubhq.com/privacy" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/privacy")); }} className="hover:text-foreground hover:underline cursor-pointer">Privacy</a>
+                  <a href="https://igniteclubhq.com/refunds" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/refunds")); }} className="hover:text-foreground hover:underline cursor-pointer">Cancellation</a>
+                </>
+              )}
+            </div>
+            {!Capacitor.isNativePlatform() && (
+              <div className="flex justify-center gap-4">
+                <a href="mailto:contact@igniteclubhq.app" className="hover:text-foreground hover:underline">Contact</a>
+                <a href="mailto:support@igniteclubhq.app" className="hover:text-foreground hover:underline">Support</a>
+              </div>
             )}
           </div>
-          {!Capacitor.isNativePlatform() && (
-            <div className="flex justify-center gap-4">
-              <a href="mailto:contact@igniteclubhq.app" className="hover:text-foreground hover:underline">Contact</a>
-              <a href="mailto:support@igniteclubhq.app" className="hover:text-foreground hover:underline">Support</a>
-            </div>
-          )}
-        </div>
+        )}
       </div>
       </div>
     </div>
