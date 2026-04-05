@@ -1192,6 +1192,42 @@ export default function MediaPage() {
         </div>
       )}
 
+      {/* Comment Bottom Sheet */}
+      {activeCommentPhotoId && (() => {
+        const activePhoto = allPhotos.find(p => p.id === activeCommentPhotoId);
+        if (!activePhoto) return null;
+        const activeComments = getPhotoComments(activeCommentPhotoId);
+        const activeInput = commentInputs[activeCommentPhotoId] || "";
+        const cachedProfile = getProfile(activePhoto.uploader_id);
+        const sheetDisplayName = activePhoto.profiles?.display_name || cachedProfile?.display_name || null;
+        const sheetAvatarUrl = activePhoto.profiles?.avatar_url || cachedProfile?.avatar_url || null;
+        return (
+          <MediaCommentSheet
+            open={!!activeCommentPhotoId}
+            onOpenChange={(open) => { if (!open) setActiveCommentPhotoId(null); }}
+            photoUrl={activePhoto.file_url || activePhoto.image_url}
+            uploaderName={sheetDisplayName}
+            uploaderAvatar={sheetAvatarUrl}
+            comments={activeComments}
+            commentInput={activeInput}
+            onCommentInputChange={(val) => setCommentInputs(prev => ({ ...prev, [activeCommentPhotoId]: val }))}
+            onSubmitComment={() => {
+              const trimmedText = activeInput.trim();
+              if (!trimmedText) return;
+              addCommentMutation.mutate({
+                photoId: activeCommentPhotoId,
+                text: trimmedText,
+                replyToId: replyingTo[activeCommentPhotoId]?.id
+              });
+            }}
+            isPending={addCommentMutation.isPending}
+            replyingTo={replyingTo[activeCommentPhotoId]}
+            onSetReplyingTo={(reply) => setReplyingTo(prev => ({ ...prev, [activeCommentPhotoId]: reply }))}
+            currentUserId={user?.id}
+          />
+        );
+      })()}
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deletePhotoId} onOpenChange={() => {
         // Keep dialog stable on mobile; close only through explicit Cancel/Confirm actions.
