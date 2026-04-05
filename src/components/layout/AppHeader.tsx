@@ -121,7 +121,17 @@ function LogoClubThemeDropdown() {
 
       if (!clubs) return [];
 
-      return clubs.map(club => {
+      const getClubPriority = (club: {
+        isSelectable: boolean;
+        hasPro: boolean;
+        hasTheme: boolean;
+      }) => (
+        (club.isSelectable ? 4 : 0) +
+        (club.hasPro ? 2 : 0) +
+        (club.hasTheme ? 1 : 0)
+      );
+
+      const result = clubs.map(club => {
         const sub = (club.club_subscriptions as any)?.[0];
         const hasProFromSub = sub && (sub.is_pro || sub.is_pro_football) && 
           (!sub.expires_at || new Date(sub.expires_at) > new Date());
@@ -130,18 +140,28 @@ function LogoClubThemeDropdown() {
         
         return {
           clubId: club.id,
-          clubName: club.name,
+          clubName: club.name.trim(),
           logoUrl: club.logo_url,
           hasPro,
           hasTheme,
           isSelectable: hasPro && hasTheme,
         };
       });
+
+      const dedupedClubs = new Map<string, (typeof result)[number]>();
+      result.forEach((club) => {
+        const normalizedName = club.clubName.toLowerCase().replace(/\s+/g, " ").trim();
+        const existing = dedupedClubs.get(normalizedName);
+        if (!existing || getClubPriority(club) > getClubPriority(existing)) {
+          dedupedClubs.set(normalizedName, club);
+        }
+      });
+
+      return Array.from(dedupedClubs.values());
     },
     enabled: !!user?.id,
   });
 
-  // Non-Pro clubs that should show with lock (exclude Pro clubs without themes - they just shouldn't appear)
   const lockedClubs = allUserClubs.filter(c => !c.isSelectable && !c.hasPro);
 
   return (
