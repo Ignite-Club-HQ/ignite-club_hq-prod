@@ -112,6 +112,7 @@ export const ChatMessage = memo(function ChatMessage({
   const longPressTriggeredRef = useRef(false);
   const gestureModeRef = useRef<"idle" | "press" | "swipe">("idle");
   const optimisticReactionsRef = useRef<Reaction[]>(reactions);
+  const isReactionMutatingRef = useRef(false);
   const queryClient = useQueryClient();
   const { isBlocked } = useBlockedUsers();
   const {
@@ -132,6 +133,7 @@ export const ChatMessage = memo(function ChatMessage({
   }, []);
 
   useEffect(() => {
+    if (isReactionMutatingRef.current) return;
     optimisticReactionsRef.current = reactions;
     setOptimisticReactions(reactions);
   }, [reactions]);
