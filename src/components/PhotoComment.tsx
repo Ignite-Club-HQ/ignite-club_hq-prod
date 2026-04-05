@@ -54,6 +54,7 @@ interface PhotoCommentProps {
   isReply?: boolean;
   createdAt?: string;
   onInteractionChange?: (active: boolean) => void;
+  onLongPressGestureStateChange?: (active: boolean) => void;
 }
 
 export const PhotoComment = memo(function PhotoComment({
@@ -68,6 +69,7 @@ export const PhotoComment = memo(function PhotoComment({
   isReply = false,
   createdAt,
   onInteractionChange,
+  onLongPressGestureStateChange,
 }: PhotoCommentProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
@@ -345,6 +347,7 @@ export const PhotoComment = memo(function PhotoComment({
     gestureModeRef.current = "press";
     longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    onLongPressGestureStateChange?.(true);
 
     longPressTimer.current = setTimeout(() => {
       if (gestureModeRef.current !== "press") return;
@@ -380,8 +383,9 @@ export const PhotoComment = memo(function PhotoComment({
       longPressTimer.current = null;
       touchStartPos.current = null;
       gestureModeRef.current = "idle";
+      onLongPressGestureStateChange?.(false);
     }
-  }, [showReactionPicker]);
+  }, [onLongPressGestureStateChange, showReactionPicker]);
 
   const handleLongPressEnd = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current) {
@@ -409,32 +413,37 @@ export const PhotoComment = memo(function PhotoComment({
         setShowMenu(true);
         setShowActionSheet(true);
       }, 200);
+
+      onLongPressGestureStateChange?.(false);
     }
 
     touchStartPos.current = null;
     gestureModeRef.current = "idle";
-  }, [armDismissGuard]);
+  }, [armDismissGuard, onLongPressGestureStateChange]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     if (consumeContextMenuGuard()) return;
+    onLongPressGestureStateChange?.(true);
     setShowMenu(true);
     setShowReactionPicker(true);
-  }, [consumeContextMenuGuard]);
+  }, [consumeContextMenuGuard, onLongPressGestureStateChange]);
 
   const closeInteraction = useCallback(() => {
     clearDismissGuard();
     setShowReactionPicker(false);
     setShowActionSheet(false);
     setShowMenu(false);
-  }, [clearDismissGuard]);
+    onLongPressGestureStateChange?.(false);
+  }, [clearDismissGuard, onLongPressGestureStateChange]);
 
   useEffect(() => {
     onInteractionChange?.(isInteracting);
     return () => {
       onInteractionChange?.(false);
+      onLongPressGestureStateChange?.(false);
     };
-  }, [isInteracting, onInteractionChange]);
+  }, [isInteracting, onInteractionChange, onLongPressGestureStateChange]);
 
   if (isEditing) {
     return (
