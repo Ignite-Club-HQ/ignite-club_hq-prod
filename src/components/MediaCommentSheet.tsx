@@ -132,7 +132,10 @@ export function MediaCommentSheet({
         </div>
 
         {/* Comment list */}
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea
+          className="flex-1 min-h-0"
+          style={{ pointerEvents: isCommentInteracting ? "none" : "auto" }}
+        >
           <div className="px-4 py-3 space-y-3">
             {topLevelComments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -152,6 +155,7 @@ export function MediaCommentSheet({
                       avatarUrl={comment.profiles?.avatar_url}
                       currentUserId={currentUserId}
                       createdAt={comment.created_at}
+                      onInteractionChange={setIsCommentInteracting}
                       onReply={(commentId, name) => {
                         onSetReplyingTo({ id: commentId, name });
                         setTimeout(() => textareaRef.current?.focus(), 100);
@@ -161,6 +165,7 @@ export function MediaCommentSheet({
                       replies={replies}
                       parentDisplayName={comment.profiles?.display_name}
                       currentUserId={currentUserId}
+                      onInteractionChange={setIsCommentInteracting}
                       onReply={(commentId, name) => {
                         onSetReplyingTo({ id: commentId, name });
                         setTimeout(() => textareaRef.current?.focus(), 100);

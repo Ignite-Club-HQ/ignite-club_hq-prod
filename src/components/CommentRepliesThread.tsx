@@ -56,6 +56,7 @@ export const CommentRepliesThread = memo(function CommentRepliesThread({
           createdAt={reply.created_at}
           isReply
           onReply={onReply}
+          onInteractionChange={onInteractionChange}
         />
       ))}
       
