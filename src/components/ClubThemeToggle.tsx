@@ -106,9 +106,9 @@ export function ClubThemeToggle() {
     enabled: !!user?.id,
   });
 
-  // Only show non-Pro clubs in locked section that aren't already in availableClubThemes
+  // Show non-selectable clubs with appropriate messaging
   const availableClubIds = new Set(availableClubThemes.map(t => t.clubId));
-  const lockedClubs = allUserClubs.filter(c => !c.hasPro && !availableClubIds.has(c.clubId));
+  const nonSelectableClubs = allUserClubs.filter(c => !c.isSelectable && !availableClubIds.has(c.clubId));
 
   // Don't show if no clubs at all
   if (isLoading || (availableClubThemes.length === 0 && lockedClubs.length === 0)) {
