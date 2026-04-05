@@ -6,7 +6,9 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 
-type SheetProps = React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root>;
+type SheetProps = React.ComponentPropsWithoutRef<typeof SheetPrimitive.Root> & {
+  modal?: boolean;
+};
 
 type SheetOpenContextValue = {
   onOpenChange: (open: boolean) => void;
@@ -18,7 +20,7 @@ const SheetOpenContext = React.createContext<SheetOpenContextValue>({
   open: false,
 });
 
-const Sheet = ({ open, defaultOpen, onOpenChange, children, ...props }: SheetProps) => {
+const Sheet = ({ open, defaultOpen, onOpenChange, modal, children, ...props }: SheetProps) => {
   const isControlled = open !== undefined;
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false);
   const isOpen = isControlled ? Boolean(open) : internalOpen;
@@ -39,6 +41,7 @@ const Sheet = ({ open, defaultOpen, onOpenChange, children, ...props }: SheetPro
         open={open}
         defaultOpen={defaultOpen}
         onOpenChange={handleOpenChange}
+        modal={modal}
         {...props}
       >
         {children}
