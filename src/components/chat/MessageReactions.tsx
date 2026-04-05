@@ -112,7 +112,8 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 
   const triggerEmojiSelection = (type: string) => {
     const now = Date.now();
-    if (now - lastTouchReactionAtRef.current < 250) return;
+    if (now - mountedAtRef.current < 120) return;
+    if (now - lastTouchReactionAtRef.current < 120) return;
     lastTouchReactionAtRef.current = now;
     handleEmojiClick(type);
   };
@@ -166,12 +167,10 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   key={type}
                   type="button"
                   onPointerUp={(e) => {
-                    if (preventIfGuarded?.(e)) return;
                     e.stopPropagation();
                     triggerEmojiSelection(type);
                   }}
                   onClick={(e) => {
-                    if (preventIfGuarded?.(e)) return;
                     e.stopPropagation();
                     e.preventDefault();
                     triggerEmojiSelection(type);
