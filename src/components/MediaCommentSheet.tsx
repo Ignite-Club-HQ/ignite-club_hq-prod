@@ -52,6 +52,7 @@ export function MediaCommentSheet({
 }: MediaCommentSheetProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
+  const [isCommentInteracting, setIsCommentInteracting] = useState(false);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -65,6 +66,12 @@ export function MediaCommentSheet({
   useEffect(() => {
     if (open) {
       setTimeout(() => textareaRef.current?.focus(), 400);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setIsCommentInteracting(false);
     }
   }, [open]);
 

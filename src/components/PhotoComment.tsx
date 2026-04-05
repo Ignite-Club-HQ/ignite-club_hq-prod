@@ -53,6 +53,7 @@ interface PhotoCommentProps {
   onReply?: (commentId: string, displayName: string) => void;
   isReply?: boolean;
   createdAt?: string;
+  onInteractionChange?: (active: boolean) => void;
 }
 
 export const PhotoComment = memo(function PhotoComment({
@@ -66,6 +67,7 @@ export const PhotoComment = memo(function PhotoComment({
   onReply,
   isReply = false,
   createdAt,
+  onInteractionChange,
 }: PhotoCommentProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(text);
