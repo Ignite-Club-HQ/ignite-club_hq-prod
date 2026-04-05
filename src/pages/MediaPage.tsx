@@ -29,9 +29,8 @@ import { format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { formatTimeShort } from "@/lib/formatTimeShort";
 import { Link } from "react-router-dom";
 import { EmojiReactions } from "@/components/EmojiReactions";
-import { PhotoComment } from "@/components/PhotoComment";
-import { MediaCommentInput } from "@/components/MediaCommentInput";
-import { CommentRepliesThread } from "@/components/CommentRepliesThread";
+
+import { MediaCommentSheet } from "@/components/MediaCommentSheet";
 import { LazyImage } from "@/components/LazyImage";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
 import { UploadPhotoSheet } from "@/components/UploadPhotoSheet";
@@ -86,6 +85,7 @@ export default function MediaPage() {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [replyingTo, setReplyingTo] = useState<Record<string, { id: string; name: string } | undefined>>({});
+  const [activeCommentPhotoId, setActiveCommentPhotoId] = useState<string | null>(null);
   const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [selectedDeleteOption, setSelectedDeleteOption] = useState<'feed' | 'vault' | null>(null);
@@ -1148,7 +1148,7 @@ export default function MediaPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => toggleComments(photo.id)}
+                      onClick={() => setActiveCommentPhotoId(photo.id)}
                       className="gap-1 p-0 h-auto hover:bg-transparent ml-auto"
                     >
                       <MessageCircle className="h-5 w-5" />
@@ -1167,79 +1167,14 @@ export default function MediaPage() {
                     {formatTimeShort(photo.created_at)}
                   </p>
 
-                  {comments.length > 0 && !isExpanded && (
+                  {comments.length > 0 && (
                     <button 
-                      onClick={() => toggleComments(photo.id)}
+                      onClick={() => setActiveCommentPhotoId(photo.id)}
                       className="text-sm text-muted-foreground"
                     >
                       View all {comments.length} comment{comments.length !== 1 ? "s" : ""}
                     </button>
                   )}
-
-                  {/* Inline Comments */}
-                  <Collapsible open={isExpanded}>
-                    <CollapsibleContent className="space-y-2">
-                      {comments
-                        .filter((c: any) => !c.reply_to_id)
-                        .map((comment: any) => {
-                          const replies = comments.filter((c: any) => c.reply_to_id === comment.id);
-                          return (
-                            <div key={comment.id}>
-                              <PhotoComment
-                                id={comment.id}
-                                text={comment.text}
-                                userId={comment.user_id}
-                                displayName={comment.profiles?.display_name}
-                                avatarUrl={comment.profiles?.avatar_url}
-                                currentUserId={user?.id}
-                                createdAt={comment.created_at}
-                                onReply={(commentId, name) => {
-                                  setReplyingTo(prev => ({ ...prev, [photo.id]: { id: commentId, name } }));
-                                }}
-                              />
-                              <CommentRepliesThread
-                                replies={replies}
-                                parentDisplayName={comment.profiles?.display_name}
-                                currentUserId={user?.id}
-                                onReply={(commentId, name) => {
-                                  setReplyingTo(prev => ({ ...prev, [photo.id]: { id: commentId, name } }));
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
-                    </CollapsibleContent>
-                  </Collapsible>
-
-                  {/* Add Comment */}
-                  <MediaCommentInput
-                    photoId={photo.id}
-                    photoUrl={photo.file_url || photo.image_url}
-                    uploaderName={displayName}
-                    value={commentInput}
-                    onChange={(val) => setCommentInputs(prev => ({ ...prev, [photo.id]: val }))}
-                    onSubmit={() => {
-                      const trimmedText = commentInput.trim();
-                      if (!trimmedText) return;
-                      addCommentMutation.mutate({ 
-                        photoId: photo.id, 
-                        text: trimmedText,
-                        replyToId: replyingTo[photo.id]?.id
-                      });
-                    }}
-                    isPending={addCommentMutation.isPending}
-                    replyingTo={replyingTo[photo.id]}
-                    onCancelReply={() => setReplyingTo(prev => ({ ...prev, [photo.id]: undefined }))}
-                    onFocus={() => {
-                      // Scroll post into view when focusing comment input
-                      const el = photoRefs.current.get(photo.id);
-                      if (el) {
-                        setTimeout(() => {
-                          el.scrollIntoView({ behavior: "smooth", block: "start" });
-                        }, 300);
-                      }
-                    }}
-                  />
                 </div>
               </Card>
             );
@@ -1256,6 +1191,42 @@ export default function MediaPage() {
           )}
         </div>
       )}
+
+      {/* Comment Bottom Sheet */}
+      {activeCommentPhotoId && (() => {
+        const activePhoto = allPhotos.find(p => p.id === activeCommentPhotoId);
+        if (!activePhoto) return null;
+        const activeComments = getPhotoComments(activeCommentPhotoId);
+        const activeInput = commentInputs[activeCommentPhotoId] || "";
+        const cachedProfileSheet = getProfile(activePhoto.uploader_id);
+        const sheetDisplayName = (activePhoto as any).profiles?.display_name || cachedProfileSheet?.display_name || null;
+        const sheetAvatarUrl = (activePhoto as any).profiles?.avatar_url || cachedProfileSheet?.avatar_url || null;
+        return (
+          <MediaCommentSheet
+            open={!!activeCommentPhotoId}
+            onOpenChange={(open) => { if (!open) setActiveCommentPhotoId(null); }}
+            photoUrl={activePhoto.file_url || activePhoto.image_url}
+            uploaderName={sheetDisplayName}
+            uploaderAvatar={sheetAvatarUrl}
+            comments={activeComments}
+            commentInput={activeInput}
+            onCommentInputChange={(val) => setCommentInputs(prev => ({ ...prev, [activeCommentPhotoId]: val }))}
+            onSubmitComment={() => {
+              const trimmedText = activeInput.trim();
+              if (!trimmedText) return;
+              addCommentMutation.mutate({
+                photoId: activeCommentPhotoId,
+                text: trimmedText,
+                replyToId: replyingTo[activeCommentPhotoId]?.id
+              });
+            }}
+            isPending={addCommentMutation.isPending}
+            replyingTo={replyingTo[activeCommentPhotoId]}
+            onSetReplyingTo={(reply) => setReplyingTo(prev => ({ ...prev, [activeCommentPhotoId]: reply }))}
+            currentUserId={user?.id}
+          />
+        );
+      })()}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deletePhotoId} onOpenChange={() => {
