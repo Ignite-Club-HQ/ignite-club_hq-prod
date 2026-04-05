@@ -1928,7 +1928,7 @@ export default function HomePage() {
            {/* Children's reward progress - collapsible */}
           {userChildren.length > 0 && minRewardThreshold !== null && (
             <Collapsible className="pt-1 border-t border-border/50">
-              <CollapsibleTrigger className="flex items-center justify-between w-full py-1 group">
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-1 group" onClick={(e) => e.stopPropagation()}>
                 <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Children</p>
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
