@@ -442,7 +442,7 @@ export default function AuthPage() {
                         className="pl-10 pr-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                         onFocus={(e) => revealSignInField(e.currentTarget)}
+                         />
                       />
                       <button
                         type="button"
