@@ -408,7 +408,7 @@ export default function AuthPage() {
     <div
       className="flex flex-col bg-background overflow-hidden"
       data-lock-keyboard-scroll="true"
-      style={{ height: 'var(--stable-vh, 100dvh)' }}
+      style={{ height: isSignInKeyboardOpen && nativeKeyboardHeight > 0 ? `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)` : 'var(--stable-vh, 100dvh)' }}
     >
       {/* Show progress indicator if in invite flow */}
       {isInInviteFlow && (
