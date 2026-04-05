@@ -29,7 +29,7 @@ import { format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { formatTimeShort } from "@/lib/formatTimeShort";
 import { Link } from "react-router-dom";
 import { EmojiReactions } from "@/components/EmojiReactions";
-import { PhotoComment } from "@/components/PhotoComment";
+
 import { MediaCommentSheet } from "@/components/MediaCommentSheet";
 import { LazyImage } from "@/components/LazyImage";
 import { PhotoLightbox } from "@/components/PhotoLightbox";
