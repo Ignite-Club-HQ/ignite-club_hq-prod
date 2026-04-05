@@ -392,7 +392,7 @@ export default function AuthPage() {
   const shouldLowerDefaultSignIn = isSignInMode && isNativePlatform && !isSignInKeyboardOpen;
   const signInViewportClassName = isSignInMode
     ? isSignInKeyboardOpen
-      ? `${nativeKeyboardHeight > 320 ? 'justify-start pt-3' : 'justify-start pt-5'} pb-4`
+      ? `justify-center pb-4`
       : 'justify-center pt-6 pb-10'
     : 'overflow-y-auto';
   const signInStackClassName = isSignInMode
