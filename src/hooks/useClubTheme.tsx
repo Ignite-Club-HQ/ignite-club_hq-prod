@@ -117,28 +117,32 @@ const STORAGE_DATA_KEY_PREFIX = "ignite-club-theme-data-";
 const getStorageKey = (userId: string) => `${STORAGE_KEY_PREFIX}${userId}`;
 const getStorageDataKey = (userId: string) => `${STORAGE_DATA_KEY_PREFIX}${userId}`;
 
+// Helper to clear ALL theme-related inline CSS properties from document root
+const clearAllThemeCSS = () => {
+  const root = document.documentElement;
+  root.style.removeProperty("--primary");
+  root.style.removeProperty("--primary-foreground");
+  root.style.removeProperty("--secondary");
+  root.style.removeProperty("--secondary-foreground");
+  root.style.removeProperty("--accent");
+  root.style.removeProperty("--accent-foreground");
+  root.style.removeProperty("--ring");
+  root.style.removeProperty("--background");
+  root.style.removeProperty("--card");
+  root.style.removeProperty("--card-foreground");
+  root.style.removeProperty("--border");
+  root.style.removeProperty("--input");
+  root.style.removeProperty("--muted");
+  root.style.removeProperty("--popover");
+  root.style.removeProperty("--popover-foreground");
+};
+
 // Apply theme CSS from theme data based on current mode
 const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
   const root = document.documentElement;
   
   if (!theme || theme.logoOnlyMode) {
-    // Don't apply theme colors in logo-only mode
-    root.style.removeProperty("--primary");
-    root.style.removeProperty("--primary-foreground");
-    root.style.removeProperty("--secondary");
-    root.style.removeProperty("--secondary-foreground");
-    root.style.removeProperty("--accent");
-    root.style.removeProperty("--accent-foreground");
-    root.style.removeProperty("--ring");
-    // Also clear light-mode branded overrides
-    root.style.removeProperty("--background");
-    root.style.removeProperty("--card");
-    root.style.removeProperty("--card-foreground");
-    root.style.removeProperty("--border");
-    root.style.removeProperty("--input");
-    root.style.removeProperty("--muted");
-    root.style.removeProperty("--popover");
-    root.style.removeProperty("--popover-foreground");
+    clearAllThemeCSS();
     return;
   }
 
@@ -347,14 +351,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       console.log('[ClubTheme] User switch detected, clearing theme state');
       setIsUserSwitching(true);
       setHasCacheAppliedOnLogin(false);
-      const root = document.documentElement;
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
       setActiveClubThemeState(null);
       setCachedThemeData(null);
       setHasCheckedDefault(false);
@@ -590,14 +587,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     if (!user) {
       setActiveClubThemeState(null);
       // Clear CSS variables but DON'T remove localStorage - restore on re-login
-      const root = document.documentElement;
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
     }
   }, [user]);
 
@@ -804,13 +794,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
     // Don't apply theme if not logged in
     if (!user) {
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
       return;
     }
 
@@ -844,13 +828,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       }
       
       // No localStorage data - safe to clear theme overrides
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
       return;
     }
 
@@ -868,13 +846,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
     // Skip applying colors if logo-only mode is enabled
     if (themeToApply.logoOnlyMode) {
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
       return;
     }
 
