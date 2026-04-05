@@ -71,14 +71,10 @@ export const CommentReactionPicker = memo(function CommentReactionPicker({
   return createPortal(
     <div
       className="fixed inset-0 z-[100001]"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClose();
-      }}
-      onTouchEnd={(e) => {
+      onPointerDown={(e) => {
         if (e.target === e.currentTarget) {
-          e.stopPropagation();
           e.preventDefault();
+          e.stopPropagation();
           onClose();
         }
       }}
@@ -86,9 +82,6 @@ export const CommentReactionPicker = memo(function CommentReactionPicker({
       <div
         className="fixed"
         style={{ top: position?.top ?? 0, left: position?.left ?? 0 }}
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
        <div className="bg-popover border rounded-lg p-2 shadow-lg">
@@ -98,22 +91,22 @@ export const CommentReactionPicker = memo(function CommentReactionPicker({
               (r) => r.user_id === currentUserId && r.reaction_type === type
             );
             return (
-              <Button
+              <button
                 key={type}
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
+                type="button"
+                onPointerUp={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   onEmojiClick(type);
                 }}
                 aria-label={`React with ${type}${userHasReaction ? ' (selected)' : ''}`}
                 aria-pressed={userHasReaction}
-                className={`h-9 w-9 p-0 text-lg shrink-0 ${
-                  userHasReaction ? "bg-primary/20" : ""
+                className={`h-10 w-10 p-0 text-xl shrink-0 rounded-md flex items-center justify-center active:scale-110 transition-transform ${
+                  userHasReaction ? "bg-primary/20" : "hover:bg-accent"
                 }`}
               >
                 {emoji}
-              </Button>
+              </button>
             );
           })}
         </div>
