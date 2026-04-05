@@ -85,6 +85,7 @@ export default function MediaPage() {
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [replyingTo, setReplyingTo] = useState<Record<string, { id: string; name: string } | undefined>>({});
+  const [activeCommentPhotoId, setActiveCommentPhotoId] = useState<string | null>(null);
   const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [selectedDeleteOption, setSelectedDeleteOption] = useState<'feed' | 'vault' | null>(null);
