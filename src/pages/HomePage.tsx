@@ -1923,6 +1923,36 @@ export default function HomePage() {
               </div>
             );
           })()}
+
+          {/* Children's reward progress */}
+          {userChildren.length > 0 && minRewardThreshold !== null && (
+            <div className="space-y-2 pt-1 border-t border-border/50">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Children</p>
+              {userChildren.map((child: any) => {
+                const childPoints = child.ignite_points || 0;
+                const childProgress = Math.min(100, (childPoints / minRewardThreshold) * 100);
+                const childHasReward = childPoints >= minRewardThreshold;
+                return (
+                  <div key={child.id} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium truncate">{child.name}</span>
+                      <span className={`text-xs font-medium ${childHasReward ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {childHasReward ? '🎉 Reward available!' : `${childPoints}/${minRewardThreshold} pts`}
+                      </span>
+                    </div>
+                    {!childHasReward && (
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div 
+                          className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary/40 transition-all duration-1000 ease-out"
+                          style={{ width: `${childProgress}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
       </section>
