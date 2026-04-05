@@ -500,6 +500,7 @@ export const PhotoComment = memo(function PhotoComment({
             className={`select-none rounded-lg px-2 py-1 transition-colors duration-100 touch-manipulation ${
               tapFlash ? "bg-muted/60" : ""
             } ${isInteracting ? "bg-muted/40 ring-1 ring-border/50" : ""}`}
+            onPointerDown={handlePointerDown}
             onTouchStart={handleLongPressStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleLongPressEnd}
