@@ -54,6 +54,7 @@ export default function AuthPage() {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
+  const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
   const signInScrollRef = useRef<HTMLDivElement | null>(null);
   const isNativePlatform = Capacitor.isNativePlatform();
   
@@ -151,13 +152,14 @@ export default function AuthPage() {
 
     Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
       setNativeKeyboardHeight(keyboardHeight || 0);
+      setNativeKeyboardVisible(true);
     }).then(handle => {
       keyboardShowListener = handle;
     });
 
     Keyboard.addListener('keyboardDidHide', () => {
       setNativeKeyboardHeight(0);
-      signInScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      setNativeKeyboardVisible(false);
     }).then(handle => {
       keyboardHideListener = handle;
     });
@@ -358,13 +360,7 @@ export default function AuthPage() {
     setConfirmPassword("");
   };
 
-  const revealSignInField = (target: HTMLElement) => {
-    if (authMode !== "signin" || !isNativePlatform) return;
-
-    window.setTimeout(() => {
-      target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-    }, nativeKeyboardHeight > 0 ? 40 : 250);
-  };
+  const isSignInKeyboardOpen = authMode === "signin" && isNativePlatform && nativeKeyboardVisible;
 
   return (
     <div
@@ -384,21 +380,20 @@ export default function AuthPage() {
       
       <div
         ref={signInScrollRef}
-        className={`flex-1 flex flex-col items-center p-4 ${authMode === "signin" ? 'justify-center overflow-y-auto overscroll-contain' : 'overflow-y-auto'} ${isInInviteFlow ? 'pt-16' : ''}`}
-        style={{
-          paddingBottom: authMode === "signin" && isNativePlatform && nativeKeyboardHeight > 0
-            ? `${nativeKeyboardHeight + 16}px`
-            : undefined,
-        }}
+        className={`flex-1 flex flex-col items-center p-4 ${authMode === "signin" ? 'justify-center' : 'overflow-y-auto'} ${isInInviteFlow ? 'pt-16' : ''}`}
       >
       <div className={`w-full max-w-md space-y-8 animate-slide-up ${authMode === "signin" ? 'py-4' : 'py-8 my-auto'}`}>
-        {/* Logo */}
-        <div className="flex flex-col items-center gap-3">
-          <div className="p-4 rounded-2xl bg-primary glow-emerald">
-            <Flame className="h-10 w-10 text-primary-foreground" />
+        {/* Logo — compacts when keyboard is open on native sign-in */}
+        <div className={`flex flex-col items-center transition-all duration-200 ${isSignInKeyboardOpen ? 'gap-1' : 'gap-3'}`}>
+          <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isSignInKeyboardOpen ? 'p-2' : 'p-4'}`}>
+            <Flame className={`text-primary-foreground transition-all duration-200 ${isSignInKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
           </div>
-          <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
-          <p className="text-sm font-medium text-muted-foreground">Club HQ</p>
+          {!isSignInKeyboardOpen && (
+            <>
+              <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
+              <p className="text-sm font-medium text-muted-foreground">Club HQ</p>
+            </>
+          )}
         </div>
 
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
@@ -423,7 +418,6 @@ export default function AuthPage() {
                         className="pl-10"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                         onFocus={(e) => revealSignInField(e.currentTarget)}
                       />
                     </div>
                   </div>
@@ -447,7 +441,6 @@ export default function AuthPage() {
                         className="pl-10 pr-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                         onFocus={(e) => revealSignInField(e.currentTarget)}
                       />
                       <button
                         type="button"
@@ -468,67 +461,71 @@ export default function AuthPage() {
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
                   </Button>
                   
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">Or</span>
-                    </div>
-                  </div>
-                  
-                  {/* Hide Google sign-in on native apps - OAuth redirects outside the app */}
-                  {!Capacitor.isNativePlatform() && (
-                    <Button 
-                      variant="outline" 
-                      className="w-full gap-2" 
-                      onClick={handleGoogleSignIn}
-                      disabled={loading || googleLoading || passkeyLoading}
-                    >
-                      {googleLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <svg className="h-4 w-4" viewBox="0 0 24 24">
-                            <path
-                              fill="#4285F4"
-                              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                            />
-                            <path
-                              fill="#34A853"
-                              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                            />
-                            <path
-                              fill="#FBBC05"
-                              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                            />
-                            <path
-                              fill="#EA4335"
-                              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                            />
-                          </svg>
-                          Continue with Google
-                        </>
+                  {!isSignInKeyboardOpen && (
+                    <>
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-card px-2 text-muted-foreground">Or</span>
+                        </div>
+                      </div>
+                      
+                      {/* Hide Google sign-in on native apps - OAuth redirects outside the app */}
+                      {!Capacitor.isNativePlatform() && (
+                        <Button 
+                          variant="outline" 
+                          className="w-full gap-2" 
+                          onClick={handleGoogleSignIn}
+                          disabled={loading || googleLoading || passkeyLoading}
+                        >
+                          {googleLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <svg className="h-4 w-4" viewBox="0 0 24 24">
+                                <path
+                                  fill="#4285F4"
+                                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                                />
+                                <path
+                                  fill="#34A853"
+                                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                                />
+                                <path
+                                  fill="#FBBC05"
+                                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                                />
+                                <path
+                                  fill="#EA4335"
+                                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                                />
+                              </svg>
+                              Continue with Google
+                            </>
+                          )}
+                        </Button>
                       )}
-                    </Button>
-                  )}
-                  
-                  {biometricsAvailable && isRegistered && (
-                    <Button 
-                      variant="outline" 
-                      className="w-full gap-2" 
-                      onClick={handleBiometricSignIn}
-                      disabled={loading || googleLoading || passkeyLoading}
-                    >
-                      {passkeyLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Fingerprint className="h-4 w-4" />
-                          {getBiometricButtonText()}
-                        </>
+                      
+                      {biometricsAvailable && isRegistered && (
+                        <Button 
+                          variant="outline" 
+                          className="w-full gap-2" 
+                          onClick={handleBiometricSignIn}
+                          disabled={loading || googleLoading || passkeyLoading}
+                        >
+                          {passkeyLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Fingerprint className="h-4 w-4" />
+                              {getBiometricButtonText()}
+                            </>
+                          )}
+                        </Button>
                       )}
-                    </Button>
+                    </>
                   )}
 
                   {/* Sign up link */}
@@ -741,30 +738,32 @@ export default function AuthPage() {
           defaultEmail={email}
         />
 
-        {/* Footer Links */}
-        <div className="text-center text-xs text-muted-foreground space-y-2">
-          <div className="flex justify-center gap-4">
-            {Capacitor.isNativePlatform() ? (
-              <>
-                <Link to="/terms" className="hover:text-foreground hover:underline">Terms</Link>
-                <Link to="/privacy" className="hover:text-foreground hover:underline">Privacy</Link>
-                <Link to="/cancellation" className="hover:text-foreground hover:underline">Cancellation</Link>
-              </>
-            ) : (
-              <>
-                <a href="https://igniteclubhq.com/terms" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/terms")); }} className="hover:text-foreground hover:underline cursor-pointer">Terms</a>
-                <a href="https://igniteclubhq.com/privacy" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/privacy")); }} className="hover:text-foreground hover:underline cursor-pointer">Privacy</a>
-                <a href="https://igniteclubhq.com/refunds" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/refunds")); }} className="hover:text-foreground hover:underline cursor-pointer">Cancellation</a>
-              </>
+        {/* Footer Links — hidden when keyboard is open on native sign-in */}
+        {!isSignInKeyboardOpen && (
+          <div className="text-center text-xs text-muted-foreground space-y-2">
+            <div className="flex justify-center gap-4">
+              {Capacitor.isNativePlatform() ? (
+                <>
+                  <Link to="/terms" className="hover:text-foreground hover:underline">Terms</Link>
+                  <Link to="/privacy" className="hover:text-foreground hover:underline">Privacy</Link>
+                  <Link to="/cancellation" className="hover:text-foreground hover:underline">Cancellation</Link>
+                </>
+              ) : (
+                <>
+                  <a href="https://igniteclubhq.com/terms" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/terms")); }} className="hover:text-foreground hover:underline cursor-pointer">Terms</a>
+                  <a href="https://igniteclubhq.com/privacy" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/privacy")); }} className="hover:text-foreground hover:underline cursor-pointer">Privacy</a>
+                  <a href="https://igniteclubhq.com/refunds" onClick={(e) => { e.preventDefault(); import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl("https://igniteclubhq.com/refunds")); }} className="hover:text-foreground hover:underline cursor-pointer">Cancellation</a>
+                </>
+              )}
+            </div>
+            {!Capacitor.isNativePlatform() && (
+              <div className="flex justify-center gap-4">
+                <a href="mailto:contact@igniteclubhq.app" className="hover:text-foreground hover:underline">Contact</a>
+                <a href="mailto:support@igniteclubhq.app" className="hover:text-foreground hover:underline">Support</a>
+              </div>
             )}
           </div>
-          {!Capacitor.isNativePlatform() && (
-            <div className="flex justify-center gap-4">
-              <a href="mailto:contact@igniteclubhq.app" className="hover:text-foreground hover:underline">Contact</a>
-              <a href="mailto:support@igniteclubhq.app" className="hover:text-foreground hover:underline">Support</a>
-            </div>
-          )}
-        </div>
+        )}
       </div>
       </div>
     </div>
