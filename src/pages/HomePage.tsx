@@ -2075,7 +2075,9 @@ export default function HomePage() {
                   <SelectItem value="myself">
                     Myself ({profile?.ignite_points || 0} pts)
                   </SelectItem>
-                  {userChildren.map((child: any) => (
+                  {userChildren
+                    .filter((child: any) => child.ignite_points >= (selectedReward?.points_required || 0))
+                    .map((child: any) => (
                     <SelectItem key={child.id} value={child.id}>
                       {child.name} ({child.ignite_points} pts)
                     </SelectItem>
