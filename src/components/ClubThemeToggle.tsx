@@ -71,6 +71,18 @@ export function ClubThemeToggle() {
 
       if (!clubs) return [];
 
+      const getClubPriority = (club: {
+        isSelectable: boolean;
+        hasPro: boolean;
+        hasTheme: boolean;
+        themeEnabled: boolean;
+      }) => (
+        (club.isSelectable ? 8 : 0) +
+        (club.hasPro ? 4 : 0) +
+        (club.hasTheme ? 2 : 0) +
+        (club.themeEnabled ? 1 : 0)
+      );
+
       const result = clubs.map(club => {
         // Handle both array and single object subscription data
         const subs = club.club_subscriptions;
@@ -87,7 +99,7 @@ export function ClubThemeToggle() {
         
         return {
           clubId: club.id,
-          clubName: club.name,
+          clubName: club.name.trim(),
           logoUrl: club.logo_url,
           hasPro,
           hasTheme,
@@ -100,8 +112,19 @@ export function ClubThemeToggle() {
           } : null,
         };
       });
+
+      const dedupedClubs = new Map<string, (typeof result)[number]>();
+
+      result.forEach((club) => {
+        const normalizedName = club.clubName.toLowerCase().replace(/\s+/g, " ").trim();
+        const existing = dedupedClubs.get(normalizedName);
+
+        if (!existing || getClubPriority(club) > getClubPriority(existing)) {
+          dedupedClubs.set(normalizedName, club);
+        }
+      });
       
-      return result;
+      return Array.from(dedupedClubs.values());
     },
     enabled: !!user?.id,
   });
