@@ -351,14 +351,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       console.log('[ClubTheme] User switch detected, clearing theme state');
       setIsUserSwitching(true);
       setHasCacheAppliedOnLogin(false);
-      const root = document.documentElement;
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
       setActiveClubThemeState(null);
       setCachedThemeData(null);
       setHasCheckedDefault(false);
