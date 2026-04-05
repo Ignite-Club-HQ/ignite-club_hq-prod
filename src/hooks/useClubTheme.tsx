@@ -828,13 +828,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       }
       
       // No localStorage data - safe to clear theme overrides
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
       return;
     }
 
@@ -852,13 +846,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
 
     // Skip applying colors if logo-only mode is enabled
     if (themeToApply.logoOnlyMode) {
-      root.style.removeProperty("--primary");
-      root.style.removeProperty("--primary-foreground");
-      root.style.removeProperty("--secondary");
-      root.style.removeProperty("--secondary-foreground");
-      root.style.removeProperty("--accent");
-      root.style.removeProperty("--accent-foreground");
-      root.style.removeProperty("--ring");
+      clearAllThemeCSS();
       return;
     }
 
