@@ -132,6 +132,11 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       className="fixed inset-0 z-[100001]"
       data-reaction-picker="true"
       style={{ touchAction: "none", pointerEvents: "auto" }}
+      onPointerDown={(e) => {
+        // Prevent focus steal so keyboard stays open
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       onTouchStart={(e) => {
         e.stopPropagation();
       }}
