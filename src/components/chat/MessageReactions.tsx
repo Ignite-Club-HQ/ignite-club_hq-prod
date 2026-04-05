@@ -175,7 +175,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
           e.stopPropagation();
           e.preventDefault();
         }}
-        onPointerDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
       >
         <div className="dark:bg-popover/90 bg-muted/90 backdrop-blur-md dark:border dark:border-border/20 border border-black/[0.03] rounded-2xl px-1.5 py-1 shadow-none dark:shadow-sm animate-in fade-in zoom-in-95 slide-in-from-bottom-1 duration-150">
           <div className="flex justify-around">
