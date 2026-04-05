@@ -2055,7 +2055,7 @@ export default function HomePage() {
           }
         }}
       >
-        <AlertDialogContent className="z-[200]">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Redeem Reward?</AlertDialogTitle>
             <AlertDialogDescription>
