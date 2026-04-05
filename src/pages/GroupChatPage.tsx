@@ -419,14 +419,29 @@ export default function GroupChatPage() {
   }, [messagesData]);
 
   // Local copy used for rendering so optimistic updates are instant
+  const getInitialLocalMessages = () => {
+    if (!groupId) return undefined;
+
+    const cachedQueryData = queryClient.getQueryData<{ messages: GroupMessage[]; reactions: MessageReaction[] }>([
+      "group-messages",
+      groupId,
+    ]);
+
+    if (cachedQueryData?.messages?.length) {
+      return cachedQueryData.messages;
+    }
+
+    return getCachedGroupMessages(groupId).messages;
+  };
+
   const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(() =>
-    groupId ? getCachedGroupMessages(groupId).messages : undefined,
+    getInitialLocalMessages(),
   );
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (messagesLoading && !messagesData && !(localMessages?.length));
-
+  
   // Extract top-level reactions from query data (must be before useLayoutEffect that uses it)
   const reactions = useMemo(() => {
     if (!messagesData || Array.isArray(messagesData)) return [] as MessageReaction[];
@@ -441,9 +456,9 @@ export default function GroupChatPage() {
   
   // Reset scroll state when groupId changes
   useEffect(() => {
-    setLocalMessages(groupId ? getCachedGroupMessages(groupId).messages : undefined);
+    setLocalMessages(getInitialLocalMessages());
     setInfiniteScrollEnabled(false);
-  }, [groupId]);
+  }, [groupId, queryClient]);
 
   const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
