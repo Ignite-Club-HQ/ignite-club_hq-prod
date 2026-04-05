@@ -419,7 +419,6 @@ export default function AuthPage() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                       />
-                      />
                     </div>
                   </div>
                   <div className="space-y-2">
