@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, memo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreVertical, Pencil, Trash2, Check, X, Reply, ShieldAlert, Flag } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatTimeShort } from "@/lib/formatTimeShort";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -345,8 +345,8 @@ export const PhotoComment = memo(function PhotoComment({
               {displayText}
               {createdAt && (
                 <span className="text-xs text-muted-foreground ml-2">
-                  · {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
-                </span>
+                                    · {formatTimeShort(createdAt)}
+                                  </span>
               )}
             </p>
           </div>
