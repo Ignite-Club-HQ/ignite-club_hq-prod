@@ -426,7 +426,7 @@ export default function AuthPage() {
       >
       <div className={`w-full max-w-md animate-slide-up transition-all duration-200 ${signInStackClassName}`}>
         {/* Logo — compacts when keyboard is open on native sign-in */}
-        <div className={`flex flex-col items-center transition-all duration-200 ${isSignInKeyboardOpen ? 'gap-1' : 'gap-3'}`}>
+        <div className={`flex flex-col items-center transition-all duration-200 ${isSignInKeyboardOpen ? 'gap-1 mt-2' : 'gap-3 mt-4'}`}>
           <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isSignInKeyboardOpen ? 'p-2' : 'p-4'}`}>
             <Flame className={`text-primary-foreground transition-all duration-200 ${isSignInKeyboardOpen ? 'h-5 w-5' : 'h-10 w-10'}`} />
           </div>
