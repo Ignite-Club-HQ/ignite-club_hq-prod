@@ -484,6 +484,7 @@ export const PhotoComment = memo(function PhotoComment({
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in pointer-events-none"
           style={{ animationDuration: "120ms" }}
+          onPointerDown={(e) => e.preventDefault()}
         />,
         document.body
       )}
