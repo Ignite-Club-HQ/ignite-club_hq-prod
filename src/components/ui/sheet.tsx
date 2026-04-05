@@ -20,7 +20,7 @@ const SheetOpenContext = React.createContext<SheetOpenContextValue>({
   open: false,
 });
 
-const Sheet = ({ open, defaultOpen, onOpenChange, children, ...props }: SheetProps) => {
+const Sheet = ({ open, defaultOpen, onOpenChange, modal, children, ...props }: SheetProps) => {
   const isControlled = open !== undefined;
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false);
   const isOpen = isControlled ? Boolean(open) : internalOpen;
@@ -41,6 +41,7 @@ const Sheet = ({ open, defaultOpen, onOpenChange, children, ...props }: SheetPro
         open={open}
         defaultOpen={defaultOpen}
         onOpenChange={handleOpenChange}
+        modal={modal}
         {...props}
       >
         {children}
