@@ -357,6 +357,12 @@ export const PhotoComment = memo(function PhotoComment({
     }, 400);
   }, [armDismissGuard]);
 
+  // Prevent focus steal on the comment bubble so keyboard stays open
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Don't let the browser move focus away from the active textarea
+    e.preventDefault();
+  }, []);
+
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (longPressTriggeredRef.current || showReactionPicker) {
       e.preventDefault();
@@ -478,6 +484,7 @@ export const PhotoComment = memo(function PhotoComment({
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in pointer-events-none"
           style={{ animationDuration: "120ms" }}
+          onPointerDown={(e) => e.preventDefault()}
         />,
         document.body
       )}
@@ -494,6 +501,7 @@ export const PhotoComment = memo(function PhotoComment({
             className={`select-none rounded-lg px-2 py-1 transition-colors duration-100 touch-manipulation ${
               tapFlash ? "bg-muted/60" : ""
             } ${isInteracting ? "bg-muted/40 ring-1 ring-border/50" : ""}`}
+            onPointerDown={handlePointerDown}
             onTouchStart={handleLongPressStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleLongPressEnd}
