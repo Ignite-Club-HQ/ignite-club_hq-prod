@@ -95,7 +95,7 @@ export function MediaCommentSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="h-[85vh] max-h-[85vh] rounded-t-2xl p-0 flex flex-col"
+        className="h-[50vh] max-h-[50vh] rounded-t-2xl p-0 flex flex-col"
         enableDragToClose
         dragCloseThreshold={80}
         hideCloseButton
