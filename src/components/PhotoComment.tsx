@@ -21,9 +21,9 @@ import { toast } from "sonner";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 import { ReportCommentDialog } from "@/components/ReportCommentDialog";
-import { CommentReactionPicker } from "@/components/CommentReactionPicker";
 import { CommentReactionsDisplay } from "@/components/CommentReactionsDisplay";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
+import { MessageReactionsPopover } from "@/components/chat/MessageReactions";
 import { useLongPressDismissGuard } from "@/hooks/useLongPressDismissGuard";
 import { hapticImpactLight, hapticSelectionTick } from "@/lib/haptics";
 
@@ -72,15 +72,20 @@ export const PhotoComment = memo(function PhotoComment({
   const [displayText, setDisplayText] = useState(text);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
+  const [optimisticReactions, setOptimisticReactions] = useState<CommentReaction[]>([]);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const commentRef = useRef<HTMLDivElement>(null);
   const longPressTriggeredRef = useRef(false);
+  const gestureModeRef = useRef<"idle" | "press">("idle");
   const reactionPickerOpenedAtRef = useRef(0);
+  const optimisticReactionsRef = useRef<CommentReaction[]>([]);
+  const isReactionMutatingRef = useRef(false);
   const queryClient = useQueryClient();
   const isOwn = userId === currentUserId;
   const { isBlocked } = useBlockedUsers();
@@ -88,11 +93,9 @@ export const PhotoComment = memo(function PhotoComment({
     armDismissGuard,
     clearDismissGuard,
     consumeContextMenuGuard,
+    preventIfGuarded,
   } = useLongPressDismissGuard();
 
-  const isInteracting = showReactionPicker || showActionSheet;
-
-  // Fetch reactions for this comment
   const { data: reactions = [] } = useQuery({
     queryKey: ["comment-reactions", id],
     queryFn: async () => {
@@ -100,87 +103,196 @@ export const PhotoComment = memo(function PhotoComment({
         .from("photo_comment_reactions")
         .select("id, user_id, reaction_type")
         .eq("comment_id", id);
+
       if (error) throw error;
       return data as CommentReaction[];
     },
   });
 
-  const addReactionMutation = useMutation({
-    mutationFn: async (reactionType: string) => {
-      await supabase
+  const isInteracting = showMenu || showReactionPicker || showActionSheet;
+
+  const writeReactions = useCallback((next: CommentReaction[]) => {
+    optimisticReactionsRef.current = next;
+    setOptimisticReactions(next);
+    queryClient.setQueryData(["comment-reactions", id], next);
+  }, [id, queryClient]);
+
+  useEffect(() => {
+    if (isReactionMutatingRef.current) return;
+    writeReactions(reactions);
+  }, [reactions, writeReactions]);
+
+  const getLatestReactions = useCallback(() => {
+    return (
+      queryClient.getQueryData<CommentReaction[]>(["comment-reactions", id]) ??
+      optimisticReactionsRef.current
+    );
+  }, [id, queryClient]);
+
+  const reactionMutation = useMutation({
+    mutationFn: async ({
+      reactionType,
+      existingReaction,
+    }: {
+      reactionType: string;
+      existingReaction?: CommentReaction;
+    }) => {
+      if (!currentUserId) {
+        throw new Error("Not authenticated");
+      }
+
+      if (existingReaction) {
+        if (existingReaction.reaction_type === reactionType) {
+          const { error } = await supabase
+            .from("photo_comment_reactions")
+            .delete()
+            .eq("id", existingReaction.id);
+
+          if (error) throw error;
+          return { action: "delete" as const, reactionId: existingReaction.id };
+        }
+
+        const { data: updatedReaction, error } = await supabase
+          .from("photo_comment_reactions")
+          .update({ reaction_type: reactionType })
+          .eq("id", existingReaction.id)
+          .select("id, user_id, reaction_type")
+          .single();
+
+        if (error) throw error;
+        return { action: "update" as const, reaction: updatedReaction as CommentReaction };
+      }
+
+      const { data: insertedReaction, error } = await supabase
         .from("photo_comment_reactions")
-        .delete()
-        .eq("comment_id", id)
-        .eq("user_id", currentUserId!);
-      const { error } = await supabase.from("photo_comment_reactions").insert({
-        comment_id: id,
-        user_id: currentUserId!,
-        reaction_type: reactionType,
-      });
-      if (error) throw error;
+        .insert({
+          comment_id: id,
+          user_id: currentUserId,
+          reaction_type: reactionType,
+        })
+        .select("id, user_id, reaction_type")
+        .single();
+
+      if (error) {
+        if ((error as { code?: string }).code === "23505") {
+          const { data: conflictingReaction, error: conflictFetchError } = await supabase
+            .from("photo_comment_reactions")
+            .select("id, user_id, reaction_type")
+            .eq("comment_id", id)
+            .eq("user_id", currentUserId)
+            .maybeSingle();
+
+          if (conflictFetchError || !conflictingReaction) {
+            throw conflictFetchError || error;
+          }
+
+          const { data: updatedReaction, error: updateError } = await supabase
+            .from("photo_comment_reactions")
+            .update({ reaction_type: reactionType })
+            .eq("id", conflictingReaction.id)
+            .select("id, user_id, reaction_type")
+            .single();
+
+          if (updateError) throw updateError;
+          return { action: "update" as const, reaction: updatedReaction as CommentReaction };
+        }
+
+        throw error;
+      }
+
+      return { action: "insert" as const, reaction: insertedReaction as CommentReaction };
     },
-    onMutate: async (reactionType: string) => {
+    onMutate: async ({ reactionType, existingReaction }) => {
+      isReactionMutatingRef.current = true;
       await queryClient.cancelQueries({ queryKey: ["comment-reactions", id] });
-      const previousReactions = queryClient.getQueryData(["comment-reactions", id]);
-      queryClient.setQueryData(["comment-reactions", id], (old: CommentReaction[] | undefined) => {
-        if (!old) return [{ id: `temp-${Date.now()}`, user_id: currentUserId!, reaction_type: reactionType }];
-        const filtered = old.filter(r => r.user_id !== currentUserId);
-        return [...filtered, { id: `temp-${Date.now()}`, user_id: currentUserId!, reaction_type: reactionType }];
-      });
+
+      const previousReactions = getLatestReactions();
+
+      if (existingReaction?.reaction_type === reactionType) {
+        writeReactions(previousReactions.filter((reaction) => reaction.user_id !== currentUserId));
+      } else if (existingReaction) {
+        writeReactions(
+          previousReactions.map((reaction) =>
+            reaction.user_id === currentUserId
+              ? { ...reaction, reaction_type: reactionType }
+              : reaction
+          )
+        );
+      } else {
+        writeReactions([
+          ...previousReactions.filter((reaction) => reaction.user_id !== currentUserId),
+          {
+            id: `temp-${Date.now()}`,
+            user_id: currentUserId!,
+            reaction_type: reactionType,
+          },
+        ]);
+      }
+
       return { previousReactions };
     },
-    onError: (err, variables, context) => {
-      if (context?.previousReactions) {
-        queryClient.setQueryData(["comment-reactions", id], context.previousReactions);
-      }
-      toast.error("Failed to add reaction");
+    onError: (_error, _variables, context) => {
+      writeReactions(context?.previousReactions ?? []);
+      toast.error("Failed to update reaction");
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["comment-reactions", id] });
+    onSuccess: (result) => {
+      const currentReactions = getLatestReactions();
+
+      if (result.action === "delete") {
+        writeReactions(
+          currentReactions.filter(
+            (reaction) => reaction.id !== result.reactionId && reaction.user_id !== currentUserId
+          )
+        );
+        return;
+      }
+
+      writeReactions([
+        ...currentReactions.filter((reaction) => reaction.user_id !== result.reaction.user_id),
+        result.reaction,
+      ]);
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["comment-reactions", id] });
+      isReactionMutatingRef.current = false;
     },
   });
 
-  const removeReactionMutation = useMutation({
-    mutationFn: async () => {
-      const userReaction = reactions.find((r) => r.user_id === currentUserId);
-      if (userReaction?.id?.startsWith("temp-")) return;
-      const { error } = await supabase
-        .from("photo_comment_reactions")
-        .delete()
-        .eq("comment_id", id)
-        .eq("user_id", currentUserId!);
-      if (error) throw error;
-    },
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ["comment-reactions", id] });
-      const previousReactions = queryClient.getQueryData(["comment-reactions", id]);
-      queryClient.setQueryData(["comment-reactions", id], (old: CommentReaction[] | undefined) => {
-        if (!old) return [];
-        return old.filter(r => r.user_id !== currentUserId);
-      });
-      return { previousReactions };
-    },
-    onError: (err, variables, context) => {
-      if (context?.previousReactions) {
-        queryClient.setQueryData(["comment-reactions", id], context.previousReactions);
-      }
-      toast.error("Failed to remove reaction");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["comment-reactions", id] });
-    },
-  });
+  const handleReactionClick = useCallback((type: string) => {
+    if (!currentUserId || reactionMutation.isPending) return;
 
-  const handleEmojiClick = useCallback((type: string) => {
-    const userReaction = reactions.find((r) => r.user_id === currentUserId);
-    if (userReaction?.reaction_type === type) {
-      removeReactionMutation.mutate();
-    } else {
-      addReactionMutation.mutate(type);
-    }
     clearDismissGuard();
     setShowReactionPicker(false);
-  }, [reactions, currentUserId, removeReactionMutation, addReactionMutation, clearDismissGuard]);
+    setShowMenu(false);
+    setShowActionSheet(false);
+
+    const existingReaction = getLatestReactions().find((reaction) => reaction.user_id === currentUserId);
+
+    reactionMutation.mutate({
+      reactionType: type,
+      existingReaction,
+    });
+  }, [clearDismissGuard, currentUserId, getLatestReactions, reactionMutation]);
+
+  const handleRemoveReaction = useCallback((reactionId: string) => {
+    if (!currentUserId || reactionMutation.isPending) return;
+
+    const existingReaction = getLatestReactions().find(
+      (reaction) => reaction.id === reactionId && reaction.user_id === currentUserId
+    );
+
+    if (!existingReaction) return;
+
+    clearDismissGuard();
+    setShowReactionPicker(false);
+    setShowMenu(false);
+    setShowActionSheet(false);
+
+    reactionMutation.mutate({
+      reactionType: existingReaction.reaction_type,
+      existingReaction,
+    });
+  }, [clearDismissGuard, currentUserId, getLatestReactions, reactionMutation]);
 
   const editMutation = useMutation({
     mutationFn: async (newText: string) => {
@@ -227,32 +339,42 @@ export const PhotoComment = memo(function PhotoComment({
     }
   };
 
-  // Long press → emoji reaction picker (matches message thread)
   const handleLongPressStart = useCallback((e: React.TouchEvent) => {
+    gestureModeRef.current = "press";
     longPressTriggeredRef.current = false;
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+
     longPressTimer.current = setTimeout(() => {
+      if (gestureModeRef.current !== "press") return;
       longPressTriggeredRef.current = true;
       armDismissGuard();
       hapticImpactLight();
       reactionPickerOpenedAtRef.current = Date.now();
+      setShowMenu(true);
       setShowReactionPicker(true);
     }, 400);
   }, [armDismissGuard]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (longPressTimer.current && touchStartPos.current) {
-      const dx = e.touches[0].clientX - touchStartPos.current.x;
-      const dy = e.touches[0].clientY - touchStartPos.current.y;
-      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
-        touchStartPos.current = null;
-      }
+    if (longPressTriggeredRef.current || showReactionPicker) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
     }
-  }, []);
 
-  // Short tap → action sheet, long press end → keep reaction picker open
+    if (!touchStartPos.current) return;
+
+    const dx = e.touches[0].clientX - touchStartPos.current.x;
+    const dy = e.touches[0].clientY - touchStartPos.current.y;
+
+    if (longPressTimer.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      touchStartPos.current = null;
+      gestureModeRef.current = "idle";
+    }
+  }, [showReactionPicker]);
+
   const handleLongPressEnd = useCallback((e: React.TouchEvent) => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
@@ -269,24 +391,26 @@ export const PhotoComment = memo(function PhotoComment({
       requestAnimationFrame(() => {
         longPressTriggeredRef.current = false;
       });
-    } else if (touchStartPos.current) {
-      // Short tap → action sheet
+    } else if (gestureModeRef.current === "press" && touchStartPos.current) {
       e.preventDefault();
       e.stopPropagation();
       setTapFlash(true);
       hapticSelectionTick();
       setTimeout(() => {
         setTapFlash(false);
+        setShowMenu(true);
         setShowActionSheet(true);
       }, 200);
     }
 
     touchStartPos.current = null;
+    gestureModeRef.current = "idle";
   }, [armDismissGuard]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     if (consumeContextMenuGuard()) return;
+    setShowMenu(true);
     setShowReactionPicker(true);
   }, [consumeContextMenuGuard]);
 
@@ -294,9 +418,9 @@ export const PhotoComment = memo(function PhotoComment({
     clearDismissGuard();
     setShowReactionPicker(false);
     setShowActionSheet(false);
+    setShowMenu(false);
   }, [clearDismissGuard]);
 
-  // Cleanup timer on unmount
   useEffect(() => {
     const handlePointerCancel = () => {
       if (!showReactionPicker) {
@@ -304,10 +428,12 @@ export const PhotoComment = memo(function PhotoComment({
         clearDismissGuard();
       }
     };
-    window.addEventListener('pointercancel', handlePointerCancel, true);
+
+    window.addEventListener("pointercancel", handlePointerCancel, true);
+
     return () => {
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
-      window.removeEventListener('pointercancel', handlePointerCancel, true);
+      window.removeEventListener("pointercancel", handlePointerCancel, true);
     };
   }, [clearDismissGuard, showReactionPicker]);
 
@@ -351,17 +477,22 @@ export const PhotoComment = memo(function PhotoComment({
     );
   }
 
-  // Hide comments from blocked users
   if (!isOwn && isBlocked(userId)) return null;
 
   return (
     <div className={`flex flex-col gap-1 ${isReply ? "ml-8" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
-      {/* Dimmed backdrop when interacting (matches message thread) */}
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
-          style={{ animationDuration: '120ms' }}
-          onPointerDown={(e) => {
+          style={{ animationDuration: "120ms" }}
+          onClick={(e) => {
+            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
+            e.preventDefault();
+            e.stopPropagation();
+            closeInteraction();
+          }}
+          onTouchEnd={(e) => {
+            if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
             e.preventDefault();
             e.stopPropagation();
             closeInteraction();
@@ -379,9 +510,9 @@ export const PhotoComment = memo(function PhotoComment({
         <div className="flex-1">
           <div
             ref={commentRef}
-            className={`select-none rounded-lg px-2 py-1 transition-all duration-100 ${
-              tapFlash ? "bg-muted/60 scale-[0.98]" : ""
-            } ${isInteracting ? "bg-muted/40 scale-[1.01]" : ""}`}
+            className={`select-none rounded-lg px-2 py-1 transition-colors duration-100 touch-manipulation ${
+              tapFlash ? "bg-muted/60" : ""
+            } ${isInteracting ? "bg-muted/40 ring-1 ring-border/50" : ""}`}
             onTouchStart={handleLongPressStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleLongPressEnd}
@@ -401,31 +532,43 @@ export const PhotoComment = memo(function PhotoComment({
                 </span>
               )}
             </p>
+            <MessageReactionsPopover
+              reactions={optimisticReactions}
+              currentUserId={currentUserId}
+              onReact={handleReactionClick}
+              onRemove={handleRemoveReaction}
+              isMutating={reactionMutation.isPending}
+              isOpen={showReactionPicker}
+              preventIfGuarded={preventIfGuarded}
+              onOpenChange={(open) => {
+                if (open) {
+                  setShowMenu(true);
+                  setShowReactionPicker(true);
+                  return;
+                }
+                closeInteraction();
+              }}
+              isOwnMessage={isOwn}
+              anchorRef={commentRef}
+            />
           </div>
-          {/* Reaction picker - floating above comment on long press */}
-          <CommentReactionPicker
-            isOpen={showReactionPicker}
-            reactions={reactions}
-            currentUserId={currentUserId}
-            onEmojiClick={handleEmojiClick}
-            onClose={closeInteraction}
-            anchorRef={commentRef}
-          />
-          {/* Reaction display */}
           <CommentReactionsDisplay
-            reactions={reactions}
+            reactions={optimisticReactions}
             currentUserId={currentUserId}
-            onReactionClick={handleEmojiClick}
+            onReactionClick={handleReactionClick}
           />
         </div>
       </div>
 
-      {/* Action sheet - same as message thread */}
       <MessageActionSheet
         open={showActionSheet}
         onOpenChange={(open) => {
           setShowActionSheet(open);
-          if (!open) closeInteraction();
+          if (!open) {
+            setShowMenu(false);
+            setShowReactionPicker(false);
+            clearDismissGuard();
+          }
         }}
         isOwn={isOwn}
         canReply={!!onReply}
