@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint, CheckCircle2, Circle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
 import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey";
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 
 import { z } from "zod";
 
@@ -52,6 +53,9 @@ export default function AuthPage() {
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
+  const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
+  const signInScrollRef = useRef<HTMLDivElement | null>(null);
+  const isNativePlatform = Capacitor.isNativePlatform();
   
   // Check if we should default to signup view (new user from invite, or returning from terms/privacy)
   const defaultView = sessionStorage.getItem("authDefaultTab") || "signin";
@@ -138,6 +142,31 @@ export default function AuthPage() {
     };
     checkBiometrics();
   }, []);
+
+  useEffect(() => {
+    if (!isNativePlatform) return;
+
+    let keyboardShowListener: { remove: () => void } | undefined;
+    let keyboardHideListener: { remove: () => void } | undefined;
+
+    Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
+      setNativeKeyboardHeight(keyboardHeight || 0);
+    }).then(handle => {
+      keyboardShowListener = handle;
+    });
+
+    Keyboard.addListener('keyboardDidHide', () => {
+      setNativeKeyboardHeight(0);
+      signInScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }).then(handle => {
+      keyboardHideListener = handle;
+    });
+
+    return () => {
+      keyboardShowListener?.remove();
+      keyboardHideListener?.remove();
+    };
+  }, [isNativePlatform]);
   
   // Determine button text based on platform
   const getBiometricButtonText = () => {
@@ -329,6 +358,14 @@ export default function AuthPage() {
     setConfirmPassword("");
   };
 
+  const revealSignInField = (target: HTMLElement) => {
+    if (authMode !== "signin" || !isNativePlatform) return;
+
+    window.setTimeout(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    }, nativeKeyboardHeight > 0 ? 40 : 250);
+  };
+
   return (
     <div
       className="flex flex-col bg-background overflow-hidden"
@@ -345,7 +382,15 @@ export default function AuthPage() {
         />
       )}
       
-      <div className={`flex-1 flex flex-col items-center p-4 ${authMode === "signin" ? 'justify-center overflow-hidden' : 'overflow-y-auto'} ${isInInviteFlow ? 'pt-16' : ''}`}>
+      <div
+        ref={signInScrollRef}
+        className={`flex-1 flex flex-col items-center p-4 ${authMode === "signin" ? 'justify-center overflow-y-auto overscroll-contain' : 'overflow-y-auto'} ${isInInviteFlow ? 'pt-16' : ''}`}
+        style={{
+          paddingBottom: authMode === "signin" && isNativePlatform && nativeKeyboardHeight > 0
+            ? `${nativeKeyboardHeight + 16}px`
+            : undefined,
+        }}
+      >
       <div className={`w-full max-w-md space-y-8 animate-slide-up ${authMode === "signin" ? 'py-4' : 'py-8 my-auto'}`}>
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
@@ -378,6 +423,7 @@ export default function AuthPage() {
                         className="pl-10"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                         onFocus={(e) => revealSignInField(e.currentTarget)}
                       />
                     </div>
                   </div>
@@ -401,6 +447,7 @@ export default function AuthPage() {
                         className="pl-10 pr-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                         onFocus={(e) => revealSignInField(e.currentTarget)}
                       />
                       <button
                         type="button"
