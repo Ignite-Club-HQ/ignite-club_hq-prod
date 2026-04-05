@@ -4,7 +4,8 @@ import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SoccerBall from "@/components/pitch/SoccerBall";
-import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell } from "lucide-react";
+import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
@@ -1923,6 +1924,41 @@ export default function HomePage() {
               </div>
             );
           })()}
+
+           {/* Children's reward progress - collapsible */}
+          {userChildren.length > 0 && minRewardThreshold !== null && (
+            <Collapsible className="pt-1 border-t border-border/50">
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-1 group" onClick={(e) => e.stopPropagation()}>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Children</p>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2 pt-1">
+                {userChildren.map((child: any) => {
+                  const childPoints = child.ignite_points || 0;
+                  const childProgress = Math.min(100, (childPoints / minRewardThreshold) * 100);
+                  const childHasReward = childPoints >= minRewardThreshold;
+                  return (
+                    <div key={child.id} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium truncate">{child.name}</span>
+                        <span className={`text-xs font-medium ${childHasReward ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {childHasReward ? '🎉 Reward available!' : `${childPoints}/${minRewardThreshold} pts`}
+                        </span>
+                      </div>
+                      {!childHasReward && (
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div 
+                            className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary/40 transition-all duration-1000 ease-out"
+                            style={{ width: `${childProgress}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </CardContent>
       </Card>
       </section>
@@ -2006,7 +2042,8 @@ export default function HomePage() {
                       onClick={() => {
                         if (canAfford) {
                           setSelectedReward(reward);
-                          setConfirmRedeemDialogOpen(true);
+                          setRewardsDialogOpen(false);
+                          setTimeout(() => setConfirmRedeemDialogOpen(true), 300);
                         }
                       }}
                       disabled={!canAfford}
@@ -2054,7 +2091,7 @@ export default function HomePage() {
           }
         }}
       >
-        <AlertDialogContent className="z-[200]">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Redeem Reward?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -2074,7 +2111,9 @@ export default function HomePage() {
                   <SelectItem value="myself">
                     Myself ({profile?.ignite_points || 0} pts)
                   </SelectItem>
-                  {userChildren.map((child: any) => (
+                  {userChildren
+                    .filter((child: any) => child.ignite_points >= (selectedReward?.points_required || 0))
+                    .map((child: any) => (
                     <SelectItem key={child.id} value={child.id}>
                       {child.name} ({child.ignite_points} pts)
                     </SelectItem>
