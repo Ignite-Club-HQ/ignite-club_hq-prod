@@ -878,6 +878,10 @@ export default function TeamDetailPage() {
                               toast({ title: `You left ${team?.name || "the team"}` });
                               queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
                               queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
+                              queryClient.invalidateQueries({ queryKey: ["events"] });
                               navigate(`/clubs/${team?.club_id}`);
                             }
                           }}
