@@ -51,14 +51,54 @@ export function MediaCommentSheet({
   currentUserId,
 }: MediaCommentSheetProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sheetContentRef = useRef<HTMLDivElement>(null);
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const [isCommentInteracting, setIsCommentInteracting] = useState(false);
+  const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [lockedHeight, setLockedHeight] = useState<number | null>(null);
+
+  const restoreInputFocus = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const selectionStart = textarea.selectionStart ?? textarea.value.length;
+    const selectionEnd = textarea.selectionEnd ?? textarea.value.length;
+
+    textarea.focus({ preventScroll: true });
+
+    try {
+      textarea.setSelectionRange(selectionStart, selectionEnd);
+    } catch {
+      // Ignore unsupported selection restores on mobile browsers.
+    }
+  }, []);
+
+  const handleReactionGestureStateChange = useCallback((active: boolean) => {
+    const textarea = textareaRef.current;
+
+    if (!active) {
+      setIsReactionGestureActive(false);
+      return;
+    }
+
+    if (!textarea || document.activeElement !== textarea) {
+      return;
+    }
+
+    const currentSheetHeight = sheetContentRef.current?.getBoundingClientRect().height;
+    if (currentSheetHeight) {
+      setLockedHeight(Math.round(currentSheetHeight));
+    }
+
+    setIsReactionGestureActive(true);
+    restoreInputFocus();
+  }, [restoreInputFocus]);
 
   // Lock sheet height when keyboard is visible to prevent layout shift during reactions
   useEffect(() => {
     if (!open) {
       setLockedHeight(null);
+      setIsReactionGestureActive(false);
       return;
     }
     const vv = window.visualViewport;
@@ -67,7 +107,7 @@ export function MediaCommentSheet({
     const onResize = () => {
       // When keyboard opens, visualViewport shrinks — lock the sheet to 50% of it
       // Only update if we're NOT in an interaction (reaction picker open)
-      if (!isCommentInteracting) {
+      if (!isCommentInteracting && !isReactionGestureActive) {
         setLockedHeight(Math.round(vv.height * 0.5));
       }
     };
@@ -75,7 +115,7 @@ export function MediaCommentSheet({
     onResize();
     vv.addEventListener("resize", onResize);
     return () => vv.removeEventListener("resize", onResize);
-  }, [open, isCommentInteracting]);
+  }, [open, isCommentInteracting, isReactionGestureActive]);
 
   // Re-focus textarea when reaction picker opens (keyboard may have been dismissed)
   useEffect(() => {
@@ -87,6 +127,23 @@ export function MediaCommentSheet({
       return () => clearTimeout(t);
     }
   }, [isCommentInteracting]);
+
+  useEffect(() => {
+    if (!open || (!isReactionGestureActive && !isCommentInteracting)) return;
+
+    const refocus = () => restoreInputFocus();
+    refocus();
+
+    const t1 = window.setTimeout(refocus, 0);
+    const t2 = window.setTimeout(refocus, 120);
+    const t3 = window.setTimeout(refocus, 260);
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
+  }, [open, isReactionGestureActive, isCommentInteracting, restoreInputFocus]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -139,6 +196,7 @@ export function MediaCommentSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
       <SheetContent
+        ref={sheetContentRef}
         side="bottom"
         className={`rounded-t-2xl p-0 flex flex-col ${!lockedHeight ? "h-[50vh] max-h-[50vh]" : ""}`}
         style={sheetStyle}
@@ -195,6 +253,7 @@ export function MediaCommentSheet({
                       currentUserId={currentUserId}
                       createdAt={comment.created_at}
                       onInteractionChange={setIsCommentInteracting}
+                      onLongPressGestureStateChange={handleReactionGestureStateChange}
                       onReply={(commentId, name) => {
                         onSetReplyingTo({ id: commentId, name });
                         setTimeout(() => textareaRef.current?.focus(), 100);
@@ -205,6 +264,7 @@ export function MediaCommentSheet({
                       parentDisplayName={comment.profiles?.display_name}
                       currentUserId={currentUserId}
                       onInteractionChange={setIsCommentInteracting}
+                      onLongPressGestureStateChange={handleReactionGestureStateChange}
                       onReply={(commentId, name) => {
                         onSetReplyingTo({ id: commentId, name });
                         setTimeout(() => textareaRef.current?.focus(), 100);
