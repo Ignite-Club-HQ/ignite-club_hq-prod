@@ -2006,7 +2006,8 @@ export default function HomePage() {
                       onClick={() => {
                         if (canAfford) {
                           setSelectedReward(reward);
-                          setConfirmRedeemDialogOpen(true);
+                          setRewardsDialogOpen(false);
+                          setTimeout(() => setConfirmRedeemDialogOpen(true), 300);
                         }
                       }}
                       disabled={!canAfford}
