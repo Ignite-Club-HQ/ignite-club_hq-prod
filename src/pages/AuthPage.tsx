@@ -169,6 +169,33 @@ export default function AuthPage() {
       keyboardHideListener?.remove();
     };
   }, [isNativePlatform]);
+
+  useEffect(() => {
+    if (authMode !== "signin" || !isNativePlatform || !nativeKeyboardVisible || typeof window === "undefined") {
+      return;
+    }
+
+    let timeoutId: number | undefined;
+
+    const resetViewportScroll = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      signInScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    };
+
+    const frameId = window.requestAnimationFrame(() => {
+      resetViewportScroll();
+      timeoutId = window.setTimeout(resetViewportScroll, 80);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [authMode, isNativePlatform, nativeKeyboardVisible]);
   
   // Determine button text based on platform
   const getBiometricButtonText = () => {
@@ -360,7 +387,22 @@ export default function AuthPage() {
     setConfirmPassword("");
   };
 
-  const isSignInKeyboardOpen = authMode === "signin" && isNativePlatform && nativeKeyboardVisible;
+  const isSignInMode = authMode === "signin";
+  const isSignInKeyboardOpen = isSignInMode && isNativePlatform && nativeKeyboardVisible;
+  const shouldLowerDefaultSignIn = isSignInMode && isNativePlatform && !isSignInKeyboardOpen;
+  const signInViewportClassName = isSignInMode
+    ? isSignInKeyboardOpen
+      ? `${nativeKeyboardHeight > 320 ? 'justify-start pt-3' : 'justify-start pt-5'} pb-4`
+      : 'justify-center pt-6 pb-10'
+    : 'overflow-y-auto';
+  const signInStackClassName = isSignInMode
+    ? isSignInKeyboardOpen
+      ? 'space-y-4 py-2'
+      : `${shouldLowerDefaultSignIn ? 'translate-y-4' : ''} space-y-8 py-6`
+    : 'space-y-8 py-8 my-auto';
+  const signInCardContentClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
+  const signInFormClassName = isSignInKeyboardOpen ? 'space-y-3' : 'space-y-4';
+  const signInFieldClassName = isSignInKeyboardOpen ? 'space-y-1.5' : 'space-y-2';
 
   return (
     <div
@@ -380,9 +422,9 @@ export default function AuthPage() {
       
       <div
         ref={signInScrollRef}
-        className={`flex-1 flex flex-col items-center p-4 ${authMode === "signin" ? 'justify-center' : 'overflow-y-auto'} ${isInInviteFlow ? 'pt-16' : ''}`}
+        className={`flex-1 flex flex-col items-center px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''}`}
       >
-      <div className={`w-full max-w-md space-y-8 animate-slide-up ${authMode === "signin" ? 'py-4' : 'py-8 my-auto'}`}>
+      <div className={`w-full max-w-md animate-slide-up transition-all duration-200 ${signInStackClassName}`}>
         {/* Logo — compacts when keyboard is open on native sign-in */}
         <div className={`flex flex-col items-center transition-all duration-200 ${isSignInKeyboardOpen ? 'gap-1' : 'gap-3'}`}>
           <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isSignInKeyboardOpen ? 'p-2' : 'p-4'}`}>
@@ -399,15 +441,17 @@ export default function AuthPage() {
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
           {authMode === "signin" ? (
             <>
-              <CardHeader className="pb-2">
-                <h2 className="text-xl font-semibold text-center">Sign In</h2>
+              <CardHeader className={isSignInKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'}>
+                <h2 className={`font-semibold text-center ${isSignInKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Sign In</h2>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <CardDescription className="text-center">
-                  Welcome back! Sign in to your account.
-                </CardDescription>
-                <div className="space-y-4">
-                  <div className="space-y-2">
+              <CardContent className={signInCardContentClassName}>
+                {!isSignInKeyboardOpen && (
+                  <CardDescription className="text-center">
+                    Welcome back! Sign in to your account.
+                  </CardDescription>
+                )}
+                <div className={signInFormClassName}>
+                  <div className={signInFieldClassName}>
                     <Label htmlFor="signin-email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -421,7 +465,7 @@ export default function AuthPage() {
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className={signInFieldClassName}>
                     <div className="flex items-center justify-between">
                       <Label htmlFor="signin-password">Password</Label>
                       <button
@@ -529,16 +573,18 @@ export default function AuthPage() {
                   )}
 
                   {/* Sign up link */}
-                  <div className="text-center text-sm text-muted-foreground pt-2">
-                    Don't have an account?{" "}
-                    <button
-                      type="button"
-                      className="text-primary hover:underline font-medium"
-                      onClick={switchToSignUp}
-                    >
-                      Sign up here
-                    </button>
-                  </div>
+                  {!isSignInKeyboardOpen && (
+                    <div className="text-center text-sm text-muted-foreground pt-2">
+                      Don't have an account?{" "}
+                      <button
+                        type="button"
+                        className="text-primary hover:underline font-medium"
+                        onClick={switchToSignUp}
+                      >
+                        Sign up here
+                      </button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </>
