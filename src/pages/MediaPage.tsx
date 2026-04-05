@@ -1198,9 +1198,9 @@ export default function MediaPage() {
         if (!activePhoto) return null;
         const activeComments = getPhotoComments(activeCommentPhotoId);
         const activeInput = commentInputs[activeCommentPhotoId] || "";
-        const cachedProfile = getProfile(activePhoto.uploader_id);
-        const sheetDisplayName = activePhoto.profiles?.display_name || cachedProfile?.display_name || null;
-        const sheetAvatarUrl = activePhoto.profiles?.avatar_url || cachedProfile?.avatar_url || null;
+        const cachedProfileSheet = getProfile(activePhoto.uploader_id);
+        const sheetDisplayName = (activePhoto as any).profiles?.display_name || cachedProfileSheet?.display_name || null;
+        const sheetAvatarUrl = (activePhoto as any).profiles?.avatar_url || cachedProfileSheet?.avatar_url || null;
         return (
           <MediaCommentSheet
             open={!!activeCommentPhotoId}
