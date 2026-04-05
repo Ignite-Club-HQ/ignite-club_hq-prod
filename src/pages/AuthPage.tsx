@@ -360,13 +360,7 @@ export default function AuthPage() {
     setConfirmPassword("");
   };
 
-  const revealSignInField = (target: HTMLElement) => {
-    if (authMode !== "signin" || !isNativePlatform) return;
-
-    window.setTimeout(() => {
-      target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-    }, nativeKeyboardHeight > 0 ? 40 : 250);
-  };
+  const isSignInKeyboardOpen = authMode === "signin" && isNativePlatform && nativeKeyboardVisible;
 
   return (
     <div
