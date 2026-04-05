@@ -1,6 +1,5 @@
 import { memo, useRef, useState, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "@/components/ui/button";
 
 const REACTION_EMOJIS = [
   { type: "like", emoji: "❤️" },
