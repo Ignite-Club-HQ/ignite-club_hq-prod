@@ -520,6 +520,13 @@ export const ChatMessage = memo(function ChatMessage({
 
     const latestReactions = getLatestReactions();
     const existingReaction = latestReactions.find((reaction) => reaction.user_id === currentUserId);
+    
+    // If user already has this same emoji, remove it (toggle off)
+    if (existingReaction && existingReaction.reaction_type === type) {
+      removeReactionMutation.mutate(existingReaction.id);
+      return;
+    }
+    
     addReactionMutation.mutate({
       reactionType: type,
       existingReaction,
