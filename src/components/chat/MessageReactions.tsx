@@ -131,7 +131,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
     <div
       className="fixed inset-0 z-[100001]"
       data-reaction-picker="true"
-      style={{ touchAction: "none" }}
+      style={{ touchAction: "none", pointerEvents: "auto" }}
       onTouchStart={(e) => {
         e.stopPropagation();
       }}
