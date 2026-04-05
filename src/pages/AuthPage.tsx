@@ -54,6 +54,7 @@ export default function AuthPage() {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [hibpStatus, setHibpStatus] = useState<'idle' | 'checking' | 'safe' | 'compromised'>('idle');
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
+  const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
   const signInScrollRef = useRef<HTMLDivElement | null>(null);
   const isNativePlatform = Capacitor.isNativePlatform();
   
