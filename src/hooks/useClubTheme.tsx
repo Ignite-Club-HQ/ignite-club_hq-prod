@@ -117,28 +117,32 @@ const STORAGE_DATA_KEY_PREFIX = "ignite-club-theme-data-";
 const getStorageKey = (userId: string) => `${STORAGE_KEY_PREFIX}${userId}`;
 const getStorageDataKey = (userId: string) => `${STORAGE_DATA_KEY_PREFIX}${userId}`;
 
+// Helper to clear ALL theme-related inline CSS properties from document root
+const clearAllThemeCSS = () => {
+  const root = document.documentElement;
+  root.style.removeProperty("--primary");
+  root.style.removeProperty("--primary-foreground");
+  root.style.removeProperty("--secondary");
+  root.style.removeProperty("--secondary-foreground");
+  root.style.removeProperty("--accent");
+  root.style.removeProperty("--accent-foreground");
+  root.style.removeProperty("--ring");
+  root.style.removeProperty("--background");
+  root.style.removeProperty("--card");
+  root.style.removeProperty("--card-foreground");
+  root.style.removeProperty("--border");
+  root.style.removeProperty("--input");
+  root.style.removeProperty("--muted");
+  root.style.removeProperty("--popover");
+  root.style.removeProperty("--popover-foreground");
+};
+
 // Apply theme CSS from theme data based on current mode
 const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
   const root = document.documentElement;
   
   if (!theme || theme.logoOnlyMode) {
-    // Don't apply theme colors in logo-only mode
-    root.style.removeProperty("--primary");
-    root.style.removeProperty("--primary-foreground");
-    root.style.removeProperty("--secondary");
-    root.style.removeProperty("--secondary-foreground");
-    root.style.removeProperty("--accent");
-    root.style.removeProperty("--accent-foreground");
-    root.style.removeProperty("--ring");
-    // Also clear light-mode branded overrides
-    root.style.removeProperty("--background");
-    root.style.removeProperty("--card");
-    root.style.removeProperty("--card-foreground");
-    root.style.removeProperty("--border");
-    root.style.removeProperty("--input");
-    root.style.removeProperty("--muted");
-    root.style.removeProperty("--popover");
-    root.style.removeProperty("--popover-foreground");
+    clearAllThemeCSS();
     return;
   }
 
