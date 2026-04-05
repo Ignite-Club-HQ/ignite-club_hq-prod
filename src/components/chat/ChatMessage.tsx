@@ -346,6 +346,7 @@ export const ChatMessage = memo(function ChatMessage({
         setLocalReactions(context.previousReactions);
       }
       toast.error("Failed to add reaction");
+    },
     onSettled: () => {
       isReactionMutatingRef.current = false;
     },
