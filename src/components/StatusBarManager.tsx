@@ -16,11 +16,19 @@ export function StatusBarManager() {
     const isNativePlatform = Capacitor.isNativePlatform();
     const isNativeIOS = isNativePlatform && Capacitor.getPlatform() === 'ios';
     const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === 'android';
+    const isIOSLike = (() => {
+      if (typeof navigator === 'undefined') return isNativeIOS;
+      const userAgent = navigator.userAgent;
+      const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent);
+      const isIpadOSDesktopMode = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+      return isNativeIOS || isIOSDevice || isIpadOSDesktopMode;
+    })();
     let cancelIOSRecovery: (() => void) | null = null;
     let lockedIOSSafeAreaTop = 0;
+    let lockedIOSStableVh = 0;
 
     const getNativeSafeAreaTopFloor = () => {
-      if (!isNativeIOS || typeof window === 'undefined') return 0;
+      if (!isIOSLike || typeof window === 'undefined') return 0;
       const shortestSide = Math.min(window.screen.width, window.screen.height);
       const longestSide = Math.max(window.screen.width, window.screen.height);
       const aspectRatio = longestSide / Math.max(shortestSide, 1);
@@ -37,16 +45,16 @@ export function StatusBarManager() {
       const currentComputedTop = Number.parseFloat(
         window.getComputedStyle(document.documentElement).getPropertyValue('--safe-area-top') || '0',
       );
-      const safeTopBase = isNativeIOS
+      const safeTopBase = isIOSLike
         ? Math.max(measuredTop, getNativeSafeAreaTopFloor())
         : measuredTop;
-      const preservedTop = isNativeIOS && !options?.resetTopLock
+      const preservedTop = isIOSLike && !options?.resetTopLock
         ? Math.max(
             lockedIOSSafeAreaTop,
             Number.isFinite(currentComputedTop) ? currentComputedTop : 0,
           )
         : 0;
-      const safeTop = isNativeIOS ? Math.max(safeTopBase, preservedTop) : safeTopBase;
+      const safeTop = isIOSLike ? Math.max(safeTopBase, preservedTop) : safeTopBase;
 
       lockedIOSSafeAreaTop = safeTop;
 
@@ -55,19 +63,23 @@ export function StatusBarManager() {
     };
 
     // Set a stable viewport height CSS variable using the actually visible native viewport.
-    const setStableVh = () => {
+    const setStableVh = (options?: { resetLock?: boolean }) => {
       const visualViewportHeight = window.visualViewport?.height ?? 0;
       const innerHeight = window.innerHeight ?? 0;
-      const stableHeight = Math.max(visualViewportHeight, innerHeight);
+      const measuredHeight = Math.max(visualViewportHeight, innerHeight);
+      const stableHeight = isIOSLike && !options?.resetLock
+        ? Math.max(measuredHeight, lockedIOSStableVh)
+        : measuredHeight;
       if (!stableHeight) return;
+      lockedIOSStableVh = stableHeight;
       document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
-    setStableVh();
+    setStableVh({ resetLock: true });
     setSafeAreaInsets({ resetTopLock: true });
     // Only update on orientation change, not on keyboard resize
     const handleOrientationChange = () => {
       setTimeout(() => {
-        setStableVh();
+        setStableVh({ resetLock: true });
         setSafeAreaInsets({ resetTopLock: true });
       }, 150);
     };

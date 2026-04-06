@@ -57,16 +57,25 @@ export function MediaCommentSheet({
   const [isCommentInteracting, setIsCommentInteracting] = useState(false);
   const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const capacitorPlatform = Capacitor.getPlatform();
+  const isNativeIOS = Capacitor.isNativePlatform() && capacitorPlatform === "ios";
+  const isIOS = (() => {
+    if (typeof navigator === "undefined") return isNativeIOS;
+    const userAgent = navigator.userAgent;
+    const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent);
+    const isIpadDesktopMode = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    return isNativeIOS || isIOSDevice || isIpadDesktopMode;
+  })();
   const isKeyboardOpen = useKeyboardOpen();
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
+  const [browserKeyboardInset, setBrowserKeyboardInset] = useState(0);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
   useIOSScrollLock(open);
 
   // Non-iOS keeps the existing viewport-sized sheet behavior.
   useEffect(() => {
-    if (isNativeIOS) {
+    if (isIOS) {
       setViewportHeight(null);
       return;
     }
@@ -77,7 +86,7 @@ export function MediaCommentSheet({
     update();
     vv.addEventListener("resize", update);
     return () => vv.removeEventListener("resize", update);
-  }, [isNativeIOS]);
+  }, [isIOS]);
 
   useEffect(() => {
     if (!isNativeIOS || !open) {
@@ -105,6 +114,33 @@ export function MediaCommentSheet({
       keyboardHideListener?.remove();
     };
   }, [isNativeIOS, open]);
+
+  useEffect(() => {
+    if (!isIOS || isNativeIOS || !open) {
+      setBrowserKeyboardInset(0);
+      return;
+    }
+
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const update = () => {
+      const stableViewportHeight = Number.parseFloat(
+        window.getComputedStyle(document.documentElement).getPropertyValue("--stable-vh") || "0",
+      ) || window.innerHeight || 0;
+      const overlap = Math.max(0, stableViewportHeight - vv.height - vv.offsetTop);
+      setBrowserKeyboardInset(overlap > 80 ? Math.round(overlap) : 0);
+    };
+
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [isIOS, isNativeIOS, open]);
 
   const restoreInputFocus = useCallback(() => {
     const textarea = textareaRef.current;
@@ -178,7 +214,7 @@ export function MediaCommentSheet({
 
   // Focus input when sheet opens
   useEffect(() => {
-    if (!open || isNativeIOS) return;
+    if (!open || isIOS) return;
 
     const timeoutId = window.setTimeout(() => {
       textareaRef.current?.focus();
@@ -187,21 +223,25 @@ export function MediaCommentSheet({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [open, isNativeIOS]);
+  }, [open, isIOS]);
 
   useEffect(() => {
     if (!open) {
       setIsCommentInteracting(false);
       setNativeKeyboardHeight(0);
+      setBrowserKeyboardInset(0);
     }
   }, [open]);
+
+  const keyboardOffset = isNativeIOS ? nativeKeyboardHeight : isIOS ? browserKeyboardInset : 0;
+  const isKeyboardActive = isIOS ? keyboardOffset > 0 : isKeyboardOpen;
 
   // Scroll to bottom when new comments appear or keyboard opens
   useEffect(() => {
     if (open && scrollEndRef.current) {
       scrollEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [comments.length, open, isKeyboardOpen]);
+  }, [comments.length, open, isKeyboardActive]);
 
   const handleSubmit = useCallback(() => {
     if (!commentInput.trim()) return;
@@ -217,25 +257,27 @@ export function MediaCommentSheet({
 
   const handleClose = useCallback(() => {
     setIsVisible(false);
-    setTimeout(() => onOpenChange(false), 250);
-  }, [onOpenChange]);
+    setTimeout(() => onOpenChange(false), isIOS ? 200 : 250);
+  }, [isIOS, onOpenChange]);
 
   if (!open) return null;
 
   const hasText = commentInput.trim().length > 0;
   const topLevelComments = comments.filter(c => !c.reply_to_id);
   const replyCount = comments.length - topLevelComments.length;
-  const sheetHeight = isNativeIOS
+  const sheetHeight = isIOS
     ? "var(--stable-vh, 100dvh)"
     : viewportHeight
       ? `${viewportHeight}px`
       : "var(--stable-vh, 100dvh)";
-  const composerOffset = isNativeIOS ? nativeKeyboardHeight : 0;
+  const composerOffset = isIOS ? keyboardOffset : 0;
 
   return (
     <div
-      className={`fixed left-0 right-0 top-0 z-[61] flex flex-col bg-background transition-transform duration-300 ease-out ${
-        isVisible ? "translate-y-0" : "translate-y-full"
+      className={`fixed left-0 right-0 top-0 z-[61] flex flex-col bg-background ease-out ${
+        isIOS
+          ? `transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
+          : `transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
       }`}
       style={{
         height: sheetHeight,
@@ -268,14 +310,14 @@ export function MediaCommentSheet({
 
       {/* Sticky image preview — always visible */}
       <div className={`flex-shrink-0 border-b border-border bg-muted/30 transition-all duration-200 ${
-        isKeyboardOpen ? "h-16" : "h-24"
+        isKeyboardActive ? "h-16" : "h-24"
       }`}>
         <div className="flex items-center gap-3 h-full px-4">
           <img
             src={photoUrl}
             alt=""
             className={`rounded-lg object-cover flex-shrink-0 transition-all duration-200 ${
-              isKeyboardOpen ? "h-12 w-12" : "h-20 w-20"
+              isKeyboardActive ? "h-12 w-12" : "h-20 w-20"
             }`}
           />
           <div className="flex-1 min-w-0">
@@ -319,7 +361,7 @@ export function MediaCommentSheet({
                     onReply={(commentId, name) => {
                       onSetReplyingTo({ id: commentId, name });
                       window.setTimeout(() => {
-                        textareaRef.current?.focus({ preventScroll: isNativeIOS });
+                        textareaRef.current?.focus({ preventScroll: isIOS });
                       }, 100);
                     }}
                   />
@@ -332,7 +374,7 @@ export function MediaCommentSheet({
                     onReply={(commentId, name) => {
                       onSetReplyingTo({ id: commentId, name });
                       window.setTimeout(() => {
-                        textareaRef.current?.focus({ preventScroll: isNativeIOS });
+                        textareaRef.current?.focus({ preventScroll: isIOS });
                       }, 100);
                     }}
                   />
@@ -349,7 +391,7 @@ export function MediaCommentSheet({
         className="flex-shrink-0 border-t border-border bg-background transition-[margin] duration-200 ease-out"
         style={{
           marginBottom: composerOffset ? `${composerOffset}px` : undefined,
-          paddingBottom: (isKeyboardOpen || nativeKeyboardHeight > 0) ? '0px' : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))',
+          paddingBottom: isKeyboardActive ? '0px' : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))',
         }}
       >
         {/* Reply indicator */}
