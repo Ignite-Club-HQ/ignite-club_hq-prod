@@ -55,6 +55,17 @@ export function MediaCommentSheet({
   const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const isKeyboardOpen = useKeyboardOpen();
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+
+  // Track visual viewport height to keep input above iOS keyboard
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setViewportHeight(vv.height);
+    update();
+    vv.addEventListener("resize", update);
+    return () => vv.removeEventListener("resize", update);
+  }, []);
 
   const restoreInputFocus = useCallback(() => {
     const textarea = textareaRef.current;
