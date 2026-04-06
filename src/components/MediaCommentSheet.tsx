@@ -75,24 +75,24 @@ export function MediaCommentSheet({
   }, []);
 
   const handleReactionGestureStateChange = useCallback((active: boolean) => {
-    const textarea = textareaRef.current;
-
     if (!active) {
       setIsReactionGestureActive(false);
       return;
     }
 
-    if (!textarea || document.activeElement !== textarea) {
-      return;
-    }
+    const textarea = textareaRef.current;
+    const isTyping = textarea && document.activeElement === textarea;
 
-    const currentSheetHeight = sheetContentRef.current?.getBoundingClientRect().height;
-    if (currentSheetHeight) {
-      setLockedHeight(Math.round(currentSheetHeight));
+    if (isTyping) {
+      // Lock height and preserve focus only when already typing
+      const currentSheetHeight = sheetContentRef.current?.getBoundingClientRect().height;
+      if (currentSheetHeight) {
+        setLockedHeight(Math.round(currentSheetHeight));
+      }
+      restoreInputFocus();
     }
 
     setIsReactionGestureActive(true);
-    restoreInputFocus();
   }, [restoreInputFocus]);
 
   // Lock sheet height based on visualViewport — use more space when keyboard is open
@@ -130,6 +130,10 @@ export function MediaCommentSheet({
 
   useEffect(() => {
     if (!open || (!isReactionGestureActive && !isCommentInteracting)) return;
+
+    // Only refocus if the textarea was already focused (user was typing)
+    const textarea = textareaRef.current;
+    if (!textarea || document.activeElement !== textarea) return;
 
     const refocus = () => restoreInputFocus();
     refocus();
