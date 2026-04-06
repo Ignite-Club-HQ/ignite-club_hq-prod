@@ -178,6 +178,7 @@ export function MediaCommentSheet({
 
   const hasText = commentInput.trim().length > 0;
   const topLevelComments = comments.filter(c => !c.reply_to_id);
+  const replyCount = comments.length - topLevelComments.length;
 
   return (
     <div
@@ -202,7 +203,7 @@ export function MediaCommentSheet({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate">Comments</p>
           <p className="text-[10px] text-muted-foreground leading-tight">
-            {comments.length} comment{comments.length !== 1 ? "s" : ""}
+            {comments.length} total
           </p>
         </div>
       </div>
@@ -224,7 +225,7 @@ export function MediaCommentSheet({
               {uploaderName || "Unknown"}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              {topLevelComments.length} {topLevelComments.length === 1 ? "comment" : "comments"} · {comments.length - topLevelComments.length} {comments.length - topLevelComments.length === 1 ? "reply" : "replies"}
+              {topLevelComments.length} {topLevelComments.length === 1 ? "thread" : "threads"} · {replyCount} {replyCount === 1 ? "reply" : "replies"}
             </p>
           </div>
         </div>
