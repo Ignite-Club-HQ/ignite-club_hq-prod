@@ -49,8 +49,7 @@ const readSafeAreaInsetPx = (edge: "top" | "bottom") => {
   const safeEnvInset = Number.isFinite(envInset) ? envInset : 0;
 
   if (edge === "top") {
-    const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
-    return Math.max(safeEnvInset, Number.isFinite(viewportOffsetTop) ? viewportOffsetTop : 0);
+    return safeEnvInset;
   }
 
   return safeEnvInset;
