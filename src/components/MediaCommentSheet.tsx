@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PhotoComment } from "@/components/PhotoComment";
 import { CommentRepliesThread } from "@/components/CommentRepliesThread";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
-import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
+import { useIOSOverlayScrollLock } from "@/hooks/useIOSOverlayScrollLock";
 
 interface CommentData {
   id: string;
@@ -71,7 +71,7 @@ export function MediaCommentSheet({
   const [browserKeyboardInset, setBrowserKeyboardInset] = useState(0);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
-  useIOSScrollLock(open);
+  useIOSOverlayScrollLock(open);
 
   // Non-iOS keeps the existing viewport-sized sheet behavior.
   useEffect(() => {
@@ -349,12 +349,12 @@ export function MediaCommentSheet({
 
   return (
     <div
-      className={`fixed left-0 right-0 z-[61] flex flex-col bg-background ease-out ${
+      className={`fixed left-0 right-0 z-[61] flex flex-col overflow-hidden bg-background ease-out ${
         isIOS
-          ? `top-0 bottom-0 transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
+          ? `top-0 transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
           : `top-0 transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
       }`}
-      style={isIOS ? undefined : { height: sheetHeight }}
+      style={{ height: sheetHeight }}
       data-lock-keyboard-scroll="true"
     >
       {/* Safe-area spacer — pushes content below status bar / Dynamic Island */}
