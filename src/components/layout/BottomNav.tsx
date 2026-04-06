@@ -9,6 +9,7 @@ import { Capacitor } from "@capacitor/core";
 import {
   IOS_LAYOUT_RESET_EVENT,
   IOS_NAV_GUARD_EVENT,
+  readSafeAreaInsetBottomPx,
 } from "@/lib/iosLayoutStability";
 
 const navItems = [
@@ -21,6 +22,7 @@ const navItems = [
 const MIN_NATIVE_BOTTOM_INSET_PX = 20;
 const IOS_NATIVE_BOTTOM_INSET_PX = 0;
 const IOS_WEB_BOTTOM_INSET_PX = 16;
+const MAX_IOS_NATIVE_BOTTOM_INSET_PX = 40;
 const DEFAULT_NAV_GUARD_MS = 900;
 
 export function BottomNav() {
@@ -134,6 +136,14 @@ export function BottomNav() {
   const [navInteractionLocked, setNavInteractionLocked] = useState(false);
   const navGuardTimeoutRef = useRef<number | null>(null);
 
+  const resolveBottomInsetPx = useCallback(() => {
+    if (!shouldStabilizeIOSLayout) return nativeInsetFloorPx;
+    if (!isNativeIOS) return nativeInsetFloorPx;
+
+    const measuredInset = readSafeAreaInsetBottomPx();
+    return Math.max(nativeInsetFloorPx, Math.min(measuredInset, MAX_IOS_NATIVE_BOTTOM_INSET_PX));
+  }, [isNativeIOS, nativeInsetFloorPx, shouldStabilizeIOSLayout]);
+
   const lockNavInteractions = useCallback((durationMs = DEFAULT_NAV_GUARD_MS) => {
     if (typeof window === "undefined") return;
     if (navGuardTimeoutRef.current !== null) window.clearTimeout(navGuardTimeoutRef.current);
@@ -145,27 +155,27 @@ export function BottomNav() {
   }, []);
 
   useEffect(() => {
-    setNativeSafeInsetPx(nativeInsetFloorPx);
-  }, [nativeInsetFloorPx]);
+    setNativeSafeInsetPx(resolveBottomInsetPx());
+  }, [nativeInsetFloorPx, resolveBottomInsetPx]);
 
   useEffect(() => {
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     const handleOrientationChange = () => {
-      setNativeSafeInsetPx(nativeInsetFloorPx);
+      setNativeSafeInsetPx(resolveBottomInsetPx());
       lockNavInteractions(DEFAULT_NAV_GUARD_MS);
     };
 
     window.addEventListener("orientationchange", handleOrientationChange);
     return () => window.removeEventListener("orientationchange", handleOrientationChange);
-  }, [lockNavInteractions, nativeInsetFloorPx, shouldStabilizeIOSLayout]);
+  }, [lockNavInteractions, nativeInsetFloorPx, resolveBottomInsetPx, shouldStabilizeIOSLayout]);
 
   useEffect(() => {
     if (!shouldStabilizeIOSLayout || typeof window === "undefined" || typeof document === "undefined") return;
 
     const handleViewportResume = () => {
       if (document.visibilityState === "hidden") return;
-      setNativeSafeInsetPx(nativeInsetFloorPx);
+      setNativeSafeInsetPx(resolveBottomInsetPx());
       lockNavInteractions(1200);
     };
 
@@ -178,13 +188,13 @@ export function BottomNav() {
       window.removeEventListener("pageshow", handleViewportResume);
       document.removeEventListener("visibilitychange", handleViewportResume);
     };
-  }, [lockNavInteractions, nativeInsetFloorPx, shouldStabilizeIOSLayout]);
+  }, [lockNavInteractions, nativeInsetFloorPx, resolveBottomInsetPx, shouldStabilizeIOSLayout]);
 
   useEffect(() => {
     if (!shouldStabilizeIOSLayout || typeof window === "undefined") return;
 
     const resetToFloor = (durationMs = DEFAULT_NAV_GUARD_MS) => {
-      setNativeSafeInsetPx(nativeInsetFloorPx);
+      setNativeSafeInsetPx(resolveBottomInsetPx());
       lockNavInteractions(durationMs);
     };
 
@@ -201,13 +211,13 @@ export function BottomNav() {
       window.removeEventListener(IOS_LAYOUT_RESET_EVENT, handleLayoutReset);
       window.removeEventListener(IOS_NAV_GUARD_EVENT, handleNavGuard as EventListener);
     };
-  }, [lockNavInteractions, nativeInsetFloorPx, shouldStabilizeIOSLayout]);
+  }, [lockNavInteractions, nativeInsetFloorPx, resolveBottomInsetPx, shouldStabilizeIOSLayout]);
 
   useEffect(() => {
     if (!shouldStabilizeIOSLayout) return;
     lockNavInteractions(700);
-    setNativeSafeInsetPx(nativeInsetFloorPx);
-  }, [shouldStabilizeIOSLayout, location.pathname, lockNavInteractions, nativeInsetFloorPx]);
+    setNativeSafeInsetPx(resolveBottomInsetPx());
+  }, [shouldStabilizeIOSLayout, location.pathname, lockNavInteractions, nativeInsetFloorPx, resolveBottomInsetPx]);
 
   useEffect(() => {
     return () => {
@@ -220,7 +230,7 @@ export function BottomNav() {
 
   const nativeInsetFloor = `${nativeSafeInsetPx}px`;
   const navBottomInset = isNativeIOS
-    ? "env(safe-area-inset-bottom, 20px)"
+    ? nativeInsetFloor
     : shouldStabilizeIOSLayout
       ? nativeInsetFloor
       : isAndroidNative

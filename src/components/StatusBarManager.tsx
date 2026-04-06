@@ -17,9 +17,10 @@ export function StatusBarManager() {
     const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === 'android';
     let cancelIOSRecovery: (() => void) | null = null;
 
-    // Set a stable viewport height CSS variable that doesn't change when Android keyboard opens
+    // Set a stable viewport height CSS variable using the actually visible native viewport.
     const setStableVh = () => {
-      document.documentElement.style.setProperty('--stable-vh', `${window.innerHeight}px`);
+      const stableHeight = window.visualViewport?.height || window.innerHeight;
+      document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
     setStableVh();
     // Only update on orientation change, not on keyboard resize
@@ -31,6 +32,9 @@ export function StatusBarManager() {
     const queueIOSRecovery = () => {
       if (!isNativeIOS || typeof document === 'undefined') return;
       if (document.visibilityState === 'hidden') return;
+      setStableVh();
+      window.setTimeout(setStableVh, 250);
+      window.setTimeout(setStableVh, 1000);
       cancelIOSRecovery?.();
       cancelIOSRecovery = scheduleIOSNativeOverlayRecovery([0, 320, 1100, 1800]);
     };

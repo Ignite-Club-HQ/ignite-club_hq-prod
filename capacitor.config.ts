@@ -32,7 +32,8 @@ const config: CapacitorConfig = {
     overScrollMode: 'never' as any,
   },
   ios: {
-    contentInset: 'automatic',
+    // Let the WebView span edge-to-edge; the app already applies safe-area padding in CSS.
+    contentInset: 'never',
     // Keep all navigation inside the WebView
     appendUserAgent: 'IgniteClubHQ-iOS',
     allowsLinkPreview: false,
