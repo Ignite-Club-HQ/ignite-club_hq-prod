@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 import { Send, X, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PhotoComment } from "@/components/PhotoComment";
 import { CommentRepliesThread } from "@/components/CommentRepliesThread";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 
 interface CommentData {
   id: string;
@@ -54,18 +57,54 @@ export function MediaCommentSheet({
   const [isCommentInteracting, setIsCommentInteracting] = useState(false);
   const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const isKeyboardOpen = useKeyboardOpen();
+  const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
-  // Track visual viewport height to keep input above iOS keyboard
+  useIOSScrollLock(open);
+
+  // Non-iOS keeps the existing viewport-sized sheet behavior.
   useEffect(() => {
+    if (isNativeIOS) {
+      setViewportHeight(null);
+      return;
+    }
+
     const vv = window.visualViewport;
     if (!vv) return;
     const update = () => setViewportHeight(vv.height);
     update();
     vv.addEventListener("resize", update);
     return () => vv.removeEventListener("resize", update);
-  }, []);
+  }, [isNativeIOS]);
+
+  useEffect(() => {
+    if (!isNativeIOS || !open) {
+      setNativeKeyboardHeight(0);
+      return;
+    }
+
+    let keyboardShowListener: { remove: () => void } | undefined;
+    let keyboardHideListener: { remove: () => void } | undefined;
+
+    Keyboard.addListener("keyboardDidShow", ({ keyboardHeight }) => {
+      setNativeKeyboardHeight(keyboardHeight || 0);
+    }).then((handle) => {
+      keyboardShowListener = handle;
+    });
+
+    Keyboard.addListener("keyboardDidHide", () => {
+      setNativeKeyboardHeight(0);
+    }).then((handle) => {
+      keyboardHideListener = handle;
+    });
+
+    return () => {
+      keyboardShowListener?.remove();
+      keyboardHideListener?.remove();
+    };
+  }, [isNativeIOS, open]);
 
   const restoreInputFocus = useCallback(() => {
     const textarea = textareaRef.current;
@@ -139,14 +178,21 @@ export function MediaCommentSheet({
 
   // Focus input when sheet opens
   useEffect(() => {
-    if (open) {
-      setTimeout(() => textareaRef.current?.focus(), 400);
-    }
-  }, [open]);
+    if (!open || isNativeIOS) return;
+
+    const timeoutId = window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [open, isNativeIOS]);
 
   useEffect(() => {
     if (!open) {
       setIsCommentInteracting(false);
+      setNativeKeyboardHeight(0);
     }
   }, [open]);
 
@@ -179,6 +225,12 @@ export function MediaCommentSheet({
   const hasText = commentInput.trim().length > 0;
   const topLevelComments = comments.filter(c => !c.reply_to_id);
   const replyCount = comments.length - topLevelComments.length;
+  const sheetHeight = isNativeIOS
+    ? "var(--stable-vh, 100dvh)"
+    : viewportHeight
+      ? `${viewportHeight}px`
+      : "var(--stable-vh, 100dvh)";
+  const composerOffset = isNativeIOS ? nativeKeyboardHeight : 0;
 
   return (
     <div
@@ -186,7 +238,7 @@ export function MediaCommentSheet({
         isVisible ? "translate-y-0" : "translate-y-full"
       }`}
       style={{
-        height: viewportHeight ? `${viewportHeight}px` : 'var(--stable-vh, 100dvh)',
+        height: sheetHeight,
       }}
       data-lock-keyboard-scroll="true"
     >
@@ -266,7 +318,9 @@ export function MediaCommentSheet({
                     onLongPressGestureStateChange={handleReactionGestureStateChange}
                     onReply={(commentId, name) => {
                       onSetReplyingTo({ id: commentId, name });
-                      setTimeout(() => textareaRef.current?.focus(), 100);
+                      window.setTimeout(() => {
+                        textareaRef.current?.focus({ preventScroll: isNativeIOS });
+                      }, 100);
                     }}
                   />
                   <CommentRepliesThread
@@ -277,7 +331,9 @@ export function MediaCommentSheet({
                     onLongPressGestureStateChange={handleReactionGestureStateChange}
                     onReply={(commentId, name) => {
                       onSetReplyingTo({ id: commentId, name });
-                      setTimeout(() => textareaRef.current?.focus(), 100);
+                      window.setTimeout(() => {
+                        textareaRef.current?.focus({ preventScroll: isNativeIOS });
+                      }, 100);
                     }}
                   />
                 </div>
@@ -290,8 +346,11 @@ export function MediaCommentSheet({
 
       {/* Composer — pinned at bottom above home indicator */}
       <div
-        className="flex-shrink-0 border-t border-border bg-background"
-        style={{ paddingBottom: isKeyboardOpen ? '0px' : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))' }}
+        className="flex-shrink-0 border-t border-border bg-background transition-[margin] duration-200 ease-out"
+        style={{
+          marginBottom: composerOffset ? `${composerOffset}px` : undefined,
+          paddingBottom: (isKeyboardOpen || nativeKeyboardHeight > 0) ? '0px' : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))',
+        }}
       >
         {/* Reply indicator */}
         {replyingTo && (
