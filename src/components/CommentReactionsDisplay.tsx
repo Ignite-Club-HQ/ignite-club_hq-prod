@@ -1,7 +1,9 @@
 import { memo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 
 const REACTION_EMOJIS = [
@@ -30,11 +32,9 @@ export const CommentReactionsDisplay = memo(function CommentReactionsDisplay({
   currentUserId,
   onReactionClick,
 }: CommentReactionsDisplayProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [viewingType, setViewingType] = useState<string | null>(null);
 
   if (!reactions || reactions.length === 0) return null;
-
-  const allUserIds = [...new Set(reactions.map(r => r.user_id))];
 
   const reactionCounts = reactions.reduce((acc, r) => {
     if (!acc[r.reaction_type]) {
@@ -46,59 +46,67 @@ export const CommentReactionsDisplay = memo(function CommentReactionsDisplay({
   }, {} as Record<string, { count: number; userIds: string[] }>);
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <div className="flex flex-wrap gap-1 mt-1">
-          {Object.entries(reactionCounts).map(([type, { count }]) => {
-            const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
-            const isUserReaction = reactions.some(
-              (r) => r.user_id === currentUserId && r.reaction_type === type
-            );
-            return (
-              <button
-                key={type}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReactionClick(type);
-                }}
-                aria-label={`${emoji} ${type} reaction, ${count} ${count === 1 ? 'person' : 'people'}${isUserReaction ? ', you reacted' : ''}`}
-                aria-pressed={isUserReaction}
-                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs ${
-                  isUserReaction
-                    ? "bg-primary/20 border border-primary/40"
-                    : "bg-muted/50 hover:bg-muted"
-                }`}
-              >
-                <span aria-hidden="true">{emoji}</span>
-                <span className="text-muted-foreground">{count}</span>
-              </button>
-            );
-          })}
-        </div>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-3 bg-popover border z-50" align="start" side="top" sideOffset={8}>
-        <CommentReactionUsers
-          reactions={reactions}
-          allUserIds={allUserIds}
-          currentUserId={currentUserId}
-          isOpen={isOpen}
-        />
-      </PopoverContent>
-    </Popover>
+    <>
+      <div className="flex flex-wrap gap-1 mt-1">
+        {Object.entries(reactionCounts).map(([type, { count }]) => {
+          const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
+          const isUserReaction = reactions.some(
+            (r) => r.user_id === currentUserId && r.reaction_type === type
+          );
+          return (
+            <button
+              key={type}
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewingType(type);
+              }}
+              aria-label={`${emoji} ${type} reaction, ${count} ${count === 1 ? 'person' : 'people'}${isUserReaction ? ', you reacted' : ''}`}
+              aria-pressed={isUserReaction}
+              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs ${
+                isUserReaction
+                  ? "bg-primary/20 border border-primary/40"
+                  : "bg-muted/50 hover:bg-muted"
+              }`}
+            >
+              <span aria-hidden="true">{emoji}</span>
+              <span className="text-muted-foreground">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <CommentReactionUsersDialog
+        reactions={reactions}
+        reactionCounts={reactionCounts}
+        currentUserId={currentUserId}
+        viewingType={viewingType}
+        onClose={() => setViewingType(null)}
+        onChangeType={setViewingType}
+        onRemoveReaction={onReactionClick}
+      />
+    </>
   );
 });
 
-const CommentReactionUsers = memo(function CommentReactionUsers({
+const CommentReactionUsersDialog = memo(function CommentReactionUsersDialog({
   reactions,
-  allUserIds,
+  reactionCounts,
   currentUserId,
-  isOpen,
+  viewingType,
+  onClose,
+  onChangeType,
+  onRemoveReaction,
 }: {
   reactions: CommentReaction[];
-  allUserIds: string[];
+  reactionCounts: Record<string, { count: number; userIds: string[] }>;
   currentUserId?: string;
-  isOpen: boolean;
+  viewingType: string | null;
+  onClose: () => void;
+  onChangeType: (type: string) => void;
+  onRemoveReaction: (type: string) => void;
 }) {
+  const allUserIds = [...new Set(reactions.map(r => r.user_id))];
+
   const { data: users = [] } = useQuery({
     queryKey: ["comment-reaction-users", allUserIds],
     queryFn: async () => {
@@ -110,43 +118,85 @@ const CommentReactionUsers = memo(function CommentReactionUsers({
       if (error) throw error;
       return data;
     },
-    enabled: isOpen && allUserIds.length > 0,
+    enabled: !!viewingType && allUserIds.length > 0,
   });
 
-  const reactionsByType = reactions.reduce((acc, r) => {
-    if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
-    acc[r.reaction_type].push(r);
-    return acc;
-  }, {} as Record<string, CommentReaction[]>);
+  const viewingReactors = viewingType
+    ? reactions.filter(r => r.reaction_type === viewingType)
+    : [];
+
+  const viewingEmoji = REACTION_EMOJIS.find(e => e.type === viewingType)?.emoji || "";
 
   const getUserName = (userId: string) =>
-    users.find(u => u.id === userId)?.display_name || "";
+    users.find(u => u.id === userId)?.display_name || "Unknown User";
 
   return (
-    <div className="flex flex-col gap-3 max-h-60 overflow-y-auto min-w-[160px]">
-      <p className="text-xs font-medium text-muted-foreground">Reactions</p>
-      {Object.entries(reactionsByType).map(([type, typeReactions]) => {
-        const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
-        return (
-          <div key={type} className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-base">{emoji}</span>
-              <span className="text-xs text-muted-foreground">({typeReactions.length})</span>
-            </div>
-            <div className="pl-6 flex flex-col gap-0.5">
-              {typeReactions.map((r) => (
-                <p key={r.id} className="text-sm">
-                  {getUserName(r.user_id)}
-                  {r.user_id === currentUserId && " (you)"}
-                </p>
-              ))}
-            </div>
+    <Dialog open={!!viewingType} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="text-xl">{viewingEmoji}</span>
+            <span>Reactions</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Reaction type tabs */}
+        <div className="flex gap-1 pb-2 border-b">
+          {Object.entries(reactionCounts).map(([type, { count }]) => {
+            const emoji = REACTION_EMOJIS.find((e) => e.type === type)?.emoji || "❤️";
+            return (
+              <Button
+                key={type}
+                variant={viewingType === type ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => onChangeType(type)}
+                className="h-8 px-2 gap-1"
+              >
+                <span>{emoji}</span>
+                <span className="text-xs">{count}</span>
+              </Button>
+            );
+          })}
+        </div>
+
+        <ScrollArea className="max-h-[300px]">
+          <div className="space-y-2">
+            {viewingReactors.map((r) => {
+              const isCurrentUser = r.user_id === currentUserId;
+              return (
+                <div key={r.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                      {getUserName(r.user_id)?.charAt(0)?.toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium flex-1">
+                    {getUserName(r.user_id)}
+                    {isCurrentUser && <span className="text-muted-foreground font-normal"> (you)</span>}
+                  </span>
+                  {isCurrentUser && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveReaction(r.reaction_type);
+                        onClose();
+                      }}
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {viewingReactors.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-2">No reactions</p>
+            )}
           </div>
-        );
-      })}
-      {users.length === 0 && (
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      )}
-    </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   );
 });
