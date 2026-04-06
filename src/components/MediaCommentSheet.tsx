@@ -489,10 +489,11 @@ export function MediaCommentSheet({
 
       {/* Composer — pinned at bottom above home indicator */}
       <div
-        className="flex-shrink-0 border-t border-border bg-background transition-[margin] duration-200 ease-out"
+        className={`flex-shrink-0 border-t border-border bg-background transition-[margin] duration-200 ease-out ${
+          !isKeyboardActive ? 'pb-safe' : ''
+        }`}
         style={{
           marginBottom: composerOffset ? `${composerOffset}px` : undefined,
-          paddingBottom: isKeyboardActive ? '0px' : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))',
         }}
       >
         {/* Reply indicator */}
