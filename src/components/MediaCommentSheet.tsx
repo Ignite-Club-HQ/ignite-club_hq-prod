@@ -492,7 +492,9 @@ export function MediaCommentSheet({
         className="flex-shrink-0 border-t border-border bg-background transition-[margin] duration-200 ease-out"
         style={{
           marginBottom: composerOffset ? `${composerOffset}px` : undefined,
-          paddingBottom: isKeyboardActive ? '0px' : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))',
+          paddingBottom: isKeyboardActive
+            ? '0px'
+            : `${safeAreaBottom > 0 ? safeAreaBottom : 0}px`,
         }}
       >
         {/* Reply indicator */}
