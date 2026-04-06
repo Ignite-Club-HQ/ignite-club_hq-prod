@@ -36,6 +36,7 @@ const config: CapacitorConfig = {
     // Keep all navigation inside the WebView
     appendUserAgent: 'IgniteClubHQ-iOS',
     allowsLinkPreview: false,
+    backgroundColor: '#0f1a14',
   },
   // Server configuration - keep navigation in app
   server: {

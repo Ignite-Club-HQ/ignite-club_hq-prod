@@ -11,6 +11,9 @@ html, body {
   position: fixed;
   width: 100%;
   height: 100%;
+  /* Ensure background extends behind safe-area insets on iOS */
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
 }
 
 #root {
