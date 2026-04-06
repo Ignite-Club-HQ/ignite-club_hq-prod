@@ -17,10 +17,9 @@ export function StatusBarManager() {
     const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === 'android';
     let cancelIOSRecovery: (() => void) | null = null;
 
-    // Set a stable viewport height CSS variable without letting keyboard-driven viewport changes shrink it.
+    // Set a stable viewport height CSS variable using the actually visible native viewport.
     const setStableVh = () => {
-      const visualViewportHeight = window.visualViewport?.height ?? 0;
-      const stableHeight = Math.max(window.innerHeight, visualViewportHeight);
+      const stableHeight = window.visualViewport?.height || window.innerHeight;
       document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
     setStableVh();

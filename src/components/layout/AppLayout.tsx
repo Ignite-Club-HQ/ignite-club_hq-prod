@@ -54,6 +54,7 @@ export function AppLayout() {
   }, [isChatThreadRoute]);
 
   const loadingLogo = useMemo(() => igniteIcon, []);
+  const appViewportStyle = useMemo(() => ({ minHeight: "var(--stable-vh, 100dvh)" }), []);
 
   // Debug logging for profile state - must be before any conditional returns
   useEffect(() => {
@@ -115,8 +116,8 @@ export function AppLayout() {
         ? "Applying theme..." 
         : "Loading your profile...";
     
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" role="status" aria-live="polite">
+      return (
+        <div className="flex flex-col items-center justify-center bg-background gap-4" style={appViewportStyle} role="status" aria-live="polite">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" loading="eager" />
         <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">{loadingMessage}</p>
@@ -155,8 +156,8 @@ export function AppLayout() {
 
   if (!user && isDeepLinkRoute && isInApp && !hasPendingOAuth && !hasOAuthTokensInUrl) {
     return (
-      <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center bg-background">
+        <Suspense fallback={
+          <div className="flex items-center justify-center bg-background" style={appViewportStyle}>
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       }>
@@ -178,8 +179,8 @@ export function AppLayout() {
 
   // Show retry screen if profile fetch failed (don't redirect to complete-profile)
   if (profileError && !profile) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4" role="alert" aria-live="assertive">
+      return (
+        <div className="flex flex-col items-center justify-center bg-background gap-4" style={appViewportStyle} role="alert" aria-live="assertive">
         <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" loading="eager" />
         {retrying ? (
           <>
@@ -241,7 +242,7 @@ export function AppLayout() {
     : "flex-1 pb-28 px-4 max-w-lg mx-auto w-full";
   
   return (
-    <div className="min-h-screen bg-background flex flex-col overscroll-none pt-safe">
+    <div className="bg-background flex flex-col overscroll-none pt-safe" style={appViewportStyle}>
       <SkipToContent />
       <AppHeader />
       <main id="main-content" aria-label="Main content" className={mainClassName}>
