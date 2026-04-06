@@ -2100,7 +2100,7 @@ export default function HomePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           
-          {userChildren.length > 0 && (
+          {userChildren.filter((child: any) => child.ignite_points >= (selectedReward?.points_required || 0)).length > 0 && (
             <div className="space-y-2 py-2">
               <Label>Redeem for</Label>
               <Select value={selectedRedeemFor} onValueChange={setSelectedRedeemFor}>
