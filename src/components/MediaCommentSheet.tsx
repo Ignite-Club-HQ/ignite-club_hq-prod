@@ -187,11 +187,14 @@ export function MediaCommentSheet({
       }`}
       style={{
         height: viewportHeight ? `${viewportHeight}px` : 'var(--stable-vh, 100dvh)',
-        paddingTop: 'var(--safe-area-top, env(safe-area-inset-top, 0px))',
       }}
+      data-lock-keyboard-scroll="true"
     >
-      {/* Compact header bar */}
-      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border flex-shrink-0">
+      {/* Safe-area spacer — pushes content below status bar / Dynamic Island */}
+      <div className="flex-shrink-0 bg-background" style={{ height: 'var(--safe-area-top, env(safe-area-inset-top, 0px))' }} />
+
+      {/* Header bar */}
+      <div className="flex items-center gap-2 px-2 py-2 border-b border-border flex-shrink-0">
         <Button
           variant="ghost"
           size="icon"
