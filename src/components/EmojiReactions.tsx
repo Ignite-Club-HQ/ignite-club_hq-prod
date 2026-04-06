@@ -78,11 +78,14 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
               key={type}
               variant="ghost"
               size="sm"
-              onClick={(e) => handleEmojiClick(type, e)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewingReactionType(type);
+              }}
               className={`h-7 px-2 gap-1 text-sm ${
                 isUserReaction ? "bg-primary/20 hover:bg-primary/30" : "hover:bg-accent"
               }`}
-              title={isUserReaction ? "Tap to remove your reaction" : "Tap to react"}
+              title="View who reacted"
             >
               <span>{emojiData.emoji}</span>
               <span className="text-xs">{count}</span>
@@ -116,20 +119,6 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
           </PopoverContent>
         </Popover>
 
-        {/* View all reactions button if there are reactions */}
-        {reactions.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setViewingReactionType(Object.keys(reactionCounts)[0] || null);
-            }}
-            className="h-7 px-2 text-xs text-muted-foreground"
-          >
-            View all
-          </Button>
-        )}
       </div>
 
       {/* Reactors Dialog */}
@@ -174,10 +163,24 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
                         {reactor.profiles?.display_name?.charAt(0)?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium flex-1">
                       {reactor.profiles?.display_name || "Unknown User"}
                       {isCurrentUser && <span className="text-muted-foreground font-normal"> (you)</span>}
                     </span>
+                    {isCurrentUser && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemove();
+                          setViewingReactionType(null);
+                        }}
+                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                      >
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 );
               })}

@@ -888,7 +888,7 @@ export default function RewardRedemptionCard() {
                   <strong>{selectedReward?.points_required} points</strong>.
                 </p>
                 
-                {children.length > 0 && (
+                {children.filter(c => c.ignite_points >= (selectedReward?.points_required || 0)).length > 0 && (
                   <div className="space-y-2">
                     <Label htmlFor="redeem-for" className="text-foreground">Redeem for:</Label>
                     <Select value={selectedRedeemFor} onValueChange={setSelectedRedeemFor}>
