@@ -4,6 +4,7 @@ import { Keyboard } from '@capacitor/keyboard';
 import { App } from '@capacitor/app';
 import { applyStatusBar, refreshStatusBar } from '@/lib/statusBarControl';
 import { scheduleIOSNativeOverlayRecovery } from '@/lib/iosNativeOverlayRecovery';
+import { readSafeAreaInsetTopPx } from '@/lib/iosLayoutStability';
 
 /**
  * Manages native status bar appearance on Capacitor apps.
@@ -17,24 +18,60 @@ export function StatusBarManager() {
     const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === 'android';
     let cancelIOSRecovery: (() => void) | null = null;
 
+    const getNativeSafeAreaTopFloor = () => {
+      if (!isNativeIOS || typeof window === 'undefined') return 0;
+      const shortestSide = Math.min(window.screen.width, window.screen.height);
+      const longestSide = Math.max(window.screen.width, window.screen.height);
+      const aspectRatio = longestSide / Math.max(shortestSide, 1);
+
+      if (shortestSide >= 768) return 24;
+      return aspectRatio >= 2 ? 44 : 20;
+    };
+
+    const setSafeAreaTop = () => {
+      if (typeof document === 'undefined') return;
+
+      const measuredTop = readSafeAreaInsetTopPx();
+      const safeTop = isNativeIOS
+        ? Math.max(measuredTop, getNativeSafeAreaTopFloor())
+        : measuredTop;
+
+      document.documentElement.style.setProperty('--safe-area-top', `${safeTop}px`);
+    };
+
     // Set a stable viewport height CSS variable using the actually visible native viewport.
     const setStableVh = () => {
       const stableHeight = window.visualViewport?.height || window.innerHeight;
       document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
     setStableVh();
+    setSafeAreaTop();
     // Only update on orientation change, not on keyboard resize
     const handleOrientationChange = () => {
-      setTimeout(setStableVh, 150);
+      setTimeout(() => {
+        setStableVh();
+        setSafeAreaTop();
+      }, 150);
     };
     window.addEventListener('orientationchange', handleOrientationChange);
+
+    const visualViewport = window.visualViewport;
+    const handleViewportInsetChange = () => {
+      setSafeAreaTop();
+    };
+
+    visualViewport?.addEventListener('resize', handleViewportInsetChange);
+    visualViewport?.addEventListener('scroll', handleViewportInsetChange);
 
     const queueIOSRecovery = () => {
       if (!isNativeIOS || typeof document === 'undefined') return;
       if (document.visibilityState === 'hidden') return;
       setStableVh();
+      setSafeAreaTop();
       window.setTimeout(setStableVh, 250);
       window.setTimeout(setStableVh, 1000);
+      window.setTimeout(setSafeAreaTop, 250);
+      window.setTimeout(setSafeAreaTop, 1000);
       cancelIOSRecovery?.();
       cancelIOSRecovery = scheduleIOSNativeOverlayRecovery([0, 320, 1100, 1800]);
     };
@@ -108,6 +145,8 @@ export function StatusBarManager() {
       keyboardShowListener?.remove();
       cancelIOSRecovery?.();
       window.removeEventListener('orientationchange', handleOrientationChange);
+      visualViewport?.removeEventListener('resize', handleViewportInsetChange);
+      visualViewport?.removeEventListener('scroll', handleViewportInsetChange);
       if (isNativeIOS && typeof document !== 'undefined' && typeof window !== 'undefined') {
         window.removeEventListener('focus', handleViewportResume);
         window.removeEventListener('pageshow', handleViewportResume);

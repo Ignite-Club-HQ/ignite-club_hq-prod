@@ -185,8 +185,8 @@ export function MediaCommentSheet({
         isVisible ? "translate-y-0" : "translate-y-full"
       }`}
       style={{
-        height: viewportHeight ? `${viewportHeight}px` : '100dvh',
-        paddingTop: 'env(safe-area-inset-top, 0px)',
+        height: viewportHeight ? `${viewportHeight}px` : 'var(--stable-vh, 100dvh)',
+        paddingTop: 'var(--safe-area-top, env(safe-area-inset-top, 0px))',
       }}
     >
       {/* Compact header bar */}
