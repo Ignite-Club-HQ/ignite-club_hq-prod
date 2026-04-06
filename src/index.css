@@ -24,6 +24,7 @@ html, body {
   :root {
     /* Pitch green - never changes with club theme */
     --pitch-green: 130 60% 28%;
+    --safe-area-top: env(safe-area-inset-top, 0px);
     
     --background: 160 10% 96%;
     --foreground: 160 10% 10%;
@@ -177,11 +178,11 @@ html, body {
   }
 
   .pt-safe {
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px));
   }
 
   .safe-area-top {
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px));
   }
 
   .overscroll-contain {
