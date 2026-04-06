@@ -40,6 +40,7 @@
     <!-- Theme initialization script - prevents flash of wrong theme -->
     <script>
       (function() {
+        try {
           // CRITICAL: Check if this is an OAuth callback (Google login)
           var hash = window.location.hash;
           var search = window.location.search;
