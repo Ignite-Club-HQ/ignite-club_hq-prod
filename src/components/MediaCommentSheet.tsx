@@ -485,13 +485,14 @@ export function MediaCommentSheet({
         </div>
       </ScrollArea>
 
-      {/* Composer — pinned at bottom above home indicator */}
+      {/* Composer — pinned at bottom, messenger-style */}
       <div
-        className={`flex-shrink-0 border-t border-border bg-background transition-[margin] duration-200 ease-out ${
-          !isKeyboardActive ? 'pb-safe' : ''
-        }`}
+        className="flex-shrink-0 bg-muted/40 border-t border-border shadow-[0_-1px_3px_rgba(0,0,0,0.06)] transition-[margin] duration-200 ease-out"
         style={{
           marginBottom: composerOffset ? `${composerOffset}px` : undefined,
+          paddingBottom: !isKeyboardActive
+            ? `max(env(safe-area-inset-bottom, 0px), 10px)`
+            : '10px',
         }}
       >
         {/* Reply indicator */}
@@ -511,7 +512,7 @@ export function MediaCommentSheet({
           </div>
         )}
 
-        <div className="flex items-end gap-2 px-4 py-2">
+        <div className="flex items-end gap-3 px-4 pt-2">
           <textarea
             ref={textareaRef}
             value={commentInput}
@@ -520,19 +521,17 @@ export function MediaCommentSheet({
             onKeyDown={handleKeyDown}
             placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Write a comment…"}
             rows={1}
-            className={`flex-1 resize-none bg-muted/50 rounded-2xl placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[40px] max-h-[100px] px-4 py-2.5 leading-[1.4] ${isIOS ? "text-base" : "text-sm"}`}
+            className={`flex-1 resize-none bg-background rounded-2xl placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[48px] max-h-[120px] px-4 py-3 leading-[1.4] border border-border ${isIOS ? "text-base" : "text-sm"}`}
             style={isIOS ? { fontSize: "16px" } : undefined}
           />
-          {hasText && (
-            <Button
-              size="sm"
-              onClick={handleSubmit}
-              disabled={isPending}
-              className="h-9 w-9 p-0 flex-shrink-0 rounded-full"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          )}
+          <Button
+            size="sm"
+            onClick={handleSubmit}
+            disabled={isPending || !hasText}
+            className="h-10 w-10 p-0 flex-shrink-0 rounded-full mb-1"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </div>
