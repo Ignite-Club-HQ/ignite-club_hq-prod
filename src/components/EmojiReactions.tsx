@@ -163,10 +163,24 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
                         {reactor.profiles?.display_name?.charAt(0)?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium flex-1">
                       {reactor.profiles?.display_name || "Unknown User"}
                       {isCurrentUser && <span className="text-muted-foreground font-normal"> (you)</span>}
                     </span>
+                    {isCurrentUser && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemove();
+                          setViewingReactionType(null);
+                        }}
+                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                      >
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 );
               })}
