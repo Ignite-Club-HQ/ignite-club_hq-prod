@@ -134,7 +134,7 @@ export function MediaCommentSheet({
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = Math.min(textarea.scrollHeight, 100) + "px";
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + "px";
   }, [commentInput]);
 
   // Focus input when sheet opens
@@ -191,22 +191,25 @@ export function MediaCommentSheet({
       data-lock-keyboard-scroll="true"
     >
       {/* Safe-area spacer — pushes content below status bar / Dynamic Island */}
-      <div className="flex-shrink-0 bg-background" style={{ height: 'var(--safe-area-top, env(safe-area-inset-top, 0px))' }} />
+      <div
+        className="flex-shrink-0 bg-background"
+        style={{ height: 'var(--safe-area-top, env(safe-area-inset-top, 0px))' }}
+      />
 
-      {/* Header bar */}
-      <div className="flex items-center gap-2 px-2 py-2 border-b border-border flex-shrink-0">
+      {/* Header bar — visually clean, vertically centered like iOS system apps */}
+      <div className="flex items-center gap-2 px-2 py-2.5 border-b border-border flex-shrink-0">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 flex-shrink-0"
+          className="h-9 w-9 flex-shrink-0"
           onClick={handleClose}
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">Comments</p>
-          <p className="text-[10px] text-muted-foreground leading-tight">
-            {comments.length} total
+          <p className="text-sm font-semibold truncate">Comments</p>
+          <p className="text-[11px] text-muted-foreground leading-tight">
+            {comments.length} {comments.length === 1 ? "comment" : "comments"}
           </p>
         </div>
       </div>
@@ -215,7 +218,7 @@ export function MediaCommentSheet({
       <div className={`flex-shrink-0 border-b border-border bg-muted/30 transition-all duration-200 ${
         isKeyboardOpen ? "h-16" : "h-24"
       }`}>
-        <div className="flex items-center gap-3 h-full px-3">
+        <div className="flex items-center gap-3 h-full px-4">
           <img
             src={photoUrl}
             alt=""
@@ -227,21 +230,22 @@ export function MediaCommentSheet({
             <p className="text-xs font-medium text-foreground truncate">
               {uploaderName || "Unknown"}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
+            <p className="text-[11px] text-muted-foreground mt-0.5">
               {topLevelComments.length} {topLevelComments.length === 1 ? "thread" : "threads"} · {replyCount} {replyCount === 1 ? "reply" : "replies"}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Comment list — fills remaining space */}
+      {/* Comment list — fills remaining space, with bottom padding so last comment
+           is never hidden behind the composer */}
       <ScrollArea
         className="flex-1 min-h-0"
         style={{ pointerEvents: isCommentInteracting ? "none" : "auto" }}
       >
-        <div className="px-3 py-2 space-y-1.5">
+        <div className="px-4 pt-3 pb-4 space-y-3">
           {topLevelComments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <p className="text-sm">No comments yet</p>
               <p className="text-xs mt-1">Be the first to comment</p>
             </div>
@@ -284,26 +288,29 @@ export function MediaCommentSheet({
         </div>
       </ScrollArea>
 
-      {/* Input bar — fixed at bottom */}
-      <div className="flex-shrink-0 border-t border-border bg-background" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      {/* Composer — pinned at bottom above home indicator */}
+      <div
+        className="flex-shrink-0 border-t border-border bg-background"
+        style={{ paddingBottom: isKeyboardOpen ? '0px' : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))' }}
+      >
         {/* Reply indicator */}
         {replyingTo && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-muted/30 border-b border-border">
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/30 border-b border-border">
             <span className="text-xs text-muted-foreground truncate flex-1">
               Replying to {replyingTo.name}
             </span>
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 w-5 p-0"
+              className="h-6 w-6 p-0"
               onClick={() => onSetReplyingTo(undefined)}
             >
-              <X className="h-3 w-3" />
+              <X className="h-3.5 w-3.5" />
             </Button>
           </div>
         )}
 
-        <div className="flex items-end gap-1.5 px-3 py-1.5">
+        <div className="flex items-end gap-2 px-4 py-2">
           <textarea
             ref={textareaRef}
             value={commentInput}
@@ -311,14 +318,14 @@ export function MediaCommentSheet({
             onKeyDown={handleKeyDown}
             placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Write a comment…"}
             rows={1}
-            className="flex-1 resize-none bg-muted/50 rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[34px] max-h-[80px] px-3 py-1.5"
+            className="flex-1 resize-none bg-muted/50 rounded-2xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[40px] max-h-[100px] px-4 py-2.5 leading-[1.4]"
           />
           {hasText && (
             <Button
               size="sm"
               onClick={handleSubmit}
               disabled={isPending}
-              className="h-8 w-8 p-0 flex-shrink-0 rounded-full"
+              className="h-9 w-9 p-0 flex-shrink-0 rounded-full"
             >
               <Send className="h-4 w-4" />
             </Button>
