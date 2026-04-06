@@ -352,11 +352,13 @@ export function MediaCommentSheet({
   const topLevelComments = comments.filter(c => !c.reply_to_id);
   const replyCount = comments.length - topLevelComments.length;
   const sheetHeight = isIOS
-    ? "var(--stable-vh, 100dvh)"
+    ? (browserKeyboardInset > 0
+        ? `calc(var(--stable-vh, 100dvh) - ${browserKeyboardInset}px)`
+        : "var(--stable-vh, 100dvh)")
     : viewportHeight
       ? `${viewportHeight}px`
       : "var(--stable-vh, 100dvh)";
-  const composerOffset = isIOS ? keyboardOffset : 0;
+  const composerOffset = isNativeIOS ? nativeKeyboardHeight : 0;
 
   return (
     <div
