@@ -64,6 +64,27 @@ export function useInitialChatBottomPin({
             }, 150);
           });
         });
+
+        // Set up a temporary ResizeObserver to catch container height changes
+        // (e.g. keyboard dismissing after login on iOS). Without this, the
+        // scroll position goes stale when the container grows taller.
+        const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+        if (viewport && typeof ResizeObserver !== "undefined") {
+          const guardObserver = new ResizeObserver(() => {
+            scrollChatToBottom(scrollContainerRef.current);
+          });
+          guardObserver.observe(viewport);
+          // Also watch for DOM mutations (late-loading avatars, metadata)
+          const guardMutation = new MutationObserver(() => {
+            scrollChatToBottom(scrollContainerRef.current);
+          });
+          guardMutation.observe(viewport, { childList: true, subtree: true });
+          // Tear down after 2s settle window
+          setTimeout(() => {
+            guardObserver.disconnect();
+            guardMutation.disconnect();
+          }, 2000);
+        }
       }
       return;
     }
