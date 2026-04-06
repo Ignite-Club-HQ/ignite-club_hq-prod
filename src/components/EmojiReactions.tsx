@@ -119,20 +119,6 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
           </PopoverContent>
         </Popover>
 
-        {/* View all reactions button if there are reactions */}
-        {reactions.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setViewingReactionType(Object.keys(reactionCounts)[0] || null);
-            }}
-            className="h-7 px-2 text-xs text-muted-foreground"
-          >
-            View all
-          </Button>
-        )}
       </div>
 
       {/* Reactors Dialog */}
