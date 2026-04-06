@@ -196,6 +196,19 @@ export default function AuthPage() {
       }
     };
   }, [authMode, isNativePlatform, nativeKeyboardVisible]);
+
+  const isSignInMode = authMode === "signin";
+  const isSignInKeyboardOpen = isSignInMode && isNativePlatform && nativeKeyboardVisible;
+  const authViewportHeight = isSignInKeyboardOpen && nativeKeyboardHeight > 0
+    ? `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
+    : 'var(--stable-vh, 100dvh)';
+  const authShellStyle = {
+    height: authViewportHeight,
+    paddingTop: 'var(--safe-area-top, env(safe-area-inset-top, 0px))',
+    paddingBottom: isSignInKeyboardOpen
+      ? '0px'
+      : 'var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))',
+  };
   
   // Determine button text based on platform
   const getBiometricButtonText = () => {
@@ -220,7 +233,7 @@ export default function AuthPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
+      <div className="flex flex-col items-center justify-center bg-background gap-3" style={authShellStyle}>
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-muted-foreground">Checking authentication...</p>
       </div>
@@ -387,8 +400,6 @@ export default function AuthPage() {
     setConfirmPassword("");
   };
 
-  const isSignInMode = authMode === "signin";
-  const isSignInKeyboardOpen = isSignInMode && isNativePlatform && nativeKeyboardVisible;
   const shouldLowerDefaultSignIn = isSignInMode && isNativePlatform && !isSignInKeyboardOpen;
   const signInViewportClassName = isSignInMode
     ? isSignInKeyboardOpen
@@ -408,7 +419,7 @@ export default function AuthPage() {
     <div
       className="flex flex-col bg-background overflow-hidden"
       data-lock-keyboard-scroll="true"
-      style={{ height: isSignInKeyboardOpen && nativeKeyboardHeight > 0 ? `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)` : 'var(--stable-vh, 100dvh)' }}
+      style={authShellStyle}
     >
       {/* Show progress indicator if in invite flow */}
       {isInInviteFlow && (
