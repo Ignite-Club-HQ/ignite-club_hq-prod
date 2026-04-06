@@ -349,14 +349,12 @@ export function MediaCommentSheet({
 
   return (
     <div
-      className={`fixed left-0 right-0 top-0 z-[61] flex flex-col bg-background ease-out ${
+      className={`fixed left-0 right-0 z-[61] flex flex-col bg-background ease-out ${
         isIOS
-          ? `transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
-          : `transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
+          ? `top-0 bottom-0 transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
+          : `top-0 transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
       }`}
-      style={{
-        height: sheetHeight,
-      }}
+      style={isIOS ? undefined : { height: sheetHeight }}
       data-lock-keyboard-scroll="true"
     >
       {/* Safe-area spacer — pushes content below status bar / Dynamic Island */}
