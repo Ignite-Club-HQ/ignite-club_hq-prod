@@ -55,6 +55,17 @@ export function MediaCommentSheet({
   const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const isKeyboardOpen = useKeyboardOpen();
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+
+  // Track visual viewport height to keep input above iOS keyboard
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setViewportHeight(vv.height);
+    update();
+    vv.addEventListener("resize", update);
+    return () => vv.removeEventListener("resize", update);
+  }, []);
 
   const restoreInputFocus = useCallback(() => {
     const textarea = textareaRef.current;
@@ -170,10 +181,13 @@ export function MediaCommentSheet({
 
   return (
     <div
-      className={`fixed inset-0 z-[61] flex flex-col bg-background transition-transform duration-300 ease-out ${
+      className={`fixed left-0 right-0 top-0 z-[61] flex flex-col bg-background transition-transform duration-300 ease-out ${
         isVisible ? "translate-y-0" : "translate-y-full"
       }`}
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      style={{
+        height: viewportHeight ? `${viewportHeight}px` : '100dvh',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+      }}
     >
       {/* Compact header bar */}
       <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border flex-shrink-0">
