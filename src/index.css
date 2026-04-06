@@ -6,17 +6,11 @@
 /* Ignite Sports Club Management - Dark theme with emerald accents */
 
 html, body {
+  position: fixed;
   overflow: hidden;
   overscroll-behavior: none;
   width: 100%;
   height: 100%;
-}
-
-/* position:fixed prevents iOS WebView from extending body to full content height,
-   leaving the native white WebView background visible below safe-area.
-   On iOS we use static positioning and let #root handle scroll containment. */
-html:not(.ios-native-layout) body {
-  position: fixed;
 }
 
 #root {

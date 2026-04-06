@@ -235,15 +235,13 @@ export function AppLayout() {
     return <Navigate to="/complete-profile" replace />;
   }
 
-  // Only apply pt-safe padding for PWA/web - native apps handle this via StatusBarManager
-  const isNative = Capacitor.isNativePlatform();
 
   const mainClassName = isChatThreadRoute
     ? "flex-1 min-h-0 max-w-lg mx-auto w-full overflow-hidden px-0 pb-0"
     : "flex-1 pb-28 px-4 max-w-lg mx-auto w-full";
   
   return (
-    <div className={`min-h-screen bg-background flex flex-col overscroll-none ${isNative ? '' : 'pt-safe'}`}>
+    <div className="min-h-screen bg-background flex flex-col overscroll-none pt-safe">
       <SkipToContent />
       <AppHeader />
       <main id="main-content" aria-label="Main content" className={mainClassName}>
