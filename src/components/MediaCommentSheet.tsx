@@ -53,7 +53,7 @@ export function MediaCommentSheet({
   currentUserId,
 }: MediaCommentSheetProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const scrollEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [isCommentInteracting, setIsCommentInteracting] = useState(false);
   const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -141,6 +141,32 @@ export function MediaCommentSheet({
       vv.removeEventListener("scroll", update);
     };
   }, [isIOS, isNativeIOS, open]);
+
+  const getCommentViewport = useCallback(() => {
+    const scrollRoot = scrollAreaRef.current;
+    if (!scrollRoot) return null;
+
+    return (scrollRoot.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null)
+      ?? (scrollRoot.firstElementChild as HTMLDivElement | null);
+  }, []);
+
+  const scrollCommentsToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const viewport = getCommentViewport();
+    if (!viewport) return;
+
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
+      behavior,
+    });
+  }, [getCommentViewport]);
+
+  const stabilizeIOSViewport = useCallback(() => {
+    if (!isIOS || typeof window === "undefined" || typeof document === "undefined") return;
+
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [isIOS]);
 
   const restoreInputFocus = useCallback(() => {
     const textarea = textareaRef.current;
@@ -236,12 +262,47 @@ export function MediaCommentSheet({
   const keyboardOffset = isNativeIOS ? nativeKeyboardHeight : isIOS ? browserKeyboardInset : 0;
   const isKeyboardActive = isIOS ? keyboardOffset > 0 : isKeyboardOpen;
 
+  useEffect(() => {
+    if (!open || !isIOS || !isKeyboardActive) return;
+
+    const run = () => stabilizeIOSViewport();
+    run();
+
+    const frameId = window.requestAnimationFrame(run);
+    const timeoutId = window.setTimeout(run, 180);
+    const lateTimeoutId = window.setTimeout(run, 360);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+      window.clearTimeout(lateTimeoutId);
+    };
+  }, [open, isIOS, isKeyboardActive, stabilizeIOSViewport]);
+
   // Scroll to bottom when new comments appear or keyboard opens
   useEffect(() => {
-    if (open && scrollEndRef.current) {
-      scrollEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [comments.length, open, isKeyboardActive]);
+    if (!open) return;
+
+    const run = (behavior: ScrollBehavior) => scrollCommentsToBottom(behavior);
+    const preferredBehavior: ScrollBehavior = isIOS || isKeyboardActive ? "auto" : "smooth";
+
+    run(preferredBehavior);
+    const frameId = window.requestAnimationFrame(() => run("auto"));
+    const timeoutId = window.setTimeout(() => run("auto"), 140);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [comments.length, open, isKeyboardActive, isIOS, scrollCommentsToBottom]);
+
+  const handleComposerFocus = useCallback(() => {
+    if (!isIOS) return;
+
+    stabilizeIOSViewport();
+    window.requestAnimationFrame(stabilizeIOSViewport);
+    window.setTimeout(stabilizeIOSViewport, 120);
+  }, [isIOS, stabilizeIOSViewport]);
 
   const handleSubmit = useCallback(() => {
     if (!commentInput.trim()) return;
@@ -334,6 +395,7 @@ export function MediaCommentSheet({
       {/* Comment list — fills remaining space, with bottom padding so last comment
            is never hidden behind the composer */}
       <ScrollArea
+        ref={scrollAreaRef}
         className="flex-1 min-h-0"
         style={{ pointerEvents: isCommentInteracting ? "none" : "auto" }}
       >
@@ -382,7 +444,7 @@ export function MediaCommentSheet({
               );
             })
           )}
-          <div ref={scrollEndRef} />
+          <div />
         </div>
       </ScrollArea>
 
@@ -416,6 +478,7 @@ export function MediaCommentSheet({
             ref={textareaRef}
             value={commentInput}
             onChange={(e) => onCommentInputChange(e.target.value)}
+            onFocus={handleComposerFocus}
             onKeyDown={handleKeyDown}
             placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Write a comment…"}
             rows={1}
