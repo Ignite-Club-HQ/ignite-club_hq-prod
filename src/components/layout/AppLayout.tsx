@@ -243,7 +243,7 @@ export function AppLayout() {
     : "flex-1 pb-28 px-4 max-w-lg mx-auto w-full";
   
   return (
-    <div className={`min-h-screen bg-background flex flex-col overscroll-none ${isNative ? '' : 'pt-safe'}`}>
+    <div className="min-h-screen bg-background flex flex-col overscroll-none pt-safe">
       <SkipToContent />
       <AppHeader />
       <main id="main-content" aria-label="Main content" className={mainClassName}>
