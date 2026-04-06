@@ -195,6 +195,15 @@ export function MediaCommentSheet({
     }
   }, []);
 
+  const blurComposer = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    if (document.activeElement === textarea) {
+      textarea.blur();
+    }
+  }, []);
+
   const handleReactionGestureStateChange = useCallback((active: boolean) => {
     if (!active) {
       setIsReactionGestureActive(false);
@@ -267,11 +276,12 @@ export function MediaCommentSheet({
 
   useEffect(() => {
     if (!open) {
+      blurComposer();
       setIsCommentInteracting(false);
       setNativeKeyboardHeight(0);
       setBrowserKeyboardInset(0);
     }
-  }, [open]);
+  }, [blurComposer, open]);
 
   const keyboardOffset = isNativeIOS ? nativeKeyboardHeight : isIOS ? browserKeyboardInset : 0;
   const isKeyboardActive = isIOS ? keyboardOffset > 0 : isKeyboardOpen;
@@ -331,9 +341,10 @@ export function MediaCommentSheet({
   }, [handleSubmit]);
 
   const handleClose = useCallback(() => {
+    blurComposer();
     setIsVisible(false);
     setTimeout(() => onOpenChange(false), isIOS ? 200 : 250);
-  }, [isIOS, onOpenChange]);
+  }, [blurComposer, isIOS, onOpenChange]);
 
   if (!open) return null;
 
@@ -494,7 +505,8 @@ export function MediaCommentSheet({
             onKeyDown={handleKeyDown}
             placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : "Write a comment…"}
             rows={1}
-            className="flex-1 resize-none bg-muted/50 rounded-2xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[40px] max-h-[100px] px-4 py-2.5 leading-[1.4]"
+            className={`flex-1 resize-none bg-muted/50 rounded-2xl placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring min-h-[40px] max-h-[100px] px-4 py-2.5 leading-[1.4] ${isIOS ? "text-base" : "text-sm"}`}
+            style={isIOS ? { fontSize: "16px" } : undefined}
           />
           {hasText && (
             <Button
