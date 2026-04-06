@@ -492,7 +492,6 @@ export function MediaCommentSheet({
         }`}
         style={{
           marginBottom: composerOffset ? `${composerOffset}px` : undefined,
-          paddingBottom: isKeyboardActive && isNativeIOS ? `${safeAreaBottom}px` : undefined,
         }}
       >
         {/* Reply indicator */}
