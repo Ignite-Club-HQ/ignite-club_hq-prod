@@ -365,13 +365,11 @@ export function MediaCommentSheet({
   const hasText = commentInput.trim().length > 0;
   const topLevelComments = comments.filter(c => !c.reply_to_id);
   const replyCount = comments.length - topLevelComments.length;
-  const sheetHeight = isIOS
-    ? (browserKeyboardInset > 0
-        ? `calc(var(--stable-vh, 100dvh) - ${browserKeyboardInset}px)`
-        : "var(--stable-vh, 100dvh)")
-    : viewportHeight
+  const sheetHeight = !isIOS
+    ? viewportHeight
       ? `${viewportHeight}px`
-      : "var(--stable-vh, 100dvh)";
+      : "var(--stable-vh, 100dvh)"
+    : undefined;
   const composerOffset = isNativeIOS ? nativeKeyboardHeight : 0;
 
   return (
@@ -381,7 +379,7 @@ export function MediaCommentSheet({
           ? `top-0 transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
           : `top-0 transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
       }`}
-      style={{ height: sheetHeight }}
+      style={isIOS ? { top: 0, bottom: 0 } : { height: sheetHeight }}
       data-lock-keyboard-scroll="true"
     >
       {/* Safe-area spacer — pushes content below status bar / Dynamic Island */}
@@ -494,6 +492,7 @@ export function MediaCommentSheet({
         }`}
         style={{
           marginBottom: composerOffset ? `${composerOffset}px` : undefined,
+          paddingBottom: isKeyboardActive && isNativeIOS ? `${safeAreaBottom}px` : undefined,
         }}
       >
         {/* Reply indicator */}
