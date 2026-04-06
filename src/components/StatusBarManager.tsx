@@ -4,7 +4,7 @@ import { Keyboard } from '@capacitor/keyboard';
 import { App } from '@capacitor/app';
 import { applyStatusBar, refreshStatusBar } from '@/lib/statusBarControl';
 import { scheduleIOSNativeOverlayRecovery } from '@/lib/iosNativeOverlayRecovery';
-import { readSafeAreaInsetTopPx } from '@/lib/iosLayoutStability';
+import { readSafeAreaInsetBottomPx, readSafeAreaInsetTopPx } from '@/lib/iosLayoutStability';
 
 /**
  * Manages native status bar appearance on Capacitor apps.
@@ -17,6 +17,7 @@ export function StatusBarManager() {
     const isNativeIOS = isNativePlatform && Capacitor.getPlatform() === 'ios';
     const isNativeAndroid = isNativePlatform && Capacitor.getPlatform() === 'android';
     let cancelIOSRecovery: (() => void) | null = null;
+    let lockedIOSSafeAreaTop = 0;
 
     const getNativeSafeAreaTopFloor = () => {
       if (!isNativeIOS || typeof window === 'undefined') return 0;
@@ -28,36 +29,54 @@ export function StatusBarManager() {
       return aspectRatio >= 2 ? 44 : 20;
     };
 
-    const setSafeAreaTop = () => {
+    const setSafeAreaInsets = (options?: { resetTopLock?: boolean }) => {
       if (typeof document === 'undefined') return;
 
       const measuredTop = readSafeAreaInsetTopPx();
-      const safeTop = isNativeIOS
+      const measuredBottom = readSafeAreaInsetBottomPx();
+      const currentComputedTop = Number.parseFloat(
+        window.getComputedStyle(document.documentElement).getPropertyValue('--safe-area-top') || '0',
+      );
+      const safeTopBase = isNativeIOS
         ? Math.max(measuredTop, getNativeSafeAreaTopFloor())
         : measuredTop;
+      const preservedTop = isNativeIOS && !options?.resetTopLock
+        ? Math.max(
+            lockedIOSSafeAreaTop,
+            Number.isFinite(currentComputedTop) ? currentComputedTop : 0,
+          )
+        : 0;
+      const safeTop = isNativeIOS ? Math.max(safeTopBase, preservedTop) : safeTopBase;
+
+      lockedIOSSafeAreaTop = safeTop;
 
       document.documentElement.style.setProperty('--safe-area-top', `${safeTop}px`);
+      document.documentElement.style.setProperty('--safe-area-bottom', `${Math.max(measuredBottom, 0)}px`);
     };
 
     // Set a stable viewport height CSS variable using the actually visible native viewport.
     const setStableVh = () => {
-      const stableHeight = window.visualViewport?.height || window.innerHeight;
+      const visualViewportHeight = window.visualViewport?.height ?? 0;
+      const innerHeight = window.innerHeight ?? 0;
+      const stableHeight = Math.max(visualViewportHeight, innerHeight);
+      if (!stableHeight) return;
       document.documentElement.style.setProperty('--stable-vh', `${stableHeight}px`);
     };
     setStableVh();
-    setSafeAreaTop();
+    setSafeAreaInsets({ resetTopLock: true });
     // Only update on orientation change, not on keyboard resize
     const handleOrientationChange = () => {
       setTimeout(() => {
         setStableVh();
-        setSafeAreaTop();
+        setSafeAreaInsets({ resetTopLock: true });
       }, 150);
     };
     window.addEventListener('orientationchange', handleOrientationChange);
 
     const visualViewport = window.visualViewport;
     const handleViewportInsetChange = () => {
-      setSafeAreaTop();
+      setStableVh();
+      setSafeAreaInsets();
     };
 
     visualViewport?.addEventListener('resize', handleViewportInsetChange);
@@ -67,11 +86,11 @@ export function StatusBarManager() {
       if (!isNativeIOS || typeof document === 'undefined') return;
       if (document.visibilityState === 'hidden') return;
       setStableVh();
-      setSafeAreaTop();
+      setSafeAreaInsets();
       window.setTimeout(setStableVh, 250);
       window.setTimeout(setStableVh, 1000);
-      window.setTimeout(setSafeAreaTop, 250);
-      window.setTimeout(setSafeAreaTop, 1000);
+      window.setTimeout(() => setSafeAreaInsets(), 250);
+      window.setTimeout(() => setSafeAreaInsets(), 1000);
       cancelIOSRecovery?.();
       cancelIOSRecovery = scheduleIOSNativeOverlayRecovery([0, 320, 1100, 1800]);
     };
