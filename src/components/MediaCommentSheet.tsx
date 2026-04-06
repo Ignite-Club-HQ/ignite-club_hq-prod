@@ -116,6 +116,20 @@ export function MediaCommentSheet({
   }, [isNativeIOS, open]);
 
   useEffect(() => {
+    if (!isNativeIOS) return;
+
+    Keyboard.setScroll({ isDisabled: open }).catch(() => {
+      // Ignore unsupported environments
+    });
+
+    return () => {
+      Keyboard.setScroll({ isDisabled: false }).catch(() => {
+        // Ignore unsupported environments
+      });
+    };
+  }, [isNativeIOS, open]);
+
+  useEffect(() => {
     if (!isIOS || isNativeIOS || !open) {
       setBrowserKeyboardInset(0);
       return;
