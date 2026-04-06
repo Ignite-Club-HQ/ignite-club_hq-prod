@@ -1,12 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
-let lockCount = 0;
-let savedRootStyles: {
-  htmlOverflow: string;
-  htmlOverscrollBehavior: string;
-  bodyOverflow: string;
-  bodyOverscrollBehavior: string;
-} | null = null;
+/**
+ * Prevents background scrolling on iOS when a full-screen fixed overlay is open.
+ *
+ * Unlike useIOSScrollLock (which uses position:fixed on body), this hook uses
+ * a passive-false touchmove listener to prevent scroll-through without modifying
+ * any body/html styles. This avoids conflicts with useIOSScrollLock's saved-state
+ * tracking and prevents stale overflow:hidden from persisting after close.
+ */
 
 const isIOSEnvironment = () => {
   if (typeof navigator === "undefined") return false;
@@ -20,38 +21,35 @@ const isIOSEnvironment = () => {
 };
 
 export function useIOSOverlayScrollLock(active: boolean) {
+  const overlayRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!active || !isIOSEnvironment()) return;
 
-    const html = document.documentElement;
-    const body = document.body;
+    // Prevent touchmove on the document root so the body can't scroll behind
+    // the overlay. Events inside a [data-radix-scroll-area-viewport] or the
+    // overlay itself are allowed through so internal scrolling still works.
+    const handler = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
 
-    if (lockCount === 0) {
-      savedRootStyles = {
-        htmlOverflow: html.style.overflow,
-        htmlOverscrollBehavior: html.style.overscrollBehavior,
-        bodyOverflow: body.style.overflow,
-        bodyOverscrollBehavior: body.style.overscrollBehavior,
-      };
+      // Allow scrolling inside scroll-area viewports (comment list etc.)
+      if (target.closest("[data-radix-scroll-area-viewport]")) return;
+      // Allow scrolling inside textareas
+      if (target.tagName === "TEXTAREA") return;
+      // Allow scrolling inside explicitly scrollable containers
+      if (target.closest("[data-allow-scroll]")) return;
 
-      html.style.overflow = "hidden";
-      html.style.overscrollBehavior = "none";
-      body.style.overflow = "hidden";
-      body.style.overscrollBehavior = "none";
-    }
+      // Block body scroll-through
+      e.preventDefault();
+    };
 
-    lockCount += 1;
+    document.addEventListener("touchmove", handler, { passive: false });
 
     return () => {
-      lockCount = Math.max(0, lockCount - 1);
-
-      if (lockCount === 0) {
-        html.style.overflow = savedRootStyles?.htmlOverflow ?? "";
-        html.style.overscrollBehavior = savedRootStyles?.htmlOverscrollBehavior ?? "";
-        body.style.overflow = savedRootStyles?.bodyOverflow ?? "";
-        body.style.overscrollBehavior = savedRootStyles?.bodyOverscrollBehavior ?? "";
-        savedRootStyles = null;
-      }
+      document.removeEventListener("touchmove", handler);
     };
   }, [active]);
+
+  return overlayRef;
 }
