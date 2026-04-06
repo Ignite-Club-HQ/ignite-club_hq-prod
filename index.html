@@ -41,31 +41,32 @@
     <script>
       (function() {
         try {
+          // Detect iOS native (Capacitor) to opt out of position:fixed on body
+          var ua = navigator.userAgent || '';
+          var isIOSDevice = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+          var isCapacitorIOS = isIOSDevice && /IgniteClubHQ-iOS/i.test(ua);
+          if (isCapacitorIOS) {
+            document.documentElement.classList.add('ios-native-layout');
+          }
+
           // CRITICAL: Check if this is an OAuth callback (Google login)
-          // If so, localStorage may contain stale theme from previous user
-          // Default to LIGHT mode and let React apply the correct theme after profile fetch
           var hash = window.location.hash;
           var search = window.location.search;
           var isOAuthCallback = (hash && (hash.includes('access_token') || hash.includes('refresh_token'))) ||
                                 (search && search.includes('code='));
           
           if (isOAuthCallback) {
-            // OAuth callback - default to light mode, don't trust localStorage
-            // The useAuth hook will apply the correct theme after fetching the profile
             console.log('[Theme] OAuth callback detected - defaulting to light mode');
             document.documentElement.classList.remove('dark');
             document.documentElement.classList.add('light');
             document.documentElement.style.colorScheme = 'light';
-            // Clear localStorage to ensure useAuth can apply the correct theme
             localStorage.removeItem('app-theme');
           } else {
-            // Normal page load - use localStorage
             var theme = localStorage.getItem('app-theme');
             if (theme === 'dark') {
               document.documentElement.classList.add('dark');
               document.documentElement.style.colorScheme = 'dark';
             } else {
-              // Default to light theme if not set or if set to light
               document.documentElement.classList.remove('dark');
               document.documentElement.style.colorScheme = 'light';
             }
@@ -75,8 +76,8 @@
     </script>
     <!-- Initial background color based on theme - prevents flash during load -->
     <style>
-      :root { background-color: hsl(0 0% 100%); }
-      .dark { background-color: hsl(160 15% 6%); }
+      :root, html, body { background-color: hsl(0 0% 100%); }
+      .dark, .dark body { background-color: hsl(160 15% 6%); }
     </style>
   </head>
 
