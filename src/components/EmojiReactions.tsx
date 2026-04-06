@@ -78,11 +78,14 @@ export const EmojiReactions = memo(function EmojiReactions({ reactions, currentU
               key={type}
               variant="ghost"
               size="sm"
-              onClick={(e) => handleEmojiClick(type, e)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewingReactionType(type);
+              }}
               className={`h-7 px-2 gap-1 text-sm ${
                 isUserReaction ? "bg-primary/20 hover:bg-primary/30" : "hover:bg-accent"
               }`}
-              title={isUserReaction ? "Tap to remove your reaction" : "Tap to react"}
+              title="View who reacted"
             >
               <span>{emojiData.emoji}</span>
               <span className="text-xs">{count}</span>
