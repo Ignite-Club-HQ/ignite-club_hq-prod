@@ -283,7 +283,21 @@ export function MediaCommentSheet({
     }
   }, [blurComposer, open]);
 
-  const keyboardOffset = isNativeIOS ? nativeKeyboardHeight : isIOS ? browserKeyboardInset : 0;
+  const safeAreaBottom = typeof window !== "undefined"
+    ? Number.parseFloat(
+        window.getComputedStyle(document.documentElement).getPropertyValue("--safe-area-bottom") || "0",
+      ) || 0
+    : 0;
+  const nativeViewportOverlap = isNativeIOS
+    ? Math.max(0, (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? 0) < (window.innerHeight ?? 0)
+        ? (window.innerHeight ?? 0) - ((window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? 0))
+        : 0)
+    : 0;
+  const keyboardOffset = isNativeIOS
+    ? Math.max(nativeKeyboardHeight + safeAreaBottom, nativeViewportOverlap)
+    : isIOS
+      ? browserKeyboardInset
+      : 0;
   const isKeyboardActive = isIOS ? keyboardOffset > 0 : isKeyboardOpen;
 
   useEffect(() => {
