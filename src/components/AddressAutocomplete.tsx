@@ -488,10 +488,17 @@ export function AddressAutocomplete({
           placeholder={placeholder}
           className="pl-9 pr-24"
           onFocus={handleFocus}
-          onBlur={() => setTimeout(() => {
-            setShowSuggestions(false);
-            setShowSavedLocations(false);
-          }, 200)}
+          onBlur={() => {
+            // Skip blur if a selection is in progress (mobile touch)
+            if (isSelectingRef.current) {
+              isSelectingRef.current = false;
+              return;
+            }
+            setTimeout(() => {
+              setShowSuggestions(false);
+              setShowSavedLocations(false);
+            }, 100);
+          }}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {(loading || gpsLoading) && (
