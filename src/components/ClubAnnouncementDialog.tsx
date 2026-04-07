@@ -11,7 +11,6 @@ import {
   ResponsiveDialogContent,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
-  ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -64,17 +63,20 @@ export function ClubAnnouncementDialog({
   const sendMutation = useMutation({
     mutationFn: async () => {
       const teamIds = Array.from(selectedTeamIds);
-      // Insert a message into each selected team chat
-      const inserts = teamIds.map((teamId) => ({
-        team_id: teamId,
-        author_id: userId,
-        text: message.trim(),
-        is_club_announcement: true,
-        club_announcement_name: clubName,
-      }));
+      
+      // Send via edge function which creates/uses bot profile as author
+      // This makes announcements backwards-compatible with old app builds
+      const { data, error } = await supabase.functions.invoke("send-club-announcement", {
+        body: {
+          club_id: clubId,
+          team_ids: teamIds,
+          message: message.trim(),
+          club_name: clubName,
+        },
+      });
 
-      const { error } = await supabase.from("team_messages").insert(inserts);
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       toast.success(`Announcement sent to ${selectedTeamIds.size} team${selectedTeamIds.size > 1 ? "s" : ""}`);
