@@ -280,7 +280,7 @@ export default function HomePage() {
         if (event.mini_league_id) {
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
-          return teamIds.includes(event.team_id) || clubAdminArr.includes(event.club_id);
+          return teamIds.includes(event.team_id);
         } else {
           return clubIdsArr.includes(event.club_id);
         }
