@@ -550,7 +550,7 @@ export function AddressAutocomplete({
                   <button
                     key={location.id}
                     className="w-full px-3 py-2.5 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2 group"
-                    onClick={() => handleSelectSavedLocation(location)}
+                    onMouseDown={(e) => { e.preventDefault(); handleSelectSavedLocation(location); }}
                   >
                     <Star className="h-4 w-4 fill-primary text-primary shrink-0" />
                     <span className="line-clamp-2 flex-1">{displayText}</span>
@@ -586,7 +586,7 @@ export function AddressAutocomplete({
                     <button
                       key={`recent-${index}`}
                       className="w-full px-3 py-2.5 text-left text-sm hover:bg-accent transition-colors flex items-start gap-2"
-                      onClick={() => handleSelectSavedLocation(location)}
+                      onMouseDown={(e) => { e.preventDefault(); handleSelectSavedLocation(location); }}
                     >
                       <History className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                       <span className="line-clamp-2">{displayText}</span>
@@ -605,7 +605,7 @@ export function AddressAutocomplete({
             <button
               key={suggestion.place_id}
               className="w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors flex items-start gap-2"
-              onClick={() => handleSelect(suggestion)}
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(suggestion); }}
             >
               <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
               <span className="line-clamp-2">{suggestion.description}</span>
@@ -616,7 +616,7 @@ export function AddressAutocomplete({
           {value.length >= 3 && (
             <button
               className="w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors flex items-start gap-2 border-t border-border"
-              onClick={handleUseCustomAddress}
+              onMouseDown={(e) => { e.preventDefault(); handleUseCustomAddress(); }}
             >
               <Plus className="h-4 w-4 mt-0.5 text-primary shrink-0" />
               <span className="text-primary">Use "{value}" as location</span>
