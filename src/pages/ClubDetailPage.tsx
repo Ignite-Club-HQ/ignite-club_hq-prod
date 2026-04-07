@@ -115,6 +115,7 @@ export default function ClubDetailPage() {
   const [showAllTeams, setShowAllTeams] = useState<boolean | null>(null); // null = not yet initialized
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const draggedTeamRef = useRef<string | null>(null);
+  const [moveToTeam, setMoveToTeam] = useState<{ userId: string; userName: string; fromTeamId: string; fromTeamName: string; roles: string[] } | null>(null);
   
   // Folder management state
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
