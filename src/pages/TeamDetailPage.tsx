@@ -73,6 +73,7 @@ import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import PlayerPositionSheet from "@/components/PlayerPositionSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
+import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
 import MemberSubscriptionPaymentsManager from "@/components/MemberSubscriptionPaymentsManager";
