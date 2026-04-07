@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy, ChevronRight, LogOut } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
@@ -73,6 +73,7 @@ import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import PlayerPositionSheet from "@/components/PlayerPositionSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
+import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
 import MemberSubscriptionPaymentsManager from "@/components/MemberSubscriptionPaymentsManager";
@@ -116,6 +117,7 @@ export default function TeamDetailPage() {
   const [positionSheetPlayer, setPositionSheetPlayer] = useState<{ id: string; name: string; type: "member" | "child" } | null>(null);
   const [inviteParentChild, setInviteParentChild] = useState<{ childId: string; childName: string } | null>(null);
   const [linkChildToParent, setLinkChildToParent] = useState<{ childName: string; existingChildId?: string; pendingInviteIds: string[] } | null>(null);
+  const [moveToTeam, setMoveToTeam] = useState<{ type: "adult" | "child"; id: string; name: string; roles?: string[] } | null>(null);
   
   // Handle admin invite dialog from team creation flow
   const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string } | null;
@@ -1531,6 +1533,20 @@ export default function TeamDetailPage() {
                                         <UserPlus className="h-4 w-4 text-orange-400" />
                                       </Button>
                                     )}
+                                    {isClubAdmin && !isPending && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0"
+                                        aria-label={`Move ${child.name} to another team`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setMoveToTeam({ type: "child", id: child.id, name: child.name });
+                                        }}
+                                      >
+                                        <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    )}
                                     {(isAdmin || isClubAdmin) && !isPending && (
                                       <Button
                                         variant="ghost"
@@ -1812,13 +1828,29 @@ export default function TeamDetailPage() {
                                       existingRoles={member.roles?.map(r => r.role) || []}
                                     />
                                   )}
-                                  {(isAdmin || isClubAdmin) && userId !== user?.id && (
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </AlertDialogTrigger>
+                                   {isClubAdmin && userId !== user?.id && (
+                                     <Button
+                                       variant="ghost"
+                                       size="icon"
+                                       className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                       aria-label="Move to another team"
+                                       onClick={() => setMoveToTeam({
+                                         type: "adult",
+                                         id: userId,
+                                         name: member.profile?.display_name || "User",
+                                         roles: member.roles?.map(r => r.role) || [],
+                                       })}
+                                     >
+                                       <ArrowRightLeft className="h-4 w-4" />
+                                     </Button>
+                                   )}
+                                   {(isAdmin || isClubAdmin) && userId !== user?.id && (
+                                     <AlertDialog>
+                                       <AlertDialogTrigger asChild>
+                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                           <Trash2 className="h-4 w-4" />
+                                         </Button>
+                                       </AlertDialogTrigger>
                                       <AlertDialogContent>
                                         <AlertDialogHeader>
                                           <AlertDialogTitle>Remove Member?</AlertDialogTitle>
@@ -2443,6 +2475,19 @@ export default function TeamDetailPage() {
           teamId={id}
           clubId={team.club_id || (team.clubs as any)?.id || ""}
           members={members}
+        />
+      )}
+      {moveToTeam && id && team && (
+        <MoveToTeamSheet
+          open={!!moveToTeam}
+          onOpenChange={(open) => { if (!open) setMoveToTeam(null); }}
+          clubId={team.club_id || (team.clubs as any)?.id || ""}
+          fromTeamId={id}
+          fromTeamName={team.name}
+          memberType={moveToTeam.type}
+          memberId={moveToTeam.id}
+          memberName={moveToTeam.name}
+          memberRoles={moveToTeam.roles}
         />
       )}
     </div>
