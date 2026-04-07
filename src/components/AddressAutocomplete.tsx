@@ -586,7 +586,7 @@ export function AddressAutocomplete({
                     <button
                       key={`recent-${index}`}
                       className="w-full px-3 py-2.5 text-left text-sm hover:bg-accent transition-colors flex items-start gap-2"
-                      onClick={() => handleSelectSavedLocation(location)}
+                      onMouseDown={(e) => { e.preventDefault(); handleSelectSavedLocation(location); }}
                     >
                       <History className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                       <span className="line-clamp-2">{displayText}</span>
