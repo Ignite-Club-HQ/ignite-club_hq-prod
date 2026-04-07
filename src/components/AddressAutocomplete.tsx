@@ -550,7 +550,7 @@ export function AddressAutocomplete({
                   <button
                     key={location.id}
                     className="w-full px-3 py-2.5 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2 group"
-                    onClick={() => handleSelectSavedLocation(location)}
+                    onMouseDown={(e) => { e.preventDefault(); handleSelectSavedLocation(location); }}
                   >
                     <Star className="h-4 w-4 fill-primary text-primary shrink-0" />
                     <span className="line-clamp-2 flex-1">{displayText}</span>
