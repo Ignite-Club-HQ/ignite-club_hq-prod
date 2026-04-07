@@ -605,7 +605,7 @@ export function AddressAutocomplete({
             <button
               key={suggestion.place_id}
               className="w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors flex items-start gap-2"
-              onClick={() => handleSelect(suggestion)}
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(suggestion); }}
             >
               <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
               <span className="line-clamp-2">{suggestion.description}</span>
@@ -616,7 +616,7 @@ export function AddressAutocomplete({
           {value.length >= 3 && (
             <button
               className="w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors flex items-start gap-2 border-t border-border"
-              onClick={handleUseCustomAddress}
+              onMouseDown={(e) => { e.preventDefault(); handleUseCustomAddress(); }}
             >
               <Plus className="h-4 w-4 mt-0.5 text-primary shrink-0" />
               <span className="text-primary">Use "{value}" as location</span>
