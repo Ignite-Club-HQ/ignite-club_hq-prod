@@ -674,9 +674,9 @@ export const ChatMessage = memo(function ChatMessage({
           </AvatarFallback>
         </Avatar>
       )}
-      <div className={`flex flex-col max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
-        {!isOwn && hasName && (
-          <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName}</p>
+      <div className={`flex flex-col max-w-[75%] ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
+        {(isClubAnnouncement || (!isOwn && hasName)) && (
+          <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName || "Club"}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="relative group/msg">
