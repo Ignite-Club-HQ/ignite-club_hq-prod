@@ -51,6 +51,8 @@ export function AddressAutocomplete({
   const [currentAddress, setCurrentAddress] = useState<SavedLocation | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isSelectingRef = useRef(false);
+  const skipNextSearchRef = useRef(false);
 
   // Fetch user's saved favorite locations
   useEffect(() => {
@@ -77,6 +79,15 @@ export function AddressAutocomplete({
   useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
+    }
+
+    if (skipNextSearchRef.current) {
+      skipNextSearchRef.current = false;
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setShowSavedLocations(false);
+      setSearchAttempted(false);
+      return;
     }
 
     if (!value || value.length < 3) {
@@ -201,6 +212,7 @@ export function AddressAutocomplete({
       }
     }
 
+    skipNextSearchRef.current = true;
     onChange(displayAddress);
     setShowSuggestions(false);
     setShowSavedLocations(false);
@@ -346,6 +358,7 @@ export function AddressAutocomplete({
             
             const fullAddress = [street, suburb, state, postcode].filter(Boolean).join(", ");
             
+            skipNextSearchRef.current = true;
             onChange(fullAddress);
             setCurrentAddress({
               address: street,
@@ -403,6 +416,7 @@ export function AddressAutocomplete({
       .filter(Boolean)
       .join(", ");
     
+    skipNextSearchRef.current = true;
     onChange(fullAddress || location.address);
     setShowSavedLocations(false);
     setShowSuggestions(false);
@@ -432,6 +446,7 @@ export function AddressAutocomplete({
   ];
 
   const handleUseCustomAddress = () => {
+    skipNextSearchRef.current = true;
     setShowSuggestions(false);
     setShowSavedLocations(false);
     // Use the typed value as-is for the address
@@ -487,10 +502,17 @@ export function AddressAutocomplete({
           placeholder={placeholder}
           className="pl-9 pr-24"
           onFocus={handleFocus}
-          onBlur={() => setTimeout(() => {
-            setShowSuggestions(false);
-            setShowSavedLocations(false);
-          }, 200)}
+          onBlur={() => {
+            // Skip blur if a selection is in progress (mobile touch)
+            if (isSelectingRef.current) {
+              isSelectingRef.current = false;
+              return;
+            }
+            setTimeout(() => {
+              setShowSuggestions(false);
+              setShowSavedLocations(false);
+            }, 100);
+          }}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {(loading || gpsLoading) && (
@@ -550,7 +572,7 @@ export function AddressAutocomplete({
                   <button
                     key={location.id}
                     className="w-full px-3 py-2.5 text-left text-sm hover:bg-accent transition-colors flex items-center gap-2 group"
-                    onClick={() => handleSelectSavedLocation(location)}
+                    onMouseDown={(e) => { e.preventDefault(); isSelectingRef.current = true; handleSelectSavedLocation(location); }}
                   >
                     <Star className="h-4 w-4 fill-primary text-primary shrink-0" />
                     <span className="line-clamp-2 flex-1">{displayText}</span>
@@ -586,7 +608,7 @@ export function AddressAutocomplete({
                     <button
                       key={`recent-${index}`}
                       className="w-full px-3 py-2.5 text-left text-sm hover:bg-accent transition-colors flex items-start gap-2"
-                      onClick={() => handleSelectSavedLocation(location)}
+                      onMouseDown={(e) => { e.preventDefault(); isSelectingRef.current = true; handleSelectSavedLocation(location); }}
                     >
                       <History className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                       <span className="line-clamp-2">{displayText}</span>
@@ -605,7 +627,7 @@ export function AddressAutocomplete({
             <button
               key={suggestion.place_id}
               className="w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors flex items-start gap-2"
-              onClick={() => handleSelect(suggestion)}
+              onMouseDown={(e) => { e.preventDefault(); isSelectingRef.current = true; handleSelect(suggestion); }}
             >
               <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
               <span className="line-clamp-2">{suggestion.description}</span>
@@ -616,7 +638,7 @@ export function AddressAutocomplete({
           {value.length >= 3 && (
             <button
               className="w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors flex items-start gap-2 border-t border-border"
-              onClick={handleUseCustomAddress}
+              onMouseDown={(e) => { e.preventDefault(); isSelectingRef.current = true; handleUseCustomAddress(); }}
             >
               <Plus className="h-4 w-4 mt-0.5 text-primary shrink-0" />
               <span className="text-primary">Use "{value}" as location</span>
