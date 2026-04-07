@@ -402,10 +402,27 @@ export default function TeamChatPage() {
   
   // Reset per-thread scroll/message state when teamId changes so the initial
   // bottom-pin runs against the new chat, not stale messages from the last team.
+  // Prefer in-memory React Query data on re-open within the same session, then fall back to local cache.
   useEffect(() => {
-    setLocalMessages(teamId ? getCachedTeamMessages(teamId) : undefined);
+    if (!teamId) {
+      setLocalMessages(undefined);
+      setInfiniteScrollEnabled(false);
+      return;
+    }
+
+    const cachedQueryData = queryClient.getQueryData(["team-messages", teamId]) as
+      | { messages?: Message[] }
+      | Message[]
+      | undefined;
+    const inMemoryMessages = (
+      Array.isArray(cachedQueryData)
+        ? cachedQueryData
+        : cachedQueryData?.messages || []
+    ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    setLocalMessages(inMemoryMessages.length > 0 ? inMemoryMessages : getCachedTeamMessages(teamId));
     setInfiniteScrollEnabled(false);
-  }, [teamId]);
+  }, [teamId, queryClient]);
 
   const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
