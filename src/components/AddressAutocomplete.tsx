@@ -51,6 +51,7 @@ export function AddressAutocomplete({
   const [currentAddress, setCurrentAddress] = useState<SavedLocation | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isSelectingRef = useRef(false);
 
   // Fetch user's saved favorite locations
   useEffect(() => {
