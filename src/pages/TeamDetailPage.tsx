@@ -117,6 +117,7 @@ export default function TeamDetailPage() {
   const [positionSheetPlayer, setPositionSheetPlayer] = useState<{ id: string; name: string; type: "member" | "child" } | null>(null);
   const [inviteParentChild, setInviteParentChild] = useState<{ childId: string; childName: string } | null>(null);
   const [linkChildToParent, setLinkChildToParent] = useState<{ childName: string; existingChildId?: string; pendingInviteIds: string[] } | null>(null);
+  const [moveToTeam, setMoveToTeam] = useState<{ type: "adult" | "child"; id: string; name: string; roles?: string[] } | null>(null);
   
   // Handle admin invite dialog from team creation flow
   const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string } | null;
