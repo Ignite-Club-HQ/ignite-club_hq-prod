@@ -803,11 +803,11 @@ export const ChatMessage = memo(function ChatMessage({
               <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
             </span>
           )}
-          {!isPending && !isLastMessage && isOwn && readCount === 0 && (
+          {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
             <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
           )}
         </p>
-        {!isPending && isLastMessage && isOwn && (
+        {!isPending && isLastMessage && isOwn && !isClubAnnouncement && (
           readFrontierReaders.length > 0
             ? <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
                 <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
