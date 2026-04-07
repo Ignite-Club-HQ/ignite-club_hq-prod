@@ -634,7 +634,7 @@ export const ChatMessage = memo(function ChatMessage({
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
   return (
-    <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
+    <div className={`flex gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
