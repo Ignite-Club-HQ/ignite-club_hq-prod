@@ -1533,6 +1533,20 @@ export default function TeamDetailPage() {
                                         <UserPlus className="h-4 w-4 text-orange-400" />
                                       </Button>
                                     )}
+                                    {isClubAdmin && !isPending && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0"
+                                        aria-label={`Move ${child.name} to another team`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setMoveToTeam({ type: "child", id: child.id, name: child.name });
+                                        }}
+                                      >
+                                        <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    )}
                                     {(isAdmin || isClubAdmin) && !isPending && (
                                       <Button
                                         variant="ghost"
@@ -2461,6 +2475,19 @@ export default function TeamDetailPage() {
           teamId={id}
           clubId={team.club_id || (team.clubs as any)?.id || ""}
           members={members}
+        />
+      )}
+      {moveToTeam && id && team && (
+        <MoveToTeamSheet
+          open={!!moveToTeam}
+          onOpenChange={(open) => { if (!open) setMoveToTeam(null); }}
+          clubId={team.club_id || (team.clubs as any)?.id || ""}
+          fromTeamId={id}
+          fromTeamName={team.name}
+          memberType={moveToTeam.type}
+          memberId={moveToTeam.id}
+          memberName={moveToTeam.name}
+          memberRoles={moveToTeam.roles}
         />
       )}
     </div>
