@@ -2071,6 +2071,19 @@ export default function ClubDetailPage() {
           userId={user.id}
         />
       )}
+      {moveToTeam && id && (
+        <MoveToTeamSheet
+          open={!!moveToTeam}
+          onOpenChange={(open) => { if (!open) setMoveToTeam(null); }}
+          clubId={id}
+          fromTeamId={moveToTeam.fromTeamId}
+          fromTeamName={moveToTeam.fromTeamName}
+          memberType="adult"
+          memberId={moveToTeam.userId}
+          memberName={moveToTeam.userName}
+          memberRoles={moveToTeam.roles}
+        />
+      )}
 
     </div>
   );
