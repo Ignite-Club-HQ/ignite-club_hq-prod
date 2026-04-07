@@ -199,8 +199,15 @@ export default function AuthPage() {
 
   const isSignInMode = authMode === "signin";
   const isSignInKeyboardOpen = isSignInMode && isNativePlatform && nativeKeyboardVisible;
+  // On Android with adjustResize, window.innerHeight already excludes the keyboard,
+  // so --stable-vh shrinks when the keyboard opens. Using --stable-vh - keyboardHeight
+  // would double-subtract the keyboard. Instead, use innerHeight directly when keyboard
+  // is open on Android, or just use --stable-vh (which stays stable on iOS).
+  const isAndroid = isNativePlatform && !/(iPhone|iPad|iPod)/i.test(navigator.userAgent);
   const authViewportHeight = isSignInKeyboardOpen && nativeKeyboardHeight > 0
-    ? `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
+    ? isAndroid
+      ? '100vh' // Android adjustResize already shrinks the viewport — don't subtract again
+      : `calc(var(--stable-vh, 100dvh) - ${nativeKeyboardHeight}px)`
     : 'var(--stable-vh, 100dvh)';
   const authShellStyle = {
     height: authViewportHeight,
