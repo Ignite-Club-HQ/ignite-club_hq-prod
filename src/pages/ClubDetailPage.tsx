@@ -1604,7 +1604,18 @@ export default function ClubDetailPage() {
                       ))}
                     </>
                   )}
-                  {Object.entries(clubMembers).slice(0, displayCount).map(([userId, member]) => (
+                  {Object.entries(clubMembers).slice(0, displayCount).map(([userId, member]) => {
+                    // Get unique teams this member belongs to
+                    const memberTeams = member.roles
+                      .filter(r => r.teamId && r.teamName)
+                      .reduce((acc, r) => {
+                        if (!acc.find(t => t.id === r.teamId)) {
+                          acc.push({ id: r.teamId!, name: r.teamName! });
+                        }
+                        return acc;
+                      }, [] as { id: string; name: string }[]);
+
+                    return (
                     <Card key={userId}>
                       <CardContent className="p-3 flex items-center gap-3">
                         <Avatar className="h-8 w-8">
@@ -1613,7 +1624,7 @@ export default function ClubDetailPage() {
                             {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
                         </div>
                         <div className="flex flex-wrap gap-1">
@@ -1638,9 +1649,51 @@ export default function ClubDetailPage() {
                             );
                           })}
                         </div>
+                        {isAdmin && memberTeams.length > 0 && userId !== user?.id && (
+                          memberTeams.length === 1 ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary"
+                              aria-label="Move to another team"
+                              onClick={() => setMoveToTeam({
+                                userId,
+                                userName: member.profile?.display_name || "User",
+                                fromTeamId: memberTeams[0].id,
+                                fromTeamName: memberTeams[0].name,
+                                roles: member.roles.filter(r => r.teamId === memberTeams[0].id).map(r => r.role),
+                              })}
+                            >
+                              <ArrowRightLeft className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary" aria-label="Move to another team">
+                                  <ArrowRightLeft className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <p className="px-2 py-1 text-xs text-muted-foreground font-medium">Move from:</p>
+                                {memberTeams.map(t => (
+                                  <DropdownMenuItem key={t.id} onClick={() => setMoveToTeam({
+                                    userId,
+                                    userName: member.profile?.display_name || "User",
+                                    fromTeamId: t.id,
+                                    fromTeamName: t.name,
+                                    roles: member.roles.filter(r => r.teamId === t.id).map(r => r.role),
+                                  })}>
+                                    {t.name}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )
+                        )}
                       </CardContent>
                     </Card>
-                  ))}
+                    );
+                  })}
                   {Object.keys(clubMembers).length > displayCount && (
                     <Button 
                       variant="outline" 
