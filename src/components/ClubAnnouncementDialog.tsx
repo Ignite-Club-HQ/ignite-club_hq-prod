@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Send, Megaphone, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import {
   ResponsiveDialogContent,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
-  ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,8 +40,38 @@ export function ClubAnnouncementDialog({
 }: ClubAnnouncementDialogProps) {
   const [message, setMessage] = useState("");
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
+  const [botUserId, setBotUserId] = useState<string | null>(null);
+  const [botLoading, setBotLoading] = useState(false);
 
   const activeTeams = teams.filter((t) => !t.is_archived);
+
+  // Ensure bot profile exists when dialog opens
+  useEffect(() => {
+    if (!open || botUserId) return;
+    
+    let cancelled = false;
+    setBotLoading(true);
+    
+    supabase.functions
+      .invoke("get-or-create-club-bot", {
+        body: { club_id: clubId },
+      })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Failed to get/create club bot:", error);
+          // Fallback to user's own ID if bot creation fails
+          setBotUserId(null);
+        } else {
+          setBotUserId(data?.bot_user_id || null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBotLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [open, clubId, botUserId]);
 
   const toggleTeam = (teamId: string) => {
     setSelectedTeamIds((prev) => {
@@ -64,10 +93,13 @@ export function ClubAnnouncementDialog({
   const sendMutation = useMutation({
     mutationFn: async () => {
       const teamIds = Array.from(selectedTeamIds);
-      // Insert a message into each selected team chat
+      // Use bot profile as author for backwards compatibility
+      // Old clients will see the club name/logo via normal profile join
+      const authorId = botUserId || userId;
+      
       const inserts = teamIds.map((teamId) => ({
         team_id: teamId,
-        author_id: userId,
+        author_id: authorId,
         text: message.trim(),
         is_club_announcement: true,
         club_announcement_name: clubName,
@@ -87,7 +119,7 @@ export function ClubAnnouncementDialog({
     },
   });
 
-  const canSend = message.trim().length > 0 && selectedTeamIds.size > 0 && !sendMutation.isPending;
+  const canSend = message.trim().length > 0 && selectedTeamIds.size > 0 && !sendMutation.isPending && !botLoading;
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
@@ -158,12 +190,12 @@ export function ClubAnnouncementDialog({
             disabled={!canSend}
             className="w-full"
           >
-            {sendMutation.isPending ? (
+            {sendMutation.isPending || botLoading ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <Send className="h-4 w-4 mr-2" />
             )}
-            Send Announcement
+            {botLoading ? "Preparing..." : "Send Announcement"}
           </Button>
         </div>
       </ResponsiveDialogContent>
