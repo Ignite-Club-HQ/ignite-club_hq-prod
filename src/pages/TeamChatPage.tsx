@@ -592,7 +592,7 @@ export default function TeamChatPage() {
 
       const { data: olderData, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
@@ -655,6 +655,8 @@ export default function TeamChatPage() {
 
       const olderMessages = reversedOlder.map((msg) => ({
         ...msg,
+        is_club_announcement: msg.is_club_announcement || false,
+        club_announcement_name: msg.club_announcement_name || null,
         profiles: profilesMap.get(msg.author_id) || null,
         reactions: reactionsData.filter((r) => r.team_message_id === msg.id) || [],
         reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
