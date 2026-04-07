@@ -52,6 +52,7 @@ export function AddressAutocomplete({
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isSelectingRef = useRef(false);
+  const skipNextSearchRef = useRef(false);
 
   // Fetch user's saved favorite locations
   useEffect(() => {
@@ -78,6 +79,15 @@ export function AddressAutocomplete({
   useEffect(() => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
+    }
+
+    if (skipNextSearchRef.current) {
+      skipNextSearchRef.current = false;
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setShowSavedLocations(false);
+      setSearchAttempted(false);
+      return;
     }
 
     if (!value || value.length < 3) {
@@ -202,6 +212,7 @@ export function AddressAutocomplete({
       }
     }
 
+    skipNextSearchRef.current = true;
     onChange(displayAddress);
     setShowSuggestions(false);
     setShowSavedLocations(false);
@@ -347,6 +358,7 @@ export function AddressAutocomplete({
             
             const fullAddress = [street, suburb, state, postcode].filter(Boolean).join(", ");
             
+            skipNextSearchRef.current = true;
             onChange(fullAddress);
             setCurrentAddress({
               address: street,
@@ -404,6 +416,7 @@ export function AddressAutocomplete({
       .filter(Boolean)
       .join(", ");
     
+    skipNextSearchRef.current = true;
     onChange(fullAddress || location.address);
     setShowSavedLocations(false);
     setShowSuggestions(false);
@@ -433,6 +446,7 @@ export function AddressAutocomplete({
   ];
 
   const handleUseCustomAddress = () => {
+    skipNextSearchRef.current = true;
     setShowSuggestions(false);
     setShowSavedLocations(false);
     // Use the typed value as-is for the address
