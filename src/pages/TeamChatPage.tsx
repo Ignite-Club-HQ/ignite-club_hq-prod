@@ -1282,7 +1282,7 @@ export default function TeamChatPage() {
                         imageUrl={msg.image_url}
                         authorId={msg.author_id}
                         authorName={msg.is_club_announcement ? (msg.club_announcement_name || "Club") : (getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null)}
-                        authorAvatar={msg.is_club_announcement ? undefined : (getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null)}
+                        authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
                         timestamp={formatMessageDate(msg.created_at)}
                         isOwn={msg.is_club_announcement ? false : msg.author_id === user?.id}
                         isAdmin={isAdmin || false}
