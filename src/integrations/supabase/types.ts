@@ -6329,6 +6329,24 @@ export type Database = {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
+      move_child_to_team: {
+        Args: {
+          p_child_id: string
+          p_club_id: string
+          p_from_team_id: string
+          p_to_team_id: string
+        }
+        Returns: undefined
+      }
+      move_member_to_team: {
+        Args: {
+          p_club_id: string
+          p_from_team_id: string
+          p_to_team_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       notify_all_users: {
         Args: {
           _exclude_user_id: string

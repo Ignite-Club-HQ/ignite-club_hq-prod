@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore } from "lucide-react";
+import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft } from "lucide-react";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -89,6 +89,7 @@ import { ClassAttendanceManager } from "@/components/ClassAttendanceManager";
 import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide";
 import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { AttendanceStatsView } from "@/components/AttendanceStatsView";
+import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 
 type ClubRole = "club_admin";
 
@@ -114,6 +115,7 @@ export default function ClubDetailPage() {
   const [showAllTeams, setShowAllTeams] = useState<boolean | null>(null); // null = not yet initialized
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const draggedTeamRef = useRef<string | null>(null);
+  const [moveToTeam, setMoveToTeam] = useState<{ userId: string; userName: string; fromTeamId: string; fromTeamName: string; roles: string[] } | null>(null);
   
   // Folder management state
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
@@ -193,10 +195,10 @@ export default function ClubDetailPage() {
     // Deduplicate by role id
     const existingRoleIndex = acc[userId].roles.findIndex(r => r.id === role.id);
     if (existingRoleIndex === -1) {
-      acc[userId].roles.push({ id: role.id, role: role.role, scopeName });
+      acc[userId].roles.push({ id: role.id, role: role.role, scopeName, teamId: role.team_id || null, teamName: role.teams?.name || null });
     }
     return acc;
-  }, {} as Record<string, { profile: any; roles: { id: string; role: string; scopeName?: string }[] }>);
+  }, {} as Record<string, { profile: any; roles: { id: string; role: string; scopeName?: string; teamId: string | null; teamName: string | null }[] }>);
 
   const { data: teams } = useQuery({
     queryKey: ["club-teams", id],
@@ -1602,7 +1604,18 @@ export default function ClubDetailPage() {
                       ))}
                     </>
                   )}
-                  {Object.entries(clubMembers).slice(0, displayCount).map(([userId, member]) => (
+                  {Object.entries(clubMembers).slice(0, displayCount).map(([userId, member]) => {
+                    // Get unique teams this member belongs to
+                    const memberTeams = member.roles
+                      .filter(r => r.teamId && r.teamName)
+                      .reduce((acc, r) => {
+                        if (!acc.find(t => t.id === r.teamId)) {
+                          acc.push({ id: r.teamId!, name: r.teamName! });
+                        }
+                        return acc;
+                      }, [] as { id: string; name: string }[]);
+
+                    return (
                     <Card key={userId}>
                       <CardContent className="p-3 flex items-center gap-3">
                         <Avatar className="h-8 w-8">
@@ -1611,7 +1624,7 @@ export default function ClubDetailPage() {
                             {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
                         </div>
                         <div className="flex flex-wrap gap-1">
@@ -1636,9 +1649,51 @@ export default function ClubDetailPage() {
                             );
                           })}
                         </div>
+                        {isAdmin && memberTeams.length > 0 && userId !== user?.id && (
+                          memberTeams.length === 1 ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary"
+                              aria-label="Move to another team"
+                              onClick={() => setMoveToTeam({
+                                userId,
+                                userName: member.profile?.display_name || "User",
+                                fromTeamId: memberTeams[0].id,
+                                fromTeamName: memberTeams[0].name,
+                                roles: member.roles.filter(r => r.teamId === memberTeams[0].id).map(r => r.role),
+                              })}
+                            >
+                              <ArrowRightLeft className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary" aria-label="Move to another team">
+                                  <ArrowRightLeft className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <p className="px-2 py-1 text-xs text-muted-foreground font-medium">Move from:</p>
+                                {memberTeams.map(t => (
+                                  <DropdownMenuItem key={t.id} onClick={() => setMoveToTeam({
+                                    userId,
+                                    userName: member.profile?.display_name || "User",
+                                    fromTeamId: t.id,
+                                    fromTeamName: t.name,
+                                    roles: member.roles.filter(r => r.teamId === t.id).map(r => r.role),
+                                  })}>
+                                    {t.name}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )
+                        )}
                       </CardContent>
                     </Card>
-                  ))}
+                    );
+                  })}
                   {Object.keys(clubMembers).length > displayCount && (
                     <Button 
                       variant="outline" 
@@ -2014,6 +2069,19 @@ export default function ClubDetailPage() {
           clubId={club.id}
           teams={teams}
           userId={user.id}
+        />
+      )}
+      {moveToTeam && id && (
+        <MoveToTeamSheet
+          open={!!moveToTeam}
+          onOpenChange={(open) => { if (!open) setMoveToTeam(null); }}
+          clubId={id}
+          fromTeamId={moveToTeam.fromTeamId}
+          fromTeamName={moveToTeam.fromTeamName}
+          memberType="adult"
+          memberId={moveToTeam.userId}
+          memberName={moveToTeam.userName}
+          memberRoles={moveToTeam.roles}
         />
       )}
 
