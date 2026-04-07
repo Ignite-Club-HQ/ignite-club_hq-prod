@@ -634,7 +634,7 @@ export const ChatMessage = memo(function ChatMessage({
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
   return (
-    <div className={`flex gap-3 group ${isOwn ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
+    <div className={`flex gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
@@ -674,9 +674,9 @@ export const ChatMessage = memo(function ChatMessage({
           </AvatarFallback>
         </Avatar>
       )}
-      <div className={`flex flex-col max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
-        {!isOwn && hasName && (
-          <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName}</p>
+      <div className={`flex flex-col max-w-[75%] ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
+        {(isClubAnnouncement || (!isOwn && hasName)) && (
+          <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName || "Club"}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="relative group/msg">
@@ -711,7 +711,7 @@ export const ChatMessage = memo(function ChatMessage({
             <div
               ref={bubbleRef}
               className={`relative rounded-2xl px-4 py-2 select-none transition-all duration-100 ${
-                isOwn
+                isOwn && !isClubAnnouncement
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
               } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
@@ -803,11 +803,11 @@ export const ChatMessage = memo(function ChatMessage({
               <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
             </span>
           )}
-          {!isPending && !isLastMessage && isOwn && readCount === 0 && (
+          {!isPending && !isLastMessage && isOwn && !isClubAnnouncement && readCount === 0 && (
             <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
           )}
         </p>
-        {!isPending && isLastMessage && isOwn && (
+        {!isPending && isLastMessage && isOwn && !isClubAnnouncement && (
           readFrontierReaders.length > 0
             ? <div className="cursor-pointer" onClick={() => setShowReadReceipts(true)}>
                 <MessageReadAvatars readers={readFrontierReaders} isOwn={isOwn} />
