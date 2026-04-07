@@ -1,0 +1,158 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Not authenticated" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Verify the caller
+    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { authorization: authHeader } },
+    });
+    const { data: { user }, error: userError } = await anonClient.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Not authenticated" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { club_id, team_ids, message, club_name } = await req.json();
+    if (!club_id || !team_ids?.length || !message?.trim()) {
+      return new Response(JSON.stringify({ error: "club_id, team_ids, and message required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Check caller is club_admin or app_admin
+    const { data: roles } = await adminClient
+      .from("user_roles")
+      .select("role, club_id")
+      .eq("user_id", user.id)
+      .in("role", ["club_admin", "app_admin"]);
+
+    const isAuthorized = roles?.some(
+      (r) => r.role === "app_admin" || (r.role === "club_admin" && r.club_id === club_id)
+    );
+    if (!isAuthorized) {
+      return new Response(JSON.stringify({ error: "Not authorized" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get or create bot user
+    const { data: club } = await adminClient
+      .from("clubs")
+      .select("bot_user_id, name, logo_url")
+      .eq("id", club_id)
+      .single();
+
+    if (!club) {
+      return new Response(JSON.stringify({ error: "Club not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let botUserId = club.bot_user_id;
+    const resolvedClubName = club_name || club.name;
+
+    if (!botUserId) {
+      // Create bot user
+      const botEmail = `bot-${club_id}@club.igniteapp.internal`;
+      const botPassword = crypto.randomUUID() + crypto.randomUUID();
+
+      const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+        email: botEmail,
+        password: botPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: resolvedClubName,
+          is_club_bot: true,
+          club_id: club_id,
+        },
+      });
+
+      if (createError) {
+        if (createError.message?.includes("already been registered")) {
+          const { data: existingUsers } = await adminClient.auth.admin.listUsers();
+          const existing = existingUsers?.users?.find((u) => u.email === botEmail);
+          if (existing) botUserId = existing.id;
+        }
+        if (!botUserId) throw createError;
+      } else {
+        botUserId = newUser.user.id;
+      }
+
+      // Create/update profile
+      await adminClient.from("profiles").upsert({
+        id: botUserId,
+        display_name: resolvedClubName,
+        avatar_url: club.logo_url,
+      });
+
+      // Store on club
+      await adminClient
+        .from("clubs")
+        .update({ bot_user_id: botUserId })
+        .eq("id", club_id);
+    } else {
+      // Ensure profile is up to date
+      await adminClient
+        .from("profiles")
+        .update({
+          display_name: resolvedClubName,
+          avatar_url: club.logo_url,
+        })
+        .eq("id", botUserId);
+    }
+
+    // Insert messages using service role (bypasses RLS author_id check)
+    const inserts = team_ids.map((teamId: string) => ({
+      team_id: teamId,
+      author_id: botUserId,
+      text: message.trim(),
+      is_club_announcement: true,
+      club_announcement_name: resolvedClubName,
+    }));
+
+    const { error: insertError } = await adminClient.from("team_messages").insert(inserts);
+    if (insertError) throw insertError;
+
+    return new Response(
+      JSON.stringify({ success: true, bot_user_id: botUserId, messages_sent: team_ids.length }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err) {
+    console.error("Error in send-club-announcement:", err);
+    return new Response(
+      JSON.stringify({ error: err.message || "Internal error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+});
