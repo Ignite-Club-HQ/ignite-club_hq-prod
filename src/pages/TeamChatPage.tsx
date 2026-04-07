@@ -473,6 +473,12 @@ export default function TeamChatPage() {
 
             return {
               ...message,
+              is_club_announcement:
+                message.is_club_announcement ?? previousMessage.is_club_announcement ?? false,
+              club_announcement_name:
+                message.club_announcement_name ?? previousMessage.club_announcement_name ?? null,
+              profiles: message.profiles ?? previousMessage.profiles,
+              reply_to: message.reply_to ?? previousMessage.reply_to,
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
