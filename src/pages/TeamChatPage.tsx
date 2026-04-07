@@ -402,10 +402,27 @@ export default function TeamChatPage() {
   
   // Reset per-thread scroll/message state when teamId changes so the initial
   // bottom-pin runs against the new chat, not stale messages from the last team.
+  // Prefer in-memory React Query data on re-open within the same session, then fall back to local cache.
   useEffect(() => {
-    setLocalMessages(teamId ? getCachedTeamMessages(teamId) : undefined);
+    if (!teamId) {
+      setLocalMessages(undefined);
+      setInfiniteScrollEnabled(false);
+      return;
+    }
+
+    const cachedQueryData = queryClient.getQueryData(["team-messages", teamId]) as
+      | { messages?: Message[] }
+      | Message[]
+      | undefined;
+    const inMemoryMessages = (
+      Array.isArray(cachedQueryData)
+        ? cachedQueryData
+        : cachedQueryData?.messages || []
+    ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    setLocalMessages(inMemoryMessages.length > 0 ? inMemoryMessages : getCachedTeamMessages(teamId));
     setInfiniteScrollEnabled(false);
-  }, [teamId]);
+  }, [teamId, queryClient]);
 
   const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
@@ -473,6 +490,12 @@ export default function TeamChatPage() {
 
             return {
               ...message,
+              is_club_announcement:
+                message.is_club_announcement ?? previousMessage.is_club_announcement ?? false,
+              club_announcement_name:
+                message.club_announcement_name ?? previousMessage.club_announcement_name ?? null,
+              profiles: message.profiles ?? previousMessage.profiles,
+              reply_to: message.reply_to ?? previousMessage.reply_to,
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
@@ -586,7 +609,7 @@ export default function TeamChatPage() {
 
       const { data: olderData, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id")
+        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
@@ -649,6 +672,8 @@ export default function TeamChatPage() {
 
       const olderMessages = reversedOlder.map((msg) => ({
         ...msg,
+        is_club_announcement: msg.is_club_announcement || false,
+        club_announcement_name: msg.club_announcement_name || null,
         profiles: profilesMap.get(msg.author_id) || null,
         reactions: reactionsData.filter((r) => r.team_message_id === msg.id) || [],
         reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
