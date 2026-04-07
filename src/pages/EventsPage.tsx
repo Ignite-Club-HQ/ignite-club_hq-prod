@@ -89,10 +89,8 @@ export default function EventsPage() {
     const params = new URLSearchParams(searchParams);
     if (activeClubFilter) {
       params.set("club", activeClubFilter);
-      params.delete("team"); // Reset team filter when club theme changes
     } else {
       params.delete("club");
-      params.delete("team");
     }
     setSearchParams(params, { replace: true });
   }, [activeClubFilter]);
