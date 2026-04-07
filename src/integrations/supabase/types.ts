@@ -1509,6 +1509,7 @@ export type Database = {
           admin_user_id: string | null
           allow_guests_default: boolean
           auto_reward_threshold: number | null
+          bot_user_id: string | null
           city: string | null
           class_mode_enabled: boolean
           contact_email: string | null
@@ -1576,6 +1577,7 @@ export type Database = {
           admin_user_id?: string | null
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
+          bot_user_id?: string | null
           city?: string | null
           class_mode_enabled?: boolean
           contact_email?: string | null
@@ -1643,6 +1645,7 @@ export type Database = {
           admin_user_id?: string | null
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
+          bot_user_id?: string | null
           city?: string | null
           class_mode_enabled?: boolean
           contact_email?: string | null
