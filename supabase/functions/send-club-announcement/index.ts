@@ -12,8 +12,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
+    const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
+    const apikeyHeader = req.headers.get("apikey");
+
+    if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -22,13 +24,28 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? apikeyHeader;
 
-    // Verify the caller
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { authorization: authHeader } },
-    });
-    const { data: { user }, error: userError } = await anonClient.auth.getUser();
+    if (!anonKey) {
+      console.error("Missing anon key for send-club-announcement auth check");
+      return new Response(JSON.stringify({ error: "Server misconfiguration" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const accessToken = authHeader.replace(/^Bearer\s+/i, "");
+
+    // Verify the caller with the explicit bearer token
+    const anonClient = createClient(supabaseUrl, anonKey);
+    const { data: userData, error: userError } = await anonClient.auth.getUser(accessToken);
+    const user = userData?.user;
+
     if (userError || !user) {
+      console.error("Announcement auth failed", {
+        hasAuthHeader: true,
+        userError: userError?.message ?? null,
+      });
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
