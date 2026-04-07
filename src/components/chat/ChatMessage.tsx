@@ -711,7 +711,7 @@ export const ChatMessage = memo(function ChatMessage({
             <div
               ref={bubbleRef}
               className={`relative rounded-2xl px-4 py-2 select-none transition-all duration-100 ${
-                isOwn
+                isOwn && !isClubAnnouncement
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
               } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
