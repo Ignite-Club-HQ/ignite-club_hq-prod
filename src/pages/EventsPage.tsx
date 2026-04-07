@@ -304,19 +304,20 @@ export default function EventsPage() {
       });
       
       // Filter to only show events user is invited to:
-      // - Team events: user must be a member of that team OR a club admin of the team's club
+      // - Team events: user must be a member of that team (club admins only see via team filter)
       // - Mini League events: user must be a league admin or have a player in that league
       // - Club-wide events (no team_id, no mini_league_id): user must be a member of that club
       const { clubAdminClubIds } = userMemberships;
       filteredData = filteredData.filter(event => {
         if (event.mini_league_id) {
-          // Mini League event - user must be league admin or have a player in this league
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
-          // Team event - user must be a member of this team OR a club admin of the team's club
-          return teamIds.includes(event.team_id) || clubAdminClubIds.includes(event.club_id);
+          // If navigated with a specific team filter, club admins can see that team's events
+          if (teamFilter && teamFilter === event.team_id && clubAdminClubIds.includes(event.club_id)) {
+            return true;
+          }
+          return teamIds.includes(event.team_id);
         } else {
-          // Club-wide event - user must be a member of this club
           return clubIds.includes(event.club_id);
         }
       });
