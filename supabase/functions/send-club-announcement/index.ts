@@ -53,7 +53,9 @@ Deno.serve(async (req) => {
     }
 
     const { club_id, team_ids, message, club_name } = await req.json();
-    if (!club_id || !team_ids?.length || !message?.trim()) {
+    const requestedTeamIds = [...new Set((team_ids || []).filter(Boolean))];
+
+    if (!club_id || !requestedTeamIds.length || !message?.trim()) {
       return new Response(JSON.stringify({ error: "club_id, team_ids, and message required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -89,6 +91,22 @@ Deno.serve(async (req) => {
     if (!club) {
       return new Response(JSON.stringify({ error: "Club not found" }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: clubTeams, error: clubTeamsError } = await adminClient
+      .from("teams")
+      .select("id")
+      .eq("club_id", club_id)
+      .in("id", requestedTeamIds);
+
+    if (clubTeamsError) throw clubTeamsError;
+
+    const validTeamIds = (clubTeams || []).map((team) => team.id);
+    if (validTeamIds.length !== requestedTeamIds.length) {
+      return new Response(JSON.stringify({ error: "One or more teams are invalid for this club" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -146,8 +164,37 @@ Deno.serve(async (req) => {
         .eq("id", botUserId);
     }
 
+    const { data: existingBotRoles, error: existingBotRolesError } = await adminClient
+      .from("user_roles")
+      .select("team_id")
+      .eq("user_id", botUserId)
+      .in("team_id", validTeamIds);
+
+    if (existingBotRolesError) throw existingBotRolesError;
+
+    const existingBotTeamIds = new Set(
+      (existingBotRoles || [])
+        .map((role) => role.team_id)
+        .filter((teamId): teamId is string => Boolean(teamId))
+    );
+
+    const missingBotTeamIds = validTeamIds.filter((teamId) => !existingBotTeamIds.has(teamId));
+
+    if (missingBotTeamIds.length > 0) {
+      const { error: botRoleInsertError } = await adminClient.from("user_roles").insert(
+        missingBotTeamIds.map((teamId) => ({
+          user_id: botUserId,
+          club_id,
+          team_id: teamId,
+          role: "basic_user" as const,
+        }))
+      );
+
+      if (botRoleInsertError) throw botRoleInsertError;
+    }
+
     // Insert messages using service role (bypasses RLS author_id check)
-    const inserts = team_ids.map((teamId: string) => ({
+    const inserts = validTeamIds.map((teamId: string) => ({
       team_id: teamId,
       author_id: botUserId,
       text: message.trim(),
@@ -159,7 +206,7 @@ Deno.serve(async (req) => {
     if (insertError) throw insertError;
 
     return new Response(
-      JSON.stringify({ success: true, bot_user_id: botUserId, messages_sent: team_ids.length }),
+      JSON.stringify({ success: true, bot_user_id: botUserId, messages_sent: validTeamIds.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
