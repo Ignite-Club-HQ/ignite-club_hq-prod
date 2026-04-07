@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore } from "lucide-react";
+import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft } from "lucide-react";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -89,6 +89,7 @@ import { ClassAttendanceManager } from "@/components/ClassAttendanceManager";
 import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide";
 import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { AttendanceStatsView } from "@/components/AttendanceStatsView";
+import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 
 type ClubRole = "club_admin";
 
@@ -193,10 +194,10 @@ export default function ClubDetailPage() {
     // Deduplicate by role id
     const existingRoleIndex = acc[userId].roles.findIndex(r => r.id === role.id);
     if (existingRoleIndex === -1) {
-      acc[userId].roles.push({ id: role.id, role: role.role, scopeName });
+      acc[userId].roles.push({ id: role.id, role: role.role, scopeName, teamId: role.team_id || null, teamName: role.teams?.name || null });
     }
     return acc;
-  }, {} as Record<string, { profile: any; roles: { id: string; role: string; scopeName?: string }[] }>);
+  }, {} as Record<string, { profile: any; roles: { id: string; role: string; scopeName?: string; teamId: string | null; teamName: string | null }[] }>);
 
   const { data: teams } = useQuery({
     queryKey: ["club-teams", id],
