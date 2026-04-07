@@ -1814,13 +1814,29 @@ export default function TeamDetailPage() {
                                       existingRoles={member.roles?.map(r => r.role) || []}
                                     />
                                   )}
-                                  {(isAdmin || isClubAdmin) && userId !== user?.id && (
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </AlertDialogTrigger>
+                                   {isClubAdmin && userId !== user?.id && (
+                                     <Button
+                                       variant="ghost"
+                                       size="icon"
+                                       className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                       aria-label="Move to another team"
+                                       onClick={() => setMoveToTeam({
+                                         type: "adult",
+                                         id: userId,
+                                         name: member.profile?.display_name || "User",
+                                         roles: member.roles?.map(r => r.role) || [],
+                                       })}
+                                     >
+                                       <ArrowRightLeft className="h-4 w-4" />
+                                     </Button>
+                                   )}
+                                   {(isAdmin || isClubAdmin) && userId !== user?.id && (
+                                     <AlertDialog>
+                                       <AlertDialogTrigger asChild>
+                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                           <Trash2 className="h-4 w-4" />
+                                         </Button>
+                                       </AlertDialogTrigger>
                                       <AlertDialogContent>
                                         <AlertDialogHeader>
                                           <AlertDialogTitle>Remove Member?</AlertDialogTitle>
