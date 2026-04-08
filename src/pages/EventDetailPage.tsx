@@ -1293,8 +1293,8 @@ export default function EventDetailPage() {
         
         // Get admins/coaches for this team/event
         const roleQuery = event.team_id 
-          ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach", "club_admin"])
-          : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).eq("role", "club_admin");
+          ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach", "club_admin", "committee_member"])
+          : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).in("role", ["club_admin", "committee_member"]);
         
         const { data: admins } = await roleQuery;
         
