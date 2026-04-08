@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, BellOff, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDistanceToNow } from "date-fns";
+import { formatTimeShort } from "@/lib/formatTimeShort";
 
 interface ChatGroupCardProps {
   group: {
@@ -44,8 +44,6 @@ export default function ChatGroupCard({
   const navigate = useNavigate();
   const hasUnread = unreadCount > 0;
 
-  const contextName = group.teams?.name || group.clubs?.name || "";
-
   const handleClick = useCallback(() => {
     navigate(`/groups/${group.id}`);
   }, [navigate, group.id]);
@@ -59,47 +57,42 @@ export default function ChatGroupCard({
       role="link"
       aria-label={`${group.name} chat group${hasUnread ? `, ${unreadCount} unread messages` : ''}${isMuted ? ', muted' : ''}`}
     >
-      <CardContent className="p-4 flex items-center gap-4">
+      <CardContent className="p-3 flex items-center gap-3">
         <div className="relative">
-          <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center">
-            <Users className="h-6 w-6 text-secondary-foreground" aria-hidden="true" />
+          <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
+            <Users className="h-5 w-5 text-secondary-foreground" aria-hidden="true" />
           </div>
           {hasUnread && (
             <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className={`truncate ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{group.name}</h3>
-            {isMuted && (
-              <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-label="Muted" />
-            )}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className={`truncate text-sm ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{group.name}</h3>
+              {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" aria-label="Muted" />}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {lastMessage?.created_at && (
+                <span className="text-[11px] text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
+              )}
+              {hasUnread && (
+                <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+              <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            </div>
           </div>
-          <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+          <p className={`text-xs truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
             <MessagePreviewComponent 
               text={lastMessage?.text} 
               imageUrl={lastMessage?.image_url}
               author={lastMessage?.author}
               hasUnread={hasUnread}
-              fallback={contextName}
+              fallback="No messages yet"
             />
           </p>
-        </div>
-        
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          {lastMessage?.created_at && (
-            <span className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(lastMessage.created_at), { addSuffix: true })}
-            </span>
-          )}
-          <div className="flex items-center gap-2">
-            {hasUnread && (
-              <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-medium flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-            <ChevronRight className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-          </div>
         </div>
       </CardContent>
     </Card>
