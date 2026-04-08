@@ -561,7 +561,7 @@ export default function MessagesPage() {
 
   // Check if user has any Pro access
   // Pro Access Logic: Club Pro → all teams inherit; Free club → check team subscription
-  const { data: hasAnyProAccess, isLoading: isLoadingProAccess } = useQuery({
+  const { data: hasAnyProAccess, isLoading: isLoadingProAccess, isFetching: isFetchingProAccess } = useQuery({
     queryKey: ["has-any-pro-access", user?.id],
     queryFn: async () => {
       const { data: userTeamRoles } = await supabase
@@ -1050,8 +1050,8 @@ export default function MessagesPage() {
   const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0;
 
   // Check if user has admin role but no Pro access (show upgrade prompt)
-  // Only show after ALL relevant queries have loaded to prevent flash of upgrade banner
-  const hasAdminRoleButNoPro = !isLoadingProAccess && !!(adminTeamIds?.length || adminClubs?.length) && hasAnyProAccess === false && isAppAdmin === false;
+  // Only show after ALL relevant queries have loaded AND not refetching to prevent flash after reconnection
+  const hasAdminRoleButNoPro = !isLoadingProAccess && !isFetchingProAccess && !!(adminTeamIds?.length || adminClubs?.length) && hasAnyProAccess === false && isAppAdmin === false;
 
   return (
     <div className="py-6 space-y-6">
