@@ -234,8 +234,8 @@ serve(async (req) => {
     if (sendPush) {
       const pushPromises = userIds.map(async (userId) => {
         try {
-          // Insert notification and check for subscriptions in parallel
-          const [, { data: subscriptions }] = await Promise.all([
+          // Insert notification and check for push subscriptions AND FCM tokens in parallel
+          const [, { data: webSubscriptions }, { data: fcmTokens }] = await Promise.all([
             supabase.from("notifications").insert({
               user_id: userId,
               type: "event_view_reminder",
@@ -247,9 +247,17 @@ serve(async (req) => {
               .select("id")
               .eq("user_id", userId)
               .limit(1),
+            supabase
+              .from("fcm_tokens")
+              .select("id")
+              .eq("user_id", userId)
+              .limit(1),
           ]);
 
-          if (subscriptions && subscriptions.length > 0) {
+          const hasWebPush = webSubscriptions && webSubscriptions.length > 0;
+          const hasFcm = fcmTokens && fcmTokens.length > 0;
+
+          if (hasWebPush || hasFcm) {
             await supabase.functions.invoke("send-push-notification", {
               body: {
                 userId,
