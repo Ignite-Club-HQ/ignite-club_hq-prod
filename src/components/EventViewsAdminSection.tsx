@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone } from "lucide-react";
+import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone, MessageSquareOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -31,6 +31,7 @@ interface MemberWithViewStatus {
   avatar_url: string | null;
   hasViewed: boolean;
   viewedAt?: string;
+  hasResponded: boolean;
 }
 
 export function EventViewsAdminSection({ 
@@ -51,35 +52,25 @@ export function EventViewsAdminSection({
   const { data: eventViews } = useQuery({
     queryKey: ["event-views", eventId],
     queryFn: async () => {
-      // Fetch explicit views and RSVPs in parallel
-      const [viewsResult, rsvpsResult] = await Promise.all([
-        supabase
-          .from("event_views")
-          .select("user_id, viewed_at")
-          .eq("event_id", eventId),
-        supabase
-          .from("rsvps")
-          .select("user_id, created_at")
-          .eq("event_id", eventId),
-      ]);
-      
-      if (viewsResult.error) throw viewsResult.error;
-      
-      // Merge: anyone who RSVP'd has also effectively "viewed" the event
-      const viewMap = new Map<string, string>();
-      (viewsResult.data || []).forEach(v => {
-        viewMap.set(v.user_id, v.viewed_at);
-      });
-      (rsvpsResult.data || []).forEach(r => {
-        if (!viewMap.has(r.user_id)) {
-          viewMap.set(r.user_id, r.created_at);
-        }
-      });
-      
-      return Array.from(viewMap.entries()).map(([user_id, viewed_at]) => ({
-        user_id,
-        viewed_at,
-      }));
+      const { data, error } = await supabase
+        .from("event_views")
+        .select("user_id, viewed_at")
+        .eq("event_id", eventId);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch RSVPs separately to track who has responded
+  const { data: eventRsvps } = useQuery({
+    queryKey: ["event-rsvps-for-views", eventId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("user_id, status, created_at")
+        .eq("event_id", eventId);
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -140,20 +131,23 @@ export function EventViewsAdminSection({
     },
   });
 
-  // Combine members with view status
+  // Combine members with view and RSVP status
   const viewedUserIds = new Set(eventViews?.map(v => v.user_id) || []);
   const viewedAtMap = new Map(eventViews?.map(v => [v.user_id, v.viewed_at]) || []);
+  const rsvpUserIds = new Set(eventRsvps?.map(r => r.user_id) || []);
 
   const membersWithStatus: MemberWithViewStatus[] = (members || []).map(m => ({
     id: m.id,
     display_name: m.display_name,
     avatar_url: m.avatar_url,
-    hasViewed: viewedUserIds.has(m.id),
+    hasViewed: viewedUserIds.has(m.id) || rsvpUserIds.has(m.id),
     viewedAt: viewedAtMap.get(m.id),
+    hasResponded: rsvpUserIds.has(m.id),
   }));
 
   const viewedMembers = membersWithStatus.filter(m => m.hasViewed);
   const notViewedMembers = membersWithStatus.filter(m => !m.hasViewed);
+  const notRespondedMembers = membersWithStatus.filter(m => !m.hasResponded);
 
   const memberIds = useMemo(() => membersWithStatus.map(m => m.id), [membersWithStatus]);
 
@@ -226,7 +220,7 @@ export function EventViewsAdminSection({
   });
 
   const handleSendReminders = async (channels: "push" | "email" | "both", targetUserIds?: string[]) => {
-    const ids = targetUserIds || notViewedMembers.map(m => m.id);
+    const ids = targetUserIds || notRespondedMembers.map(m => m.id);
     if (ids.length === 0) return;
     
     const isSingle = targetUserIds && targetUserIds.length === 1;
@@ -288,6 +282,7 @@ export function EventViewsAdminSection({
   const totalMembers = membersWithStatus.length;
   const viewedCount = viewedMembers.length;
   const notViewedCount = notViewedMembers.length;
+  const notRespondedCount = notRespondedMembers.length;
 
   const handleSendNudge = async () => {
     if (unreachableMembers.length === 0) return;
@@ -373,13 +368,13 @@ export function EventViewsAdminSection({
         <CollapsibleContent>
           <CardContent className="pt-0 space-y-4">
             <TooltipProvider delayDuration={300}>
-              {/* Not Viewed Section */}
-              {notViewedMembers.length > 0 && (
+              {/* Haven't Responded Section - with Send Reminder */}
+              {notRespondedMembers.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <h4 className="text-sm font-medium flex items-center gap-2 text-warning">
-                      <EyeOff className="h-4 w-4" />
-                      Haven't Viewed ({notViewedCount})
+                      <MessageSquareOff className="h-4 w-4" />
+                      Haven't Responded ({notRespondedCount})
                     </h4>
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
@@ -414,12 +409,29 @@ export function EventViewsAdminSection({
                     </DropdownMenu>
                   </div>
                   <div className="grid gap-2">
+                    {notRespondedMembers.map((member) => renderMemberRow(member, "not-viewed"))}
+                  </div>
+                </div>
+              )}
+
+              {notRespondedMembers.length > 0 && (notViewedMembers.length > 0 || viewedMembers.length > 0) && (
+                <Separator />
+              )}
+
+              {/* Haven't Viewed Section */}
+              {notViewedMembers.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
+                    <EyeOff className="h-4 w-4" />
+                    Haven't Viewed ({notViewedCount})
+                  </h4>
+                  <div className="grid gap-2">
                     {notViewedMembers.map((member) => renderMemberRow(member, "not-viewed"))}
                   </div>
                 </div>
               )}
 
-              {notViewedMembers.length > 0 && viewedMembers.length > 0 && (
+              {(notViewedMembers.length > 0 || notRespondedMembers.length > 0) && viewedMembers.length > 0 && (
                 <Separator />
               )}
 
