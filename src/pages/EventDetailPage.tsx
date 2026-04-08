@@ -374,7 +374,7 @@ export default function EventDetailPage() {
         .in("role", ["club_admin", "committee_member"])
         .limit(1);
       
-      if (clubAdminData) return true;
+      if (clubAdminData && clubAdminData.length > 0) return true;
       
       // For team-specific events, also check team_admin/coach roles
       if (event.team_id) {
