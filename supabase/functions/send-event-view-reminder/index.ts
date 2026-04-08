@@ -230,6 +230,7 @@ serve(async (req) => {
         const email = userEmailMap.get(userId);
         const name = profileMap.get(userId) || "Member";
         if (!email) return false;
+        const userMsgs = getMessagesForUser(userId);
 
         try {
           const html = await renderAsync(
