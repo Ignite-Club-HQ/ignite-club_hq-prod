@@ -245,7 +245,7 @@ export default function EventsPage() {
       };
     },
     enabled: !!user,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
   const { data: events, isLoading, isFetching } = useQuery({
@@ -255,6 +255,10 @@ export default function EventsPage() {
       
       const { teamIds, clubIds, miniLeagueIds } = userMemberships;
       if (teamIds.length === 0 && clubIds.length === 0) return [];
+      
+      // Only fetch events from the last 30 days onward to avoid pulling entire history
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
       let query = supabase
         .from("events")
@@ -277,6 +281,7 @@ export default function EventsPage() {
           teams (name),
           clubs (name, sport)
         `)
+        .gte("event_date", thirtyDaysAgo.toISOString().split('T')[0])
         .order("event_date", { ascending: true });
 
       if (filter !== "all") {
@@ -327,7 +332,7 @@ export default function EventsPage() {
       return filterRecurringEvents(filteredData) as Event[];
     },
     enabled: !!user && !!userMemberships,
-    staleTime: 60000, // Cache for 1 minute to prevent flash on resume
+    staleTime: 3 * 60 * 1000, // Cache for 3 minutes to reduce refetches
     placeholderData: (prev) => prev, // Keep previous data while refetching
   });
 
