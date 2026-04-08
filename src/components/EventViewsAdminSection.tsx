@@ -145,7 +145,8 @@ export function EventViewsAdminSection({
     hasResponded: rsvpUserIds.has(m.id),
   }));
 
-  const respondedMembers = membersWithStatus.filter(m => m.hasResponded);
+  const viewedMembers = membersWithStatus.filter(m => m.hasViewed);
+  const notViewedMembers = membersWithStatus.filter(m => !m.hasViewed);
   const notRespondedMembers = membersWithStatus.filter(m => !m.hasResponded);
 
   const memberIds = useMemo(() => membersWithStatus.map(m => m.id), [membersWithStatus]);
@@ -279,7 +280,8 @@ export function EventViewsAdminSection({
   }
 
   const totalMembers = membersWithStatus.length;
-  const respondedCount = respondedMembers.length;
+  const viewedCount = viewedMembers.length;
+  const notViewedCount = notViewedMembers.length;
   const notRespondedCount = notRespondedMembers.length;
 
   const handleSendNudge = async () => {
@@ -338,18 +340,18 @@ export function EventViewsAdminSection({
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
                 <Eye className="h-4 w-4" />
-                Event Responses
+                Event Views
               </CardTitle>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Badge variant="secondary" className="gap-1">
-                    <Check className="h-3 w-3" />
-                    {respondedCount}
+                    <Eye className="h-3 w-3" />
+                    {viewedCount}
                   </Badge>
-                  {notRespondedCount > 0 && (
+                  {notViewedCount > 0 && (
                     <Badge variant="outline" className="gap-1 text-warning border-warning">
-                      <MessageSquareOff className="h-3 w-3" />
-                      {notRespondedCount}
+                      <EyeOff className="h-3 w-3" />
+                      {notViewedCount}
                     </Badge>
                   )}
                 </div>
@@ -366,7 +368,7 @@ export function EventViewsAdminSection({
         <CollapsibleContent>
           <CardContent className="pt-0 space-y-4">
             <TooltipProvider delayDuration={300}>
-              {/* Not Responded Section */}
+              {/* Haven't Responded Section - with Send Reminder */}
               {notRespondedMembers.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -412,19 +414,36 @@ export function EventViewsAdminSection({
                 </div>
               )}
 
-              {notRespondedMembers.length > 0 && respondedMembers.length > 0 && (
+              {notRespondedMembers.length > 0 && (notViewedMembers.length > 0 || viewedMembers.length > 0) && (
                 <Separator />
               )}
 
-              {/* Responded Section */}
-              {respondedMembers.length > 0 && (
+              {/* Haven't Viewed Section */}
+              {notViewedMembers.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
+                    <EyeOff className="h-4 w-4" />
+                    Haven't Viewed ({notViewedCount})
+                  </h4>
+                  <div className="grid gap-2">
+                    {notViewedMembers.map((member) => renderMemberRow(member, "not-viewed"))}
+                  </div>
+                </div>
+              )}
+
+              {(notViewedMembers.length > 0 || notRespondedMembers.length > 0) && viewedMembers.length > 0 && (
+                <Separator />
+              )}
+
+              {/* Viewed Section */}
+              {viewedMembers.length > 0 && (
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium flex items-center gap-2 text-primary">
                     <Check className="h-4 w-4" />
-                    Responded ({respondedCount})
+                    Viewed ({viewedCount})
                   </h4>
                   <div className="grid gap-2">
-                    {respondedMembers.map((member) => renderMemberRow(member, "viewed"))}
+                    {viewedMembers.map((member) => renderMemberRow(member, "viewed"))}
                   </div>
                 </div>
               )}
