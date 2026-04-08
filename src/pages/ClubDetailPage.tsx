@@ -1618,7 +1618,7 @@ export default function ClubDetailPage() {
                     return (
                     <Card key={userId}>
                       <CardContent className="p-3 flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="h-8 w-8 shrink-0">
                           <AvatarImage src={member.profile?.avatar_url || undefined} />
                           <AvatarFallback className="bg-primary/20 text-primary text-sm">
                             {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
@@ -1626,8 +1626,7 @@ export default function ClubDetailPage() {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-1 mt-1">
                           {member.roles?.map((roleItem) => {
                             const roleColors: Record<string, string> = {
                               app_admin: "bg-red-500/15 text-red-400 dark:text-red-400 border-red-500/30",
@@ -1648,6 +1647,7 @@ export default function ClubDetailPage() {
                               </Badge>
                             );
                           })}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
