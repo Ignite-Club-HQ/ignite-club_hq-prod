@@ -145,7 +145,8 @@ export function EventViewsAdminSection({
     hasResponded: rsvpUserIds.has(m.id),
   }));
 
-  const respondedMembers = membersWithStatus.filter(m => m.hasResponded);
+  const viewedMembers = membersWithStatus.filter(m => m.hasViewed);
+  const notViewedMembers = membersWithStatus.filter(m => !m.hasViewed);
   const notRespondedMembers = membersWithStatus.filter(m => !m.hasResponded);
 
   const memberIds = useMemo(() => membersWithStatus.map(m => m.id), [membersWithStatus]);
