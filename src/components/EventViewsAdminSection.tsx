@@ -165,9 +165,17 @@ export function EventViewsAdminSection({
     const selfResponded = rsvpUserIds.has(m.id);
     const memberChildren = (teamChildren || []).filter((c: any) => c.parent_id === m.id);
     const allChildrenResponded = memberChildren.length === 0 || memberChildren.every((c: any) => rsvpdChildIds.has(c.id));
-    const fullyResponded = selfResponded && allChildrenResponded;
     // Count how many children still need RSVPs
     const unrespondedChildCount = memberChildren.filter((c: any) => !rsvpdChildIds.has(c.id)).length;
+
+    // For parents with children on the team (junior teams):
+    // They are "fully responded" if all their children have RSVP'd,
+    // regardless of whether the parent RSVP'd for themselves.
+    // For members without children on the team: require their own RSVP.
+    const isParentOnTeam = memberChildren.length > 0;
+    const fullyResponded = isParentOnTeam
+      ? allChildrenResponded
+      : selfResponded;
 
     return {
       id: m.id,
