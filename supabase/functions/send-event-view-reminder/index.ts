@@ -176,16 +176,44 @@ serve(async (req) => {
 
     // Smart copy based on event type
     const isRsvpEvent = ["game", "training", "match"].includes(event.type?.toLowerCase());
-    const emailSubject = isRsvpEvent
-      ? `📅 Reminder: Please RSVP to "${event.title}"`
-      : `🎉 Don't miss: "${event.title}" - ${eventDate}`;
-    const pushTitle = isRsvpEvent ? "📅 Event Reminder" : `🎉 ${event.title}`;
-    const pushBody = isRsvpEvent
-      ? `You haven't RSVP'd to "${event.title}" - tap to respond`
-      : `Don't miss "${event.title}" on ${eventDate} - tap for details`;
-    const notifMessage = isRsvpEvent
-      ? `Reminder: Please RSVP to "${event.title}" - ${eventDate}`
-      : `Don't miss: "${event.title}" - ${eventDate}`;
+
+    // Helper to generate personalized messages per user
+    function getMessagesForUser(userId: string) {
+      const ctx = userContexts?.[userId];
+      if (isRsvpEvent && ctx) {
+        if (ctx.selfResponded && ctx.unrespondedChildCount > 0) {
+          // Parent RSVP'd but kids haven't
+          const kidWord = ctx.unrespondedChildCount === 1 ? "child" : "children";
+          return {
+            pushTitle: "📅 Event Reminder",
+            pushBody: `Please RSVP for your ${kidWord} for "${event.title}"`,
+            notifMessage: `Reminder: Please RSVP for your ${kidWord} for "${event.title}" - ${eventDate}`,
+            emailSubject: `📅 Reminder: RSVP for your ${kidWord} for "${event.title}"`,
+          };
+        }
+        if (!ctx.selfResponded) {
+          return {
+            pushTitle: "📅 Event Reminder",
+            pushBody: `You haven't RSVP'd to "${event.title}" - tap to respond`,
+            notifMessage: `Reminder: Please RSVP to "${event.title}" - ${eventDate}`,
+            emailSubject: `📅 Reminder: Please RSVP to "${event.title}"`,
+          };
+        }
+      }
+      // Default / non-RSVP events
+      return {
+        pushTitle: isRsvpEvent ? "📅 Event Reminder" : `🎉 ${event.title}`,
+        pushBody: isRsvpEvent
+          ? `You haven't RSVP'd to "${event.title}" - tap to respond`
+          : `Don't miss "${event.title}" on ${eventDate} - tap for details`,
+        notifMessage: isRsvpEvent
+          ? `Reminder: Please RSVP to "${event.title}" - ${eventDate}`
+          : `Don't miss: "${event.title}" - ${eventDate}`,
+        emailSubject: isRsvpEvent
+          ? `📅 Reminder: Please RSVP to "${event.title}"`
+          : `🎉 Don't miss: "${event.title}" - ${eventDate}`,
+      };
+    }
 
     let emailsSent = 0;
     let pushSent = 0;
