@@ -256,6 +256,10 @@ export default function EventsPage() {
       const { teamIds, clubIds, miniLeagueIds } = userMemberships;
       if (teamIds.length === 0 && clubIds.length === 0) return [];
       
+      // Only fetch events from the last 30 days onward to avoid pulling entire history
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
       let query = supabase
         .from("events")
         .select(`
@@ -277,6 +281,7 @@ export default function EventsPage() {
           teams (name),
           clubs (name, sport)
         `)
+        .gte("event_date", thirtyDaysAgo.toISOString().split('T')[0])
         .order("event_date", { ascending: true });
 
       if (filter !== "all") {
