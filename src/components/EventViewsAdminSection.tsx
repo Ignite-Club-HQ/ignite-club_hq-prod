@@ -229,8 +229,20 @@ export function EventViewsAdminSection({
   // Send reminder mutation
   const sendReminderMutation = useMutation({
     mutationFn: async ({ userIds, channels }: { userIds: string[]; channels: "push" | "email" | "both" }) => {
+      // Build per-user context for personalized messages
+      const userContexts: Record<string, { selfResponded: boolean; unrespondedChildCount: number }> = {};
+      for (const uid of userIds) {
+        const member = membersWithStatus.find(m => m.id === uid);
+        if (member) {
+          userContexts[uid] = {
+            selfResponded: rsvpUserIds.has(uid),
+            unrespondedChildCount: member.unrespondedChildCount || 0,
+          };
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("send-event-view-reminder", {
-        body: { eventId, userIds, channels },
+        body: { eventId, userIds, userContexts, channels },
       });
       
       if (error) throw error;
