@@ -806,6 +806,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setCachedProfile(null);
+    currentUserIdRef.current = null; // Clear so re-login is treated as fresh (applies theme from DB)
     // Clear ALL React Query cache to prevent stale RLS data on re-login
     queryClient.clear();
     clearRolesCache(); // Clear cached user roles (security-critical)
