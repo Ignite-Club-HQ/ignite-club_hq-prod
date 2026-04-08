@@ -32,6 +32,7 @@ interface MemberWithViewStatus {
   hasViewed: boolean;
   viewedAt?: string;
   hasResponded: boolean;
+  unrespondedChildCount?: number;
 }
 
 export function EventViewsAdminSection({ 
