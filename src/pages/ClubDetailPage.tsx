@@ -1647,6 +1647,7 @@ export default function ClubDetailPage() {
                               </Badge>
                             );
                           })}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
