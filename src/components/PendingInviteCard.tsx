@@ -569,7 +569,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                   variant="outline"
                   size="sm"
                   className="h-8 px-2 gap-1 text-xs hidden sm:flex border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
-                  onClick={handleResendEmail}
+                  onClick={() => handleResendEmail()}
                   disabled={isResending}
                 >
                   {isResending ? (
