@@ -611,19 +611,17 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit name/role
                   </DropdownMenuItem>
-                  {invite.invited_email && (
-                    <DropdownMenuItem 
-                      onClick={handleResendEmail} 
-                      disabled={isResending}
-                    >
-                      {isResending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RotateCw className="h-4 w-4 mr-2" />
-                      )}
-                      {invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
-                    </DropdownMenuItem>
-                  )}
+                  <DropdownMenuItem 
+                    onClick={() => handleResendEmail()} 
+                    disabled={isResending}
+                  >
+                    {isResending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Mail className="h-4 w-4 mr-2" />
+                    )}
+                    {!invite.invited_email ? "Send email" : invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => setShowDeleteDialog(true)}
