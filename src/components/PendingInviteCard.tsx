@@ -710,6 +710,51 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Email input dialog for invites without email */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send Invite Email</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Enter an email address for <strong>{displayName}</strong> to send the invite email.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="invite-email-input">Email</Label>
+              <Input
+                id="invite-email-input"
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="Enter email address"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => handleResendEmail(emailInput.trim())}
+              disabled={!emailInput.trim() || !emailInput.includes("@") || isResending}
+            >
+              {isResending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
