@@ -1290,7 +1290,7 @@ export default function MessagesPage() {
                         <BellOff className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
                     </div>
-                    <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                    <p className={`text-sm truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                       <MessagePreview 
                         text={lastMessage?.text} 
                         imageUrl={lastMessage?.image_url}
@@ -1355,7 +1355,7 @@ export default function MessagesPage() {
                           <BellOff className="h-3.5 w-3.5 text-muted-foreground" />
                         )}
                       </div>
-                      <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                      <p className={`text-sm truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                         <MessagePreview 
                           text={lastMessage?.text} 
                           imageUrl={lastMessage?.image_url}
@@ -1504,7 +1504,7 @@ export default function MessagesPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className={`truncate ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
-                        <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                        <p className={`text-sm truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                           <MessagePreview 
                             text={displayLatestBroadcast?.text} 
                             imageUrl={displayLatestBroadcast?.image_url}
