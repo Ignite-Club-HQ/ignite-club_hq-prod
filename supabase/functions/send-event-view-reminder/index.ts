@@ -11,9 +11,15 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+interface UserReminderContext {
+  selfResponded: boolean;
+  unrespondedChildCount: number;
+}
+
 interface RequestBody {
   eventId: string;
-  userIds: string[]; // Users who haven't viewed the event
+  userIds: string[]; // Users who haven't fully responded
+  userContexts?: Record<string, UserReminderContext>; // Per-user RSVP context
   channels?: "push" | "email" | "both"; // Delivery channel selection
 }
 
