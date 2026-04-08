@@ -92,6 +92,8 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
   const [editName, setEditName] = useState(invite.invited_label || "");
   const [editRole, setEditRole] = useState<AppRole>(invite.role as AppRole);
   const [isResending, setIsResending] = useState(false);
@@ -345,13 +347,12 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   });
 
   // Handle resend email
-  const handleResendEmail = async () => {
-    if (!invite.invited_email) {
-      toast({ 
-        title: "No email address", 
-        description: "This invite doesn't have an email address",
-        variant: "destructive" 
-      });
+  const handleResendEmail = async (overrideEmail?: string) => {
+    const targetEmail = overrideEmail || invite.invited_email;
+    if (!targetEmail) {
+      // No email — open the email input dialog
+      setEmailInput("");
+      setShowEmailDialog(true);
       return;
     }
 
@@ -367,6 +368,14 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     setIsResending(true);
     
     try {
+      // If we're adding an email for the first time, save it to the invite
+      if (overrideEmail && !invite.invited_email) {
+        await supabase
+          .from("pending_invites")
+          .update({ invited_email: overrideEmail.trim().toLowerCase() } as any)
+          .eq("id", invite.id);
+      }
+
       const inviteLinkForEmail = `${window.location.origin}/join/p/${pendingInviteToken}`;
       const recipientName = invite.invited_label || invite.profiles?.display_name || "Member";
       
@@ -383,7 +392,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
 
       const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
         body: {
-          to: invite.invited_email,
+          to: targetEmail.trim().toLowerCase(),
            subject: childrenNames && childrenNames.length === 1
              ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
              : childrenNames && childrenNames.length > 1
@@ -394,7 +403,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           replyTo: clubContactEmail,
           templateData: {
             recipientName,
-            invitedEmail: invite.invited_email,
+            invitedEmail: targetEmail.trim().toLowerCase(),
             teamName,
             clubName,
             roleName: roleLabels[invite.role] || invite.role.replace("_", " "),
@@ -425,8 +434,9 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
         
         toast({ 
           title: "Email sent!", 
-          description: `Invite email resent to ${invite.invited_email}` 
+          description: `Invite email sent to ${targetEmail}` 
         });
+        setShowEmailDialog(false);
       } else {
         throw new Error(emailResult?.error || "Email not verified");
       }
@@ -559,7 +569,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                   variant="outline"
                   size="sm"
                   className="h-8 px-2 gap-1 text-xs hidden sm:flex border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
-                  onClick={handleResendEmail}
+                  onClick={() => handleResendEmail()}
                   disabled={isResending}
                 >
                   {isResending ? (
@@ -601,19 +611,17 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit name/role
                   </DropdownMenuItem>
-                  {invite.invited_email && (
-                    <DropdownMenuItem 
-                      onClick={handleResendEmail} 
-                      disabled={isResending}
-                    >
-                      {isResending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <RotateCw className="h-4 w-4 mr-2" />
-                      )}
-                      {invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
-                    </DropdownMenuItem>
-                  )}
+                  <DropdownMenuItem 
+                    onClick={() => handleResendEmail()} 
+                    disabled={isResending}
+                  >
+                    {isResending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Mail className="h-4 w-4 mr-2" />
+                    )}
+                    {!invite.invited_email ? "Send email" : invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => setShowDeleteDialog(true)}
@@ -702,6 +710,51 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Email input dialog for invites without email */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send Invite Email</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Enter an email address for <strong>{displayName}</strong> to send the invite email.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="invite-email-input">Email</Label>
+              <Input
+                id="invite-email-input"
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="Enter email address"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => handleResendEmail(emailInput.trim())}
+              disabled={!emailInput.trim() || !emailInput.includes("@") || isResending}
+            >
+              {isResending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
