@@ -251,7 +251,7 @@ serve(async (req) => {
           await resend.emails.send({
             from: "Ignite Club HQ <support@igniteclubhq.app>",
             to: [email],
-            subject: emailSubject,
+            subject: userMsgs.emailSubject,
             html,
           });
           return true;
@@ -268,13 +268,14 @@ serve(async (req) => {
     // Send push notifications in parallel
     if (sendPush) {
       const pushPromises = userIds.map(async (userId) => {
+        const userMsgs = getMessagesForUser(userId);
         try {
           // Insert notification and check for push subscriptions AND FCM tokens in parallel
           const [, { data: webSubscriptions }, { data: fcmTokens }] = await Promise.all([
             supabase.from("notifications").insert({
               user_id: userId,
               type: "event_view_reminder",
-              message: notifMessage,
+              message: userMsgs.notifMessage,
               related_id: event.id,
             }),
             supabase
@@ -296,8 +297,8 @@ serve(async (req) => {
             await supabase.functions.invoke("send-push-notification", {
               body: {
                 userId,
-                title: pushTitle,
-                body: pushBody,
+                 title: userMsgs.pushTitle,
+                 body: userMsgs.pushBody,
                 url: `/events/${event.id}`,
                 tag: `event-view-${event.id}`,
               },
