@@ -219,7 +219,7 @@ export default function HomePage() {
         .select("club_id, team_id, role")
         .eq("user_id", user!.id);
       
-      if (!roles) return { memberships: { teamIds: [] as string[], clubIds: [] as string[], clubAdminClubIds: [] as string[], leagueAdminClubIds: [] as string[], miniLeagueIds: [] as string[] }, events: [] as Event[] };
+      if (!roles) return { memberships: { teamIds: [] as string[], clubIds: [] as string[], clubAdminClubIds: [] as string[], leagueAdminClubIds: [] as string[], miniLeagueIds: [] as string[], roles: [] as { role: string; club_id: string | null; team_id: string | null }[] }, events: [] as Event[] };
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
       const clubIds = new Set<string>();
