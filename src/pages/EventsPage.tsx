@@ -245,7 +245,7 @@ export default function EventsPage() {
       };
     },
     enabled: !!user,
-    staleTime: 60000,
+    staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
   const { data: events, isLoading, isFetching } = useQuery({
