@@ -332,7 +332,7 @@ export default function EventsPage() {
       return filterRecurringEvents(filteredData) as Event[];
     },
     enabled: !!user && !!userMemberships,
-    staleTime: 60000, // Cache for 1 minute to prevent flash on resume
+    staleTime: 3 * 60 * 1000, // Cache for 3 minutes to reduce refetches
     placeholderData: (prev) => prev, // Keep previous data while refetching
   });
 
