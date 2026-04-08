@@ -51,35 +51,25 @@ export function EventViewsAdminSection({
   const { data: eventViews } = useQuery({
     queryKey: ["event-views", eventId],
     queryFn: async () => {
-      // Fetch explicit views and RSVPs in parallel
-      const [viewsResult, rsvpsResult] = await Promise.all([
-        supabase
-          .from("event_views")
-          .select("user_id, viewed_at")
-          .eq("event_id", eventId),
-        supabase
-          .from("rsvps")
-          .select("user_id, created_at")
-          .eq("event_id", eventId),
-      ]);
-      
-      if (viewsResult.error) throw viewsResult.error;
-      
-      // Merge: anyone who RSVP'd has also effectively "viewed" the event
-      const viewMap = new Map<string, string>();
-      (viewsResult.data || []).forEach(v => {
-        viewMap.set(v.user_id, v.viewed_at);
-      });
-      (rsvpsResult.data || []).forEach(r => {
-        if (!viewMap.has(r.user_id)) {
-          viewMap.set(r.user_id, r.created_at);
-        }
-      });
-      
-      return Array.from(viewMap.entries()).map(([user_id, viewed_at]) => ({
-        user_id,
-        viewed_at,
-      }));
+      const { data, error } = await supabase
+        .from("event_views")
+        .select("user_id, viewed_at")
+        .eq("event_id", eventId);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch RSVPs separately to track who has responded
+  const { data: eventRsvps } = useQuery({
+    queryKey: ["event-rsvps-for-views", eventId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rsvps")
+        .select("user_id, status, created_at")
+        .eq("event_id", eventId);
+      if (error) throw error;
+      return data || [];
     },
   });
 
