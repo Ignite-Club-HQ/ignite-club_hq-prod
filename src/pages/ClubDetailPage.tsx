@@ -1649,47 +1649,6 @@ export default function ClubDetailPage() {
                             );
                           })}
                         </div>
-                        {isAdmin && memberTeams.length > 0 && userId !== user?.id && (
-                          memberTeams.length === 1 ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary"
-                              aria-label="Move to another team"
-                              onClick={() => setMoveToTeam({
-                                userId,
-                                userName: member.profile?.display_name || "User",
-                                fromTeamId: memberTeams[0].id,
-                                fromTeamName: memberTeams[0].name,
-                                roles: member.roles.filter(r => r.teamId === memberTeams[0].id).map(r => r.role),
-                              })}
-                            >
-                              <ArrowRightLeft className="h-4 w-4" />
-                            </Button>
-                          ) : (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-primary" aria-label="Move to another team">
-                                  <ArrowRightLeft className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <p className="px-2 py-1 text-xs text-muted-foreground font-medium">Move from:</p>
-                                {memberTeams.map(t => (
-                                  <DropdownMenuItem key={t.id} onClick={() => setMoveToTeam({
-                                    userId,
-                                    userName: member.profile?.display_name || "User",
-                                    fromTeamId: t.id,
-                                    fromTeamName: t.name,
-                                    roles: member.roles.filter(r => r.teamId === t.id).map(r => r.role),
-                                  })}>
-                                    {t.name}
-                                  </DropdownMenuItem>
-                                ))}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )
-                        )}
                       </CardContent>
                     </Card>
                     );
