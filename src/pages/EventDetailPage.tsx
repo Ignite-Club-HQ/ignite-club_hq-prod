@@ -371,7 +371,7 @@ export default function EventDetailPage() {
         .select("role")
         .eq("user_id", user!.id)
         .eq("club_id", event.club_id)
-        .eq("role", "club_admin")
+        .in("role", ["club_admin", "committee_member"])
         .maybeSingle();
       
       if (clubAdminData) return true;
@@ -395,7 +395,7 @@ export default function EventDetailPage() {
           .select("role")
           .eq("user_id", user!.id)
           .eq("club_id", event.club_id)
-          .in("role", ["league_admin", "coach"]);
+          .in("role", ["league_admin", "coach", "committee_member"]);
         
         if (leagueAdminData && leagueAdminData.length > 0) return true;
       }

@@ -391,7 +391,7 @@ export default function EventsPage() {
   const isAdminForEvent = (event: Event) => {
     if (isAppAdmin) return true;
     return userRoles?.some(r => 
-      (["club_admin", "team_admin", "coach"].includes(r.role)) &&
+      (["club_admin", "team_admin", "coach", "committee_member"].includes(r.role)) &&
       (r.club_id === event.club_id || r.team_id === event.team_id)
     );
   };

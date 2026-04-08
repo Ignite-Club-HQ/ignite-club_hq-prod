@@ -114,7 +114,7 @@ serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", requestingUser.id)
-      .or(`role.eq.app_admin,and(club_id.eq.${event.club_id},role.in.(club_admin,team_admin,coach,league_admin))${event.team_id ? `,and(team_id.eq.${event.team_id},role.in.(team_admin,coach))` : ""}`)
+      .or(`role.eq.app_admin,and(club_id.eq.${event.club_id},role.in.(club_admin,team_admin,coach,league_admin,committee_member))${event.team_id ? `,and(team_id.eq.${event.team_id},role.in.(team_admin,coach))` : ""}`)
       .limit(1);
 
     if (!adminRole || adminRole.length === 0) {

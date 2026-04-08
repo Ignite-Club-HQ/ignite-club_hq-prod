@@ -225,7 +225,7 @@ export default function EditEventPage() {
         .select("role")
         .eq("user_id", user!.id)
         .eq("club_id", event.club_id)
-        .eq("role", "club_admin")
+        .in("role", ["club_admin", "committee_member"])
         .maybeSingle();
       
       if (clubAdminData) return true;
@@ -356,7 +356,7 @@ export default function EditEventPage() {
         .select("club_id, clubs(id, name)")
         .eq("user_id", user!.id)
         .not("club_id", "is", null)
-        .in("role", ["club_admin", "team_admin", "coach"]);
+        .in("role", ["club_admin", "team_admin", "coach", "committee_member"]);
       
       if (!data) return [];
       const clubs = data.filter(r => r.clubs).map(r => r.clubs as { id: string; name: string });
