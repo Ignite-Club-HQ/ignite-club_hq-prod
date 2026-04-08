@@ -167,7 +167,7 @@ export function ChatMembersSheet({
 
   // Deduplicate members by id and filter out club bot account
   const uniqueMembers = members?.reduce((acc, member) => {
-    if (!acc.find(m => m.id === member.id) && member.id !== clubData?.bot_user_id) {
+    if (!acc.find(m => m.id === member.id) && member.id !== clubBotUserId) {
       acc.push(member);
     }
     return acc;
