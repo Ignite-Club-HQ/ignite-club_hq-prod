@@ -130,20 +130,22 @@ export function EventViewsAdminSection({
     },
   });
 
-  // Combine members with view status
+  // Combine members with view and RSVP status
   const viewedUserIds = new Set(eventViews?.map(v => v.user_id) || []);
   const viewedAtMap = new Map(eventViews?.map(v => [v.user_id, v.viewed_at]) || []);
+  const rsvpUserIds = new Set(eventRsvps?.map(r => r.user_id) || []);
 
   const membersWithStatus: MemberWithViewStatus[] = (members || []).map(m => ({
     id: m.id,
     display_name: m.display_name,
     avatar_url: m.avatar_url,
-    hasViewed: viewedUserIds.has(m.id),
+    hasViewed: viewedUserIds.has(m.id) || rsvpUserIds.has(m.id),
     viewedAt: viewedAtMap.get(m.id),
+    hasResponded: rsvpUserIds.has(m.id),
   }));
 
-  const viewedMembers = membersWithStatus.filter(m => m.hasViewed);
-  const notViewedMembers = membersWithStatus.filter(m => !m.hasViewed);
+  const respondedMembers = membersWithStatus.filter(m => m.hasResponded);
+  const notRespondedMembers = membersWithStatus.filter(m => !m.hasResponded);
 
   const memberIds = useMemo(() => membersWithStatus.map(m => m.id), [membersWithStatus]);
 
