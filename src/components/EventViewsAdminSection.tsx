@@ -61,17 +61,33 @@ export function EventViewsAdminSection({
     },
   });
 
-  // Fetch RSVPs separately to track who has responded
+  // Fetch RSVPs separately to track who has responded (including child RSVPs)
   const { data: eventRsvps } = useQuery({
     queryKey: ["event-rsvps-for-views", eventId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rsvps")
-        .select("user_id, status, created_at")
+        .select("user_id, child_id, status, created_at")
         .eq("event_id", eventId);
       if (error) throw error;
       return data || [];
     },
+  });
+
+  // Fetch children assigned to this team (to check child-level RSVP completeness)
+  const { data: teamChildren } = useQuery({
+    queryKey: ["event-team-children", teamId],
+    queryFn: async () => {
+      if (!teamId) return [];
+      const { data, error } = await supabase
+        .from("child_team_assignments")
+        .select("child_id, children:child_id(id, name, parent_id)")
+        .eq("team_id", teamId);
+      if (error) throw error;
+      return (data || []).map((d: any) => d.children).filter(Boolean);
+    },
+    enabled: !!teamId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch all team/club members who should see this event
