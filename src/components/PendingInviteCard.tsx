@@ -347,13 +347,12 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   });
 
   // Handle resend email
-  const handleResendEmail = async () => {
-    if (!invite.invited_email) {
-      toast({ 
-        title: "No email address", 
-        description: "This invite doesn't have an email address",
-        variant: "destructive" 
-      });
+  const handleResendEmail = async (overrideEmail?: string) => {
+    const targetEmail = overrideEmail || invite.invited_email;
+    if (!targetEmail) {
+      // No email — open the email input dialog
+      setEmailInput("");
+      setShowEmailDialog(true);
       return;
     }
 
@@ -369,6 +368,14 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     setIsResending(true);
     
     try {
+      // If we're adding an email for the first time, save it to the invite
+      if (overrideEmail && !invite.invited_email) {
+        await supabase
+          .from("pending_invites")
+          .update({ invited_email: overrideEmail.trim().toLowerCase() } as any)
+          .eq("id", invite.id);
+      }
+
       const inviteLinkForEmail = `${window.location.origin}/join/p/${pendingInviteToken}`;
       const recipientName = invite.invited_label || invite.profiles?.display_name || "Member";
       
@@ -385,7 +392,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
 
       const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
         body: {
-          to: invite.invited_email,
+          to: targetEmail.trim().toLowerCase(),
            subject: childrenNames && childrenNames.length === 1
              ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
              : childrenNames && childrenNames.length > 1
@@ -396,7 +403,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           replyTo: clubContactEmail,
           templateData: {
             recipientName,
-            invitedEmail: invite.invited_email,
+            invitedEmail: targetEmail.trim().toLowerCase(),
             teamName,
             clubName,
             roleName: roleLabels[invite.role] || invite.role.replace("_", " "),
@@ -427,8 +434,9 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
         
         toast({ 
           title: "Email sent!", 
-          description: `Invite email resent to ${invite.invited_email}` 
+          description: `Invite email sent to ${targetEmail}` 
         });
+        setShowEmailDialog(false);
       } else {
         throw new Error(emailResult?.error || "Email not verified");
       }
