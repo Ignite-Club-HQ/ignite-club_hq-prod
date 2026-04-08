@@ -355,21 +355,9 @@ export default function HomePage() {
     }
   };
 
-  // Fetch user roles to check admin permissions
-  const { data: userRoles, isLoading: isLoadingUserRoles } = useQuery({
-    queryKey: ["user-roles", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role, club_id, team_id")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    placeholderData: (prev) => prev,
-  });
+  // Derive userRoles from the consolidated memberships query (avoids redundant user_roles fetch)
+  const userRoles = userMemberships?.roles || null;
+  const isLoadingUserRoles = isLoading;
 
   // Fetch pending reward redemptions
   const { data: pendingRedemptions = [] } = useQuery({
