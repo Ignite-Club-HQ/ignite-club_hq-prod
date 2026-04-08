@@ -53,7 +53,7 @@ serve(async (req) => {
       });
     }
 
-    const { eventId, userIds, channels = "both" } = await req.json() as RequestBody;
+    const { eventId, userIds, userContexts, channels = "both" } = await req.json() as RequestBody;
 
     if (!eventId || !userIds || userIds.length === 0) {
       return new Response(JSON.stringify({ error: "Missing eventId or userIds" }), {
