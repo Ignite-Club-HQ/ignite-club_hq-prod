@@ -271,6 +271,7 @@ export default function HomePage() {
         clubAdminClubIds: Array.from(clubAdminClubIds),
         leagueAdminClubIds: Array.from(leagueAdminClubIds),
         miniLeagueIds,
+        roles: roles as { role: string; club_id: string | null; team_id: string | null }[],
       };
       
       // Step 3: Filter events client-side
