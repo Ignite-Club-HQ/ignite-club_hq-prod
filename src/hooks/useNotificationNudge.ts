@@ -79,13 +79,30 @@ export function useNotificationNudge(userId: string | undefined, context: string
         let nextHasPushEnabled = false;
 
         if (isNative) {
-          // Check FCM tokens for native
-          const { data, error } = await supabase
-            .from("fcm_tokens" as any)
-            .select("id")
-            .eq("user_id", userId)
-            .limit(1);
-          nextHasPushEnabled = !error && !!data && data.length > 0;
+          // Check device-level permission first — if granted, don't nudge
+          try {
+            const { PushNotifications } = await import("@capacitor/push-notifications");
+            const permResult = await PushNotifications.checkPermissions();
+            if (permResult.receive === "granted") {
+              nextHasPushEnabled = true;
+            } else {
+              // Permission not granted — check DB as fallback
+              const { data, error } = await supabase
+                .from("fcm_tokens" as any)
+                .select("id")
+                .eq("user_id", userId)
+                .limit(1);
+              nextHasPushEnabled = !error && !!data && data.length > 0;
+            }
+          } catch {
+            // Fallback to DB check if PushNotifications API fails
+            const { data, error } = await supabase
+              .from("fcm_tokens" as any)
+              .select("id")
+              .eq("user_id", userId)
+              .limit(1);
+            nextHasPushEnabled = !error && !!data && data.length > 0;
+          }
         } else {
           // Check push_subscriptions for web/PWA
           const { data, error } = await supabase
