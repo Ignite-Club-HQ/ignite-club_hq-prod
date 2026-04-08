@@ -31,6 +31,7 @@ interface MemberWithViewStatus {
   avatar_url: string | null;
   hasViewed: boolean;
   viewedAt?: string;
+  hasResponded: boolean;
 }
 
 export function EventViewsAdminSection({ 
