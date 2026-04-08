@@ -116,7 +116,7 @@ const MessagePreview = ({
   }
   
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex items-center gap-1 min-w-0 overflow-hidden">
       {/* Image-only: show camera icon */}
       {isImageOnly && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -125,7 +125,7 @@ const MessagePreview = ({
       {hasTextAndImage && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       )}
-      {author && <span className="font-medium">{isAnnouncement ? author : getFirstName(author)}:</span>}
+      {author && <span className="shrink-0 font-medium">{isAnnouncement ? author : getFirstName(author)}:</span>}
       <span className="truncate">{displayText ?? (isImageOnly ? "Image" : fallback)}</span>
     </span>
   );
