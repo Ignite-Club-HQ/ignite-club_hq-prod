@@ -372,9 +372,9 @@ export default function EventDetailPage() {
         .eq("user_id", user!.id)
         .eq("club_id", event.club_id)
         .in("role", ["club_admin", "committee_member"])
-        .maybeSingle();
+        .limit(1);
       
-      if (clubAdminData) return true;
+      if (clubAdminData && clubAdminData.length > 0) return true;
       
       // For team-specific events, also check team_admin/coach roles
       if (event.team_id) {
