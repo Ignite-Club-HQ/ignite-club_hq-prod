@@ -116,7 +116,7 @@ const MessagePreview = ({
   }
   
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex items-center gap-1 min-w-0 overflow-hidden">
       {/* Image-only: show camera icon */}
       {isImageOnly && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -125,7 +125,7 @@ const MessagePreview = ({
       {hasTextAndImage && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       )}
-      {author && <span className="font-medium">{isAnnouncement ? author : getFirstName(author)}:</span>}
+      {author && <span className="shrink-0 font-medium">{isAnnouncement ? author : getFirstName(author)}:</span>}
       <span className="truncate">{displayText ?? (isImageOnly ? "Image" : fallback)}</span>
     </span>
   );
@@ -1290,7 +1290,7 @@ export default function MessagesPage() {
                         <BellOff className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
                     </div>
-                    <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                    <p className={`text-sm truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                       <MessagePreview 
                         text={lastMessage?.text} 
                         imageUrl={lastMessage?.image_url}
@@ -1355,7 +1355,7 @@ export default function MessagesPage() {
                           <BellOff className="h-3.5 w-3.5 text-muted-foreground" />
                         )}
                       </div>
-                      <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                      <p className={`text-sm truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                         <MessagePreview 
                           text={lastMessage?.text} 
                           imageUrl={lastMessage?.image_url}
@@ -1504,7 +1504,7 @@ export default function MessagesPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className={`truncate ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
-                        <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                        <p className={`text-sm truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                           <MessagePreview 
                             text={displayLatestBroadcast?.text} 
                             imageUrl={displayLatestBroadcast?.image_url}

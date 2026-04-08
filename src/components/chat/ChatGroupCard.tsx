@@ -75,7 +75,7 @@ export default function ChatGroupCard({
               <BellOff className="h-3.5 w-3.5 text-muted-foreground" aria-label="Muted" />
             )}
           </div>
-          <p className={`text-sm ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+          <p className={`text-sm truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
             <MessagePreviewComponent 
               text={lastMessage?.text} 
               imageUrl={lastMessage?.image_url}
