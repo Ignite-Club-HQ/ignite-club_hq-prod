@@ -140,18 +140,28 @@ export function ChatMembersSheet({
 
   // Fetch club bot_user_id to hide from member list
   const resolvedClubId = chatType === "club" ? chatId : clubId;
-  const { data: clubData } = useQuery({
-    queryKey: ["club-bot-user", resolvedClubId],
+  const { data: clubBotUserId } = useQuery({
+    queryKey: ["club-bot-user", chatType, chatId, resolvedClubId],
     queryFn: async () => {
-      if (!resolvedClubId) return null;
+      let cId = resolvedClubId;
+      // For team chats, look up the club via the team
+      if (!cId && chatType === "team") {
+        const { data: team } = await supabase
+          .from("teams")
+          .select("club_id")
+          .eq("id", chatId)
+          .maybeSingle();
+        cId = team?.club_id ?? undefined;
+      }
+      if (!cId) return null;
       const { data } = await supabase
         .from("clubs")
         .select("bot_user_id")
-        .eq("id", resolvedClubId)
+        .eq("id", cId)
         .maybeSingle();
-      return data;
+      return data?.bot_user_id ?? null;
     },
-    enabled: !!resolvedClubId,
+    enabled: open,
     staleTime: 1000 * 60 * 30,
   });
 
