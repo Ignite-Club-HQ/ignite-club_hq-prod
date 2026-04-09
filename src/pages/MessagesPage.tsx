@@ -122,12 +122,12 @@ const MessagePreview = ({
   }
   
   return (
-    <span className="flex items-start gap-1 min-w-0">
+    <span className="line-clamp-2">
       {(isImageOnly || hasTextAndImage) && (
-        <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
+        <ImageIcon className="h-3.5 w-3.5 inline-block align-text-bottom mr-0.5 text-muted-foreground" />
       )}
-      {author && <span className="shrink-0 font-medium">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}:</span>}
-      <span className="line-clamp-2">{displayText ?? (isImageOnly ? "Image" : "No messages yet")}</span>
+      {author && <span className="font-medium">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}: </span>}
+      {displayText ?? (isImageOnly ? "Image" : "No messages yet")}
     </span>
   );
 };
