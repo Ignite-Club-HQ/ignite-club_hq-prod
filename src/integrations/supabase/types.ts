@@ -6202,6 +6202,10 @@ export type Database = {
         Returns: string
       }
       deny_role_request: { Args: { p_request_id: string }; Returns: undefined }
+      dismiss_accepted_pending_invites: {
+        Args: { p_club_id?: string; p_team_id?: string }
+        Returns: number
+      }
       encrypt_sensitive_data: { Args: { data: string }; Returns: string }
       extract_mentioned_user_ids: {
         Args: { message_text: string }

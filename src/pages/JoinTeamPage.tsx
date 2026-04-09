@@ -569,33 +569,41 @@ export default function JoinTeamPage() {
         throw new Error("This invite link has reached its usage limit");
       }
 
-      // Check for a matching pending invite to get the invited_label (legacy flow)
-      const { data: pendingInvite } = await supabase
+      // Reconcile any matching pending invites for this user (by user_id or email)
+      const userEmail = user.email?.toLowerCase().trim();
+      const orClauses = [`invited_user_id.eq.${user.id}`];
+      if (userEmail) {
+        orClauses.push(`invited_email.ilike.${userEmail}`);
+      }
+
+      const { data: matchingPendingInvites } = await supabase
         .from("pending_invites")
         .select("id, invited_label")
         .eq("team_id", invite.team_id)
         .eq("status", "pending")
-        .or(`invited_user_id.eq.${user.id},invited_label.ilike.%${user.email?.split('@')[0]}%`)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .or(orClauses.join(","))
+        .order("created_at", { ascending: false });
 
-      // If there's a pending invite with a label and user has no display_name, prefill it
-      if (pendingInvite?.invited_label) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", user.id)
-          .single();
-
-        if (!profile?.display_name) {
-          await supabase
+      if (matchingPendingInvites && matchingPendingInvites.length > 0) {
+        // Use the first match's label to prefill display name if needed
+        const firstLabel = matchingPendingInvites.find(i => i.invited_label)?.invited_label;
+        if (firstLabel) {
+          const { data: profile } = await supabase
             .from("profiles")
-            .update({ display_name: pendingInvite.invited_label })
-            .eq("id", user.id);
+            .select("display_name")
+            .eq("id", user.id)
+            .single();
+
+          if (!profile?.display_name) {
+            await supabase
+              .from("profiles")
+              .update({ display_name: firstLabel })
+              .eq("id", user.id);
+          }
         }
 
-        // Mark the pending invite as accepted
+        // Mark ALL matching pending invites as accepted
+        const matchingIds = matchingPendingInvites.map(i => i.id);
         await supabase
           .from("pending_invites")
           .update({ 
@@ -603,7 +611,9 @@ export default function JoinTeamPage() {
             accepted_at: new Date().toISOString(),
             invited_user_id: user.id
           })
-          .eq("id", pendingInvite.id);
+          .in("id", matchingIds);
+        
+        console.log("[JoinTeam] Reconciled", matchingIds.length, "pending invite(s) for user");
       }
 
       // Increment uses_count for team invite
