@@ -266,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // No profile found - this is okay for new users, not an error
         console.log('No profile found for user:', userId);
+        setProfileResolved(true);
         return null;
       } catch (err: any) {
         console.error(`Exception fetching profile (attempt ${attempt}/${retries}):`, err);
@@ -323,6 +324,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isUserSwitch) {
         console.log('[Auth] Session user differs from cached - clearing stale cache for user switch');
         setProfile(null);
+        setProfileResolved(false);
         setCachedProfile(null);
         // Clear the old cache from localStorage too
         localStorage.removeItem(PROFILE_CACHE_KEY);
@@ -469,6 +471,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setInitialized(false);
             setLoading(true);
             setProfileLoading(true);
+            setProfileResolved(false);
             handleSession(currentSession, false, true);
           }
         } else if ((event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
@@ -484,6 +487,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           profileFetched = false;
           setIsFreshLogin(false);
           setProfile(null);
+          setProfileResolved(false);
           setCachedProfile(null);
           setUnreadCount(0);
           setUnreadMessagesCount(0);
