@@ -84,7 +84,7 @@ export default function ChatGroupCard({
               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             </div>
           </div>
-          <p className={`text-[13px] leading-snug mt-0.5 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+          <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
             <MessagePreviewComponent 
               text={lastMessage?.text} 
               imageUrl={lastMessage?.image_url}
