@@ -295,6 +295,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
 interface MyTeamsPremiumCarouselProps {
   onJoinTeam?: () => void;
   onCreateTeam?: () => void;
+  onInvite?: () => void;
 }
 
 export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPremiumCarouselProps) {
