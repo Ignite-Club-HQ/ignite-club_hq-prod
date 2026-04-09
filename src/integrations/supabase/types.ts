@@ -2983,6 +2983,7 @@ export type Database = {
           referred_email: string | null
           referred_name: string
           referred_phone: string | null
+          referred_role: string | null
           reject_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -2997,6 +2998,7 @@ export type Database = {
           referred_email?: string | null
           referred_name: string
           referred_phone?: string | null
+          referred_role?: string | null
           reject_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -3011,6 +3013,7 @@ export type Database = {
           referred_email?: string | null
           referred_name?: string
           referred_phone?: string | null
+          referred_role?: string | null
           reject_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null

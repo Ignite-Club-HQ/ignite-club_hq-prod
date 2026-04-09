@@ -112,9 +112,16 @@ export default function PendingReferralsList({ teamId, isAdmin }: PendingReferra
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium truncate">{referral.referred_name}</p>
-                {referral.referred_email && (
-                  <p className="text-xs text-muted-foreground truncate">{referral.referred_email}</p>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {referral.referred_role && (
+                    <Badge variant="outline" className="text-[10px] py-0 h-4 capitalize">
+                      {referral.referred_role}
+                    </Badge>
+                  )}
+                  {referral.referred_email && (
+                    <span className="text-xs text-muted-foreground truncate">{referral.referred_email}</span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                   <Clock className="h-3 w-3" />
                   Referred by {referrerNameMap[referral.referred_by] || "a member"}
