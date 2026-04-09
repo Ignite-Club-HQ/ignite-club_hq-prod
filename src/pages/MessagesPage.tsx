@@ -117,7 +117,7 @@ const MessagePreview = ({
       {(isImageOnly || hasTextAndImage) && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
       )}
-      {author && <span className="shrink-0 font-medium">{isAnnouncement ? 'Club' : getFirstName(author)}:</span>}
+      {author && <span className="shrink-0 font-medium">{getFirstName(author)}:</span>}
       <span className="line-clamp-2">{displayText ?? (isImageOnly ? "Image" : "No messages yet")}</span>
     </span>
   );
