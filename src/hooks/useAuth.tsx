@@ -170,8 +170,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // CRITICAL FIX: applyTheme is now a direct parameter, not dependent on React state
   // This avoids stale closure issues during Google OAuth where isFreshLogin state
   // wasn't available in the callback at the right time
-  const fetchProfile = useCallback(async (userId: string, retries = 5, applyTheme = false): Promise<Profile | null> => {
+  const fetchProfile = useCallback(async (userId: string, retries = 5, applyTheme = false, retryOnMissing = false): Promise<Profile | null> => {
     setProfileError(false);
+    const maxMissingProfileAttempts = retryOnMissing ? retries : 1;
+
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         // Create a timeout promise to prevent hanging - increased to 15s for slow connections
@@ -228,6 +230,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return profileData;
         }
         
+        const shouldRetryMissingProfile = retryOnMissing && attempt < maxMissingProfileAttempts;
+        if (shouldRetryMissingProfile) {
+          const delay = Math.min(300 * attempt, 1500);
+          console.warn(`[Auth] Profile not available yet (attempt ${attempt}/${maxMissingProfileAttempts}), retrying...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
         // No profile found - this is okay for new users, not an error
         console.log('No profile found for user:', userId);
         return null;
@@ -360,7 +370,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('[Auth] Fetching profile for user:', userId, isUserSwitch ? '(user switch)' : '', applyTheme ? '(fresh login)' : '');
         setProfileLoading(true);
         try {
-          const fetchedProfile = await fetchProfile(userId, 5, applyTheme);
+          const fetchedProfile = await fetchProfile(userId, 5, applyTheme, true);
           if (mounted) {
             setProfileLoading(false);
             setLoading(false);
