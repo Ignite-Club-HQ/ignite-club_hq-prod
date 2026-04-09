@@ -57,9 +57,9 @@ export default function ChatGroupCard({
       role="link"
       aria-label={`${group.name} chat group${hasUnread ? `, ${unreadCount} unread messages` : ''}${isMuted ? ', muted' : ''}`}
     >
-      <CardContent className="py-3.5 px-3 flex items-center gap-2.5">
+      <CardContent className="py-3 px-2.5 flex items-center gap-2">
         <div className="relative shrink-0">
-          <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
+          <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center">
             <Users className="h-5 w-5 text-secondary-foreground" aria-hidden="true" />
           </div>
           {hasUnread && (
@@ -67,12 +67,12 @@ export default function ChatGroupCard({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-1.5">
+          <div className="flex items-start justify-between gap-1">
             <div className="flex items-center gap-1.5 min-w-0">
               <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{group.name}</h3>
               {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" aria-label="Muted" />}
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-0.5 shrink-0">
               {lastMessage?.created_at && (
                 <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
               )}
@@ -81,10 +81,10 @@ export default function ChatGroupCard({
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
-              <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             </div>
           </div>
-          <p className={`text-[13px] leading-snug mt-1 pr-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+          <p className={`text-[13px] leading-snug mt-0.5 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
             <MessagePreviewComponent 
               text={lastMessage?.text} 
               imageUrl={lastMessage?.image_url}
