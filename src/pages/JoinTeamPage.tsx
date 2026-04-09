@@ -227,6 +227,19 @@ export default function JoinTeamPage() {
     refetchOnMount: 'always',
   });
 
+  // Fetch existing children on this team for parent linking
+  const { data: existingTeamChildren = [] } = useQuery({
+    queryKey: ["team-children-for-linking", invite?.team_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("child_team_assignments")
+        .select("child_id, children(id, name, year_of_birth)")
+        .eq("team_id", invite!.team_id);
+      return data?.map(a => (a.children as any)).filter(Boolean) || [];
+    },
+    enabled: !!invite?.team_id && showChildStep,
+  });
+
   // Check if user needs to complete their profile first
   const needsProfileCompletion = user && userProfile !== undefined && !userProfile?.display_name;
 
