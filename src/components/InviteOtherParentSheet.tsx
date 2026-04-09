@@ -128,6 +128,16 @@ export default function InviteOtherParentSheet({
         },
       });
 
+      // Mark email as sent on the pending invite
+      if (insertedInvite?.id) {
+        await supabase
+          .from("pending_invites")
+          .update({
+            email_sent_at: new Date().toISOString(),
+          } as any)
+          .eq("id", insertedInvite.id);
+      }
+
       return { link };
     },
     onSuccess: () => {
