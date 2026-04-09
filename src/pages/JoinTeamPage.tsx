@@ -800,8 +800,8 @@ export default function JoinTeamPage() {
       const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
       toast({ title: `Successfully joined as ${roleNames}!` });
       
-      // If parent role was added via a regular (non-pending) invite, show child step
-      if (!isPendingInvite && rolesToAdd.includes("parent")) {
+      // If parent role was added via a regular invite WITHOUT child metadata, show child step
+      if (!isPendingInvite && rolesToAdd.includes("parent") && !teamInvite?.metadata) {
         setShowChildStep(true);
       } else {
         setJoined(true);
