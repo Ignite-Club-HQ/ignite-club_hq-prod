@@ -81,6 +81,15 @@ const getFirstName = (fullName: string | undefined): string => {
   return fullName.split(" ")[0];
 };
 
+// Abbreviate club names: "Bridgewater Soccer Club" -> "Bridgewater SC"
+const abbreviateClubName = (name: string): string => {
+  const words = name.trim().split(/\s+/);
+  if (words.length <= 1) return name;
+  const firstWord = words[0];
+  const initials = words.slice(1).map(w => w.charAt(0).toUpperCase()).join("");
+  return `${firstWord} ${initials}`;
+};
+
 // NOTE: Placeholder name generation was removed - it caused confusion by showing
 // fake names like "Casey Walker" when profiles weren't loaded yet.
 // Now we show empty string until the real profile is fetched.
@@ -117,7 +126,7 @@ const MessagePreview = ({
       {(isImageOnly || hasTextAndImage) && (
         <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
       )}
-      {author && <span className="shrink-0 font-medium">{getFirstName(author)}:</span>}
+      {author && <span className="shrink-0 font-medium">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}:</span>}
       <span className="line-clamp-2">{displayText ?? (isImageOnly ? "Image" : "No messages yet")}</span>
     </span>
   );
