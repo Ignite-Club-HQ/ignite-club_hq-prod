@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-const DEFAULT_POINTS_NAME = "Ignite Points";
+const DEFAULT_POINTS_NAME = "Reward Points";
 
 interface PointsDisplay {
   name: string;
