@@ -29,6 +29,7 @@ interface AuthContextType {
   profileLoading: boolean;
   profileError: boolean;
   initialized: boolean; // True only after first auth check completes
+  profileResolved: boolean; // True only after profile has been fetched from server at least once
   unreadCount: number;
   unreadMessagesCount: number;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -177,6 +178,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(initialAuthState.profileLoading);
   const [profileError, setProfileError] = useState(false);
   const [initialized, setInitialized] = useState(initialAuthState.initialized);
+  // profileResolved: true once the profile has been fetched from the server at least once
+  // for the current session. Prevents routing to /complete-profile based on stale/missing cache.
+  const [profileResolved, setProfileResolved] = useState(!!initialAuthState.profile?.display_name);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   // Track the cached userId we started with (for validation)
@@ -225,6 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data) {
           const profileData = data as Profile;
           setProfile(profileData);
+          setProfileResolved(true);
           setCachedProfile(profileData, userId);
           setProfileError(false);
           
@@ -261,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // No profile found - this is okay for new users, not an error
         console.log('No profile found for user:', userId);
+        setProfileResolved(true);
         return null;
       } catch (err: any) {
         console.error(`Exception fetching profile (attempt ${attempt}/${retries}):`, err);
@@ -318,6 +324,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isUserSwitch) {
         console.log('[Auth] Session user differs from cached - clearing stale cache for user switch');
         setProfile(null);
+        setProfileResolved(false);
         setCachedProfile(null);
         // Clear the old cache from localStorage too
         localStorage.removeItem(PROFILE_CACHE_KEY);
@@ -376,6 +383,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cached && cached.id === userId && cached.display_name) {
         // TRUST the cached profile - user is already set up
         setProfile(cached);
+        setProfileResolved(true); // Cache with display_name is trustworthy
         setProfileLoading(false);
         setLoading(false);
         setInitialized(true);
@@ -464,6 +472,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setInitialized(false);
             setLoading(true);
             setProfileLoading(true);
+            setProfileResolved(false);
             handleSession(currentSession, false, true);
           }
         } else if ((event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
@@ -479,6 +488,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           profileFetched = false;
           setIsFreshLogin(false);
           setProfile(null);
+          setProfileResolved(false);
           setCachedProfile(null);
           setUnreadCount(0);
           setUnreadMessagesCount(0);
@@ -898,6 +908,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileLoading,
       profileError,
       initialized,
+      profileResolved,
       unreadCount,
       unreadMessagesCount,
       signUp,
