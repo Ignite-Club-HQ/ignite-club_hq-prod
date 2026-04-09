@@ -463,12 +463,63 @@ export default function CompleteProfilePage() {
                       .update({ parent_user_id: user.id })
                       .eq("id", invite.metadata.player_id);
                   }
-                } else if (invite.metadata?.children && invite.metadata.children.length > 0 && invite.role === "parent") {
+              } else if (invite.metadata?.children && invite.metadata.children.length > 0 && invite.role === "parent") {
                   // Create children from invite metadata (standard team invite flow)
                   console.log("[CompleteProfile] Creating children from invite metadata:", invite.metadata.children);
                   for (const childData of invite.metadata.children) {
                     console.log("[CompleteProfile] Creating child:", childData.name, "YoB:", childData.yearOfBirth);
-                    // Create the child record
+                    
+                    // Check if a child with same name already exists on this team
+                    let existingChildOnTeam: { id: string } | null = null;
+                    if (invite.team_id) {
+                      const { data: matchedChild } = await supabase
+                        .from("child_team_assignments")
+                        .select("child_id, children!inner(id, name)")
+                        .eq("team_id", invite.team_id)
+                        .ilike("children.name", childData.name)
+                        .maybeSingle();
+                      
+                      if (matchedChild) {
+                        existingChildOnTeam = { id: matchedChild.child_id };
+                      }
+                    }
+
+                    if (existingChildOnTeam) {
+                      // Child already exists on team — link this parent as guardian
+                      console.log("[CompleteProfile] Child already exists on team, linking as guardian:", childData.name);
+                      await supabase
+                        .from("child_guardians")
+                        .insert({
+                          child_id: existingChildOnTeam.id,
+                          guardian_id: user.id,
+                          relationship_type: "parent",
+                          is_primary: false,
+                        })
+                        .select()
+                        .maybeSingle();
+
+                      // Assign mini league if needed
+                      if (invite.metadata?.mini_league_id) {
+                        await supabase
+                          .from("child_mini_league_assignments")
+                          .insert({
+                            child_id: existingChildOnTeam.id,
+                            mini_league_id: invite.metadata.mini_league_id,
+                            ability_rating: 3,
+                          })
+                          .select()
+                          .maybeSingle();
+                      }
+                      if (invite.metadata?.player_id) {
+                        await supabase
+                          .from("mini_league_players")
+                          .update({ parent_user_id: user.id, child_id: existingChildOnTeam.id })
+                          .eq("id", invite.metadata.player_id);
+                      }
+                      continue;
+                    }
+
+                    // No existing child — create new
                     const { data: newChild, error: childError } = await supabase
                       .from("children")
                       .insert({
