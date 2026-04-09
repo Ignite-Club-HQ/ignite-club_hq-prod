@@ -979,6 +979,154 @@ export default function JoinTeamPage() {
     );
   }
 
+  // Add child step for parent role (regular invite links only)
+  const handleAddChild = async () => {
+    if (!user || !invite?.team_id) return;
+    setAddingChild(true);
+    try {
+      if (linkExistingChildId) {
+        // Link existing child as guardian
+        const { error: guardErr } = await supabase.from("child_guardians").insert({
+          child_id: linkExistingChildId,
+          guardian_id: user.id,
+          relationship_type: "parent",
+          is_primary: false,
+        });
+        if (guardErr && !guardErr.message?.includes("duplicate")) {
+          throw guardErr;
+        }
+        toast({ title: "Linked to existing child!" });
+      } else if (childName.trim()) {
+        // Create new child
+        const { data: newChild, error: childErr } = await supabase
+          .from("children")
+          .insert({
+            parent_id: user.id,
+            name: childName.trim(),
+            year_of_birth: childYearOfBirth ? parseInt(childYearOfBirth) : null,
+          })
+          .select("id")
+          .single();
+        
+        if (childErr) throw childErr;
+        
+        // Assign to team
+        if (newChild?.id) {
+          await supabase.from("child_team_assignments").insert({
+            child_id: newChild.id,
+            team_id: invite.team_id,
+          });
+        }
+        toast({ title: `${childName.trim()} added to the team!` });
+      }
+      setJoined(true);
+      setShowChildStep(false);
+    } catch (err) {
+      console.error("[JoinTeam] Error adding child:", err);
+      toast({ title: "Failed to add child", variant: "destructive" });
+    } finally {
+      setAddingChild(false);
+    }
+  };
+
+  if (showChildStep) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CheckCircle className="h-10 w-10 text-primary mx-auto mb-2" />
+            <CardTitle>You've joined as Parent!</CardTitle>
+            <p className="text-sm text-muted-foreground">Now add your child to {inviteEntityName}</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {existingTeamChildren.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Link to existing child on team</Label>
+                <div className="space-y-1">
+                  {existingTeamChildren.map((child: any) => (
+                    <button
+                      key={child.id}
+                      onClick={() => {
+                        setLinkExistingChildId(linkExistingChildId === child.id ? null : child.id);
+                        if (linkExistingChildId !== child.id) setChildName("");
+                      }}
+                      className={`w-full flex items-center gap-2 p-3 rounded-lg border text-left transition-colors ${
+                        linkExistingChildId === child.id 
+                          ? "border-primary bg-primary/5" 
+                          : "border-border hover:bg-muted/50"
+                      }`}
+                    >
+                      <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm">{child.name}</span>
+                      {child.year_of_birth && (
+                        <span className="text-xs text-muted-foreground ml-auto">{child.year_of_birth}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or add new</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!linkExistingChildId && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="child-name" className="text-sm">Child's Name</Label>
+                  <Input
+                    id="child-name"
+                    value={childName}
+                    onChange={(e) => setChildName(e.target.value)}
+                    placeholder="Enter child's name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="child-yob" className="text-sm">Year of Birth (optional)</Label>
+                  <Input
+                    id="child-yob"
+                    type="number"
+                    value={childYearOfBirth}
+                    onChange={(e) => setChildYearOfBirth(e.target.value)}
+                    placeholder="e.g. 2015"
+                    min="2000"
+                    max={new Date().getFullYear()}
+                  />
+                </div>
+              </div>
+            )}
+
+            <Button
+              className="w-full"
+              onClick={handleAddChild}
+              disabled={addingChild || (!childName.trim() && !linkExistingChildId)}
+            >
+              {addingChild ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
+              {linkExistingChildId ? "Link Child" : "Add Child"}
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => { setShowChildStep(false); setJoined(true); }}
+            >
+              Skip for now
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Joined successfully
   if (joined) {
     const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
