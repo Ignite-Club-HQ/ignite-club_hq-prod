@@ -113,12 +113,12 @@ const MessagePreview = ({
   }
   
   return (
-    <span className="flex items-center gap-1 min-w-0 overflow-hidden">
+    <span className="flex items-start gap-1 min-w-0">
       {(isImageOnly || hasTextAndImage) && (
-        <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" />
       )}
       {author && <span className="shrink-0 font-medium">{isAnnouncement ? author : getFirstName(author)}:</span>}
-      <span className="truncate">{displayText ?? (isImageOnly ? "Image" : "No messages yet")}</span>
+      <span className="line-clamp-2">{displayText ?? (isImageOnly ? "Image" : "No messages yet")}</span>
     </span>
   );
 };
@@ -1260,8 +1260,8 @@ export default function MessagesPage() {
           return (
             <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
               <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                <CardContent className="p-3 flex items-center gap-3">
-                  <div className="relative">
+                <CardContent className="py-3 px-3 flex items-center gap-3">
+                  <div className="relative self-center">
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={club.logo_url || undefined} />
                       <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
@@ -1275,12 +1275,12 @@ export default function MessagesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <h3 className={`truncate text-sm ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{club.name}</h3>
+                        <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{club.name}</h3>
                         {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {lastMessage?.created_at && (
-                          <span className="text-[11px] text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
+                          <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
                         )}
                         {hasUnread && (
                           <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
@@ -1290,7 +1290,7 @@ export default function MessagesPage() {
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
-                    <p className={`text-xs truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                    <p className={`text-[13px] leading-snug mt-0.5 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                       <MessagePreview 
                         text={lastMessage?.text} 
                         imageUrl={lastMessage?.image_url}
@@ -1321,8 +1321,8 @@ export default function MessagesPage() {
             return (
               <Link key={`team-${team.id}`} to={`/messages/${team.id}`}>
                 <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="relative">
+                  <CardContent className="py-3 px-3 flex items-center gap-3">
+                    <div className="relative self-center">
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={team.logo_url || team.clubs?.logo_url || undefined} />
                         <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
@@ -1336,12 +1336,12 @@ export default function MessagesPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <h3 className={`truncate text-sm ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{team.name}</h3>
+                          <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{team.name}</h3>
                           {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {lastMessage?.created_at && (
-                            <span className="text-[11px] text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
+                            <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
                           )}
                           {hasUnread && (
                             <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
@@ -1351,7 +1351,7 @@ export default function MessagesPage() {
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
-                      <p className={`text-xs truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                      <p className={`text-[13px] leading-snug mt-0.5 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                         <MessagePreview 
                           text={lastMessage?.text} 
                           imageUrl={lastMessage?.image_url}
@@ -1474,8 +1474,8 @@ export default function MessagesPage() {
               return (
                 <Link to="/messages/broadcast">
                   <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
-                    <CardContent className="p-3 flex items-center gap-3">
-                      <div className="relative">
+                    <CardContent className="py-3 px-3 flex items-center gap-3">
+                      <div className="relative self-center">
                         <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
                           <Flame className="h-4 w-4 text-white" />
                         </div>
@@ -1485,10 +1485,10 @@ export default function MessagesPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <h3 className={`truncate text-sm ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
+                          <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {displayLatestBroadcast?.created_at && (
-                              <span className="text-[11px] text-muted-foreground">{formatTimeShort(displayLatestBroadcast.created_at)}</span>
+                              <span className="text-xs text-muted-foreground">{formatTimeShort(displayLatestBroadcast.created_at)}</span>
                             )}
                             {hasUnread && (
                               <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
@@ -1498,7 +1498,7 @@ export default function MessagesPage() {
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           </div>
                         </div>
-                        <p className={`text-xs truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                        <p className={`text-[13px] leading-snug mt-0.5 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                           <MessagePreview 
                             text={displayLatestBroadcast?.text} 
                             imageUrl={displayLatestBroadcast?.image_url}
