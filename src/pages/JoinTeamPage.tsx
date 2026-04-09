@@ -890,23 +890,7 @@ export default function JoinTeamPage() {
     );
   }
 
-  // Block regular invite links - only email invites (pending invites) are now allowed
-  if (!isPendingInvite) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Invite Links Disabled</h2>
-            <p className="text-muted-foreground mb-4">
-              Shareable invite links are no longer supported. Please ask your team admin to send you an email invite instead.
-            </p>
-            <Button onClick={() => navigate("/")}>Go to Home</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Regular team invites are now allowed (shareable links from MemberInviteSheet)
 
   if (inviteError || !invite) {
     return (
