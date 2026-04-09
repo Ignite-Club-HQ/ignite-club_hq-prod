@@ -5274,6 +5274,7 @@ export type Database = {
           expires_at: string | null
           id: string
           max_uses: number | null
+          metadata: Json | null
           role: Database["public"]["Enums"]["app_role"]
           team_id: string
           token: string
@@ -5285,6 +5286,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           max_uses?: number | null
+          metadata?: Json | null
           role: Database["public"]["Enums"]["app_role"]
           team_id: string
           token: string
@@ -5296,6 +5298,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           max_uses?: number | null
+          metadata?: Json | null
           role?: Database["public"]["Enums"]["app_role"]
           team_id?: string
           token?: string
@@ -6256,6 +6259,15 @@ export type Database = {
         | { Args: { p_team_id: string }; Returns: string }
         | {
             Args: {
+              p_role?: Database["public"]["Enums"]["app_role"]
+              p_team_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_child_name?: string
+              p_child_year_of_birth?: number
               p_role?: Database["public"]["Enums"]["app_role"]
               p_team_id: string
             }
