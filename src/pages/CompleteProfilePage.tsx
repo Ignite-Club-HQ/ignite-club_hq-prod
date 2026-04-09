@@ -580,6 +580,7 @@ export default function CompleteProfilePage() {
                       }
                     }
                   }
+                }
               }
             }
           } else {
