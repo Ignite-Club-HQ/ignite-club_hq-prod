@@ -43,7 +43,6 @@ export default function AccountPage() {
       });
       
       await signOut();
-      navigate("/auth");
     } catch (err) {
       toast({
         title: "Failed to schedule account deletion",

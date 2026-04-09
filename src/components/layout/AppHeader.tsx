@@ -1019,7 +1019,6 @@ export function AppHeader() {
                   } finally {
                     setIsSigningOut(false);
                     setProfileOpen(false);
-                    navigate("/auth");
                   }
                 }}
                 className="text-destructive focus:text-destructive py-3 px-3"
