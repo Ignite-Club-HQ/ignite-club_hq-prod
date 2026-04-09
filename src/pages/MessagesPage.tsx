@@ -81,6 +81,15 @@ const getFirstName = (fullName: string | undefined): string => {
   return fullName.split(" ")[0];
 };
 
+// Abbreviate club names: "Bridgewater Soccer Club" -> "Bridgewater SC"
+const abbreviateClubName = (name: string): string => {
+  const words = name.trim().split(/\s+/);
+  if (words.length <= 1) return name;
+  const firstWord = words[0];
+  const initials = words.slice(1).map(w => w.charAt(0).toUpperCase()).join("");
+  return `${firstWord} ${initials}`;
+};
+
 // NOTE: Placeholder name generation was removed - it caused confusion by showing
 // fake names like "Casey Walker" when profiles weren't loaded yet.
 // Now we show empty string until the real profile is fetched.
@@ -113,12 +122,12 @@ const MessagePreview = ({
   }
   
   return (
-    <span className="flex items-center gap-1 min-w-0 overflow-hidden">
+    <span className="line-clamp-2">
       {(isImageOnly || hasTextAndImage) && (
-        <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <ImageIcon className="h-3.5 w-3.5 inline-block align-text-bottom mr-0.5 text-muted-foreground" />
       )}
-      {author && <span className="shrink-0 font-medium">{isAnnouncement ? author : getFirstName(author)}:</span>}
-      <span className="truncate">{displayText ?? (isImageOnly ? "Image" : "No messages yet")}</span>
+      {author && <span className="font-semibold text-foreground">{isAnnouncement ? abbreviateClubName(author) : getFirstName(author)}: </span>}
+      {displayText ?? (isImageOnly ? "Image" : "No messages yet")}
     </span>
   );
 };
@@ -1226,7 +1235,7 @@ export default function MessagesPage() {
             return (
               <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
                 <Card className="opacity-70 hover:border-primary/50 transition-colors">
-                  <CardContent className="p-3 flex items-center gap-3">
+                  <CardContent className="py-3 px-2.5 flex items-center gap-2">
                     <div className="relative">
                       <Avatar className="h-10 w-10 grayscale">
                         <AvatarImage src={club.logo_url || undefined} />
@@ -1250,7 +1259,7 @@ export default function MessagesPage() {
                         Club Pro required for club-wide chat
                       </p>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   </CardContent>
                 </Card>
               </Link>
@@ -1260,9 +1269,9 @@ export default function MessagesPage() {
           return (
             <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
               <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                <CardContent className="p-3 flex items-center gap-3">
-                  <div className="relative">
-                    <Avatar className="h-10 w-10">
+                <CardContent className="py-[18px] px-3 flex items-center gap-3">
+                  <div className="relative shrink-0">
+                    <Avatar className="h-9 w-9">
                       <AvatarImage src={club.logo_url || undefined} />
                       <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
                         {club.name.charAt(0).toUpperCase()}
@@ -1273,24 +1282,24 @@ export default function MessagesPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-start justify-between gap-1">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <h3 className={`truncate text-sm ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{club.name}</h3>
+                        <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{club.name}</h3>
                         {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-0.5 shrink-0">
                         {lastMessage?.created_at && (
-                          <span className="text-[11px] text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
+                          <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
                         )}
                         {hasUnread && (
                           <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                             {unreadCount > 9 ? "9+" : unreadCount}
                           </span>
                         )}
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                       </div>
                     </div>
-                    <p className={`text-xs truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                    <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                       <MessagePreview 
                         text={lastMessage?.text} 
                         imageUrl={lastMessage?.image_url}
@@ -1321,9 +1330,9 @@ export default function MessagesPage() {
             return (
               <Link key={`team-${team.id}`} to={`/messages/${team.id}`}>
                 <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="relative">
-                      <Avatar className="h-10 w-10">
+                  <CardContent className="py-[18px] px-3 flex items-center gap-3">
+                    <div className="relative shrink-0">
+                      <Avatar className="h-9 w-9">
                         <AvatarImage src={team.logo_url || team.clubs?.logo_url || undefined} />
                         <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
                           {team.name.charAt(0).toUpperCase()}
@@ -1334,24 +1343,24 @@ export default function MessagesPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-start justify-between gap-1">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <h3 className={`truncate text-sm ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{team.name}</h3>
+                          <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{team.name}</h3>
                           {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-0.5 shrink-0">
                           {lastMessage?.created_at && (
-                            <span className="text-[11px] text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
+                            <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
                           )}
                           {hasUnread && (
                             <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                               {unreadCount > 9 ? "9+" : unreadCount}
                             </span>
                           )}
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                         </div>
                       </div>
-                      <p className={`text-xs truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                      <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                         <MessagePreview 
                           text={lastMessage?.text} 
                           imageUrl={lastMessage?.image_url}
@@ -1474,8 +1483,8 @@ export default function MessagesPage() {
               return (
                 <Link to="/messages/broadcast">
                   <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
-                    <CardContent className="p-3 flex items-center gap-3">
-                      <div className="relative">
+                    <CardContent className="py-[18px] px-3 flex items-center gap-3">
+                      <div className="relative shrink-0">
                         <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
                           <Flame className="h-4 w-4 text-white" />
                         </div>
@@ -1484,21 +1493,21 @@ export default function MessagesPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <h3 className={`truncate text-sm ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
-                          <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-start justify-between gap-1">
+                          <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
+                          <div className="flex items-center gap-0.5 shrink-0">
                             {displayLatestBroadcast?.created_at && (
-                              <span className="text-[11px] text-muted-foreground">{formatTimeShort(displayLatestBroadcast.created_at)}</span>
+                              <span className="text-xs text-muted-foreground">{formatTimeShort(displayLatestBroadcast.created_at)}</span>
                             )}
                             {hasUnread && (
                               <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                                 {unreadCounts?.broadcast > 9 ? "9+" : unreadCounts?.broadcast}
                               </span>
                             )}
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                           </div>
                         </div>
-                        <p className={`text-xs truncate ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                        <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                           <MessagePreview 
                             text={displayLatestBroadcast?.text} 
                             imageUrl={displayLatestBroadcast?.image_url}
