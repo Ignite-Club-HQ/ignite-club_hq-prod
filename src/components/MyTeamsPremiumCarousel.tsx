@@ -298,7 +298,7 @@ interface MyTeamsPremiumCarouselProps {
   onInvite?: () => void;
 }
 
-export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPremiumCarouselProps) {
+export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: MyTeamsPremiumCarouselProps) {
   const { user, initialized } = useAuth();
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
