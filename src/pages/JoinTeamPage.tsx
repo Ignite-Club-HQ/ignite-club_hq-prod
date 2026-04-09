@@ -48,6 +48,11 @@ export default function JoinTeamPage() {
   const [showPhotoConsent, setShowPhotoConsent] = useState(false);
   const [pendingJoinRoles, setPendingJoinRoles] = useState<AppRole[]>([]);
   const [nameValidationError, setNameValidationError] = useState<string | null>(null);
+  const [showChildStep, setShowChildStep] = useState(false);
+  const [childName, setChildName] = useState("");
+  const [childYearOfBirth, setChildYearOfBirth] = useState("");
+  const [linkExistingChildId, setLinkExistingChildId] = useState<string | null>(null);
+  const [addingChild, setAddingChild] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const autoJoinAttempted = useRef(false);
   
