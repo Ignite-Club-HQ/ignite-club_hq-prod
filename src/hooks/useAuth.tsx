@@ -178,6 +178,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(initialAuthState.profileLoading);
   const [profileError, setProfileError] = useState(false);
   const [initialized, setInitialized] = useState(initialAuthState.initialized);
+  // profileResolved: true once the profile has been fetched from the server at least once
+  // for the current session. Prevents routing to /complete-profile based on stale/missing cache.
+  const [profileResolved, setProfileResolved] = useState(!!initialAuthState.profile?.display_name);
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   // Track the cached userId we started with (for validation)
@@ -899,6 +902,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileLoading,
       profileError,
       initialized,
+      profileResolved,
       unreadCount,
       unreadMessagesCount,
       signUp,
