@@ -92,7 +92,8 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
 
       if (error) throw error;
 
-      const link = `${window.location.origin}/join/p/${inviteToken}`;
+      // Use the production domain so the link triggers Universal Links / deep linking
+      const link = `https://igniteclubhq.app/join/p/${inviteToken}`;
       setGeneratedLink(link);
       return link;
     },
