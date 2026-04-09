@@ -70,6 +70,7 @@ import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
 import { MyTeamsPremiumCarousel } from "@/components/MyTeamsPremiumCarousel";
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
+import MemberInviteSheet from "@/components/MemberInviteSheet";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
