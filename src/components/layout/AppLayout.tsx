@@ -63,13 +63,14 @@ export function AppLayout() {
       loading,
       profileLoading,
       profileError,
+      profileResolved,
       hasProfile: !!profile,
       displayName: profile?.display_name,
       userId: user?.id,
       isThemeReady,
       themeTimeout
     });
-  }, [initialized, loading, profileLoading, profileError, profile, user, isThemeReady, themeTimeout]);
+  }, [initialized, loading, profileLoading, profileError, profileResolved, profile, user, isThemeReady, themeTimeout]);
 
   // Theme loading timeout - don't block forever waiting for theme
   useEffect(() => {
