@@ -6,24 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import { ChevronRight, Crown, MessageCircle, ImageIcon, EyeOff, Flame } from "lucide-react";
+import { ChevronRight, Crown, MessageCircle, ImageIcon, Flame } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { toast } from "sonner";
 import { isIgniteSupportUser } from "@/lib/systemUser";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 interface DMConversation {
   id: string;
@@ -319,54 +307,67 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
 
       {/* Ignite Support welcome message */}
       {showIgniteSupport && (
-        <Card className="hover:border-primary/50 transition-colors">
-          <CardContent className="p-4 flex items-center gap-4">
-            <Link to="/messages/welcome" className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                <Flame className="h-6 w-6 text-white" />
+        <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+          <Link to="/messages/welcome">
+            <CardContent className="py-[18px] px-3 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                <Flame className="h-5 w-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="truncate font-semibold">Ignite Support</h3>
-                <p className="text-sm text-muted-foreground truncate">
-                  {systemMessage.text.substring(0, 50)}...
+                <div className="flex items-start justify-between gap-1">
+                  <h3 className="truncate text-[15px] leading-tight font-semibold">Ignite Support</h3>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(systemMessage.created_at), { addSuffix: true })}
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                  </div>
+                </div>
+                <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
+                  {systemMessage.text.substring(0, 60)}...
                 </p>
               </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                <span className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(systemMessage.created_at), { addSuffix: true })}
-                </span>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </div>
-            </Link>
-          </CardContent>
+            </CardContent>
+          </Link>
         </Card>
       )}
 
       {filteredConversations.map((conv) => {
         const isOwn = conv.last_message?.author_id === user?.id;
         const isIgniteSupport = isIgniteSupportUser(conv.other_user?.id);
+        const displayName = isIgniteSupport ? "Ignite Support" : (conv.other_user?.display_name || "Unknown User");
         
         return (
-          <Card key={conv.id} className="hover:border-primary/50 transition-colors">
-            <CardContent className="p-4 flex items-center gap-4">
-              <Link to={`/messages/dm/${conv.id}`} className="flex items-center gap-4 flex-1 min-w-0">
-                {isIgniteSupport ? (
-                  <div className="h-12 w-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                    <Flame className="h-6 w-6 text-white" />
-                  </div>
-                ) : (
-                  <Avatar className="h-12 w-12 shrink-0">
-                    <AvatarImage src={conv.other_user?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-secondary text-secondary-foreground">
-                      {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
+          <Card key={conv.id} className="hover:border-primary/50 transition-colors cursor-pointer">
+            <Link to={`/messages/dm/${conv.id}`}>
+              <CardContent className="py-[18px] px-3 flex items-center gap-3">
+                <div className="relative shrink-0">
+                  {isIgniteSupport ? (
+                    <div className="h-9 w-9 rounded-full flex items-center justify-center" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                      <Flame className="h-5 w-5 text-white" />
+                    </div>
+                  ) : (
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={conv.other_user?.avatar_url || undefined} />
+                      <AvatarFallback className="bg-secondary text-secondary-foreground">
+                        {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="truncate font-semibold">
-                    {isIgniteSupport ? "Ignite Support" : (conv.other_user?.display_name || "Unknown User")}
-                  </h3>
-                  <p className="text-sm text-muted-foreground truncate">
+                  <div className="flex items-start justify-between gap-1">
+                    <h3 className="truncate text-[15px] leading-tight font-semibold">{displayName}</h3>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {conv.last_message?.created_at && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: true })}
+                        </span>
+                      )}
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                    </div>
+                  </div>
+                  <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
                     <MessagePreview 
                       text={conv.last_message?.text} 
                       imageUrl={conv.last_message?.image_url}
@@ -374,48 +375,8 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
                     />
                   </p>
                 </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  {conv.last_message?.created_at && (
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: true })}
-                    </span>
-                  )}
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </div>
-              </Link>
-              
-              {/* Hide button - not shown for Ignite Support */}
-              {!isIgniteSupport && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted"
-                    >
-                      <EyeOff className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Hide conversation?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will hide the conversation with {conv.other_user?.display_name || "this user"} from your list. 
-                        The messages will be preserved and the conversation will reappear if either of you sends a new message.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => hideConversationMutation.mutate(conv.id)}
-                      >
-                        Hide
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </CardContent>
+              </CardContent>
+            </Link>
           </Card>
         );
       })}
