@@ -67,12 +67,12 @@ export default function ChatGroupCard({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-1.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{group.name}</h3>
               {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" aria-label="Muted" />}
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               {lastMessage?.created_at && (
                 <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
               )}
@@ -84,7 +84,7 @@ export default function ChatGroupCard({
               <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             </div>
           </div>
-          <p className={`text-[13px] leading-snug mt-1 pr-6 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+          <p className={`text-[13px] leading-snug mt-1 pr-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
             <MessagePreviewComponent 
               text={lastMessage?.text} 
               imageUrl={lastMessage?.image_url}
