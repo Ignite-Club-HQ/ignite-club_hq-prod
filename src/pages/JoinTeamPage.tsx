@@ -640,7 +640,56 @@ export default function JoinTeamPage() {
       }
     }
 
-    if (isPendingInvite && pendingInviteData?.id) {
+    // Handle child auto-creation for regular team invites with metadata
+    if (!isPendingInvite && teamInvite?.metadata && rolesToAdd.includes("parent")) {
+      const childMeta = teamInvite.metadata as { child_name?: string; child_year_of_birth?: number };
+      if (childMeta.child_name) {
+        console.log("[JoinTeam] Auto-creating child from invite metadata:", childMeta.child_name);
+        
+        // Check for existing child with same name on this team
+        const { data: existingOnTeam } = await supabase
+          .from("child_team_assignments")
+          .select("child_id, children(id, name)")
+          .eq("team_id", invite.team_id);
+        
+        const existing = existingOnTeam?.find(
+          (a: any) => a.children?.name?.toLowerCase().trim() === childMeta.child_name!.toLowerCase().trim()
+        );
+        
+        if (existing) {
+          // Link as guardian to existing child
+          await supabase.from("child_guardians").insert({
+            child_id: (existing.children as any).id,
+            guardian_id: user.id,
+            relationship_type: "parent",
+            is_primary: false,
+          }).then(({ error }) => {
+            if (error && !error.message?.includes("duplicate")) {
+              console.error("[JoinTeam] Failed to link guardian:", error.message);
+            }
+          });
+        } else {
+          // Create new child and assign to team
+          const { data: newChild } = await supabase
+            .from("children")
+            .insert({
+              parent_id: user.id,
+              name: childMeta.child_name,
+              year_of_birth: childMeta.child_year_of_birth || null,
+            })
+            .select("id")
+            .single();
+          
+          if (newChild?.id) {
+            await supabase.from("child_team_assignments").insert({
+              child_id: newChild.id,
+              team_id: invite.team_id,
+            });
+          }
+        }
+      }
+    }
+
       await supabase
         .from("pending_invites")
         .update({ 
