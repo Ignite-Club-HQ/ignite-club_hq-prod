@@ -888,7 +888,7 @@ export default function JoinTeamPage() {
         const result = await executeJoin(pendingJoinRoles);
         const roleNames = result.map(r => roleLabels[r]).join(", ");
         toast({ title: `Successfully joined as ${roleNames}!` });
-        if (!isPendingInvite && result.includes("parent")) {
+        if (!isPendingInvite && result.includes("parent") && !teamInvite?.metadata) {
           setShowChildStep(true);
         } else {
           setJoined(true);
