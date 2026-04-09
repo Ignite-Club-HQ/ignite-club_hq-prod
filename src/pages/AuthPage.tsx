@@ -125,7 +125,7 @@ export default function AuthPage() {
   }, [redirectAfterAuth]);
   
   const { toast } = useToast();
-  const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
+  const { user, profile, initialized, profileLoading, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   const { 
     isAvailable, 
     isRegistered,
@@ -247,6 +247,17 @@ export default function AuthPage() {
     );
   }
 
+  const shouldHoldAuthenticatedRedirect = !!user && (!initialized || profileLoading);
+
+  if (shouldHoldAuthenticatedRedirect) {
+    return (
+      <div className="flex flex-col items-center justify-center bg-background gap-3" style={authShellStyle}>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Finishing sign in...</p>
+      </div>
+    );
+  }
+
   if (user) {
     // Check for pending redirect (e.g., from invite link) before going to default
     const redirectPath = sessionStorage.getItem("redirectAfterAuth");
@@ -254,6 +265,10 @@ export default function AuthPage() {
       sessionStorage.removeItem("redirectAfterAuth");
       console.log('[AuthPage] Authenticated, redirecting to:', redirectPath);
       return <Navigate to={redirectPath} replace />;
+    }
+    if (!profile?.display_name) {
+      console.log('[AuthPage] Authenticated, redirecting to complete-profile');
+      return <Navigate to="/complete-profile" replace />;
     }
     // Default to home - clear any stale invite flow context since we're not in a flow
     console.log('[AuthPage] Authenticated, redirecting to home');
