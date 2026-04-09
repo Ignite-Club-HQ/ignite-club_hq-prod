@@ -57,9 +57,9 @@ export default function ChatGroupCard({
       role="link"
       aria-label={`${group.name} chat group${hasUnread ? `, ${unreadCount} unread messages` : ''}${isMuted ? ', muted' : ''}`}
     >
-      <CardContent className="py-3 px-3 flex items-center gap-3">
-        <div className="relative self-center">
-          <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
+      <CardContent className="py-4 px-4 flex items-center gap-3">
+        <div className="relative shrink-0">
+          <div className="h-11 w-11 rounded-full bg-secondary flex items-center justify-center">
             <Users className="h-5 w-5 text-secondary-foreground" aria-hidden="true" />
           </div>
           {hasUnread && (
@@ -67,7 +67,7 @@ export default function ChatGroupCard({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{group.name}</h3>
               {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" aria-label="Muted" />}
@@ -84,7 +84,7 @@ export default function ChatGroupCard({
               <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             </div>
           </div>
-          <p className={`text-[13px] leading-snug mt-0.5 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+          <p className={`text-[13px] leading-snug mt-1 pr-6 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
             <MessagePreviewComponent 
               text={lastMessage?.text} 
               imageUrl={lastMessage?.image_url}
