@@ -30,6 +30,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [selectedTeam, setSelectedTeam] = useState("");
+  const [selectedRole, setSelectedRole] = useState("player");
 
   // Fetch user's teams for the selector
   const { data: teams = [] } = useQuery({
@@ -68,6 +69,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
         referred_by: user.id,
         referred_name: name.trim(),
         referred_email: email.trim().toLowerCase() || null,
+        referred_role: selectedRole,
       } as any);
 
       if (error) throw error;
@@ -85,7 +87,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
         const notifications = adminRoles.map(r => ({
           user_id: r.user_id,
           type: "membership",
-          message: `New invite referral: ${name.trim()} was referred to ${team?.name || "your team"}`,
+          message: `New invite referral: ${name.trim()} was referred as ${selectedRole} to ${team?.name || "your team"}`,
           related_id: selectedTeam,
         }));
 
@@ -97,6 +99,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
       setName("");
       setEmail("");
       setSelectedTeam("");
+      setSelectedRole("player");
       onOpenChange(false);
     },
     onError: (error: Error) => {
