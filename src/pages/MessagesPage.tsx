@@ -1226,7 +1226,7 @@ export default function MessagesPage() {
             return (
               <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
                 <Card className="opacity-70 hover:border-primary/50 transition-colors">
-                  <CardContent className="py-4 px-4 flex items-center gap-3">
+                  <CardContent className="py-3.5 px-3 flex items-center gap-2.5">
                     <div className="relative">
                       <Avatar className="h-10 w-10 grayscale">
                         <AvatarImage src={club.logo_url || undefined} />
@@ -1260,9 +1260,9 @@ export default function MessagesPage() {
           return (
             <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
               <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                <CardContent className="py-4 px-4 flex items-center gap-3">
+                <CardContent className="py-3.5 px-3 flex items-center gap-2.5">
                   <div className="relative shrink-0">
-                    <Avatar className="h-11 w-11">
+                    <Avatar className="h-10 w-10">
                       <AvatarImage src={club.logo_url || undefined} />
                       <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
                         {club.name.charAt(0).toUpperCase()}
@@ -1273,12 +1273,12 @@ export default function MessagesPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-1.5">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{club.name}</h3>
                         {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         {lastMessage?.created_at && (
                           <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
                         )}
@@ -1290,7 +1290,7 @@ export default function MessagesPage() {
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
-                    <p className={`text-[13px] leading-snug mt-1 pr-6 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                    <p className={`text-[13px] leading-snug mt-1 pr-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                       <MessagePreview 
                         text={lastMessage?.text} 
                         imageUrl={lastMessage?.image_url}
@@ -1321,9 +1321,9 @@ export default function MessagesPage() {
             return (
               <Link key={`team-${team.id}`} to={`/messages/${team.id}`}>
                 <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                  <CardContent className="py-4 px-4 flex items-center gap-3">
+                  <CardContent className="py-3.5 px-3 flex items-center gap-2.5">
                     <div className="relative shrink-0">
-                      <Avatar className="h-11 w-11">
+                      <Avatar className="h-10 w-10">
                         <AvatarImage src={team.logo_url || team.clubs?.logo_url || undefined} />
                         <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
                           {team.name.charAt(0).toUpperCase()}
@@ -1334,12 +1334,12 @@ export default function MessagesPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start justify-between gap-1.5">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{team.name}</h3>
                           {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0">
                           {lastMessage?.created_at && (
                             <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
                           )}
@@ -1351,7 +1351,7 @@ export default function MessagesPage() {
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>
-                      <p className={`text-[13px] leading-snug mt-1 pr-6 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                      <p className={`text-[13px] leading-snug mt-1 pr-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                         <MessagePreview 
                           text={lastMessage?.text} 
                           imageUrl={lastMessage?.image_url}
@@ -1474,7 +1474,7 @@ export default function MessagesPage() {
               return (
                 <Link to="/messages/broadcast">
                   <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
-                    <CardContent className="py-4 px-4 flex items-center gap-3">
+                    <CardContent className="py-3.5 px-3 flex items-center gap-2.5">
                       <div className="relative shrink-0">
                         <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
                           <Flame className="h-4 w-4 text-white" />
@@ -1484,9 +1484,9 @@ export default function MessagesPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-1.5">
                           <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1 shrink-0">
                             {displayLatestBroadcast?.created_at && (
                               <span className="text-xs text-muted-foreground">{formatTimeShort(displayLatestBroadcast.created_at)}</span>
                             )}
@@ -1498,7 +1498,7 @@ export default function MessagesPage() {
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           </div>
                         </div>
-                        <p className={`text-[13px] leading-snug mt-1 pr-6 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                        <p className={`text-[13px] leading-snug mt-1 pr-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                           <MessagePreview 
                             text={displayLatestBroadcast?.text} 
                             imageUrl={displayLatestBroadcast?.image_url}
