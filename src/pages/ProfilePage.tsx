@@ -535,7 +535,6 @@ export default function ProfilePage() {
     setSigningOut(true);
     await signOut();
     toast({ title: "Signed out successfully" });
-    navigate("/auth");
   };
 
   return (
