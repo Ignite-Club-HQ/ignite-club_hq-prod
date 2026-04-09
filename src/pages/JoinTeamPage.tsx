@@ -747,9 +747,15 @@ export default function JoinTeamPage() {
       if (rolesToAdd === null) {
         return;
       }
-      setJoined(true);
       const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
       toast({ title: `Successfully joined as ${roleNames}!` });
+      
+      // If parent role was added via a regular (non-pending) invite, show child step
+      if (!isPendingInvite && rolesToAdd.includes("parent")) {
+        setShowChildStep(true);
+      } else {
+        setJoined(true);
+      }
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to join team", variant: "destructive" });
