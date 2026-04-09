@@ -350,14 +350,13 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const handleResendEmail = async (overrideEmail?: string) => {
     let targetEmail = overrideEmail || invite.invited_email;
     
-    // Fallback: if email was previously sent but invited_email is missing from props,
-    // fetch it directly from the database
-    if (!targetEmail && invite.email_sent_at) {
+    // Always refetch the latest stored email if it's missing from props
+    if (!targetEmail) {
       const { data: freshInvite } = await supabase
         .from("pending_invites")
         .select("invited_email")
         .eq("id", invite.id)
-        .single();
+        .maybeSingle();
       if (freshInvite?.invited_email) {
         targetEmail = freshInvite.invited_email;
       }
