@@ -383,6 +383,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cached && cached.id === userId && cached.display_name) {
         // TRUST the cached profile - user is already set up
         setProfile(cached);
+        setProfileResolved(true); // Cache with display_name is trustworthy
         setProfileLoading(false);
         setLoading(false);
         setInitialized(true);
