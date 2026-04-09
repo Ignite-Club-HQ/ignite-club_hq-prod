@@ -2975,6 +2975,59 @@ export type Database = {
           },
         ]
       }
+      member_referrals: {
+        Row: {
+          created_at: string
+          id: string
+          referred_by: string
+          referred_email: string | null
+          referred_name: string
+          referred_phone: string | null
+          reject_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          referred_by: string
+          referred_email?: string | null
+          referred_name: string
+          referred_phone?: string | null
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          referred_by?: string
+          referred_email?: string | null
+          referred_name?: string
+          referred_phone?: string | null
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_referrals_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_subscription_payments: {
         Row: {
           amount: number
