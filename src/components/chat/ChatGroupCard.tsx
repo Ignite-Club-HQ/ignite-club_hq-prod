@@ -57,9 +57,9 @@ export default function ChatGroupCard({
       role="link"
       aria-label={`${group.name} chat group${hasUnread ? `, ${unreadCount} unread messages` : ''}${isMuted ? ', muted' : ''}`}
     >
-      <CardContent className="py-4 px-4 flex items-center gap-3">
+      <CardContent className="py-3.5 px-3 flex items-center gap-2.5">
         <div className="relative shrink-0">
-          <div className="h-11 w-11 rounded-full bg-secondary flex items-center justify-center">
+          <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
             <Users className="h-5 w-5 text-secondary-foreground" aria-hidden="true" />
           </div>
           {hasUnread && (
