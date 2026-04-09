@@ -1,13 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Loader2, CheckCircle, XCircle, Users, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Users, AlertTriangle, Plus, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +49,11 @@ export default function JoinTeamPage() {
   const [showPhotoConsent, setShowPhotoConsent] = useState(false);
   const [pendingJoinRoles, setPendingJoinRoles] = useState<AppRole[]>([]);
   const [nameValidationError, setNameValidationError] = useState<string | null>(null);
+  const [showChildStep, setShowChildStep] = useState(false);
+  const [childName, setChildName] = useState("");
+  const [childYearOfBirth, setChildYearOfBirth] = useState("");
+  const [linkExistingChildId, setLinkExistingChildId] = useState<string | null>(null);
+  const [addingChild, setAddingChild] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const autoJoinAttempted = useRef(false);
   
@@ -105,6 +111,7 @@ export default function JoinTeamPage() {
           expires_at: row.expires_at,
           created_at: row.created_at,
           created_by: row.created_by,
+          metadata: row.metadata as { child_name?: string; child_year_of_birth?: number } | null,
           teams: {
             id: row.team_id,
             name: row.team_name,
@@ -221,6 +228,19 @@ export default function JoinTeamPage() {
     refetchOnMount: 'always',
   });
 
+  // Fetch existing children on this team for parent linking
+  const { data: existingTeamChildren = [] } = useQuery({
+    queryKey: ["team-children-for-linking", invite?.team_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("child_team_assignments")
+        .select("child_id, children(id, name, year_of_birth)")
+        .eq("team_id", invite!.team_id);
+      return data?.map(a => (a.children as any)).filter(Boolean) || [];
+    },
+    enabled: !!invite?.team_id && showChildStep,
+  });
+
   // Check if user needs to complete their profile first
   const needsProfileCompletion = user && userProfile !== undefined && !userProfile?.display_name;
 
@@ -275,7 +295,8 @@ export default function JoinTeamPage() {
   // Check if this is a fixed role invite:
   // - Admin roles don't allow additional selection
   // - Pending invites (email-based) always use the role chosen by the inviter
-  const isFixedRoleInvite = invite?.role && (fixedRoles.includes(invite.role as AppRole) || isPendingInvite);
+  // - Regular team invites (shareable links) use the role set when the link was created
+  const isFixedRoleInvite = true; // All invite types now use a fixed role
 
   // Initialize selected roles with invite role if user doesn't have it yet
   useEffect(() => {
@@ -619,6 +640,56 @@ export default function JoinTeamPage() {
       }
     }
 
+    // Handle child auto-creation for regular team invites with metadata
+    if (!isPendingInvite && teamInvite?.metadata && rolesToAdd.includes("parent")) {
+      const childMeta = teamInvite.metadata as { child_name?: string; child_year_of_birth?: number };
+      if (childMeta.child_name) {
+        console.log("[JoinTeam] Auto-creating child from invite metadata:", childMeta.child_name);
+        
+        // Check for existing child with same name on this team
+        const { data: existingOnTeam } = await supabase
+          .from("child_team_assignments")
+          .select("child_id, children(id, name)")
+          .eq("team_id", invite.team_id);
+        
+        const existing = existingOnTeam?.find(
+          (a: any) => a.children?.name?.toLowerCase().trim() === childMeta.child_name!.toLowerCase().trim()
+        );
+        
+        if (existing) {
+          // Link as guardian to existing child
+          await supabase.from("child_guardians").insert({
+            child_id: (existing.children as any).id,
+            guardian_id: user.id,
+            relationship_type: "parent",
+            is_primary: false,
+          }).then(({ error }) => {
+            if (error && !error.message?.includes("duplicate")) {
+              console.error("[JoinTeam] Failed to link guardian:", error.message);
+            }
+          });
+        } else {
+          // Create new child and assign to team
+          const { data: newChild } = await supabase
+            .from("children")
+            .insert({
+              parent_id: user.id,
+              name: childMeta.child_name,
+              year_of_birth: childMeta.child_year_of_birth || null,
+            })
+            .select("id")
+            .single();
+          
+          if (newChild?.id) {
+            await supabase.from("child_team_assignments").insert({
+              child_id: newChild.id,
+              team_id: invite.team_id,
+            });
+          }
+        }
+      }
+    }
+
     if (isPendingInvite && pendingInviteData?.id) {
       await supabase
         .from("pending_invites")
@@ -727,9 +798,15 @@ export default function JoinTeamPage() {
       if (rolesToAdd === null) {
         return;
       }
-      setJoined(true);
       const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
       toast({ title: `Successfully joined as ${roleNames}!` });
+      
+      // If parent role was added via a regular invite WITHOUT child metadata, show child step
+      if (!isPendingInvite && rolesToAdd.includes("parent") && !teamInvite?.metadata) {
+        setShowChildStep(true);
+      } else {
+        setJoined(true);
+      }
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to join team", variant: "destructive" });
@@ -810,9 +887,13 @@ export default function JoinTeamPage() {
     if (pendingJoinRoles.length > 0) {
       try {
         const result = await executeJoin(pendingJoinRoles);
-        setJoined(true);
         const roleNames = result.map(r => roleLabels[r]).join(", ");
         toast({ title: `Successfully joined as ${roleNames}!` });
+        if (!isPendingInvite && result.includes("parent") && !teamInvite?.metadata) {
+          setShowChildStep(true);
+        } else {
+          setJoined(true);
+        }
       } catch (error) {
         toast({ title: (error as Error).message || "Failed to join team", variant: "destructive" });
       }
@@ -889,23 +970,7 @@ export default function JoinTeamPage() {
     );
   }
 
-  // Block regular invite links - only email invites (pending invites) are now allowed
-  if (!isPendingInvite) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Invite Links Disabled</h2>
-            <p className="text-muted-foreground mb-4">
-              Shareable invite links are no longer supported. Please ask your team admin to send you an email invite instead.
-            </p>
-            <Button onClick={() => navigate("/")}>Go to Home</Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Regular team invites are now allowed (shareable links from MemberInviteSheet)
 
   if (inviteError || !invite) {
     return (
@@ -959,6 +1024,154 @@ export default function JoinTeamPage() {
               You already have all available roles in {inviteEntityName}.
             </p>
             <Button onClick={() => navigate(inviteDestination)}>View {inviteEntityLabel}</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Add child step for parent role (regular invite links only)
+  const handleAddChild = async () => {
+    if (!user || !invite?.team_id) return;
+    setAddingChild(true);
+    try {
+      if (linkExistingChildId) {
+        // Link existing child as guardian
+        const { error: guardErr } = await supabase.from("child_guardians").insert({
+          child_id: linkExistingChildId,
+          guardian_id: user.id,
+          relationship_type: "parent",
+          is_primary: false,
+        });
+        if (guardErr && !guardErr.message?.includes("duplicate")) {
+          throw guardErr;
+        }
+        toast({ title: "Linked to existing child!" });
+      } else if (childName.trim()) {
+        // Create new child
+        const { data: newChild, error: childErr } = await supabase
+          .from("children")
+          .insert({
+            parent_id: user.id,
+            name: childName.trim(),
+            year_of_birth: childYearOfBirth ? parseInt(childYearOfBirth) : null,
+          })
+          .select("id")
+          .single();
+        
+        if (childErr) throw childErr;
+        
+        // Assign to team
+        if (newChild?.id) {
+          await supabase.from("child_team_assignments").insert({
+            child_id: newChild.id,
+            team_id: invite.team_id,
+          });
+        }
+        toast({ title: `${childName.trim()} added to the team!` });
+      }
+      setJoined(true);
+      setShowChildStep(false);
+    } catch (err) {
+      console.error("[JoinTeam] Error adding child:", err);
+      toast({ title: "Failed to add child", variant: "destructive" });
+    } finally {
+      setAddingChild(false);
+    }
+  };
+
+  if (showChildStep) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CheckCircle className="h-10 w-10 text-primary mx-auto mb-2" />
+            <CardTitle>You've joined as Parent!</CardTitle>
+            <p className="text-sm text-muted-foreground">Now add your child to {inviteEntityName}</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {existingTeamChildren.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Link to existing child on team</Label>
+                <div className="space-y-1">
+                  {existingTeamChildren.map((child: any) => (
+                    <button
+                      key={child.id}
+                      onClick={() => {
+                        setLinkExistingChildId(linkExistingChildId === child.id ? null : child.id);
+                        if (linkExistingChildId !== child.id) setChildName("");
+                      }}
+                      className={`w-full flex items-center gap-2 p-3 rounded-lg border text-left transition-colors ${
+                        linkExistingChildId === child.id 
+                          ? "border-primary bg-primary/5" 
+                          : "border-border hover:bg-muted/50"
+                      }`}
+                    >
+                      <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm">{child.name}</span>
+                      {child.year_of_birth && (
+                        <span className="text-xs text-muted-foreground ml-auto">{child.year_of_birth}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-border" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or add new</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!linkExistingChildId && (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="child-name" className="text-sm">Child's Name</Label>
+                  <Input
+                    id="child-name"
+                    value={childName}
+                    onChange={(e) => setChildName(e.target.value)}
+                    placeholder="Enter child's name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="child-yob" className="text-sm">Year of Birth (optional)</Label>
+                  <Input
+                    id="child-yob"
+                    type="number"
+                    value={childYearOfBirth}
+                    onChange={(e) => setChildYearOfBirth(e.target.value)}
+                    placeholder="e.g. 2015"
+                    min="2000"
+                    max={new Date().getFullYear()}
+                  />
+                </div>
+              </div>
+            )}
+
+            <Button
+              className="w-full"
+              onClick={handleAddChild}
+              disabled={addingChild || (!childName.trim() && !linkExistingChildId)}
+            >
+              {addingChild ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
+              {linkExistingChildId ? "Link Child" : "Add Child"}
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => { setShowChildStep(false); setJoined(true); }}
+            >
+              Skip for now
+            </Button>
           </CardContent>
         </Card>
       </div>
