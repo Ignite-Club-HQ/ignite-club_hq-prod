@@ -29,6 +29,7 @@ interface AuthContextType {
   profileLoading: boolean;
   profileError: boolean;
   initialized: boolean; // True only after first auth check completes
+  profileResolved: boolean; // True only after profile has been fetched from server at least once
   unreadCount: number;
   unreadMessagesCount: number;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
