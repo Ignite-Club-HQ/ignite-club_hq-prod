@@ -4,6 +4,8 @@ import { Copy, Link2, Loader2, Share2, UserPlus } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
 import {
   ResponsiveDialog,
@@ -39,6 +41,8 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
   const { activeClubFilter } = useClubTheme();
   const [selectedTeam, setSelectedTeam] = useState("");
   const [selectedRole, setSelectedRole] = useState<AppRole>("player");
+  const [childName, setChildName] = useState("");
+  const [childYearOfBirth, setChildYearOfBirth] = useState("");
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [teamName, setTeamName] = useState("");
   const [clubName, setClubName] = useState("");
@@ -85,8 +89,16 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
       const roleLabel = inviteRoles.find(r => r.value === selectedRole)?.label || "Player";
       setRoleName(roleLabel);
 
+      const rpcArgs: any = { p_team_id: selectedTeam, p_role: selectedRole };
+      if (selectedRole === "parent" && childName.trim()) {
+        rpcArgs.p_child_name = childName.trim();
+        if (childYearOfBirth) {
+          rpcArgs.p_child_year_of_birth = parseInt(childYearOfBirth);
+        }
+      }
+
       const { data: token, error } = await supabase
-        .rpc("get_or_create_member_invite_token", { p_team_id: selectedTeam, p_role: selectedRole });
+        .rpc("get_or_create_member_invite_token", rpcArgs);
       if (error || !token) throw error || new Error("No token returned");
 
       const link = `https://igniteclubhq.app/join/${token}`;
@@ -100,7 +112,8 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
 
   const handleShare = async () => {
     if (!generatedLink) return;
-    const msg = `Join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}! Tap here: ${generatedLink}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
+    const childInfo = selectedRole === "parent" && childName.trim() ? ` (for ${childName.trim()})` : "";
+    const msg = `Join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}${childInfo}! Tap here: ${generatedLink}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
 
     if (Capacitor.isNativePlatform()) {
       try {
@@ -126,6 +139,8 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
       setGeneratedLink(null);
       setSelectedTeam(teams.length === 1 ? teams[0]?.id || "" : "");
       setSelectedRole("player");
+      setChildName("");
+      setChildYearOfBirth("");
     }
     onOpenChange(v);
   };
@@ -169,7 +184,13 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
 
             <MobileCardSelect
               value={selectedRole}
-              onValueChange={(v) => setSelectedRole(v as AppRole)}
+              onValueChange={(v) => {
+                setSelectedRole(v as AppRole);
+                if (v !== "parent") {
+                  setChildName("");
+                  setChildYearOfBirth("");
+                }
+              }}
               options={inviteRoles.map(r => ({
                 value: r.value,
                 label: r.label,
@@ -177,6 +198,36 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
               label="Role"
               placeholder="Choose a role..."
             />
+
+            {selectedRole === "parent" && (
+              <div className="space-y-3 p-3 rounded-lg border border-border bg-muted/30">
+                <p className="text-sm font-medium">Child Details <span className="text-muted-foreground font-normal">(optional)</span></p>
+                <div>
+                  <Label htmlFor="invite-child-name" className="text-xs text-muted-foreground">Child's Name</Label>
+                  <Input
+                    id="invite-child-name"
+                    value={childName}
+                    onChange={(e) => setChildName(e.target.value)}
+                    placeholder="e.g. Jack Smith"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="invite-child-yob" className="text-xs text-muted-foreground">Year of Birth</Label>
+                  <Input
+                    id="invite-child-yob"
+                    type="number"
+                    value={childYearOfBirth}
+                    onChange={(e) => setChildYearOfBirth(e.target.value)}
+                    placeholder="e.g. 2015"
+                    min="2000"
+                    max={new Date().getFullYear()}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  If provided, the child will be auto-added to the team when the parent joins.
+                </p>
+              </div>
+            )}
 
             <ResponsiveDialogFooter>
               <Button
@@ -198,6 +249,9 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
             <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
               <p className="font-medium mb-1">{teamName}</p>
               <p className="text-sm text-muted-foreground mb-1">Role: {roleName}</p>
+              {childName.trim() && (
+                <p className="text-sm text-muted-foreground mb-1">Child: {childName.trim()}</p>
+              )}
               <p className="text-xs text-muted-foreground break-all select-all">{generatedLink}</p>
             </div>
 
