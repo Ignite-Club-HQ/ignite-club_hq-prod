@@ -111,6 +111,7 @@ export default function JoinTeamPage() {
           expires_at: row.expires_at,
           created_at: row.created_at,
           created_by: row.created_by,
+          metadata: row.metadata as { child_name?: string; child_year_of_birth?: number } | null,
           teams: {
             id: row.team_id,
             name: row.team_name,
