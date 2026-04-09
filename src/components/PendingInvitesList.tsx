@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2, Mail, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -50,11 +50,38 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isResendingAll, setIsResendingAll] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
   const [showResendAllDialog, setShowResendAllDialog] = useState(false);
 
   if (invites.length === 0) return null;
 
   const invitesWithEmail = invites.filter(inv => inv.invited_email);
+
+  const handleDismissJoined = async () => {
+    setIsDismissing(true);
+    try {
+      const { data: count, error } = await supabase.rpc("dismiss_accepted_pending_invites", {
+        p_team_id: teamId || null,
+        p_club_id: clubId || null,
+      });
+      if (error) throw error;
+      const dismissed = count || 0;
+      queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
+      toast({
+        title: dismissed > 0
+          ? `Dismissed ${dismissed} stale invite${dismissed !== 1 ? "s" : ""}`
+          : "No stale invites found",
+        description: dismissed > 0
+          ? "Invites for members who already joined have been cleared."
+          : "All pending invites are for users who haven't joined yet.",
+      });
+    } catch (err) {
+      console.error("[PendingInvites] Dismiss error:", err);
+      toast({ title: "Failed to dismiss invites", variant: "destructive" });
+    } finally {
+      setIsDismissing(false);
+    }
+  };
 
   const handleResendAll = async () => {
     if (invitesWithEmail.length === 0) return;
@@ -182,25 +209,43 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
 
   return (
     <div className="space-y-2">
-      <div className="px-1 py-1.5 flex items-center justify-between">
+      <div className="px-1 py-1.5 flex items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">
           {invites.length} pending invite{invites.length !== 1 ? "s" : ""}
         </span>
-        {isAdmin && invitesWithEmail.length > 1 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowResendAllDialog(true)}
-            disabled={isResendingAll}
-            className="h-7 text-xs gap-1.5"
-          >
-            {isResendingAll ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Mail className="h-3 w-3" />
+        {isAdmin && (
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDismissJoined}
+              disabled={isDismissing}
+              className="h-7 text-xs gap-1.5"
+            >
+              {isDismissing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <UserCheck className="h-3 w-3" />
+              )}
+              Dismiss Joined
+            </Button>
+            {invitesWithEmail.length > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowResendAllDialog(true)}
+                disabled={isResendingAll}
+                className="h-7 text-xs gap-1.5"
+              >
+                {isResendingAll ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Mail className="h-3 w-3" />
+                )}
+                Resend All
+              </Button>
             )}
-            Resend All Emails
-          </Button>
+          </div>
         )}
       </div>
 
