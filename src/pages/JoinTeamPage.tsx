@@ -836,9 +836,13 @@ export default function JoinTeamPage() {
     if (pendingJoinRoles.length > 0) {
       try {
         const result = await executeJoin(pendingJoinRoles);
-        setJoined(true);
         const roleNames = result.map(r => roleLabels[r]).join(", ");
         toast({ title: `Successfully joined as ${roleNames}!` });
+        if (!isPendingInvite && result.includes("parent")) {
+          setShowChildStep(true);
+        } else {
+          setJoined(true);
+        }
       } catch (error) {
         toast({ title: (error as Error).message || "Failed to join team", variant: "destructive" });
       }
