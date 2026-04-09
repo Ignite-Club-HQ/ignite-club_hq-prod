@@ -70,6 +70,7 @@ import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
 import { MyTeamsPremiumCarousel } from "@/components/MyTeamsPremiumCarousel";
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
+import MemberInviteSheet from "@/components/MemberInviteSheet";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -176,6 +177,7 @@ export default function HomePage() {
   const [clubDialogOpen, setClubDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [installDialogOpen, setInstallDialogOpen] = useState(false);
+  const [memberInviteOpen, setMemberInviteOpen] = useState(false);
   const [selectedClub, setSelectedClub] = useState<string>("");
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [selectedClubForTeam, setSelectedClubForTeam] = useState<string>("");
@@ -1598,6 +1600,7 @@ export default function HomePage() {
       {/* My Teams & Leagues - Premium Carousel */}
       <MyTeamsPremiumCarousel
         onJoinTeam={() => setTeamDialogOpen(true)}
+        onInvite={() => setMemberInviteOpen(true)}
         onCreateTeam={() => {
           if (activeClubFilter) {
             navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
@@ -1606,6 +1609,8 @@ export default function HomePage() {
           }
         }}
       />
+
+      <MemberInviteSheet open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <UpcomingClassesWidget />

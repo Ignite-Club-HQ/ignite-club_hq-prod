@@ -295,9 +295,10 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
 interface MyTeamsPremiumCarouselProps {
   onJoinTeam?: () => void;
   onCreateTeam?: () => void;
+  onInvite?: () => void;
 }
 
-export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPremiumCarouselProps) {
+export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: MyTeamsPremiumCarouselProps) {
   const { user, initialized } = useAuth();
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
@@ -723,15 +724,26 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam }: MyTeamsPrem
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">My Teams</h2>
-        {onJoinTeam && (
-          <button
-            onClick={onJoinTeam}
-            className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
-          >
-            <Plus className="h-3 w-3" />
-            Join a Team
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {onInvite && items.length > 0 && (
+            <button
+              onClick={onInvite}
+              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+            >
+              <UserPlus className="h-3 w-3" />
+              Invite
+            </button>
+          )}
+          {onJoinTeam && (
+            <button
+              onClick={onJoinTeam}
+              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+            >
+              <Plus className="h-3 w-3" />
+              Join a Team
+            </button>
+          )}
+        </div>
       </div>
       <ScrollArea className="w-full">
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
