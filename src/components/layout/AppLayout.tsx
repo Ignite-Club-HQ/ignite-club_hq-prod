@@ -103,10 +103,11 @@ export function AppLayout() {
   // This prevents any flash of wrong content during initialization
   const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
   
-  // If we already have a valid profile with display_name, skip loading entirely
-  // This prevents double-flash on login when cache is already populated
-  const hasValidProfile = profile?.display_name;
-  const isStillLoading = !hasValidProfile && (!initialized || loading || profileLoading);
+  // Always wait for profile loading to complete before making routing decisions.
+  // Previously we'd skip loading if cache had a valid profile, but on Android
+  // the cache can be stale/empty during session restore causing a flash of 
+  // the complete-profile screen before the real profile loads.
+  const isStillLoading = !initialized || loading || profileLoading;
   
   if (isStillLoading || shouldWaitForTheme) {
     // Show appropriate message based on auth state
