@@ -6252,6 +6252,10 @@ export type Database = {
         Args: { other_user_id: string }
         Returns: string
       }
+      get_or_create_member_invite_token: {
+        Args: { p_team_id: string }
+        Returns: string
+      }
       get_pending_invite_by_token: {
         Args: { _token: string }
         Returns: {

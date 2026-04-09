@@ -71,28 +71,10 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
       setTeamName(team.name);
       setClubName((team.clubs as any)?.name || "");
 
-      // Reuse existing team invite or create one
-      const { data: existing } = await supabase
-        .from("team_invites")
-        .select("token")
-        .eq("team_id", selectedTeam)
-        .eq("role", "player")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      let token = existing?.token;
-
-      if (!token) {
-        token = crypto.randomUUID();
-        const { error } = await supabase.from("team_invites").insert({
-          team_id: selectedTeam,
-          role: "player",
-          token,
-          created_by: user.id,
-        } as any);
-        if (error) throw error;
-      }
+      // Secure RPC: any team member can get/create a player invite token
+      const { data: token, error } = await supabase
+        .rpc("get_or_create_member_invite_token", { p_team_id: selectedTeam });
+      if (error || !token) throw error || new Error("No token returned");
 
       const link = `https://igniteclubhq.app/join/${token}`;
       setGeneratedLink(link);
