@@ -208,6 +208,38 @@ export default function AuthPage() {
     };
   }, [authMode, isNativePlatform, nativeKeyboardVisible]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let timeoutId: number | undefined;
+
+    const resetAuthViewport = () => {
+      setNativeKeyboardHeight(0);
+      setNativeKeyboardVisible(false);
+
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      signInScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    };
+
+    const frameId = window.requestAnimationFrame(() => {
+      resetAuthViewport();
+      timeoutId = window.setTimeout(resetAuthViewport, 80);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, []);
+
   const isSignInMode = authMode === "signin";
   const isSignInKeyboardOpen = isSignInMode && isNativePlatform && nativeKeyboardVisible;
   // On Android with adjustResize, window.innerHeight already excludes the keyboard,
