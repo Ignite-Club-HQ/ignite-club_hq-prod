@@ -371,10 +371,10 @@ export default function EventDetailPage() {
         .select("role")
         .eq("user_id", user!.id)
         .eq("club_id", event.club_id)
-        .eq("role", "club_admin")
-        .maybeSingle();
+        .in("role", ["club_admin", "committee_member"])
+        .limit(1);
       
-      if (clubAdminData) return true;
+      if (clubAdminData && clubAdminData.length > 0) return true;
       
       // For team-specific events, also check team_admin/coach roles
       if (event.team_id) {
@@ -395,7 +395,7 @@ export default function EventDetailPage() {
           .select("role")
           .eq("user_id", user!.id)
           .eq("club_id", event.club_id)
-          .in("role", ["league_admin", "coach"]);
+          .in("role", ["league_admin", "coach", "committee_member"]);
         
         if (leagueAdminData && leagueAdminData.length > 0) return true;
       }
@@ -1293,8 +1293,8 @@ export default function EventDetailPage() {
         
         // Get admins/coaches for this team/event
         const roleQuery = event.team_id 
-          ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach", "club_admin"])
-          : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).eq("role", "club_admin");
+          ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach", "club_admin", "committee_member"])
+          : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).in("role", ["club_admin", "committee_member"]);
         
         const { data: admins } = await roleQuery;
         

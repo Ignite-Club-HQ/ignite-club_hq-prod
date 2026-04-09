@@ -362,15 +362,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const fetchedProfile = await fetchProfile(userId, 5, applyTheme);
           if (mounted) {
-            // Use queueMicrotask to batch state updates
-            queueMicrotask(() => {
-              if (mounted) {
-                setProfileLoading(false);
-                setLoading(false);
-                setInitialized(true);
-                console.log('[Auth] Profile fetch complete, initialized:', !!fetchedProfile);
-              }
-            });
+            setProfileLoading(false);
+            setLoading(false);
+            setInitialized(true);
+            console.log('[Auth] Profile fetch complete, initialized:', !!fetchedProfile);
           }
         } catch (err) {
           console.error('[Auth] Profile fetch failed:', err);
@@ -460,10 +455,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Increased timeout for slower networks (e.g., mobile on 3G)
     const sessionTimeout = setTimeout(() => {
       if (mounted && loading) {
-        console.warn('Session check timed out, proceeding with cached state');
-        setLoading(false);
-        setProfileLoading(false);
-        setInitialized(true); // Mark as initialized even on timeout
+        // Check if we have a cached profile to fall back on
+        const cachedFallback = getCachedProfileWithUser();
+        if (cachedFallback && cachedFallback.profile.display_name) {
+          console.warn('[Auth] Session check timed out - restoring from cache, will retry in background');
+          setProfile(cachedFallback.profile);
+          setLoading(false);
+          setProfileLoading(false);
+          setInitialized(true);
+          
+          // Background retry: silently re-check session after timeout
+          // This handles transient Supabase latency spikes
+          supabase.auth.getSession().then(async ({ data: { session: retrySession } }) => {
+            if (!mounted) return;
+            if (retrySession?.user) {
+              console.log('[Auth] Background session retry succeeded');
+              setSession(retrySession);
+              setUser(retrySession.user);
+              if (!profileFetched) {
+                await handleSession(retrySession, true, false);
+              }
+            }
+          }).catch(e => console.warn('[Auth] Background session retry failed:', e));
+        } else {
+          console.warn('[Auth] Session check timed out, no cache available');
+          setLoading(false);
+          setProfileLoading(false);
+          setInitialized(true);
+        }
       }
     }, 10000); // 10 second timeout for slow connections
 

@@ -11,9 +11,15 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+interface UserReminderContext {
+  selfResponded: boolean;
+  unrespondedChildCount: number;
+}
+
 interface RequestBody {
   eventId: string;
-  userIds: string[]; // Users who haven't viewed the event
+  userIds: string[]; // Users who haven't fully responded
+  userContexts?: Record<string, UserReminderContext>; // Per-user RSVP context
   channels?: "push" | "email" | "both"; // Delivery channel selection
 }
 
@@ -47,7 +53,7 @@ serve(async (req) => {
       });
     }
 
-    const { eventId, userIds, channels = "both" } = await req.json() as RequestBody;
+    const { eventId, userIds, userContexts, channels = "both" } = await req.json() as RequestBody;
 
     if (!eventId || !userIds || userIds.length === 0) {
       return new Response(JSON.stringify({ error: "Missing eventId or userIds" }), {
@@ -114,7 +120,7 @@ serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", requestingUser.id)
-      .or(`role.eq.app_admin,and(club_id.eq.${event.club_id},role.in.(club_admin,team_admin,coach,league_admin))${event.team_id ? `,and(team_id.eq.${event.team_id},role.in.(team_admin,coach))` : ""}`)
+      .or(`role.eq.app_admin,and(club_id.eq.${event.club_id},role.in.(club_admin,team_admin,coach,league_admin,committee_member))${event.team_id ? `,and(team_id.eq.${event.team_id},role.in.(team_admin,coach))` : ""}`)
       .limit(1);
 
     if (!adminRole || adminRole.length === 0) {
@@ -170,16 +176,44 @@ serve(async (req) => {
 
     // Smart copy based on event type
     const isRsvpEvent = ["game", "training", "match"].includes(event.type?.toLowerCase());
-    const emailSubject = isRsvpEvent
-      ? `📅 Reminder: Please RSVP to "${event.title}"`
-      : `🎉 Don't miss: "${event.title}" - ${eventDate}`;
-    const pushTitle = isRsvpEvent ? "📅 Event Reminder" : `🎉 ${event.title}`;
-    const pushBody = isRsvpEvent
-      ? `You haven't RSVP'd to "${event.title}" - tap to respond`
-      : `Don't miss "${event.title}" on ${eventDate} - tap for details`;
-    const notifMessage = isRsvpEvent
-      ? `Reminder: Please RSVP to "${event.title}" - ${eventDate}`
-      : `Don't miss: "${event.title}" - ${eventDate}`;
+
+    // Helper to generate personalized messages per user
+    function getMessagesForUser(userId: string) {
+      const ctx = userContexts?.[userId];
+      if (isRsvpEvent && ctx) {
+        if (ctx.selfResponded && ctx.unrespondedChildCount > 0) {
+          // Parent RSVP'd but kids haven't
+          const kidWord = ctx.unrespondedChildCount === 1 ? "child" : "children";
+          return {
+            pushTitle: "📅 Event Reminder",
+            pushBody: `Please RSVP for your ${kidWord} for "${event.title}"`,
+            notifMessage: `Reminder: Please RSVP for your ${kidWord} for "${event.title}" - ${eventDate}`,
+            emailSubject: `📅 Reminder: RSVP for your ${kidWord} for "${event.title}"`,
+          };
+        }
+        if (!ctx.selfResponded) {
+          return {
+            pushTitle: "📅 Event Reminder",
+            pushBody: `You haven't RSVP'd to "${event.title}" - tap to respond`,
+            notifMessage: `Reminder: Please RSVP to "${event.title}" - ${eventDate}`,
+            emailSubject: `📅 Reminder: Please RSVP to "${event.title}"`,
+          };
+        }
+      }
+      // Default / non-RSVP events
+      return {
+        pushTitle: isRsvpEvent ? "📅 Event Reminder" : `🎉 ${event.title}`,
+        pushBody: isRsvpEvent
+          ? `You haven't RSVP'd to "${event.title}" - tap to respond`
+          : `Don't miss "${event.title}" on ${eventDate} - tap for details`,
+        notifMessage: isRsvpEvent
+          ? `Reminder: Please RSVP to "${event.title}" - ${eventDate}`
+          : `Don't miss: "${event.title}" - ${eventDate}`,
+        emailSubject: isRsvpEvent
+          ? `📅 Reminder: Please RSVP to "${event.title}"`
+          : `🎉 Don't miss: "${event.title}" - ${eventDate}`,
+      };
+    }
 
     let emailsSent = 0;
     let pushSent = 0;
@@ -196,6 +230,7 @@ serve(async (req) => {
         const email = userEmailMap.get(userId);
         const name = profileMap.get(userId) || "Member";
         if (!email) return false;
+        const userMsgs = getMessagesForUser(userId);
 
         try {
           const html = await renderAsync(
@@ -216,7 +251,7 @@ serve(async (req) => {
           await resend.emails.send({
             from: "Ignite Club HQ <support@igniteclubhq.app>",
             to: [email],
-            subject: emailSubject,
+            subject: userMsgs.emailSubject,
             html,
           });
           return true;
@@ -233,13 +268,14 @@ serve(async (req) => {
     // Send push notifications in parallel
     if (sendPush) {
       const pushPromises = userIds.map(async (userId) => {
+        const userMsgs = getMessagesForUser(userId);
         try {
-          // Insert notification and check for subscriptions in parallel
-          const [, { data: subscriptions }] = await Promise.all([
+          // Insert notification and check for push subscriptions AND FCM tokens in parallel
+          const [, { data: webSubscriptions }, { data: fcmTokens }] = await Promise.all([
             supabase.from("notifications").insert({
               user_id: userId,
               type: "event_view_reminder",
-              message: notifMessage,
+              message: userMsgs.notifMessage,
               related_id: event.id,
             }),
             supabase
@@ -247,14 +283,22 @@ serve(async (req) => {
               .select("id")
               .eq("user_id", userId)
               .limit(1),
+            supabase
+              .from("fcm_tokens")
+              .select("id")
+              .eq("user_id", userId)
+              .limit(1),
           ]);
 
-          if (subscriptions && subscriptions.length > 0) {
+          const hasWebPush = webSubscriptions && webSubscriptions.length > 0;
+          const hasFcm = fcmTokens && fcmTokens.length > 0;
+
+          if (hasWebPush || hasFcm) {
             await supabase.functions.invoke("send-push-notification", {
               body: {
                 userId,
-                title: pushTitle,
-                body: pushBody,
+                 title: userMsgs.pushTitle,
+                 body: userMsgs.pushBody,
                 url: `/events/${event.id}`,
                 tag: `event-view-${event.id}`,
               },

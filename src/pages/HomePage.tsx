@@ -219,7 +219,7 @@ export default function HomePage() {
         .select("club_id, team_id, role")
         .eq("user_id", user!.id);
       
-      if (!roles) return { memberships: { teamIds: [] as string[], clubIds: [] as string[], clubAdminClubIds: [] as string[], leagueAdminClubIds: [] as string[], miniLeagueIds: [] as string[] }, events: [] as Event[] };
+      if (!roles) return { memberships: { teamIds: [] as string[], clubIds: [] as string[], clubAdminClubIds: [] as string[], leagueAdminClubIds: [] as string[], miniLeagueIds: [] as string[], roles: [] as { role: string; club_id: string | null; team_id: string | null }[] }, events: [] as Event[] };
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
       const clubIds = new Set<string>();
@@ -271,6 +271,7 @@ export default function HomePage() {
         clubAdminClubIds: Array.from(clubAdminClubIds),
         leagueAdminClubIds: Array.from(leagueAdminClubIds),
         miniLeagueIds,
+        roles: roles as { role: string; club_id: string | null; team_id: string | null }[],
       };
       
       // Step 3: Filter events client-side
@@ -354,21 +355,9 @@ export default function HomePage() {
     }
   };
 
-  // Fetch user roles to check admin permissions
-  const { data: userRoles, isLoading: isLoadingUserRoles } = useQuery({
-    queryKey: ["user-roles", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role, club_id, team_id")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    placeholderData: (prev) => prev,
-  });
+  // Derive userRoles from the consolidated memberships query (avoids redundant user_roles fetch)
+  const userRoles = userMemberships?.roles || null;
+  const isLoadingUserRoles = isLoading;
 
   // Fetch pending reward redemptions
   const { data: pendingRedemptions = [] } = useQuery({

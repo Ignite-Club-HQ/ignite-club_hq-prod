@@ -32,6 +32,7 @@ interface MemberWithViewStatus {
   hasViewed: boolean;
   viewedAt?: string;
   hasResponded: boolean;
+  unrespondedChildCount?: number;
 }
 
 export function EventViewsAdminSection({ 
@@ -61,17 +62,33 @@ export function EventViewsAdminSection({
     },
   });
 
-  // Fetch RSVPs separately to track who has responded
+  // Fetch RSVPs separately to track who has responded (including child RSVPs)
   const { data: eventRsvps } = useQuery({
     queryKey: ["event-rsvps-for-views", eventId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rsvps")
-        .select("user_id, status, created_at")
+        .select("user_id, child_id, status, created_at")
         .eq("event_id", eventId);
       if (error) throw error;
       return data || [];
     },
+  });
+
+  // Fetch children assigned to this team (to check child-level RSVP completeness)
+  const { data: teamChildren } = useQuery({
+    queryKey: ["event-team-children", teamId],
+    queryFn: async () => {
+      if (!teamId) return [];
+      const { data, error } = await supabase
+        .from("child_team_assignments")
+        .select("child_id, children:child_id(id, name, parent_id)")
+        .eq("team_id", teamId);
+      if (error) throw error;
+      return (data || []).map((d: any) => d.children).filter(Boolean);
+    },
+    enabled: !!teamId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch all team/club members who should see this event
@@ -136,14 +153,40 @@ export function EventViewsAdminSection({
   const viewedAtMap = new Map(eventViews?.map(v => [v.user_id, v.viewed_at]) || []);
   const rsvpUserIds = new Set(eventRsvps?.map(r => r.user_id) || []);
 
-  const membersWithStatus: MemberWithViewStatus[] = (members || []).map(m => ({
-    id: m.id,
-    display_name: m.display_name,
-    avatar_url: m.avatar_url,
-    hasViewed: viewedUserIds.has(m.id) || rsvpUserIds.has(m.id),
-    viewedAt: viewedAtMap.get(m.id),
-    hasResponded: rsvpUserIds.has(m.id),
-  }));
+  // Build a set of child IDs that have RSVPs
+  const rsvpdChildIds = new Set(
+    eventRsvps?.filter(r => r.child_id).map(r => r.child_id) || []
+  );
+
+  // For each member, check if they have fully responded:
+  // - They must have an RSVP for themselves
+  // - AND all their children on this team must also have RSVPs
+  const membersWithStatus: MemberWithViewStatus[] = (members || []).map(m => {
+    const selfResponded = rsvpUserIds.has(m.id);
+    const memberChildren = (teamChildren || []).filter((c: any) => c.parent_id === m.id);
+    const allChildrenResponded = memberChildren.length === 0 || memberChildren.every((c: any) => rsvpdChildIds.has(c.id));
+    // Count how many children still need RSVPs
+    const unrespondedChildCount = memberChildren.filter((c: any) => !rsvpdChildIds.has(c.id)).length;
+
+    // For parents with children on the team (junior teams):
+    // They are "fully responded" if all their children have RSVP'd,
+    // regardless of whether the parent RSVP'd for themselves.
+    // For members without children on the team: require their own RSVP.
+    const isParentOnTeam = memberChildren.length > 0;
+    const fullyResponded = isParentOnTeam
+      ? allChildrenResponded
+      : selfResponded;
+
+    return {
+      id: m.id,
+      display_name: m.display_name,
+      avatar_url: m.avatar_url,
+      hasViewed: viewedUserIds.has(m.id) || rsvpUserIds.has(m.id),
+      viewedAt: viewedAtMap.get(m.id),
+      hasResponded: fullyResponded,
+      unrespondedChildCount,
+    };
+  });
 
   const viewedMembers = membersWithStatus.filter(m => m.hasViewed);
   const notViewedMembers = membersWithStatus.filter(m => !m.hasViewed);
@@ -194,8 +237,20 @@ export function EventViewsAdminSection({
   // Send reminder mutation
   const sendReminderMutation = useMutation({
     mutationFn: async ({ userIds, channels }: { userIds: string[]; channels: "push" | "email" | "both" }) => {
+      // Build per-user context for personalized messages
+      const userContexts: Record<string, { selfResponded: boolean; unrespondedChildCount: number }> = {};
+      for (const uid of userIds) {
+        const member = membersWithStatus.find(m => m.id === uid);
+        if (member) {
+          userContexts[uid] = {
+            selfResponded: rsvpUserIds.has(uid),
+            unrespondedChildCount: member.unrespondedChildCount || 0,
+          };
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("send-event-view-reminder", {
-        body: { eventId, userIds, channels },
+        body: { eventId, userIds, userContexts, channels },
       });
       
       if (error) throw error;

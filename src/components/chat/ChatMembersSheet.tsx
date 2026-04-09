@@ -138,9 +138,36 @@ export function ChatMembersSheet({
     staleTime: 1000 * 60 * 5,
   });
 
-  // Deduplicate members by id
+  // Fetch club bot_user_id to hide from member list
+  const resolvedClubId = chatType === "club" ? chatId : clubId;
+  const { data: clubBotUserId } = useQuery({
+    queryKey: ["club-bot-user", chatType, chatId, resolvedClubId],
+    queryFn: async () => {
+      let cId = resolvedClubId;
+      // For team chats, look up the club via the team
+      if (!cId && chatType === "team") {
+        const { data: team } = await supabase
+          .from("teams")
+          .select("club_id")
+          .eq("id", chatId)
+          .maybeSingle();
+        cId = team?.club_id ?? undefined;
+      }
+      if (!cId) return null;
+      const { data } = await supabase
+        .from("clubs")
+        .select("bot_user_id")
+        .eq("id", cId)
+        .maybeSingle();
+      return data?.bot_user_id ?? null;
+    },
+    enabled: open,
+    staleTime: 1000 * 60 * 30,
+  });
+
+  // Deduplicate members by id and filter out club bot account
   const uniqueMembers = members?.reduce((acc, member) => {
-    if (!acc.find(m => m.id === member.id)) {
+    if (!acc.find(m => m.id === member.id) && member.id !== clubBotUserId) {
       acc.push(member);
     }
     return acc;
