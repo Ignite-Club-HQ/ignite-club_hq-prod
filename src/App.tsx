@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import NativeOnlyGate from "@/components/NativeOnlyGate";
 import { Capacitor } from "@capacitor/core";
 // Force publish - Firebase upgraded to v12.7.0 for Capacitor 8 compatibility
 import { Toaster } from "@/components/ui/toaster";
