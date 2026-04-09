@@ -151,6 +151,18 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
             </div>
           )}
 
+          <MobileCardSelect
+            value={selectedRole}
+            onValueChange={setSelectedRole}
+            options={[
+              { value: "player", label: "Player" },
+              { value: "parent", label: "Parent" },
+              { value: "coach", label: "Coach" },
+            ]}
+            label="Role"
+            placeholder="Choose a role..."
+          />
+
           <div className="space-y-2">
             <Label htmlFor="referral-name">Name</Label>
             <Input
