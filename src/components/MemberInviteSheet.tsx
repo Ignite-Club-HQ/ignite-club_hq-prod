@@ -125,7 +125,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
             Invite to Team
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Share a join link — they'll be added to the team when they sign up.
+            Share a join link — they'll be added as a <span className="font-medium">Player</span> when they sign up.
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
