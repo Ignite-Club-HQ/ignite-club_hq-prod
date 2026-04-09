@@ -362,15 +362,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const fetchedProfile = await fetchProfile(userId, 5, applyTheme);
           if (mounted) {
-            // Use queueMicrotask to batch state updates
-            queueMicrotask(() => {
-              if (mounted) {
-                setProfileLoading(false);
-                setLoading(false);
-                setInitialized(true);
-                console.log('[Auth] Profile fetch complete, initialized:', !!fetchedProfile);
-              }
-            });
+            setProfileLoading(false);
+            setLoading(false);
+            setInitialized(true);
+            console.log('[Auth] Profile fetch complete, initialized:', !!fetchedProfile);
           }
         } catch (err) {
           console.error('[Auth] Profile fetch failed:', err);
