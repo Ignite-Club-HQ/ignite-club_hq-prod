@@ -19,7 +19,7 @@ import { Capacitor } from "@capacitor/core";
 const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
 export function AppLayout() {
-  const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized } = useAuth();
+  const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized, profileResolved } = useAuth();
   useAdMobInit();
   useActivityTracking();
   const { isThemeReady } = useClubTheme();
@@ -212,9 +212,9 @@ export function AppLayout() {
   // Profile completion gate - redirect to complete-profile if:
   // 1. Profile exists but display_name is missing (existing user needs to complete)
   // 2. Profile is null after loading finished (new user needs to create profile)
-  // Only gate when profileLoading is false (we have server truth, not stale cache)
-  // AND we have a stable profile state (not in transition)
-  if (!profileLoading && !loading) {
+  // CRITICAL: Only gate when profileResolved is true (server truth confirmed)
+  // This prevents flashing complete-profile on Android when cache is empty but profile exists on server
+  if (!profileLoading && !loading && profileResolved) {
     // If profile exists and has display_name, we're good - proceed to render
     if (profile?.display_name) {
       // Profile is complete, allow rendering
