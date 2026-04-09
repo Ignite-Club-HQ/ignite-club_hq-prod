@@ -229,6 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data) {
           const profileData = data as Profile;
           setProfile(profileData);
+          setProfileResolved(true);
           setCachedProfile(profileData, userId);
           setProfileError(false);
           
