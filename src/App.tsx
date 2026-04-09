@@ -199,10 +199,10 @@ const App = () => {
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/complete-profile" element={<CompleteProfilePage />} />
-                <Route path="/join/:token" element={<WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate>} />
-                <Route path="/join/p/:token" element={<WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate>} />
-                <Route path="/j/:code" element={<WithDeepLinkGate><ShortInviteRedirect /></WithDeepLinkGate>} />
-                <Route path="/join-club/:token" element={<WithDeepLinkGate><JoinClubPage /></WithDeepLinkGate>} />
+                <Route path="/join/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate></NativeOnlyGate>} />
+                <Route path="/join/p/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate></NativeOnlyGate>} />
+                <Route path="/j/:code" element={<NativeOnlyGate><WithDeepLinkGate><ShortInviteRedirect /></WithDeepLinkGate></NativeOnlyGate>} />
+                <Route path="/join-club/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinClubPage /></WithDeepLinkGate></NativeOnlyGate>} />
                 <Route path="/signup-pro" element={<SignupProPage />} />
                 <Route path="/terms" element={<TermsOfServicePage />} />
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
