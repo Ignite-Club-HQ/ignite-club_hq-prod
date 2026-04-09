@@ -17,6 +17,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import type { Database } from "@/integrations/supabase/types";
+
+type AppRole = Database["public"]["Enums"]["app_role"];
+
+const inviteRoles: { value: AppRole; label: string }[] = [
+  { value: "player", label: "Player" },
+  { value: "coach", label: "Coach" },
+  { value: "parent", label: "Parent" },
+  { value: "team_admin", label: "Team Admin" },
+];
 
 interface MemberInviteSheetProps {
   open: boolean;
@@ -28,9 +38,11 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
   const { toast } = useToast();
   const { activeClubFilter } = useClubTheme();
   const [selectedTeam, setSelectedTeam] = useState("");
+  const [selectedRole, setSelectedRole] = useState<AppRole>("player");
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [teamName, setTeamName] = useState("");
   const [clubName, setClubName] = useState("");
+  const [roleName, setRoleName] = useState("");
 
   const { data: teams = [] } = useQuery({
     queryKey: ["member-invite-teams", user?.id, activeClubFilter],
@@ -70,10 +82,11 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
 
       setTeamName(team.name);
       setClubName((team.clubs as any)?.name || "");
+      const roleLabel = inviteRoles.find(r => r.value === selectedRole)?.label || "Player";
+      setRoleName(roleLabel);
 
-      // Secure RPC: any team member can get/create a player invite token
       const { data: token, error } = await supabase
-        .rpc("get_or_create_member_invite_token", { p_team_id: selectedTeam });
+        .rpc("get_or_create_member_invite_token", { p_team_id: selectedTeam, p_role: selectedRole });
       if (error || !token) throw error || new Error("No token returned");
 
       const link = `https://igniteclubhq.app/join/${token}`;
@@ -87,7 +100,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
 
   const handleShare = async () => {
     if (!generatedLink) return;
-    const msg = `Join ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here: ${generatedLink}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
+    const msg = `Join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}! Tap here: ${generatedLink}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
 
     if (Capacitor.isNativePlatform()) {
       try {
@@ -112,6 +125,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
     if (!v) {
       setGeneratedLink(null);
       setSelectedTeam(teams.length === 1 ? teams[0]?.id || "" : "");
+      setSelectedRole("player");
     }
     onOpenChange(v);
   };
@@ -125,7 +139,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
             Invite to Team
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Share a join link — they'll be added as a <span className="font-medium">Player</span> when they sign up.
+            Choose a role and share the join link.
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -153,6 +167,17 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
               </div>
             )}
 
+            <MobileCardSelect
+              value={selectedRole}
+              onValueChange={(v) => setSelectedRole(v as AppRole)}
+              options={inviteRoles.map(r => ({
+                value: r.value,
+                label: r.label,
+              }))}
+              label="Role"
+              placeholder="Choose a role..."
+            />
+
             <ResponsiveDialogFooter>
               <Button
                 className="w-full"
@@ -172,6 +197,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
           <div className="space-y-4 pt-2">
             <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
               <p className="font-medium mb-1">{teamName}</p>
+              <p className="text-sm text-muted-foreground mb-1">Role: {roleName}</p>
               <p className="text-xs text-muted-foreground break-all select-all">{generatedLink}</p>
             </div>
 
