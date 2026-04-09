@@ -80,6 +80,7 @@ import MemberSubscriptionPaymentsManager from "@/components/MemberSubscriptionPa
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
 import PendingInvitesList from "@/components/PendingInvitesList";
+
 import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
 import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
@@ -1906,6 +1907,7 @@ export default function TeamDetailPage() {
                     })()}
                   </div>
                 )}
+
               </div>
             </AccordionContent>
           </AccordionItem>

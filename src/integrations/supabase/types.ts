@@ -2975,6 +2975,62 @@ export type Database = {
           },
         ]
       }
+      member_referrals: {
+        Row: {
+          created_at: string
+          id: string
+          referred_by: string
+          referred_email: string | null
+          referred_name: string
+          referred_phone: string | null
+          referred_role: string | null
+          reject_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          referred_by: string
+          referred_email?: string | null
+          referred_name: string
+          referred_phone?: string | null
+          referred_role?: string | null
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          referred_by?: string
+          referred_email?: string | null
+          referred_name?: string
+          referred_phone?: string | null
+          referred_role?: string | null
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_referrals_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_subscription_payments: {
         Row: {
           amount: number
@@ -6194,6 +6250,10 @@ export type Database = {
       }
       get_or_create_dm_conversation: {
         Args: { other_user_id: string }
+        Returns: string
+      }
+      get_or_create_member_invite_token: {
+        Args: { p_team_id: string }
         Returns: string
       }
       get_pending_invite_by_token: {

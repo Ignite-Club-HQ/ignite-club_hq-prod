@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import NativeOnlyGate from "@/components/NativeOnlyGate";
 import { Capacitor } from "@capacitor/core";
 // Force publish - Firebase upgraded to v12.7.0 for Capacitor 8 compatibility
 import { Toaster } from "@/components/ui/toaster";
@@ -198,10 +199,10 @@ const App = () => {
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/complete-profile" element={<CompleteProfilePage />} />
-                <Route path="/join/:token" element={<JoinTeamPage />} />
-                <Route path="/join/p/:token" element={<JoinTeamPage />} />
-                <Route path="/j/:code" element={<ShortInviteRedirect />} />
-                <Route path="/join-club/:token" element={<JoinClubPage />} />
+                <Route path="/join/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate></NativeOnlyGate>} />
+                <Route path="/join/p/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate></NativeOnlyGate>} />
+                <Route path="/j/:code" element={<NativeOnlyGate><WithDeepLinkGate><ShortInviteRedirect /></WithDeepLinkGate></NativeOnlyGate>} />
+                <Route path="/join-club/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinClubPage /></WithDeepLinkGate></NativeOnlyGate>} />
                 <Route path="/signup-pro" element={<SignupProPage />} />
                 <Route path="/terms" element={<TermsOfServicePage />} />
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />

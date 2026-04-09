@@ -146,6 +146,27 @@ function setCachedProfile(profile: Profile | null, userId?: string) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+
+  const waitForSessionUser = useCallback(async (expectedUserId: string, maxAttempts = 8): Promise<Session | null> => {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        const session = data.session;
+
+        if (!error && session?.user?.id === expectedUserId && session.access_token) {
+          return session;
+        }
+      } catch {
+        // Ignore transient session restore errors while polling
+      }
+
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 120 * attempt));
+      }
+    }
+
+    return null;
+  }, []);
   
   // SYNCHRONOUS HYDRATION: Use pre-computed initial state from cache
   // This eliminates flash by starting with cached profile if available
@@ -338,6 +359,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Small delay to ensure session is fully propagated to Supabase
       // This helps with RLS policies that check auth.uid()
       await new Promise(resolve => setTimeout(resolve, 100));
+
+      const stableSession = await waitForSessionUser(userId, applyTheme ? 10 : 6);
+      const sessionForBackgroundTasks = stableSession ?? currentSession;
+
+      if (stableSession && mounted) {
+        setSession(stableSession);
+        setUser(stableSession.user);
+      }
       
       // If we have a cached profile for THIS USER with display_name, TRUST IT immediately
       // This eliminates the flash on page refresh - no need to wait for server
@@ -391,9 +420,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         prefetchUserData(queryClient, userId).catch(console.error);
         fetchUnreadCount(userId).catch(console.error);
         // Sync passkey accounts from database to restore any lost localStorage data
-        const email = currentSession.user.email;
-        const displayName = currentSession.user.user_metadata?.full_name || 
-                           currentSession.user.user_metadata?.name;
+        const email = sessionForBackgroundTasks.user.email;
+        const displayName = sessionForBackgroundTasks.user.user_metadata?.full_name || 
+                           sessionForBackgroundTasks.user.user_metadata?.name;
         if (email) {
           syncPasskeyAccountsFromDatabase(userId, email, displayName).catch(console.error);
         }
@@ -531,7 +560,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(sessionTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchProfile, queryClient]);
+  }, [fetchProfile, queryClient, waitForSessionUser]);
 
   // SESSION RECOVERY: Check session health when the app returns to the foreground.
   // On Android, forcing refreshSession() on every resume can race token rotation
