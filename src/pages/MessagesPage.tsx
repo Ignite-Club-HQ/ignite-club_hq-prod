@@ -1226,7 +1226,7 @@ export default function MessagesPage() {
             return (
               <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
                 <Card className="opacity-70 hover:border-primary/50 transition-colors">
-                  <CardContent className="p-3 flex items-center gap-3">
+                  <CardContent className="py-4 px-4 flex items-center gap-3">
                     <div className="relative">
                       <Avatar className="h-10 w-10 grayscale">
                         <AvatarImage src={club.logo_url || undefined} />
