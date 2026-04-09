@@ -125,7 +125,18 @@ export default function AuthPage() {
   }, [redirectAfterAuth]);
   
   const { toast } = useToast();
-  const { user, profile, initialized, profileLoading, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
+  const {
+    user,
+    profile,
+    initialized,
+    profileLoading,
+    profileResolved,
+    profileError,
+    signIn,
+    signUp,
+    signInWithGoogle,
+    loading: authLoading,
+  } = useAuth();
   const { 
     isAvailable, 
     isRegistered,
@@ -247,7 +258,7 @@ export default function AuthPage() {
     );
   }
 
-  const shouldHoldAuthenticatedRedirect = !!user && (!initialized || profileLoading);
+  const shouldHoldAuthenticatedRedirect = !!user && (!initialized || profileLoading || (!profileResolved && !profileError));
 
   if (shouldHoldAuthenticatedRedirect) {
     return (
@@ -256,6 +267,10 @@ export default function AuthPage() {
         <p className="text-muted-foreground">Finishing sign in...</p>
       </div>
     );
+  }
+
+  if (user && profileError) {
+    return <Navigate to="/" replace />;
   }
 
   if (user) {
@@ -457,7 +472,7 @@ export default function AuthPage() {
         ref={signInScrollRef}
         className={`flex-1 flex flex-col items-center px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''} ${isSignInKeyboardOpen ? 'overflow-hidden' : ''}`}
       >
-      <div className={`w-full max-w-md animate-slide-up transition-all duration-200 ${signInStackClassName}`}>
+      <div className={`w-full max-w-md transition-all duration-200 ${signInStackClassName}`}>
         {/* Logo — compacts when keyboard is open on native sign-in */}
         <div className={`flex flex-col items-center transition-all duration-200 ${isSignInKeyboardOpen ? 'gap-1 mt-2' : 'gap-3 mt-4'}`}>
           <div className={`rounded-2xl bg-primary glow-emerald transition-all duration-200 ${isSignInKeyboardOpen ? 'p-2' : 'p-4'}`}>
