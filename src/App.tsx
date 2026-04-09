@@ -198,10 +198,10 @@ const App = () => {
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/complete-profile" element={<CompleteProfilePage />} />
-                <Route path="/join/:token" element={<JoinTeamPage />} />
-                <Route path="/join/p/:token" element={<JoinTeamPage />} />
-                <Route path="/j/:code" element={<ShortInviteRedirect />} />
-                <Route path="/join-club/:token" element={<JoinClubPage />} />
+                <Route path="/join/:token" element={<WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate>} />
+                <Route path="/join/p/:token" element={<WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate>} />
+                <Route path="/j/:code" element={<WithDeepLinkGate><ShortInviteRedirect /></WithDeepLinkGate>} />
+                <Route path="/join-club/:token" element={<WithDeepLinkGate><JoinClubPage /></WithDeepLinkGate>} />
                 <Route path="/signup-pro" element={<SignupProPage />} />
                 <Route path="/terms" element={<TermsOfServicePage />} />
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
