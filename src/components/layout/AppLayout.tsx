@@ -229,12 +229,18 @@ export function AppLayout() {
     }
   }
 
-  // At this point, if we still don't have a profile, something went wrong
-  // The consolidated loading check above should have caught this state
+  // At this point, if we still don't have a profile, show loading
+  // This should not happen since profileLoading is already false,
+  // but guard against edge cases rather than flashing complete-profile
   if (!profile) {
-    // This shouldn't happen, but redirect to complete-profile as fallback
-    console.log('[AppLayout] Unexpected state: no profile after all checks');
-    return <Navigate to="/complete-profile" replace />;
+    console.log('[AppLayout] Unexpected state: no profile after all checks, showing loading');
+    return (
+      <div className="flex flex-col items-center justify-center bg-background gap-4" style={appViewportStyle} role="status">
+        <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" loading="eager" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading your profile...</p>
+      </div>
+    );
   }
 
 
