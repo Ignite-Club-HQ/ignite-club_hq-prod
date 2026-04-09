@@ -690,6 +690,7 @@ export default function JoinTeamPage() {
       }
     }
 
+    if (isPendingInvite && pendingInviteData?.id) {
       await supabase
         .from("pending_invites")
         .update({ 
