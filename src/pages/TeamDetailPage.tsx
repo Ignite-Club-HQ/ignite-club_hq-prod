@@ -80,6 +80,7 @@ import MemberSubscriptionPaymentsManager from "@/components/MemberSubscriptionPa
 import { PrimarySponsorDisplay } from "@/components/PrimarySponsorDisplay";
 import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
 import PendingInvitesList from "@/components/PendingInvitesList";
+import PendingReferralsList from "@/components/PendingReferralsList";
 import TeamRewardsManager from "@/components/TeamRewardsManager";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
 import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
@@ -1905,6 +1906,11 @@ export default function TeamDetailPage() {
                       });
                     })()}
                   </div>
+                )}
+
+                {/* Pending Member Referrals */}
+                {(isAdmin || isClubAdmin || isCoachOrAdmin) && id && (
+                  <PendingReferralsList teamId={id} isAdmin={isAdmin || isClubAdmin || isCoachOrAdmin} />
                 )}
               </div>
             </AccordionContent>
