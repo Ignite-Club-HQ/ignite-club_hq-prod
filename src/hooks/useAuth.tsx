@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // wasn't available in the callback at the right time
   const fetchProfile = useCallback(async (userId: string, retries = 5, applyTheme = false, retryOnMissing = false): Promise<Profile | null> => {
     setProfileError(false);
-    const maxMissingProfileAttempts = retryOnMissing ? Math.min(retries, 3) : 1;
+    const maxMissingProfileAttempts = retryOnMissing ? retries : 1;
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -232,7 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         const shouldRetryMissingProfile = retryOnMissing && attempt < maxMissingProfileAttempts;
         if (shouldRetryMissingProfile) {
-          const delay = attempt * 250;
+          const delay = Math.min(300 * attempt, 1500);
           console.warn(`[Auth] Profile not available yet (attempt ${attempt}/${maxMissingProfileAttempts}), retrying...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
