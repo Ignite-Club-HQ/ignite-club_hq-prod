@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
 
     const userId = claimsData.claims.sub as string;
 
-    const userId = user.id;
+    
 
     // ── Parallel fetch: roles, broadcast, profile ──
     const [rolesResult, broadcastResult, profileResult] = await Promise.all([
