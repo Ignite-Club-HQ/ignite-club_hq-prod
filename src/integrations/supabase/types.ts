@@ -6322,7 +6322,8 @@ export type Database = {
           expires_at: string
           id: string
           max_uses: number
-          role: Database["public"]["Enums"]["app_role"]
+          metadata: Json
+          role: string
           team_id: string
           team_logo_url: string
           team_name: string
