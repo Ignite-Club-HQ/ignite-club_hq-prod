@@ -1269,7 +1269,7 @@ export default function MessagesPage() {
           return (
             <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
               <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                <CardContent className="py-3 px-2.5 flex items-center gap-2">
+                <CardContent className="py-[18px] px-3 flex items-center gap-3">
                   <div className="relative shrink-0">
                     <Avatar className="h-9 w-9">
                       <AvatarImage src={club.logo_url || undefined} />
@@ -1299,7 +1299,7 @@ export default function MessagesPage() {
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                       </div>
                     </div>
-                    <p className={`text-[13px] leading-snug mt-0.5 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                    <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                       <MessagePreview 
                         text={lastMessage?.text} 
                         imageUrl={lastMessage?.image_url}
@@ -1330,7 +1330,7 @@ export default function MessagesPage() {
             return (
               <Link key={`team-${team.id}`} to={`/messages/${team.id}`}>
                 <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                  <CardContent className="py-3 px-2.5 flex items-center gap-2">
+                  <CardContent className="py-[18px] px-3 flex items-center gap-3">
                     <div className="relative shrink-0">
                       <Avatar className="h-9 w-9">
                         <AvatarImage src={team.logo_url || team.clubs?.logo_url || undefined} />
@@ -1360,7 +1360,7 @@ export default function MessagesPage() {
                           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                         </div>
                       </div>
-                      <p className={`text-[13px] leading-snug mt-0.5 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                      <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                         <MessagePreview 
                           text={lastMessage?.text} 
                           imageUrl={lastMessage?.image_url}
@@ -1483,7 +1483,7 @@ export default function MessagesPage() {
               return (
                 <Link to="/messages/broadcast">
                   <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
-                    <CardContent className="py-3 px-2.5 flex items-center gap-2">
+                    <CardContent className="py-[18px] px-3 flex items-center gap-3">
                       <div className="relative shrink-0">
                         <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
                           <Flame className="h-4 w-4 text-white" />
@@ -1507,7 +1507,7 @@ export default function MessagesPage() {
                             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                           </div>
                         </div>
-                        <p className={`text-[13px] leading-snug mt-0.5 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                        <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
                           <MessagePreview 
                             text={displayLatestBroadcast?.text} 
                             imageUrl={displayLatestBroadcast?.image_url}
