@@ -32,7 +32,6 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
   const [teamName, setTeamName] = useState("");
   const [clubName, setClubName] = useState("");
 
-  // Fetch user's teams
   const { data: teams = [] } = useQuery({
     queryKey: ["member-invite-teams", user?.id, activeClubFilter],
     enabled: !!user && open,
@@ -44,7 +43,6 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
         .not("team_id", "is", null);
 
       if (!roles || roles.length === 0) return [];
-
       const teamIds = [...new Set(roles.map(r => r.team_id).filter(Boolean))] as string[];
 
       const { data: teamData } = await supabase
@@ -53,14 +51,12 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
         .in("id", teamIds);
 
       if (!teamData) return [];
-
       return teamData
         .filter(t => !activeClubFilter || t.club_id === activeClubFilter)
         .sort((a, b) => a.name.localeCompare(b.name));
     },
   });
 
-  // Auto-select team if only one
   if (teams.length === 1 && !selectedTeam) {
     setSelectedTeam(teams[0].id);
   }
@@ -75,27 +71,31 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
       setTeamName(team.name);
       setClubName((team.clubs as any)?.name || "");
 
-      // Create a share-link invite (null email = token-based)
-      const inviteToken = crypto.randomUUID();
+      // Reuse existing team invite or create one
+      const { data: existing } = await supabase
+        .from("team_invites")
+        .select("token")
+        .eq("team_id", selectedTeam)
+        .eq("role", "player")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      const { error } = await supabase.from("pending_invites").insert({
-        team_id: selectedTeam,
-        club_id: team.club_id,
-        role: "player" as any,
-        invited_user_id: null,
-        invited_by_user_id: user.id,
-        invited_label: "Share Link",
-        invited_email: null,
-        invite_token: inviteToken,
-        metadata: { shared_by_member: true },
-      } as any);
+      let token = existing?.token;
 
-      if (error) throw error;
+      if (!token) {
+        token = crypto.randomUUID();
+        const { error } = await supabase.from("team_invites").insert({
+          team_id: selectedTeam,
+          role: "player",
+          token,
+          created_by: user.id,
+        } as any);
+        if (error) throw error;
+      }
 
-      // Use the production domain so the link triggers Universal Links / deep linking
-      const link = `https://igniteclubhq.app/join/p/${inviteToken}`;
+      const link = `https://igniteclubhq.app/join/${token}`;
       setGeneratedLink(link);
-      return link;
     },
     onError: (error: Error) => {
       console.error("[MemberInvite] Error:", error);
@@ -104,24 +104,15 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
   });
 
   const handleShare = async () => {
-    const link = generatedLink;
-    if (!link) return;
-
-    const msg = `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here to get started: ${link}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
+    if (!generatedLink) return;
+    const msg = `Join ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here: ${generatedLink}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
 
     if (Capacitor.isNativePlatform()) {
       try {
-        await Share.share({
-          title: `Join ${clubName || teamName}`,
-          text: msg,
-          dialogTitle: "Share invite",
-        });
+        await Share.share({ title: `Join ${clubName || teamName}`, text: msg, dialogTitle: "Share invite" });
         return;
-      } catch {
-        // user cancelled
-      }
+      } catch { /* cancelled */ }
     }
-    // Fallback: WhatsApp
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -152,7 +143,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
             Invite to Team
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
-            Generate a join link to share with someone. They'll sign up and request to join — an admin will approve.
+            Share a join link — they'll be added to the team when they sign up.
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -191,7 +182,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
                 ) : (
                   <Link2 className="h-4 w-4 mr-2" />
                 )}
-                Generate Invite Link
+                Get Invite Link
               </Button>
             </ResponsiveDialogFooter>
           </div>
@@ -212,17 +203,6 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
                 Copy Link
               </Button>
             </div>
-
-            <Button
-              variant="ghost"
-              className="w-full text-muted-foreground"
-              onClick={() => {
-                setGeneratedLink(null);
-                setSelectedTeam(teams.length === 1 ? teams[0]?.id || "" : "");
-              }}
-            >
-              Generate another link
-            </Button>
           </div>
         )}
       </ResponsiveDialogContent>
