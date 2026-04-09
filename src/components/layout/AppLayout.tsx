@@ -103,10 +103,11 @@ export function AppLayout() {
   // This prevents any flash of wrong content during initialization
   const shouldWaitForTheme = profile && !isThemeReady && !themeTimeout;
   
-  // If we already have a valid profile with display_name, skip loading entirely
-  // This prevents double-flash on login when cache is already populated
-  const hasValidProfile = profile?.display_name;
-  const isStillLoading = !hasValidProfile && (!initialized || loading || profileLoading);
+  // Always wait for profile loading to complete before making routing decisions.
+  // Previously we'd skip loading if cache had a valid profile, but on Android
+  // the cache can be stale/empty during session restore causing a flash of 
+  // the complete-profile screen before the real profile loads.
+  const isStillLoading = !initialized || loading || profileLoading;
   
   if (isStillLoading || shouldWaitForTheme) {
     // Show appropriate message based on auth state
@@ -228,12 +229,18 @@ export function AppLayout() {
     }
   }
 
-  // At this point, if we still don't have a profile, something went wrong
-  // The consolidated loading check above should have caught this state
+  // At this point, if we still don't have a profile, show loading
+  // This should not happen since profileLoading is already false,
+  // but guard against edge cases rather than flashing complete-profile
   if (!profile) {
-    // This shouldn't happen, but redirect to complete-profile as fallback
-    console.log('[AppLayout] Unexpected state: no profile after all checks');
-    return <Navigate to="/complete-profile" replace />;
+    console.log('[AppLayout] Unexpected state: no profile after all checks, showing loading');
+    return (
+      <div className="flex flex-col items-center justify-center bg-background gap-4" style={appViewportStyle} role="status">
+        <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" loading="eager" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading your profile...</p>
+      </div>
+    );
   }
 
 
