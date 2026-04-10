@@ -136,15 +136,6 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
       setIsLoading(true);
 
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          if (!isCancelled) setSignedUrl(originalUrl);
-          return;
-        }
-
         const resolvedUrl = await resolveSignedUrl(originalUrl);
 
         if (resolvedUrl !== originalUrl) {
