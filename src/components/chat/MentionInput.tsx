@@ -370,7 +370,7 @@ export function MentionInput({
             <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
           </div>
         )}
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0 overflow-hidden">
           {/* Highlight overlay for mentions */}
            <div
             ref={highlightRef}

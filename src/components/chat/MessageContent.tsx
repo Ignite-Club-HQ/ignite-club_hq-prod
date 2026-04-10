@@ -227,7 +227,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
       {/* Text content */}
       {text && (
-        <span className="whitespace-pre-wrap" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+        <div className="whitespace-pre-wrap" style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}>
           {parts.length === 0 ? (
             // Fallback: render text as-is if parsing fails
             text
@@ -287,7 +287,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               return part.content ? <span key={index}>{part.content}</span> : null;
             })
           )}
-        </span>
+        </div>
       )}
 
       {/* YouTube embeds - only if showPreviews */}
