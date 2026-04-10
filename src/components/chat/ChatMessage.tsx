@@ -710,7 +710,7 @@ export const ChatMessage = memo(function ChatMessage({
           >
             <div
               ref={bubbleRef}
-              className={`relative rounded-2xl px-4 py-2 select-none transition-all duration-100 ${
+              className={`relative rounded-2xl px-4 py-2 select-none transition-all duration-100 overflow-hidden ${
                 isOwn && !isClubAnnouncement
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"

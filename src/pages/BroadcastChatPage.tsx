@@ -909,7 +909,7 @@ export default function BroadcastChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }}>
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }}>
       {/* Header */}
       <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10 shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -1022,7 +1022,7 @@ export default function BroadcastChatPage() {
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-          <div className="flex gap-1.5 items-center">
+          <div className="flex items-end gap-1.5">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
