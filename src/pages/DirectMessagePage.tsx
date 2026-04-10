@@ -4,6 +4,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -125,6 +126,7 @@ export default function DirectMessagePage() {
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
+  const nativeKbHeight = useNativeKeyboardHeight();
   const isNativePlatform = Capacitor.isNativePlatform();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const [composerHeight, setComposerHeight] = useState(112);
@@ -1098,11 +1100,11 @@ export default function DirectMessagePage() {
       {/* Input area - Fixed at bottom above nav bar */}
       {isIgniteSupportConversation ? (
         <>
-           <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
+           <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
              ref={composerRef}
              className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]"
-             style={{ bottom: "var(--bottom-nav-offset, 0px)" }}
+             style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
             <div className="text-center text-sm text-muted-foreground py-3 bg-muted/50 rounded-lg">
               This is a welcome message from Ignite Support. Replies are not available.
@@ -1111,11 +1113,11 @@ export default function DirectMessagePage() {
         </>
       ) : (
         <>
-           <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: 0, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
+           <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
              ref={composerRef}
              className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]"
-             style={{ bottom: "var(--bottom-nav-offset, 0px)" }}
+             style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
              {replyTo && (
                <ReplyPreview
