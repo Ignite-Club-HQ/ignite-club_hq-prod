@@ -1,33 +1,31 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import { Capacitor } from "@capacitor/core";
+import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
 
 const KEYBOARD_OPEN_THRESHOLD = 100;
 
 /**
- * Detects soft keyboard visibility using visualViewport height changes.
+ * Detects soft keyboard visibility using native iOS keyboard events when available,
+ * otherwise falls back to visualViewport height changes.
  */
 export function useKeyboardOpen(threshold = KEYBOARD_OPEN_THRESHOLD) {
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const { isKeyboardOpen, keyboardHeight } = useNativeIOSKeyboardState();
 
-  useEffect(() => {
+  return useMemo(() => {
+    if (isNativeIOS) {
+      return isKeyboardOpen || keyboardHeight > threshold;
+    }
+
     const vv = window.visualViewport;
-    if (!vv) return;
+    if (!vv) return false;
 
     let baselineHeight = vv.height;
+    if (vv.height > baselineHeight) {
+      baselineHeight = vv.height;
+    }
 
-    const update = () => {
-      if (vv.height > baselineHeight) {
-        baselineHeight = vv.height;
-      }
-      setIsKeyboardOpen(baselineHeight - vv.height > threshold);
-    };
-
-    update();
-    vv.addEventListener("resize", update);
-
-    return () => {
-      vv.removeEventListener("resize", update);
-    };
-  }, [threshold]);
-
-  return isKeyboardOpen;
+    return baselineHeight - vv.height > threshold;
+  }, [isNativeIOS, isKeyboardOpen, keyboardHeight, threshold]);
 }
+
