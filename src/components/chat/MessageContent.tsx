@@ -262,7 +262,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     className="text-primary underline hover:opacity-80"
                     onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(ensureProtocol(part.content)); }}
                   >
-                    {part.content}
+                    {truncateUrl(part.content)}
                   </a>
                 );
               }
