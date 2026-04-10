@@ -404,7 +404,6 @@ export function MentionInput({
             style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default' } as React.CSSProperties}
           />
         </div>
-        </div>
       </div>
       
       {showSuggestions && users && users.length > 0 && (
