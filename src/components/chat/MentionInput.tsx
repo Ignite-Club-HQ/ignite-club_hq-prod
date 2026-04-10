@@ -371,19 +371,21 @@ export function MentionInput({
           </div>
         )}
         <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">
-          {/* Highlight overlay for mentions */}
-           <div
-            ref={highlightRef}
-            aria-hidden="true"
-            className="absolute inset-0 pointer-events-none overflow-hidden px-2 pt-[13px] pb-[7px] text-base leading-[1.4] whitespace-pre-wrap break-words text-transparent"
-            style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
-          >
-            {highlightedSegments.map((seg, i) =>
-              seg.isMention
-                ? <span key={i} className="bg-primary/15 rounded px-0.5 text-transparent">{seg.text}</span>
-                : <span key={i}>{seg.text}</span>
-            )}
-          </div>
+          {/* Highlight overlay for mentions - hidden on native iOS to not interfere with paste menu */}
+          {!isNativeIOS && (
+            <div
+              ref={highlightRef}
+              aria-hidden="true"
+              className="absolute inset-0 pointer-events-none overflow-hidden px-2 pt-[13px] pb-[7px] text-base leading-[1.4] whitespace-pre-wrap break-words text-transparent"
+              style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+            >
+              {highlightedSegments.map((seg, i) =>
+                seg.isMention
+                  ? <span key={i} className="bg-primary/15 rounded px-0.5 text-transparent">{seg.text}</span>
+                  : <span key={i}>{seg.text}</span>
+              )}
+            </div>
+          )}
           <textarea
             ref={inputRef}
             value={displayValue}
@@ -398,7 +400,7 @@ export function MentionInput({
             placeholder={placeholder}
             rows={1}
             wrap="soft"
-            className={`relative z-10 w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[13px] pb-[7px] text-base leading-[1.4] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
+            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[13px] pb-[7px] text-base leading-[1.4] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
             style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default' } as React.CSSProperties}
           />
         </div>
