@@ -358,7 +358,11 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-1">
-                    <h3 className="truncate text-[15px] leading-tight font-semibold">{displayName}</h3>
+                    {displayName ? (
+                      <h3 className="truncate text-[15px] leading-tight font-semibold">{displayName}</h3>
+                    ) : (
+                      <Skeleton className="h-4 w-24" />
+                    )}
                     <div className="flex items-center gap-0.5 shrink-0">
                       {conv.last_message?.created_at && (
                         <span className="text-xs text-muted-foreground">
