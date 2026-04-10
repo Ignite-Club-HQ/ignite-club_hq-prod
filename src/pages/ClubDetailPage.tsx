@@ -545,9 +545,14 @@ export default function ClubDetailPage() {
         .order("created_at", { ascending: false });
       if (error) throw error;
       
+      // Filter out anonymous share-link invites with no identifying info
+      const identifiableInvites = (data || []).filter(
+        inv => inv.invited_label || inv.invited_email || inv.invited_user_id
+      );
+      
       // Fetch profile data separately for invited users
       const invitesWithProfiles = await Promise.all(
-        (data || []).map(async (invite) => {
+        identifiableInvites.map(async (invite) => {
           if (invite.invited_user_id) {
             const { data: profile } = await supabase
               .from("profiles")
