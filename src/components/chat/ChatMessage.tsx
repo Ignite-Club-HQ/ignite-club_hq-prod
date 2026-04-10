@@ -784,7 +784,9 @@ export const ChatMessage = memo(function ChatMessage({
           onBlock={() => setShowBlockDialog(true)}
         />
         {/* Link previews rendered outside the message bubble */}
-        <MessageContent text={text} previewsOnly />
+        <div className="w-full min-w-0 max-w-full overflow-hidden">
+          <MessageContent text={text} previewsOnly />
+        </div>
         
         <MessageReactionsDisplay
           reactions={optimisticReactions}
