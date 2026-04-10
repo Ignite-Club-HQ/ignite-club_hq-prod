@@ -99,6 +99,56 @@ const getCachedDirectMessages = (conversationId: string): DirectMessage[] =>
     })),
   }));
 
+const toCachedDirectMessages = (messages: DirectMessage[]): CachedMessage[] =>
+  messages.map((message) => ({
+    id: message.id,
+    text: message.text,
+    author_id: message.author_id,
+    created_at: message.created_at,
+    image_url: message.image_url,
+    reply_to_id: message.reply_to_id,
+    profiles: message.author
+      ? { display_name: message.author.display_name, avatar_url: message.author.avatar_url }
+      : null,
+    reactions: message.reactions || [],
+    reply_to: message.reply_to ? { text: message.reply_to.text, author: message.reply_to.author } : null,
+  }));
+
+const cacheDirectMessages = (conversationId: string, messages: DirectMessage[]) => {
+  cacheMessages("dm", conversationId, toCachedDirectMessages(messages));
+};
+
+const mergeDirectMessages = (
+  incomingMessages: DirectMessage[],
+  previousMessages?: DirectMessage[] | null,
+): DirectMessage[] => {
+  if (!previousMessages?.length) return incomingMessages;
+
+  return incomingMessages.map((message) => {
+    const previousMessage = previousMessages.find((item) => item.id === message.id);
+    if (!previousMessage) return message;
+
+    const previousReactions = previousMessage.reactions || [];
+    const incomingReactions = message.reactions || [];
+    const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
+
+    incomingReactions.forEach((reaction) => {
+      incomingByUser.set(reaction.user_id, reaction);
+    });
+
+    const incomingIds = new Set(incomingReactions.map((reaction) => reaction.id));
+    const missingFromIncoming = previousReactions.filter((reaction) => {
+      if (incomingIds.has(reaction.id)) return false;
+      return !incomingByUser.has(reaction.user_id);
+    });
+
+    return {
+      ...message,
+      reactions: [...incomingReactions, ...missingFromIncoming],
+    };
+  });
+};
+
 export default function DirectMessagePage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
@@ -292,7 +342,7 @@ export default function DirectMessagePage() {
         }])
       );
 
-      const messages = dataToDisplay.map((msg: any) => {
+      const fetchedMessages = dataToDisplay.map((msg: any) => {
         const replyTo = msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null;
         const profile = profilesMap.get(msg.author_id);
         const msgReactions = reactionsResult.error
@@ -307,20 +357,9 @@ export default function DirectMessagePage() {
           reactions: msgReactions,
         };
       }) as DirectMessage[];
-      
-      // Cache messages for offline/fast reload
-      const messagesToCache: CachedMessage[] = messages.map(m => ({
-        id: m.id,
-        text: m.text,
-        author_id: m.author_id,
-        created_at: m.created_at,
-        image_url: m.image_url,
-        reply_to_id: m.reply_to_id,
-        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
-        reactions: m.reactions || [],
-        reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
-      }));
-      cacheMessages("dm", conversationId!, messagesToCache);
+
+      const messages = mergeDirectMessages(fetchedMessages, cachedDmMessages);
+      cacheDirectMessages(conversationId!, messages);
       
       return {
         messages,
@@ -432,45 +471,9 @@ export default function DirectMessagePage() {
       if (messages.length === 0 && messagesLoading) return prev;
 
       const prevLen = prev?.length ?? 0;
-      const mergedMessages = !prev
-        ? messages
-        : messages.map((message) => {
-            const previousMessage = prev.find((item) => item.id === message.id);
-            if (!previousMessage) return message;
+      const mergedMessages = mergeDirectMessages(messages, prev);
 
-            const previousReactions = previousMessage.reactions || [];
-            const incomingReactions = message.reactions || [];
-
-            const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
-            incomingReactions.forEach((reaction) => {
-              incomingByUser.set(reaction.user_id, reaction);
-            });
-
-            const incomingIds = new Set(incomingReactions.map((r) => r.id));
-            const missingFromIncoming = previousReactions.filter((reaction) => {
-              if (incomingIds.has(reaction.id)) return false;
-              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
-              return !incomingByUser.has(reaction.user_id);
-            });
-
-            return {
-              ...message,
-              reactions: [...incomingReactions, ...missingFromIncoming],
-            };
-          });
-
-      const messagesToCache: CachedMessage[] = mergedMessages.map((m) => ({
-        id: m.id,
-        text: m.text,
-        author_id: m.author_id,
-        created_at: m.created_at,
-        image_url: m.image_url,
-        reply_to_id: m.reply_to_id,
-        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
-        reactions: m.reactions || [],
-        reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
-      }));
-      cacheMessages("dm", conversationId, messagesToCache);
+      cacheDirectMessages(conversationId, mergedMessages);
 
       // If new messages arrived (e.g. fresh fetch has more than cache), ensure we scroll to bottom
       if (mergedMessages.length > prevLen) {
@@ -603,18 +606,7 @@ export default function DirectMessagePage() {
           reply_to: currentReplyTo ? { text: currentReplyTo.text, author: currentReplyTo.author } : null,
         });
       
-      const messagesToCache: CachedMessage[] = realMessages.map(m => ({
-        id: m.id,
-        text: m.text,
-        author_id: m.author_id,
-        created_at: m.created_at,
-        image_url: m.image_url,
-        reply_to_id: m.reply_to_id,
-        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
-        reactions: m.reactions || [],
-        reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
-      }));
-      cacheMessages("dm", conversationId!, messagesToCache);
+      cacheDirectMessages(conversationId!, realMessages);
       
       // Unhide conversation if it was hidden (so it reappears for both users)
       await supabase
