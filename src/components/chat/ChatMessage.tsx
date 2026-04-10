@@ -674,7 +674,7 @@ export const ChatMessage = memo(function ChatMessage({
           </AvatarFallback>
         </Avatar>
       )}
-      <div className={`flex flex-col max-w-[75%] ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
+      <div className={`flex flex-col min-w-0 max-w-[75%] ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
         {(isClubAnnouncement || (!isOwn && hasName)) && (
           <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName || "Club"}</p>
         )}
@@ -725,7 +725,7 @@ export const ChatMessage = memo(function ChatMessage({
                 };
               })() : undefined}
             >
-              <div className="text-sm">
+              <div className="text-sm overflow-hidden">
                 <MessageContent 
                   text={text} 
                   imageUrl={imageUrl} 
