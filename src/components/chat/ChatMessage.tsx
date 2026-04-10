@@ -527,6 +527,13 @@ export const ChatMessage = memo(function ChatMessage({
         longPressTriggeredRef.current = false;
       });
     } else if (gestureModeRef.current === "press" && touchStartPos.current) {
+      // If the user tapped a link, let the browser handle it naturally
+      const target = e.target as HTMLElement;
+      if (target.closest("a")) {
+        touchStartPos.current = null;
+        gestureModeRef.current = "idle";
+        return;
+      }
       // Short tap — flash highlight then open action sheet
       e.preventDefault();
       e.stopPropagation();
