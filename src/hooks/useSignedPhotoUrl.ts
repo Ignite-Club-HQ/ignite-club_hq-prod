@@ -7,7 +7,7 @@ const urlCache = new Map<string, { url: string; expiresAt: number }>();
 // Cache duration: 50 minutes (signed URLs valid for 60 minutes)
 const CACHE_DURATION_MS = 50 * 60 * 1000;
 const SIGNED_URL_EXPIRES_IN_SECONDS = 3600;
-const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = 5000;
 const PRIVATE_BUCKETS = ["photos", "chat-attachments", "avatars"] as const;
 
 type PrivateBucket = (typeof PRIVATE_BUCKETS)[number];
@@ -82,23 +82,6 @@ async function createSignedUrlDirect(url: string): Promise<string | null> {
   return data.signedUrl;
 }
 
-async function createSignedUrlViaEdge(url: string): Promise<string | null> {
-  const response = await withTimeout(
-    supabase.functions.invoke("get-signed-photo-url", {
-      body: { paths: [url], expiresIn: SIGNED_URL_EXPIRES_IN_SECONDS },
-    }),
-    REQUEST_TIMEOUT_MS,
-    "get-signed-photo-url timed out"
-  );
-
-  if (response.error) {
-    console.warn("[useSignedPhotoUrl] Edge signed URL failed:", response.error.message || response.error);
-    return null;
-  }
-
-  const candidate = response.data?.signedUrls?.[url];
-  return typeof candidate === "string" ? candidate : null;
-}
 
 async function resolveSignedUrl(url: string): Promise<string> {
   const privatePath = extractPrivateStoragePath(url);
@@ -106,13 +89,9 @@ async function resolveSignedUrl(url: string): Promise<string> {
     return url;
   }
 
+  // Direct SDK call is fastest — skip Edge Function fallback to avoid serial waterfall
   const directSignedUrl = await createSignedUrlDirect(url);
-  if (directSignedUrl) {
-    return directSignedUrl;
-  }
-
-  const edgeSignedUrl = await createSignedUrlViaEdge(url);
-  return edgeSignedUrl || url;
+  return directSignedUrl || url;
 }
 
 export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
@@ -140,15 +119,6 @@ export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
       setIsLoading(true);
 
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          if (!isCancelled) setSignedUrl(originalUrl);
-          return;
-        }
-
         const resolvedUrl = await resolveSignedUrl(originalUrl);
 
         if (resolvedUrl !== originalUrl) {
@@ -202,17 +172,6 @@ export async function getSignedPhotoUrls(urls: string[]): Promise<Record<string,
   if (uncachedUrls.length === 0) return result;
 
   try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      for (const url of uncachedUrls) {
-        result[url] = url;
-      }
-      return result;
-    }
-
     const resolved = await Promise.all(
       uncachedUrls.map(async (url) => {
         try {
