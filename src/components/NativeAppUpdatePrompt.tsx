@@ -175,11 +175,18 @@ export function NativeAppUpdatePrompt() {
   }, []);
 
   const handleUpdate = async () => {
+    console.log('[UpdatePrompt] Update Now tapped, storeUrl:', storeUrl);
     try {
       const { Browser } = await import('@capacitor/browser');
-      await Browser.open({ url: storeUrl });
-    } catch {
-      window.open(storeUrl, '_system');
+      await Browser.open({ url: storeUrl, windowName: '_system' });
+      console.log('[UpdatePrompt] Browser.open succeeded');
+    } catch (err) {
+      console.warn('[UpdatePrompt] Browser.open failed, trying window.open:', err);
+      try {
+        window.open(storeUrl, '_blank');
+      } catch {
+        window.location.href = storeUrl;
+      }
     }
   };
 
