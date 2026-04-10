@@ -962,6 +962,7 @@ export default function MessagesPage() {
   const allChatGroups = chatGroups?.length > 0 ? chatGroups : (cachedData?.chatGroups as any) || [];
   
   // Filter chat groups by user's roles - committee members and app admins see all
+  // League groups additionally require the user's child to be assigned to that league
   const displayChatGroups = useMemo(() => {
     if (isAppAdmin || isCommitteeMember) return allChatGroups;
     if (!userAllRoles?.length) return [];
@@ -970,10 +971,23 @@ export default function MessagesPage() {
       const allowedRoles: string[] = group.allowed_roles || [];
       if (allowedRoles.length === 0) return true; // No restrictions
       
+      // League group: must also have a child in that specific league
+      if (group.mini_league_id) {
+        // Admins/coaches with a role in the club can always see league groups
+        const isLeagueAdmin = userAllRoles.some((ur: any) => 
+          ["club_admin", "league_admin", "coach", "team_admin"].includes(ur.role) && 
+          ur.club_id === group.club_id
+        );
+        if (isLeagueAdmin) return true;
+        
+        // Parents/players: must have a child assigned to this specific league
+        if (!userLeagueIds?.has(group.mini_league_id)) return false;
+      }
+      
       return userAllRoles.some((ur: any) => {
         if (!allowedRoles.includes(ur.role)) return false;
         // Club-level group: user must have matching role in that club
-        if (group.club_id && !group.team_id) {
+        if (group.club_id && !group.team_id && !group.mini_league_id) {
           return ur.club_id === group.club_id;
         }
         // Team-level group: user must have matching role in that team
@@ -983,7 +997,7 @@ export default function MessagesPage() {
         return true;
       });
     });
-  }, [allChatGroups, userAllRoles, isAppAdmin, isCommitteeMember]);
+  }, [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember]);
   const displayLatestBroadcast = latestBroadcast || cachedData?.latestBroadcast;
   const displayLatestTeamMessages = latestTeamMessages || {};
   const displayLatestClubMessages = latestClubMessages || {};
