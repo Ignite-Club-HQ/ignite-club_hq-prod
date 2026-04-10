@@ -192,6 +192,7 @@ export default function GroupChatPage() {
   );
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
+  const nativeKbHeight = useNativeKeyboardHeight();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   
   const scrollToBottom = useCallback(() => {

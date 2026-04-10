@@ -163,6 +163,7 @@ export default function TeamChatPage() {
   );
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
+  const nativeKbHeight = useNativeKeyboardHeight();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   
   const scrollToBottom = useCallback(() => {

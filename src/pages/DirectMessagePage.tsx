@@ -126,6 +126,7 @@ export default function DirectMessagePage() {
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
+  const nativeKbHeight = useNativeKeyboardHeight();
   const isNativePlatform = Capacitor.isNativePlatform();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const [composerHeight, setComposerHeight] = useState(112);

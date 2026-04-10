@@ -81,6 +81,7 @@ export default function ClubAdminChatPage() {
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
+  const nativeKbHeight = useNativeKeyboardHeight();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const isNativePlatform = Capacitor.isNativePlatform();
 

@@ -150,6 +150,7 @@ export default function ClubChatPage() {
   );
   const chatHeight = useChatViewportHeight();
   const isKeyboardOpen = useKeyboardOpen();
+  const nativeKbHeight = useNativeKeyboardHeight();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   
   const scrollToBottom = useCallback(() => {
