@@ -349,10 +349,10 @@ export function MentionInput({
   }, [value, onChange, isNativeIOS]);
 
   return (
-    <div className="relative flex-1 min-w-0 space-y-2">
+    <div className="relative flex-1 min-w-0 max-w-full overflow-hidden space-y-2">
       {/* URL Previews */}
       {detectedUrls.length > 0 && (
-        <div className="space-y-2">
+        <div className="w-full min-w-0 max-h-28 space-y-2 overflow-y-auto overscroll-contain pr-1">
           {detectedUrls.map((url) => (
             <LinkPreview
               key={url}
@@ -364,7 +364,7 @@ export function MentionInput({
         </div>
       )}
       
-      <div className="flex items-center bg-muted/60 rounded-[22px] px-1 min-h-[44px] transition-all duration-150">
+      <div className="flex min-w-0 max-w-full items-center overflow-hidden rounded-[22px] bg-muted/60 px-1 min-h-[44px] transition-all duration-150">
         {showEmojiPicker && (
           <div className="flex items-center h-[44px]">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
@@ -375,8 +375,8 @@ export function MentionInput({
            <div
             ref={highlightRef}
             aria-hidden="true"
-            className="absolute inset-0 pointer-events-none text-base px-2 pt-[13px] pb-[7px] leading-[1.4] whitespace-pre-wrap break-words text-transparent overflow-hidden"
-            style={{ maxHeight: '120px' }}
+            className="absolute inset-0 pointer-events-none overflow-hidden px-2 pt-[13px] pb-[7px] text-base leading-[1.4] whitespace-pre-wrap break-words text-transparent"
+            style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
           >
             {highlightedSegments.map((seg, i) =>
               seg.isMention
@@ -397,8 +397,9 @@ export function MentionInput({
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
+            wrap="soft"
             className={`w-full bg-transparent border-none outline-none text-base px-2 pt-[13px] pb-[7px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 break-words ${className || ''}`}
-            style={{ maxHeight: '120px', overflowY: 'hidden', overflowWrap: 'break-word', wordBreak: 'break-word' }}
+            style={{ maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
           />
         </div>
       </div>
