@@ -389,6 +389,11 @@ export function MentionInput({
             value={displayValue}
             onChange={handleDisplayChange}
             onKeyDown={handleKeyDown}
+            onScroll={() => {
+              if (highlightRef.current && inputRef.current) {
+                highlightRef.current.scrollTop = inputRef.current.scrollTop;
+              }
+            }}
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
