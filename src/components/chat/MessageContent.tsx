@@ -34,6 +34,19 @@ const ensureProtocol = (url: string): string => {
   return `https://${url}`;
 };
 
+// Truncate a URL for display: show domain + ellipsis for long paths
+const truncateUrl = (url: string, maxLength = 50): string => {
+  if (url.length <= maxLength) return url;
+  try {
+    const parsed = new URL(ensureProtocol(url));
+    const domain = parsed.hostname.replace(/^www\./, '');
+    const pathStart = parsed.pathname.slice(0, 20);
+    return `${domain}${pathStart}…`;
+  } catch {
+    return url.slice(0, maxLength) + '…';
+  }
+};
+
 export const MessageContent = memo(function MessageContent({ text, imageUrl, searchQuery, showPreviews = true, previewsOnly = false, onReportImage, onBlockImageAuthor, showImageActions = false }: MessageContentProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -249,7 +262,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     className="text-primary underline hover:opacity-80"
                     onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(ensureProtocol(part.content)); }}
                   >
-                    {part.content}
+                    {truncateUrl(part.content)}
                   </a>
                 );
               }
