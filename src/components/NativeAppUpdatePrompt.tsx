@@ -43,22 +43,49 @@ export function NativeAppUpdatePrompt() {
   const [storeUrl, setStoreUrl] = useState(PLAY_STORE_URL);
 
   useEffect(() => {
+    // Helper: only show force-update if actually outdated
+    async function handleForceUpdateIfOutdated(detail?: { storeUrl?: string }) {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (!Capacitor.isNativePlatform()) return;
+        const platform = Capacitor.getPlatform();
+        const { App } = await import('@capacitor/app');
+        const info = await App.getInfo();
+        const currentVersion = info.version;
+        if (!currentVersion) return;
+
+        const { data } = await supabase.functions.invoke('public-minimum-app-version', { method: 'GET' });
+        const minVersions = data?.value as Record<string, string> | undefined;
+        const requiredVersion = minVersions?.[platform];
+        if (!requiredVersion) return;
+
+        const isOutdated = platform === 'android'
+          ? Number(info.build || '0') < Number(requiredVersion)
+          : compareSemver(currentVersion, requiredVersion) < 0;
+
+        console.log('[UpdatePrompt] Force-update version check:', { platform, currentVersion, build: info.build, requiredVersion, isOutdated });
+        if (isOutdated) {
+          if (detail?.storeUrl) setStoreUrl(detail.storeUrl);
+          else setStoreUrl(platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL);
+          setShowPrompt(true);
+        }
+      } catch (err) {
+        console.warn('[UpdatePrompt] Force-update check failed:', err);
+      }
+    }
+
     // Check for any pending force-update prompt that fired before this component mounted
     const pending = consumePendingForceUpdatePrompt();
     if (pending) {
       console.log('[UpdatePrompt] Found pending force-update prompt from cold start:', pending);
-      if (pending.storeUrl) setStoreUrl(pending.storeUrl);
-      setShowPrompt(true);
+      handleForceUpdateIfOutdated(pending);
     }
 
     // Listen for force-update-prompt event from push notifications
     const handleForcePrompt = (event: Event) => {
       const customEvent = event as CustomEvent<{ storeUrl?: string }>;
       console.log('[UpdatePrompt] Force update prompt triggered via event', customEvent.detail);
-      if (customEvent.detail?.storeUrl) {
-        setStoreUrl(customEvent.detail.storeUrl);
-      }
-      setShowPrompt(true);
+      handleForceUpdateIfOutdated(customEvent.detail);
     };
     window.addEventListener('force-update-prompt', handleForcePrompt);
     return () => window.removeEventListener('force-update-prompt', handleForcePrompt);
