@@ -560,6 +560,8 @@ Deno.serve(async (req) => {
         pointsAwarded,
         attendanceProcessed,
         attendancePointsAwarded,
+        childAttendanceProcessed,
+        childAttendancePointsAwarded,
         emailsSent,
       }),
       { 
