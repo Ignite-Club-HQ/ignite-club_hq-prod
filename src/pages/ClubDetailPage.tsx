@@ -142,7 +142,45 @@ export default function ClubDetailPage() {
   });
 
 
-  // Fetch roles data with profiles and team info - includes both club-level and team-level roles
+  // Fast count-only query for the badge - uses count aggregation, no profile data
+  const { data: clubMemberCount } = useQuery({
+    queryKey: ["club-members-count", id],
+    queryFn: async () => {
+      // Get team IDs for this club
+      const { data: teamsData } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("club_id", id!);
+      const teamIds = teamsData?.map(t => t.id) || [];
+
+      // Fetch unique user IDs only (no joins)
+      const userIdSet = new Set<string>();
+
+      const { data: clubRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", id!)
+        .is("team_id", null);
+      clubRoles?.forEach(r => userIdSet.add(r.user_id));
+
+      if (teamIds.length > 0) {
+        const { data: teamRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .in("team_id", teamIds);
+        teamRoles?.forEach(r => userIdSet.add(r.user_id));
+      }
+
+      return userIdSet.size;
+    },
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 min
+  });
+
+  // Track whether members accordion has been opened
+  const [membersExpanded, setMembersExpanded] = useState(false);
+
+  // Full roles data - only fetched when the accordion is expanded
   const { data: rawClubMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, refetch: refetchClubMembers } = useQuery({
     queryKey: ["club-members-roles", id],
     queryFn: async () => {
@@ -176,7 +214,7 @@ export default function ClubDetailPage() {
       const allRoles = [...(clubRoles || []), ...(teamRoles || [])];
       return allRoles;
     },
-    enabled: !!id,
+    enabled: !!id && membersExpanded,
     refetchOnMount: true,
   });
 
@@ -1550,9 +1588,12 @@ export default function ClubDetailPage() {
         defaultValue={[]} 
         className="space-y-4"
         onValueChange={(value) => {
-          // Auto-refresh members list when expanding if empty
-          if (value.includes("members") && Object.keys(clubMembers).length === 0 && !isMembersLoading && !isMembersFetching) {
-            refetchClubMembers();
+          if (value.includes("members")) {
+            setMembersExpanded(true);
+            // Auto-refresh members list when expanding if empty
+            if (Object.keys(clubMembers).length === 0 && !isMembersLoading && !isMembersFetching) {
+              refetchClubMembers();
+            }
           }
         }}
       >
@@ -1563,7 +1604,7 @@ export default function ClubDetailPage() {
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-primary" />
                 <span className="text-lg font-semibold">{club?.class_mode_enabled ? "Members" : "Club Members"}</span>
-                {!isMembersLoading && <Badge className="ml-2 font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{Object.keys(clubMembers).length}</Badge>}
+                {clubMemberCount != null && <Badge className="ml-2 font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{clubMemberCount}</Badge>}
               </div>
             </AccordionTrigger>
             <AccordionContent>
