@@ -365,11 +365,6 @@ export function MediaCommentSheet({
   const hasText = commentInput.trim().length > 0;
   const topLevelComments = comments.filter(c => !c.reply_to_id);
   const replyCount = comments.length - topLevelComments.length;
-  const sheetHeight = !isIOS
-    ? viewportHeight
-      ? `${viewportHeight}px`
-      : "var(--stable-vh, 100dvh)"
-    : undefined;
   const composerOffset = isNativeIOS ? nativeKeyboardHeight : 0;
 
   return (
