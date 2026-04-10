@@ -158,7 +158,7 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
   }, [user?.id]);
 
   // Fetch DM conversations with last message
-  const { data: conversations, isLoading } = useQuery({
+  const { data: conversations, isLoading, isFetching } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
       const { data: convos, error } = await supabase
