@@ -471,45 +471,9 @@ export default function DirectMessagePage() {
       if (messages.length === 0 && messagesLoading) return prev;
 
       const prevLen = prev?.length ?? 0;
-      const mergedMessages = !prev
-        ? messages
-        : messages.map((message) => {
-            const previousMessage = prev.find((item) => item.id === message.id);
-            if (!previousMessage) return message;
+      const mergedMessages = mergeDirectMessages(messages, prev);
 
-            const previousReactions = previousMessage.reactions || [];
-            const incomingReactions = message.reactions || [];
-
-            const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
-            incomingReactions.forEach((reaction) => {
-              incomingByUser.set(reaction.user_id, reaction);
-            });
-
-            const incomingIds = new Set(incomingReactions.map((r) => r.id));
-            const missingFromIncoming = previousReactions.filter((reaction) => {
-              if (incomingIds.has(reaction.id)) return false;
-              if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
-              return !incomingByUser.has(reaction.user_id);
-            });
-
-            return {
-              ...message,
-              reactions: [...incomingReactions, ...missingFromIncoming],
-            };
-          });
-
-      const messagesToCache: CachedMessage[] = mergedMessages.map((m) => ({
-        id: m.id,
-        text: m.text,
-        author_id: m.author_id,
-        created_at: m.created_at,
-        image_url: m.image_url,
-        reply_to_id: m.reply_to_id,
-        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
-        reactions: m.reactions || [],
-        reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
-      }));
-      cacheMessages("dm", conversationId, messagesToCache);
+      cacheDirectMessages(conversationId, mergedMessages);
 
       // If new messages arrived (e.g. fresh fetch has more than cache), ensure we scroll to bottom
       if (mergedMessages.length > prevLen) {
