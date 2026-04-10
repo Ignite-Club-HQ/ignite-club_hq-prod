@@ -287,7 +287,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               return part.content ? <span key={index}>{part.content}</span> : null;
             })
           )}
-        </span>
+        </div>
       )}
 
       {/* YouTube embeds - only if showPreviews */}
