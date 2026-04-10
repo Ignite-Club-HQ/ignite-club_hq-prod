@@ -214,7 +214,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
       {/* Text content */}
       {text && (
-        <span className="whitespace-pre-wrap break-words">
+        <span className="whitespace-pre-wrap" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
           {parts.length === 0 ? (
             // Fallback: render text as-is if parsing fails
             text
