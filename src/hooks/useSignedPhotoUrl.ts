@@ -106,13 +106,9 @@ async function resolveSignedUrl(url: string): Promise<string> {
     return url;
   }
 
+  // Direct SDK call is fastest — skip Edge Function fallback to avoid serial waterfall
   const directSignedUrl = await createSignedUrlDirect(url);
-  if (directSignedUrl) {
-    return directSignedUrl;
-  }
-
-  const edgeSignedUrl = await createSignedUrlViaEdge(url);
-  return edgeSignedUrl || url;
+  return directSignedUrl || url;
 }
 
 export function useSignedPhotoUrl(originalUrl: string | null | undefined) {
