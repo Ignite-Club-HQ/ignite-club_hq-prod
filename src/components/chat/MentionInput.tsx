@@ -349,7 +349,7 @@ export function MentionInput({
   }, [value, onChange, isNativeIOS]);
 
   return (
-    <div className="relative flex-1 space-y-2">
+    <div className="relative flex-1 min-w-0 space-y-2">
       {/* URL Previews */}
       {detectedUrls.length > 0 && (
         <div className="space-y-2">
@@ -397,8 +397,8 @@ export function MentionInput({
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
-            className={`w-full bg-transparent border-none outline-none text-base px-2 pt-[13px] pb-[7px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 ${className || ''}`}
-            style={{ maxHeight: '120px', overflowY: 'hidden' }}
+            className={`w-full bg-transparent border-none outline-none text-base px-2 pt-[13px] pb-[7px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 break-words ${className || ''}`}
+            style={{ maxHeight: '120px', overflowY: 'hidden', overflowWrap: 'break-word', wordBreak: 'break-word' }}
           />
         </div>
       </div>
