@@ -116,10 +116,10 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
           <p className="text-xs text-muted-foreground line-clamp-2">{preview.description}</p>
         )}
         <button
-          className="text-xs text-muted-foreground truncate hover:underline mt-0.5 text-left"
+          className="text-xs text-muted-foreground truncate hover:underline mt-0.5 text-left block max-w-full"
           onClick={(e) => { e.stopPropagation(); safeOpenUrl(url.startsWith('http') ? url : `https://${url}`); }}
         >
-          {url}
+          {url.length > 50 ? url.slice(0, 47) + '…' : url}
         </button>
       </div>
       {onRemove && (
