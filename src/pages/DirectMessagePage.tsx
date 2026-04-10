@@ -969,7 +969,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }}>
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -1126,7 +1126,7 @@ export default function DirectMessagePage() {
                />
              )}
              {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-             <div className="flex gap-1.5 items-center">
+              <div className="flex items-end gap-1.5">
                <MentionInput
                  value={message}
                  onChange={setMessage}
