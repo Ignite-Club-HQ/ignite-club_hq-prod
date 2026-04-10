@@ -119,7 +119,41 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
       
       return data || [];
     },
-    enabled: !!user && !teamId && isOpen,
+    enabled: !!user && !teamId && !miniLeagueId && isOpen,
+  });
+
+  // Fetch admin mini-leagues (Pro Football clubs only)
+  const { data: adminMiniLeagues = [] } = useQuery({
+    queryKey: ["admin-mini-leagues-for-groups", user?.id, activeClubFilter],
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .in("role", ["club_admin", "app_admin", "committee_member", "coach", "team_admin"]);
+      
+      let clubIds = roles?.map((r) => r.club_id).filter((id): id is string => id !== null) || [];
+      if (activeClubFilter) clubIds = clubIds.filter(id => id === activeClubFilter);
+      if (clubIds.length === 0) return [];
+
+      // Only Pro Football clubs can have league groups
+      const { data: subs } = await supabase
+        .from("club_subscriptions")
+        .select("club_id")
+        .in("club_id", clubIds)
+        .or("is_pro_football.eq.true,admin_pro_football_override.eq.true");
+      
+      const proFootballClubIds = subs?.map(s => s.club_id) || [];
+      if (proFootballClubIds.length === 0) return [];
+
+      const { data } = await supabase
+        .from("mini_leagues")
+        .select("id, name, club_id, clubs(name)")
+        .in("club_id", proFootballClubIds);
+      
+      return data || [];
+    },
+    enabled: !!user && !miniLeagueId && isOpen,
   });
 
   // Fetch admin clubs with their Pro status
@@ -194,15 +228,17 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
       
       const finalTeamId = teamId || (groupType === "team" ? selectedTeamId : null);
       const finalClubId = clubId || (groupType === "club" ? selectedClubId : null);
+      const finalMiniLeagueId = miniLeagueId || (groupType === "league" ? selectedMiniLeagueId : null);
       
-      if (!finalTeamId && !finalClubId) {
-        throw new Error("Please select a team or club");
+      if (!finalTeamId && !finalClubId && !finalMiniLeagueId) {
+        throw new Error("Please select a team, club, or league");
       }
       
       const { error } = await supabase.from("chat_groups").insert({
         name: name.trim(),
         club_id: finalClubId || null,
         team_id: finalTeamId || null,
+        mini_league_id: finalMiniLeagueId || null,
         allowed_roles: selectedRoles,
         created_by: user.id,
       });
@@ -216,6 +252,7 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
       setSelectedRoles([]);
       setSelectedTeamId("");
       setSelectedClubId("");
+      setSelectedMiniLeagueId("");
       // Invalidate all chat group related queries immediately
       queryClient.invalidateQueries({ queryKey: ["chat-groups"] });
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
@@ -242,18 +279,22 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
       toast.error("Please select at least one role");
       return;
     }
-    if (!teamId && !clubId && groupType === "team" && !selectedTeamId) {
+    if (!teamId && !clubId && !miniLeagueId && groupType === "team" && !selectedTeamId) {
       toast.error("Please select a team");
       return;
     }
-    if (!teamId && !clubId && groupType === "club" && !selectedClubId) {
+    if (!teamId && !clubId && !miniLeagueId && groupType === "club" && !selectedClubId) {
       toast.error("Please select a club");
+      return;
+    }
+    if (!teamId && !clubId && !miniLeagueId && groupType === "league" && !selectedMiniLeagueId) {
+      toast.error("Please select a league");
       return;
     }
     createGroupMutation.mutate();
   };
 
-  const showSelector = !teamId && !clubId;
+  const showSelector = !teamId && !clubId && !miniLeagueId;
   const isClubFiltered = !!activeClubFilter;
 
   // Filter admin teams to only those in the filtered club
@@ -289,11 +330,10 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                   <Select 
                     value={groupType} 
                     onValueChange={(v) => {
-                      setGroupType(v as "team" | "club");
-                      // Reset club selection when switching to club type
+                      setGroupType(v as "team" | "club" | "league");
                       if (v === "club") setSelectedClubId(activeClubFilter || "");
                     }}
-                    disabled={isClubFiltered}
+                    disabled={isClubFiltered && groupType !== "league"}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -307,6 +347,17 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                             <span className="inline-flex items-center gap-1 text-xs font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
                               <Crown className="h-3 w-3" />
                               Pro
+                            </span>
+                          )}
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="league" disabled={adminMiniLeagues.length === 0}>
+                        <span className="flex items-center gap-2">
+                          League Group
+                          {adminMiniLeagues.length === 0 && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                              <Crown className="h-3 w-3" />
+                              Pro Football
                             </span>
                           )}
                         </span>
