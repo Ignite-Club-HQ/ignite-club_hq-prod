@@ -1432,9 +1432,9 @@ export default function GroupChatPage() {
   if (!group) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <p className="text-muted-foreground">Chat group not found</p>
+        <p className="text-muted-foreground text-center px-4">This chat group has been removed or is no longer available.</p>
         <Button variant="outline" onClick={() => navigate("/messages")}>
-          Go Back
+          Back to Messages
         </Button>
       </div>
     );
