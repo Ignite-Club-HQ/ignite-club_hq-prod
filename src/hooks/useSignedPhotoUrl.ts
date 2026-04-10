@@ -82,23 +82,6 @@ async function createSignedUrlDirect(url: string): Promise<string | null> {
   return data.signedUrl;
 }
 
-async function createSignedUrlViaEdge(url: string): Promise<string | null> {
-  const response = await withTimeout(
-    supabase.functions.invoke("get-signed-photo-url", {
-      body: { paths: [url], expiresIn: SIGNED_URL_EXPIRES_IN_SECONDS },
-    }),
-    REQUEST_TIMEOUT_MS,
-    "get-signed-photo-url timed out"
-  );
-
-  if (response.error) {
-    console.warn("[useSignedPhotoUrl] Edge signed URL failed:", response.error.message || response.error);
-    return null;
-  }
-
-  const candidate = response.data?.signedUrls?.[url];
-  return typeof candidate === "string" ? candidate : null;
-}
 
 async function resolveSignedUrl(url: string): Promise<string> {
   const privatePath = extractPrivateStoragePath(url);
