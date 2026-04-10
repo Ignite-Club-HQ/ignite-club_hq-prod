@@ -158,7 +158,7 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
   }, [user?.id]);
 
   // Fetch DM conversations with last message
-  const { data: conversations, isLoading } = useQuery({
+  const { data: conversations, isLoading, isFetching } = useQuery({
     queryKey: ["dm-conversations", user?.id],
     queryFn: async () => {
       const { data: convos, error } = await supabase
@@ -335,7 +335,8 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
       {filteredConversations.map((conv) => {
         const isOwn = conv.last_message?.author_id === user?.id;
         const isIgniteSupport = isIgniteSupportUser(conv.other_user?.id);
-        const displayName = isIgniteSupport ? "Ignite Support" : (conv.other_user?.display_name || "Unknown User");
+        const profileLoading = !conv.other_user?.display_name && isFetching;
+        const displayName = isIgniteSupport ? "Ignite Support" : (conv.other_user?.display_name || (profileLoading ? null : "Unknown User"));
         
         return (
           <Card key={conv.id} className="hover:border-primary/50 transition-colors cursor-pointer">
@@ -357,7 +358,11 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-1">
-                    <h3 className="truncate text-[15px] leading-tight font-semibold">{displayName}</h3>
+                    {displayName ? (
+                      <h3 className="truncate text-[15px] leading-tight font-semibold">{displayName}</h3>
+                    ) : (
+                      <Skeleton className="h-4 w-24" />
+                    )}
                     <div className="flex items-center gap-0.5 shrink-0">
                       {conv.last_message?.created_at && (
                         <span className="text-xs text-muted-foreground">
