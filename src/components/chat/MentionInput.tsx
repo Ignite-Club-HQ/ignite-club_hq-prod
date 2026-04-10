@@ -59,6 +59,10 @@ export function MentionInput({
     const maxHeight = 120; // ~5 lines
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+    // Sync highlight overlay scroll
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = textarea.scrollTop;
+    }
   }, []);
 
   // Re-adjust height when value changes (including reset on send)
