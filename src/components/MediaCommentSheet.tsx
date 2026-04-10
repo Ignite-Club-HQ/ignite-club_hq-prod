@@ -69,24 +69,14 @@ export function MediaCommentSheet({
   const isKeyboardOpen = useKeyboardOpen();
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
   const [browserKeyboardInset, setBrowserKeyboardInset] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [imgError, setImgError] = useState(false);
 
   useIOSOverlayScrollLock(open);
 
-  // Non-iOS keeps the existing viewport-sized sheet behavior.
+  // Reset image error state when photoUrl changes
   useEffect(() => {
-    if (isIOS) {
-      setViewportHeight(null);
-      return;
-    }
-
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => setViewportHeight(vv.height);
-    update();
-    vv.addEventListener("resize", update);
-    return () => vv.removeEventListener("resize", update);
-  }, [isIOS]);
+    setImgError(false);
+  }, [photoUrl]);
 
   useEffect(() => {
     if (!isNativeIOS || !open) {
@@ -406,13 +396,22 @@ export function MediaCommentSheet({
         isKeyboardActive ? "h-16" : "h-24"
       }`}>
         <div className="flex items-center gap-3 h-full px-4">
-          <img
-            src={photoUrl}
-            alt=""
-            className={`rounded-lg object-cover flex-shrink-0 transition-all duration-200 ${
+          {!imgError && photoUrl ? (
+            <img
+              src={photoUrl}
+              alt=""
+              onError={() => setImgError(true)}
+              className={`rounded-lg object-cover flex-shrink-0 transition-all duration-200 ${
+                isKeyboardActive ? "h-12 w-12" : "h-20 w-20"
+              }`}
+            />
+          ) : (
+            <div className={`rounded-lg bg-muted flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
               isKeyboardActive ? "h-12 w-12" : "h-20 w-20"
-            }`}
-          />
+            }`}>
+              <span className="text-muted-foreground text-xs">📷</span>
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-foreground truncate">
               {uploaderName || "Unknown"}
