@@ -355,7 +355,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           <AvatarFallback>{displayName[0]?.toUpperCase() || "?"}</AvatarFallback>
         </Avatar>
 
-        <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
+        <div className={`flex flex-col min-w-0 ${isOwnMessage ? "items-end" : "items-start"}`}>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-medium">{displayName}</span>
             {msg.id.startsWith("queued-") && (
@@ -423,7 +423,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 {msg.image_url && (
                   <img src={msg.image_url} alt="Attachment" className="max-w-xs rounded mb-2" />
                 )}
-                <MessageContent text={msg.text} />
+                <div className="text-sm overflow-hidden"><MessageContent text={msg.text} /></div>
               </div>
             </div>
           </div>
