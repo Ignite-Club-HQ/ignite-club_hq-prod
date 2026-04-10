@@ -635,6 +635,7 @@ export default function DirectMessagePage() {
       }
     },
     onError: (error, variables) => {
+      console.error('[DM] Send message error:', error, 'Message text:', variables.text?.slice(0, 20));
       // Check if the message actually arrived via realtime before showing error
       const currentData = queryClient.getQueryData<{ messages: DirectMessage[] }>(["dm-messages", conversationId]);
       const messageExists = currentData?.messages?.some(
