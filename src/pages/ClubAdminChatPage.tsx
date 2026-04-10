@@ -5,6 +5,7 @@ import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
