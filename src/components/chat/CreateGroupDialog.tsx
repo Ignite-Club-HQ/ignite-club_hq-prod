@@ -333,12 +333,11 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                       setGroupType(v as "team" | "club" | "league");
                       if (v === "club") setSelectedClubId(activeClubFilter || "");
                     }}
-                    disabled={isClubFiltered && groupType !== "league"}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[100000]" position="popper" portal={false}>
+                    <SelectContent className="z-[100000]" position="popper" portal={false} onPointerDownOutside={(e) => e.preventDefault()}>
                       <SelectItem value="team">Team Group</SelectItem>
                       <SelectItem value="club" disabled={!hasAnyClubWithPro}>
                         <span className="flex items-center gap-2">
@@ -378,7 +377,7 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choose a team..." />
                       </SelectTrigger>
-                      <SelectContent className="z-[100000]" position="popper" portal={false}>
+                      <SelectContent className="z-[100000]" position="popper" portal={false} onPointerDownOutside={(e) => e.preventDefault()}>
                         {filteredAdminTeams.map((team) => (
                           <SelectItem key={team.id} value={team.id}>
                             {team.name} ({team.clubs?.name})
@@ -400,7 +399,7 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choose a club with Pro..." />
                       </SelectTrigger>
-                      <SelectContent className="z-[100000]" position="popper" portal={false}>
+                      <SelectContent className="z-[100000]" position="popper" portal={false} onPointerDownOutside={(e) => e.preventDefault()}>
                         {clubsWithPro.map((club) => (
                           <SelectItem key={club.id} value={club.id}>
                             {club.name}
@@ -418,7 +417,7 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choose a league..." />
                       </SelectTrigger>
-                      <SelectContent className="z-[100000]" position="popper" portal={false}>
+                      <SelectContent className="z-[100000]" position="popper" portal={false} onPointerDownOutside={(e) => e.preventDefault()}>
                         {adminMiniLeagues.map((league: any) => (
                           <SelectItem key={league.id} value={league.id}>
                             {league.name} ({league.clubs?.name})
