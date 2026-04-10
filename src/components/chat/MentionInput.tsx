@@ -349,10 +349,10 @@ export function MentionInput({
   }, [value, onChange, isNativeIOS]);
 
   return (
-    <div className="relative flex-1 min-w-0 max-w-full overflow-hidden space-y-2">
+    <div className="relative flex-1 min-w-0 max-w-full self-end overflow-hidden space-y-2">
       {/* URL Previews */}
       {detectedUrls.length > 0 && (
-        <div className="w-full min-w-0 max-h-28 space-y-2 overflow-y-auto overscroll-contain pr-1">
+        <div className="w-full min-w-0 max-w-full max-h-28 space-y-2 overflow-x-hidden overflow-y-auto overscroll-contain pr-1">
           {detectedUrls.map((url) => (
             <LinkPreview
               key={url}
@@ -364,13 +364,13 @@ export function MentionInput({
         </div>
       )}
       
-      <div className="flex min-w-0 max-w-full items-center overflow-hidden rounded-[22px] bg-muted/60 px-1 min-h-[44px] transition-all duration-150">
+      <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-[22px] bg-muted/60 px-1 min-h-[44px] transition-all duration-150">
         {showEmojiPicker && (
           <div className="flex items-center h-[44px]">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
           </div>
         )}
-        <div className="relative flex-1 min-w-0 overflow-hidden">
+        <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">
           {/* Highlight overlay for mentions */}
            <div
             ref={highlightRef}
@@ -398,8 +398,8 @@ export function MentionInput({
             placeholder={placeholder}
             rows={1}
             wrap="soft"
-            className={`w-full bg-transparent border-none outline-none text-base px-2 pt-[13px] pb-[7px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-[1.4] relative z-10 break-words ${className || ''}`}
-            style={{ maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+            className={`relative z-10 w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[13px] pb-[7px] text-base leading-[1.4] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
+            style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box' }}
           />
         </div>
       </div>
