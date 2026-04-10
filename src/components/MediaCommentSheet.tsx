@@ -8,6 +8,7 @@ import { PhotoComment } from "@/components/PhotoComment";
 import { CommentRepliesThread } from "@/components/CommentRepliesThread";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useIOSOverlayScrollLock } from "@/hooks/useIOSOverlayScrollLock";
+import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 
 interface CommentData {
   id: string;
@@ -57,6 +58,7 @@ export function MediaCommentSheet({
   const [isCommentInteracting, setIsCommentInteracting] = useState(false);
   const [isReactionGestureActive, setIsReactionGestureActive] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const capacitorPlatform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && capacitorPlatform === "ios";
   const isIOS = (() => {
@@ -69,14 +71,14 @@ export function MediaCommentSheet({
   const isKeyboardOpen = useKeyboardOpen();
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
   const [browserKeyboardInset, setBrowserKeyboardInset] = useState(0);
-  const [imgError, setImgError] = useState(false);
+  const { signedUrl: resolvedPhotoUrl, isLoading: isPhotoUrlLoading } = useSignedPhotoUrl(photoUrl);
+  const previewPhotoUrl = resolvedPhotoUrl || photoUrl;
 
   useIOSOverlayScrollLock(open);
 
-  // Reset image error state when photoUrl changes
   useEffect(() => {
     setImgError(false);
-  }, [photoUrl]);
+  }, [previewPhotoUrl]);
 
   useEffect(() => {
     if (!isNativeIOS || !open) {
@@ -356,6 +358,7 @@ export function MediaCommentSheet({
   const topLevelComments = comments.filter(c => !c.reply_to_id);
   const replyCount = comments.length - topLevelComments.length;
   const composerOffset = isNativeIOS ? nativeKeyboardHeight : 0;
+  const thumbnailSizeClass = isKeyboardActive ? "h-12 w-12" : "h-20 w-20";
 
   return (
     <div
@@ -396,19 +399,20 @@ export function MediaCommentSheet({
         isKeyboardActive ? "h-16" : "h-24"
       }`}>
         <div className="flex items-center gap-3 h-full px-4">
-          {!imgError && photoUrl ? (
+          {isPhotoUrlLoading ? (
+            <div
+              className={`rounded-lg bg-muted animate-pulse flex-shrink-0 transition-all duration-200 ${thumbnailSizeClass}`}
+              aria-hidden="true"
+            />
+          ) : !imgError && previewPhotoUrl ? (
             <img
-              src={photoUrl}
-              alt=""
+              src={previewPhotoUrl}
+              alt={uploaderName ? `Photo uploaded by ${uploaderName}` : "Photo preview"}
               onError={() => setImgError(true)}
-              className={`rounded-lg object-cover flex-shrink-0 transition-all duration-200 ${
-                isKeyboardActive ? "h-12 w-12" : "h-20 w-20"
-              }`}
+              className={`rounded-lg object-cover flex-shrink-0 transition-all duration-200 ${thumbnailSizeClass}`}
             />
           ) : (
-            <div className={`rounded-lg bg-muted flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
-              isKeyboardActive ? "h-12 w-12" : "h-20 w-20"
-            }`}>
+            <div className={`rounded-lg bg-muted flex items-center justify-center flex-shrink-0 transition-all duration-200 ${thumbnailSizeClass}`}>
               <span className="text-muted-foreground text-xs">📷</span>
             </div>
           )}
