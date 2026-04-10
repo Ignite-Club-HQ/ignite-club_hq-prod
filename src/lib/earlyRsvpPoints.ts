@@ -15,7 +15,7 @@ interface AwardEarlyRsvpPointsParams {
 }
 
 /**
- * Awards 3 Ignite points to a user if they RSVP "going" at least 3 days before the event.
+ * Awards 3 Reward points to a user if they RSVP "going" at least 3 days before the event.
  * Uses the early_rsvp_points_awarded flag on the RSVP row to prevent re-awards.
  * Returns true if points were awarded, false otherwise.
  */

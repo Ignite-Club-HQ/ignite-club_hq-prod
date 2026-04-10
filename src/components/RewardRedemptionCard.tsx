@@ -491,7 +491,7 @@ export default function RewardRedemptionCard() {
                   <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-6 w-6 rounded object-cover" />
                 )}
                 {!(userClubs[0] as any)?.points_icon_url && <Gift className="h-6 w-6 text-primary-foreground" />}
-                <span className="font-semibold text-primary-foreground">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</span>
+                <span className="font-semibold text-primary-foreground">{(userClubs[0] as any)?.points_display_name || 'Reward Points'}</span>
               </div>
               <span className="text-3xl font-bold text-primary-foreground">
                 {currentPoints}
@@ -627,7 +627,7 @@ export default function RewardRedemptionCard() {
                 <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-6 w-6 rounded object-cover" />
               )}
               {!(userClubs[0] as any)?.points_icon_url && <Gift className="h-6 w-6 text-primary-foreground" />}
-              <span className="font-semibold text-primary-foreground">{(userClubs[0] as any)?.points_display_name || 'Ignite Points'}</span>
+              <span className="font-semibold text-primary-foreground">{(userClubs[0] as any)?.points_display_name || 'Reward Points'}</span>
             </div>
             <span className="text-3xl font-bold text-primary-foreground">
               {currentPoints}

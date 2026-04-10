@@ -91,7 +91,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
   const [uploading, setUploading] = useState(false);
   const [uploadingQr, setUploadingQr] = useState(false);
   const hasCreatedDefault = useRef(false);
-  const [customPointsName, setCustomPointsName] = useState("Ignite Points");
+  const [customPointsName, setCustomPointsName] = useState("Reward Points");
   const [savingPointsName, setSavingPointsName] = useState(false);
   const [pointsIconUrl, setPointsIconUrl] = useState<string | null>(null);
   
@@ -105,7 +105,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         .select("points_display_name, points_icon_url")
         .eq("id", clubId)
         .single();
-      const name = (data as any)?.points_display_name || "Ignite Points";
+      const name = (data as any)?.points_display_name || "Reward Points";
       const iconUrl = (data as any)?.points_icon_url || null;
       setCustomPointsName(name);
       setPointsIconUrl(iconUrl);
@@ -504,7 +504,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
             <div className="flex gap-2 mt-1">
               <Input
                 id="points-name"
-                placeholder="Ignite Points"
+                placeholder="Reward Points"
                 value={customPointsName}
                 onChange={(e) => setCustomPointsName(e.target.value)}
                 className="text-sm"
@@ -524,8 +524,8 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
               const { error } = await supabase
                 .from("clubs")
                 .update({ 
-                  points_display_name: customPointsName || 'Ignite Points',
-                  points_icon_url: url,
+                   points_display_name: customPointsName || 'Reward Points',
+                   points_icon_url: url,
                 } as any)
                 .eq("id", clubId);
               if (!error) {
@@ -548,8 +548,8 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
               const { error } = await supabase
                 .from("clubs")
                 .update({ 
-                  points_display_name: customPointsName || 'Ignite Points',
-                  points_icon_url: pointsIconUrl,
+                   points_display_name: customPointsName || 'Reward Points',
+                   points_icon_url: pointsIconUrl,
                 } as any)
                 .eq("id", clubId);
               setSavingPointsName(false);

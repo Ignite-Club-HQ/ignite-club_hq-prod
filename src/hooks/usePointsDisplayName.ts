@@ -10,7 +10,7 @@ interface PointsDisplay {
 
 /**
  * Hook to get the custom points display name and icon for a club.
- * Falls back to "Ignite Points" if no custom name is set.
+ * Falls back to "Reward Points" if no custom name is set.
  */
 export function usePointsDisplayName(clubId: string | null | undefined): string {
   const { data } = usePointsDisplay(clubId);
