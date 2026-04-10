@@ -189,17 +189,6 @@ export async function getSignedPhotoUrls(urls: string[]): Promise<Record<string,
   if (uncachedUrls.length === 0) return result;
 
   try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      for (const url of uncachedUrls) {
-        result[url] = url;
-      }
-      return result;
-    }
-
     const resolved = await Promise.all(
       uncachedUrls.map(async (url) => {
         try {
