@@ -1641,10 +1641,25 @@ export default function ClubDetailPage() {
         {isMember && (
           <AccordionItem value="members" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                <span className="text-lg font-semibold">{club?.class_mode_enabled ? "Members" : "Club Members"}</span>
-                {clubMemberCount != null && <Badge className="ml-2 font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{clubMemberCount}</Badge>}
+              <div className="flex items-start gap-2">
+                <Users className="h-5 w-5 text-primary mt-1" />
+                <div className="flex flex-col items-start">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold">
+                      👥 {clubMemberCount?.total ?? "—"} Members
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
+                    <span>{clubMemberCount?.adults ?? 0} Adults</span>
+                    <span>•</span>
+                    <span>{clubMemberCount?.juniors ?? 0} Juniors</span>
+                  </div>
+                  {clubMemberCount && clubMemberCount.newThisMonth > 0 && (
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                      +{clubMemberCount.newThisMonth} this month
+                    </span>
+                  )}
+                </div>
               </div>
             </AccordionTrigger>
             <AccordionContent>
