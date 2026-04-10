@@ -1441,7 +1441,7 @@ export default function GroupChatPage() {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }}>
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
@@ -1574,7 +1574,7 @@ export default function GroupChatPage() {
             </Button>
           </div>
         )}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-end gap-1.5">
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
             imageUrl={imageUrl} 
