@@ -568,6 +568,57 @@ export default function MessagesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch mini league IDs the user's children are assigned to (for league group visibility)
+  const { data: userLeagueIds } = useQuery({
+    queryKey: ["user-child-league-ids", user?.id],
+    queryFn: async () => {
+      // Get user's children
+      const { data: children } = await supabase
+        .from("children")
+        .select("id")
+        .eq("parent_id", user!.id);
+      
+      if (!children?.length) {
+        // Also check child_guardians for non-primary parents
+        const { data: guardianLinks } = await supabase
+          .from("child_guardians")
+          .select("child_id")
+          .eq("guardian_id", user!.id);
+        
+        const guardianChildIds = guardianLinks?.map(g => g.child_id) || [];
+        if (!guardianChildIds.length) return new Set<string>();
+        
+        const { data: assignments } = await supabase
+          .from("child_mini_league_assignments")
+          .select("mini_league_id")
+          .in("child_id", guardianChildIds);
+        
+        return new Set(assignments?.map(a => a.mini_league_id) || []);
+      }
+      
+      const childIds = children.map(c => c.id);
+      
+      // Also include guardian children
+      const { data: guardianLinks } = await supabase
+        .from("child_guardians")
+        .select("child_id")
+        .eq("guardian_id", user!.id);
+      
+      guardianLinks?.forEach(g => {
+        if (!childIds.includes(g.child_id)) childIds.push(g.child_id);
+      });
+      
+      const { data: assignments } = await supabase
+        .from("child_mini_league_assignments")
+        .select("mini_league_id")
+        .in("child_id", childIds);
+      
+      return new Set(assignments?.map(a => a.mini_league_id) || []);
+    },
+    enabled: !!user && initialized,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Check if user has any Pro access
   // Pro Access Logic: Club Pro → all teams inherit; Free club → check team subscription
   const { data: hasAnyProAccess, isLoading: isLoadingProAccess, isFetching: isFetchingProAccess } = useQuery({
