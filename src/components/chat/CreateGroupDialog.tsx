@@ -30,6 +30,7 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 interface CreateGroupDialogProps {
   clubId?: string;
   teamId?: string;
+  miniLeagueId?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
