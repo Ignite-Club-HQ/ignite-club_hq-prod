@@ -294,7 +294,7 @@ export default function CreateGroupDialog({ clubId, teamId, open: controlledOpen
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[200]">
                       <SelectItem value="team">Team Group</SelectItem>
                       <SelectItem value="club" disabled={!hasAnyClubWithPro}>
                         <span className="flex items-center gap-2">
@@ -323,7 +323,7 @@ export default function CreateGroupDialog({ clubId, teamId, open: controlledOpen
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choose a team..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[200]">
                         {filteredAdminTeams.map((team) => (
                           <SelectItem key={team.id} value={team.id}>
                             {team.name} ({team.clubs?.name})
@@ -345,7 +345,7 @@ export default function CreateGroupDialog({ clubId, teamId, open: controlledOpen
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choose a club with Pro..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[200]">
                         {clubsWithPro.map((club) => (
                           <SelectItem key={club.id} value={club.id}>
                             {club.name}
