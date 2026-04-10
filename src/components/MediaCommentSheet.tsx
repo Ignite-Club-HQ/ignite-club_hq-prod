@@ -374,7 +374,7 @@ export function MediaCommentSheet({
           ? `top-0 transition-opacity duration-200 ${isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`
           : `top-0 transition-transform duration-300 ${isVisible ? "translate-y-0" : "translate-y-full"}`
       }`}
-      style={isIOS ? { top: 0, bottom: 0 } : { height: sheetHeight }}
+      style={{ top: 0, bottom: 0 }}
       data-lock-keyboard-scroll="true"
     >
       {/* Safe-area spacer — pushes content below status bar / Dynamic Island */}
