@@ -1656,11 +1656,6 @@ export default function ClubDetailPage() {
                     <span>•</span>
                     <span>{clubMemberCount?.juniors ?? 0} Juniors</span>
                   </div>
-                  {clubMemberCount && clubMemberCount.newThisMonth > 0 && (
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
-                      +{clubMemberCount.newThisMonth} this month
-                    </span>
-                  )}
                 </div>
               </div>
             </AccordionTrigger>
