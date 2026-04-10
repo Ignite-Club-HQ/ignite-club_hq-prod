@@ -99,6 +99,56 @@ const getCachedDirectMessages = (conversationId: string): DirectMessage[] =>
     })),
   }));
 
+const toCachedDirectMessages = (messages: DirectMessage[]): CachedMessage[] =>
+  messages.map((message) => ({
+    id: message.id,
+    text: message.text,
+    author_id: message.author_id,
+    created_at: message.created_at,
+    image_url: message.image_url,
+    reply_to_id: message.reply_to_id,
+    profiles: message.author
+      ? { display_name: message.author.display_name, avatar_url: message.author.avatar_url }
+      : null,
+    reactions: message.reactions || [],
+    reply_to: message.reply_to ? { text: message.reply_to.text, author: message.reply_to.author } : null,
+  }));
+
+const cacheDirectMessages = (conversationId: string, messages: DirectMessage[]) => {
+  cacheMessages("dm", conversationId, toCachedDirectMessages(messages));
+};
+
+const mergeDirectMessages = (
+  incomingMessages: DirectMessage[],
+  previousMessages?: DirectMessage[] | null,
+): DirectMessage[] => {
+  if (!previousMessages?.length) return incomingMessages;
+
+  return incomingMessages.map((message) => {
+    const previousMessage = previousMessages.find((item) => item.id === message.id);
+    if (!previousMessage) return message;
+
+    const previousReactions = previousMessage.reactions || [];
+    const incomingReactions = message.reactions || [];
+    const incomingByUser = new Map<string, (typeof incomingReactions)[number]>();
+
+    incomingReactions.forEach((reaction) => {
+      incomingByUser.set(reaction.user_id, reaction);
+    });
+
+    const incomingIds = new Set(incomingReactions.map((reaction) => reaction.id));
+    const missingFromIncoming = previousReactions.filter((reaction) => {
+      if (incomingIds.has(reaction.id)) return false;
+      return !incomingByUser.has(reaction.user_id);
+    });
+
+    return {
+      ...message,
+      reactions: [...incomingReactions, ...missingFromIncoming],
+    };
+  });
+};
+
 export default function DirectMessagePage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
