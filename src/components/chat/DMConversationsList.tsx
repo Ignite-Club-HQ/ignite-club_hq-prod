@@ -335,7 +335,8 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
       {filteredConversations.map((conv) => {
         const isOwn = conv.last_message?.author_id === user?.id;
         const isIgniteSupport = isIgniteSupportUser(conv.other_user?.id);
-        const displayName = isIgniteSupport ? "Ignite Support" : (conv.other_user?.display_name || "Unknown User");
+        const profileLoading = !conv.other_user?.display_name && isFetching;
+        const displayName = isIgniteSupport ? "Ignite Support" : (conv.other_user?.display_name || (profileLoading ? null : "Unknown User"));
         
         return (
           <Card key={conv.id} className="hover:border-primary/50 transition-colors cursor-pointer">
