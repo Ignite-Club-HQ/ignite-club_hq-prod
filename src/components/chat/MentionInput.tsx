@@ -399,7 +399,7 @@ export function MentionInput({
             rows={1}
             wrap="soft"
             className={`relative z-10 w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[13px] pb-[7px] text-base leading-[1.4] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
-            style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box' }}
+            style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default' } as React.CSSProperties}
           />
         </div>
       </div>
