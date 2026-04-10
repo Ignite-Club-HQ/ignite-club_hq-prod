@@ -349,7 +349,7 @@ export function MentionInput({
   }, [value, onChange, isNativeIOS]);
 
   return (
-    <div className="relative flex-1 space-y-2">
+    <div className="relative flex-1 min-w-0 space-y-2">
       {/* URL Previews */}
       {detectedUrls.length > 0 && (
         <div className="space-y-2">
