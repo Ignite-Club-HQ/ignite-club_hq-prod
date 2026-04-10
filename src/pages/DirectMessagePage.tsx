@@ -1116,7 +1116,7 @@ export default function DirectMessagePage() {
            <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
            <div
              ref={composerRef}
-             className="fixed left-0 right-0 border-t pt-1 pb-2 px-2 bg-background z-[51]"
+             className="fixed left-0 right-0 w-full max-w-full overflow-hidden border-t pt-1 pb-2 px-2 bg-background z-[51]"
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
              {replyTo && (
@@ -1125,8 +1125,8 @@ export default function DirectMessagePage() {
                  onCancel={() => setReplyTo(null)}
                />
              )}
-             {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-              <div className="flex items-end gap-1.5">
+              {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
+               <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden">
                <MentionInput
                  value={message}
                  onChange={setMessage}

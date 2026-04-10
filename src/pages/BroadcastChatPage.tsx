@@ -1018,11 +1018,11 @@ export default function BroadcastChatPage() {
 
       {/* Input (only for app admins) */}
       {isAppAdmin && (
-        <div ref={composerRef} className="border-t py-4">
+        <div ref={composerRef} className="w-full max-w-full overflow-hidden border-t py-4">
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-          <div className="flex items-end gap-1.5">
+          <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
