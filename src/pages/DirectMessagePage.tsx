@@ -342,7 +342,7 @@ export default function DirectMessagePage() {
         }])
       );
 
-      const messages = dataToDisplay.map((msg: any) => {
+      const fetchedMessages = dataToDisplay.map((msg: any) => {
         const replyTo = msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null;
         const profile = profilesMap.get(msg.author_id);
         const msgReactions = reactionsResult.error
@@ -357,20 +357,9 @@ export default function DirectMessagePage() {
           reactions: msgReactions,
         };
       }) as DirectMessage[];
-      
-      // Cache messages for offline/fast reload
-      const messagesToCache: CachedMessage[] = messages.map(m => ({
-        id: m.id,
-        text: m.text,
-        author_id: m.author_id,
-        created_at: m.created_at,
-        image_url: m.image_url,
-        reply_to_id: m.reply_to_id,
-        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
-        reactions: m.reactions || [],
-        reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
-      }));
-      cacheMessages("dm", conversationId!, messagesToCache);
+
+      const messages = mergeDirectMessages(fetchedMessages, cachedDmMessages);
+      cacheDirectMessages(conversationId!, messages);
       
       return {
         messages,
