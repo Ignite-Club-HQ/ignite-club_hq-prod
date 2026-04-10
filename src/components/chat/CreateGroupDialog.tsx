@@ -410,6 +410,24 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                     </Select>
                   </div>
                 )}
+
+                {groupType === "league" && (
+                  <div className="space-y-2">
+                    <Label>Select League</Label>
+                    <Select value={selectedMiniLeagueId} onValueChange={setSelectedMiniLeagueId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Choose a league..." />
+                      </SelectTrigger>
+                      <SelectContent className="z-[100000]">
+                        {adminMiniLeagues.map((league: any) => (
+                          <SelectItem key={league.id} value={league.id}>
+                            {league.name} ({league.clubs?.name})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </>
             )}
             
