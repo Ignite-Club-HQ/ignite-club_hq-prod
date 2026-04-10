@@ -48,6 +48,7 @@ export function MentionInput({
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Auto-resize textarea
@@ -58,6 +59,10 @@ export function MentionInput({
     const maxHeight = 120; // ~5 lines
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+    // Sync highlight overlay scroll
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = textarea.scrollTop;
+    }
   }, []);
 
   // Re-adjust height when value changes (including reset on send)
@@ -368,6 +373,7 @@ export function MentionInput({
         <div className="relative flex-1">
           {/* Highlight overlay for mentions */}
            <div
+            ref={highlightRef}
             aria-hidden="true"
             className="absolute inset-0 pointer-events-none text-base px-2 pt-[13px] pb-[7px] leading-[1.4] whitespace-pre-wrap break-words text-transparent overflow-hidden"
             style={{ maxHeight: '120px' }}
@@ -383,6 +389,11 @@ export function MentionInput({
             value={displayValue}
             onChange={handleDisplayChange}
             onKeyDown={handleKeyDown}
+            onScroll={() => {
+              if (highlightRef.current && inputRef.current) {
+                highlightRef.current.scrollTop = inputRef.current.scrollTop;
+              }
+            }}
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
