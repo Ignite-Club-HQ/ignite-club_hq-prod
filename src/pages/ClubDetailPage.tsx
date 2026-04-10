@@ -146,11 +146,12 @@ export default function ClubDetailPage() {
   const { data: clubMemberCount } = useQuery({
     queryKey: ["club-members-count", id],
     queryFn: async () => {
-      // Get team IDs for this club
+      // Get team IDs for this club (exclude deleted teams)
       const { data: teamsData } = await supabase
         .from("teams")
         .select("id")
-        .eq("club_id", id!);
+        .eq("club_id", id!)
+        .is("deleted_at", null);
       const teamIds = teamsData?.map(t => t.id) || [];
 
       // Count unique adult users from roles
@@ -176,11 +177,12 @@ export default function ClubDetailPage() {
       // Count unique children assigned to teams in this club
       let juniors = 0;
       if (teamIds.length > 0) {
-        const { count } = await supabase
+        const { data: childAssignments } = await supabase
           .from("child_team_assignments")
-          .select("child_id", { count: "exact", head: true })
+          .select("child_id")
           .in("team_id", teamIds);
-        juniors = count || 0;
+        const uniqueChildren = new Set(childAssignments?.map(a => a.child_id) || []);
+        juniors = uniqueChildren.size;
       }
 
       // Growth this month - count roles created this month
