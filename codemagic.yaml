@@ -712,8 +712,8 @@ workflows:
         script: |
           set -euo pipefail
           ROOT_DIR="$(pwd)"
-          APP_VERSION="1.2.12"
-          NEXT_BUILD_NUMBER="20260413"
+          APP_VERSION="1.2.13"
+          NEXT_BUILD_NUMBER="20260414"
           PROJECT_FILE="$ROOT_DIR/ios/App/App.xcodeproj/project.pbxproj"
           PLIST_FILE="$ROOT_DIR/ios/App/App/Info.plist"
 
