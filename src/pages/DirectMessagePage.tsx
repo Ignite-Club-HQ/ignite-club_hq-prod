@@ -426,6 +426,7 @@ export default function DirectMessagePage() {
     setLocalMessages((prev) => {
       if (messages.length === 0 && messagesLoading) return prev;
 
+      const prevLen = prev?.length ?? 0;
       const mergedMessages = !prev
         ? messages
         : messages.map((message) => {
@@ -465,6 +466,11 @@ export default function DirectMessagePage() {
         reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
       }));
       cacheMessages("dm", conversationId, messagesToCache);
+
+      // If new messages arrived (e.g. fresh fetch has more than cache), ensure we scroll to bottom
+      if (mergedMessages.length > prevLen) {
+        requestAnimationFrame(() => scrollChatToBottom(scrollAreaRef.current));
+      }
 
       return mergedMessages;
     });
