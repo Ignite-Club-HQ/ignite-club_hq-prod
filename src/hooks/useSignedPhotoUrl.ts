@@ -7,7 +7,7 @@ const urlCache = new Map<string, { url: string; expiresAt: number }>();
 // Cache duration: 50 minutes (signed URLs valid for 60 minutes)
 const CACHE_DURATION_MS = 50 * 60 * 1000;
 const SIGNED_URL_EXPIRES_IN_SECONDS = 3600;
-const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = 5000;
 const PRIVATE_BUCKETS = ["photos", "chat-attachments", "avatars"] as const;
 
 type PrivateBucket = (typeof PRIVATE_BUCKETS)[number];
