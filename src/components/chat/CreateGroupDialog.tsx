@@ -334,6 +334,7 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                       if (v === "club") setSelectedClubId(activeClubFilter || "");
                     }}
                     disabled={isClubFiltered && groupType !== "league"}
+                    modal={false}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -374,7 +375,7 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                 {groupType === "team" && (
                   <div className="space-y-2">
                     <Label>Select Team</Label>
-                    <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                    <Select value={selectedTeamId} onValueChange={setSelectedTeamId} modal={false}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choose a team..." />
                       </SelectTrigger>
@@ -396,6 +397,7 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                       value={selectedClubId} 
                       onValueChange={setSelectedClubId}
                       disabled={isClubFiltered}
+                      modal={false}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choose a club with Pro..." />
@@ -414,7 +416,7 @@ export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: 
                 {groupType === "league" && (
                   <div className="space-y-2">
                     <Label>Select League</Label>
-                    <Select value={selectedMiniLeagueId} onValueChange={setSelectedMiniLeagueId}>
+                    <Select value={selectedMiniLeagueId} onValueChange={setSelectedMiniLeagueId} modal={false}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choose a league..." />
                       </SelectTrigger>
