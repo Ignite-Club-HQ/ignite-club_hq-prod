@@ -389,9 +389,14 @@ export default function DirectMessagePage() {
     }
   }, [localMessages, user?.id, markMessagesAsRead]);
   useEffect(() => {
-    setLocalMessages(conversationId ? getCachedDirectMessages(conversationId) : undefined);
+    // Only reset from cache if the query hasn't already returned fresh data.
+    // This prevents stale cache (missing reactions etc.) from overwriting
+    // fresher query results that were merged by the useLayoutEffect above.
+    if (!messagesData) {
+      setLocalMessages(conversationId ? getCachedDirectMessages(conversationId) : undefined);
+    }
     setInfiniteScrollEnabled(false);
-  }, [conversationId]);
+  }, [conversationId, messagesData]);
 
   const { isPinned } = useInitialChatBottomPin({
     scrollContainerRef: scrollAreaRef,
