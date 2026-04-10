@@ -961,7 +961,7 @@ export default function BroadcastChatPage() {
             ref={scrollAreaRef}
             style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
           >
-            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? "8rem" : "3rem" }}>
+            <div className="space-y-4 p-4" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
               {/* Invisible trigger for infinite scroll */}
               {hasOlderMessages && !searchQuery && (
                 <div ref={loadTriggerRef} className="h-1" />
@@ -1020,7 +1020,9 @@ export default function BroadcastChatPage() {
 
       {/* Input (only for app admins) */}
       {isAppAdmin && (
-        <div ref={composerRef} className="w-full max-w-full overflow-hidden border-t py-4">
+        <>
+        <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
+        <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-hidden border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
@@ -1056,10 +1058,8 @@ export default function BroadcastChatPage() {
               )}
             </button>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Contact support@ignuteclubhq.app for technical enquiries
-          </p>
         </div>
+        </>
       )}
     </div>
   );
