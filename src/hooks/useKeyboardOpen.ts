@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
 
@@ -11,21 +11,31 @@ const KEYBOARD_OPEN_THRESHOLD = 100;
 export function useKeyboardOpen(threshold = KEYBOARD_OPEN_THRESHOLD) {
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const { isKeyboardOpen, keyboardHeight } = useNativeIOSKeyboardState();
+  const [fallbackOpen, setFallbackOpen] = useState(false);
 
-  return useMemo(() => {
-    if (isNativeIOS) {
-      return isKeyboardOpen || keyboardHeight > threshold;
-    }
+  useEffect(() => {
+    if (isNativeIOS) return;
 
     const vv = window.visualViewport;
-    if (!vv) return false;
+    if (!vv) return;
 
     let baselineHeight = vv.height;
-    if (vv.height > baselineHeight) {
-      baselineHeight = vv.height;
-    }
 
-    return baselineHeight - vv.height > threshold;
-  }, [isNativeIOS, isKeyboardOpen, keyboardHeight, threshold]);
+    const update = () => {
+      if (vv.height > baselineHeight) {
+        baselineHeight = vv.height;
+      }
+      setFallbackOpen(baselineHeight - vv.height > threshold);
+    };
+
+    update();
+    vv.addEventListener("resize", update);
+
+    return () => {
+      vv.removeEventListener("resize", update);
+    };
+  }, [isNativeIOS, threshold]);
+
+  return isNativeIOS ? (isKeyboardOpen || keyboardHeight > threshold) : fallbackOpen;
 }
 
