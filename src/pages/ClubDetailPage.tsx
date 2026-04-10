@@ -142,7 +142,7 @@ export default function ClubDetailPage() {
   });
 
 
-  // Fast count-only query for the badge - uses count aggregation, no profile data
+  // Fast count-only query for the badge - returns adults, juniors, total, and growth
   const { data: clubMemberCount } = useQuery({
     queryKey: ["club-members-count", id],
     queryFn: async () => {
@@ -153,7 +153,7 @@ export default function ClubDetailPage() {
         .eq("club_id", id!);
       const teamIds = teamsData?.map(t => t.id) || [];
 
-      // Fetch unique user IDs only (no joins)
+      // Count unique adult users from roles
       const userIdSet = new Set<string>();
 
       const { data: clubRoles } = await supabase
@@ -171,7 +171,42 @@ export default function ClubDetailPage() {
         teamRoles?.forEach(r => userIdSet.add(r.user_id));
       }
 
-      return userIdSet.size;
+      const adults = userIdSet.size;
+
+      // Count unique children assigned to teams in this club
+      let juniors = 0;
+      if (teamIds.length > 0) {
+        const { count } = await supabase
+          .from("child_team_assignments")
+          .select("child_id", { count: "exact", head: true })
+          .in("team_id", teamIds);
+        juniors = count || 0;
+      }
+
+      // Growth this month - count roles created this month
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const monthStart = startOfMonth.toISOString();
+
+      let newThisMonth = 0;
+      const { count: newClubRoles } = await supabase
+        .from("user_roles")
+        .select("user_id", { count: "exact", head: true })
+        .eq("club_id", id!)
+        .gte("created_at", monthStart);
+      newThisMonth += newClubRoles || 0;
+
+      if (teamIds.length > 0) {
+        const { count: newTeamRoles } = await supabase
+          .from("user_roles")
+          .select("user_id", { count: "exact", head: true })
+          .in("team_id", teamIds)
+          .gte("created_at", monthStart);
+        newThisMonth += newTeamRoles || 0;
+      }
+
+      return { adults, juniors, total: adults + juniors, newThisMonth };
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000, // 5 min
@@ -1606,10 +1641,25 @@ export default function ClubDetailPage() {
         {isMember && (
           <AccordionItem value="members" className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                <span className="text-lg font-semibold">{club?.class_mode_enabled ? "Members" : "Club Members"}</span>
-                {clubMemberCount != null && <Badge className="ml-2 font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{clubMemberCount}</Badge>}
+              <div className="flex items-start gap-2">
+                <Users className="h-5 w-5 text-primary mt-1" />
+                <div className="flex flex-col items-start">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold">
+                      👥 {clubMemberCount?.total ?? "—"} Members
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
+                    <span>{clubMemberCount?.adults ?? 0} Adults</span>
+                    <span>•</span>
+                    <span>{clubMemberCount?.juniors ?? 0} Juniors</span>
+                  </div>
+                  {clubMemberCount && clubMemberCount.newThisMonth > 0 && (
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                      +{clubMemberCount.newThisMonth} this month
+                    </span>
+                  )}
+                </div>
               </div>
             </AccordionTrigger>
             <AccordionContent>
