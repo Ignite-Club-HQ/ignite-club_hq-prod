@@ -94,7 +94,7 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
   }
 
   return (
-    <div className="flex gap-3 py-2 min-w-0 overflow-hidden">
+    <div className="flex w-full max-w-full gap-3 py-2 px-3 min-w-0 overflow-hidden rounded-lg bg-muted/80 dark:bg-muted/60 border border-border/40">
       {preview.image && (
         <div className="w-16 h-16 shrink-0 rounded overflow-hidden">
           <img

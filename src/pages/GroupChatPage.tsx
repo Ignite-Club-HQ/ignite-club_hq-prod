@@ -1554,7 +1554,7 @@ export default function GroupChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} className="fixed left-0 right-0 border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-hidden border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview
@@ -1574,7 +1574,7 @@ export default function GroupChatPage() {
             </Button>
           </div>
         )}
-        <div className="flex items-end gap-1.5">
+        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden">
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
             imageUrl={imageUrl} 

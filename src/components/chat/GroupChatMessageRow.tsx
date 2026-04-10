@@ -420,10 +420,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                   };
                 })() : undefined}
               >
-                {msg.image_url && (
-                  <img src={msg.image_url} alt="Attachment" className="max-w-xs rounded mb-2" />
-                )}
-                <div className="text-sm overflow-hidden"><MessageContent text={msg.text} /></div>
+                <div className="text-sm overflow-hidden"><MessageContent text={msg.text} imageUrl={msg.image_url} /></div>
               </div>
             </div>
           </div>
@@ -563,6 +560,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         canReply={true}
         canEdit={isOwnMessage}
         canDelete={isOwnMessage || isAdmin}
+        messageText={msg.text}
         onReply={() => { handleReply(msg); closeActionUi(); }}
         onEdit={() => { handleEdit(msg); closeActionUi(); }}
         onDelete={() => { setShowDeleteConfirm(true); closeActionUi(); }}

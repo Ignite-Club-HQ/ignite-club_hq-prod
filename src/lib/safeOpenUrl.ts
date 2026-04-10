@@ -11,7 +11,7 @@ import { Capacitor } from '@capacitor/core';
  * Falls back to window.open if the Browser plugin isn't available.
  */
 // URLs that should open in their native app rather than an in-app browser
-const NATIVE_APP_DOMAINS = ['facebook.com', 'fb.com', 'fb.me', 'instagram.com', 'twitter.com', 'x.com'];
+const NATIVE_APP_DOMAINS = ['facebook.com', 'fb.com', 'fb.me', 'instagram.com', 'twitter.com', 'x.com', 'docs.google.com', 'sheets.google.com', 'drive.google.com'];
 
 function shouldOpenInNativeApp(url: string): boolean {
   try {

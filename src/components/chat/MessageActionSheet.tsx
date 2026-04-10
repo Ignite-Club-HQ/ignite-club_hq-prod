@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link } from "lucide-react";
 import {
   Sheet,
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { toast } from "sonner";
 
 interface MessageAction {
   label: string;
@@ -12,6 +13,25 @@ interface MessageAction {
   onClick: () => void;
   destructive?: boolean;
 }
+
+// Extract plain URLs from message text
+const extractUrls = (text: string): string[] => {
+  const urlRegex = /(?:https?:\/\/|www\.)[^\s\]]+/gi;
+  const markdownLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+  const urls: string[] = [];
+  
+  let match;
+  while ((match = markdownLinkRegex.exec(text)) !== null) {
+    urls.push(match[2]);
+  }
+  while ((match = urlRegex.exec(text)) !== null) {
+    // Skip if this URL was already captured as part of a markdown link
+    if (!urls.includes(match[0])) {
+      urls.push(match[0]);
+    }
+  }
+  return urls;
+};
 
 interface MessageActionSheetProps {
   open: boolean;
@@ -22,6 +42,7 @@ interface MessageActionSheetProps {
   canEdit: boolean;
   canDelete: boolean;
   isSystemMessage?: boolean;
+  messageText?: string;
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -37,6 +58,7 @@ export function MessageActionSheet({
   canEdit,
   canDelete,
   isSystemMessage,
+  messageText,
   onReply,
   onEdit,
   onDelete,
@@ -61,6 +83,50 @@ export function MessageActionSheet({
       icon: <Pencil className="h-5 w-5" />,
       onClick: onEdit,
     });
+  }
+
+  // Copy message text
+  if (messageText) {
+    actions.push({
+      label: "Copy Message",
+      icon: <Copy className="h-5 w-5" />,
+      onClick: () => {
+        navigator.clipboard.writeText(messageText).then(() => {
+          toast.success("Message copied");
+        }).catch(() => {
+          toast.error("Failed to copy");
+        });
+      },
+    });
+
+    // Copy link if message contains URLs
+    const urls = extractUrls(messageText);
+    if (urls.length === 1) {
+      actions.push({
+        label: "Copy Link",
+        icon: <Link className="h-5 w-5" />,
+        onClick: () => {
+          navigator.clipboard.writeText(urls[0]).then(() => {
+            toast.success("Link copied");
+          }).catch(() => {
+            toast.error("Failed to copy");
+          });
+        },
+      });
+    } else if (urls.length > 1) {
+      // Copy first link, user can copy message for all
+      actions.push({
+        label: "Copy Link",
+        icon: <Link className="h-5 w-5" />,
+        onClick: () => {
+          navigator.clipboard.writeText(urls[0]).then(() => {
+            toast.success("Link copied");
+          }).catch(() => {
+            toast.error("Failed to copy");
+          });
+        },
+      });
+    }
   }
 
   if (canDelete) {
