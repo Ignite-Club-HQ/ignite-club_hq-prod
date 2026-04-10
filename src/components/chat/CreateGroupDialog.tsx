@@ -44,7 +44,7 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "player", label: "Players" },
 ];
 
-export default function CreateGroupDialog({ clubId, teamId, open: controlledOpen, onOpenChange }: CreateGroupDialogProps) {
+export default function CreateGroupDialog({ clubId, teamId, miniLeagueId, open: controlledOpen, onOpenChange }: CreateGroupDialogProps) {
   const { user } = useAuth();
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
   const queryClient = useQueryClient();
@@ -53,7 +53,10 @@ export default function CreateGroupDialog({ clubId, teamId, open: controlledOpen
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string>(teamId || "");
   const [selectedClubId, setSelectedClubId] = useState<string>(clubId || "");
-  const [groupType, setGroupType] = useState<"team" | "club">(teamId ? "team" : clubId ? "club" : "team");
+  const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>(miniLeagueId || "");
+  const [groupType, setGroupType] = useState<"team" | "club" | "league">(
+    miniLeagueId ? "league" : teamId ? "team" : clubId ? "club" : "team"
+  );
 
   // Use controlled or uncontrolled state
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
