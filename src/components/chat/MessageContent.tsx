@@ -241,7 +241,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     href={part.content}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary underline hover:opacity-80"
+                    className="underline hover:opacity-80"
                     onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(part.content); }}
                   >
                     {part.linkText}
