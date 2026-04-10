@@ -387,8 +387,171 @@ Deno.serve(async (req) => {
       console.log(`RSVP ${rsvp.id}: Awarded ${attendancePts} attendance points to ${roleLabel} ${rsvp.user_id} (total: ${newPts})`);
     }
 
-    const totalPoints = pointsAwarded + attendancePointsAwarded;
-    console.log(`Processing complete. Duties: ${processedCount}, Attendance: ${attendanceProcessed}, Total points: ${totalPoints}, Emails: ${emailsSent}`);
+    // ── CHILD attendance points ──
+    let childAttendanceProcessed = 0;
+    let childAttendancePointsAwarded = 0;
+
+    const { data: childRsvps, error: childRsvpError } = await supabase
+      .from('rsvps')
+      .select(`
+        id,
+        child_id,
+        user_id,
+        event_id,
+        events!inner (
+          id,
+          event_date,
+          club_id,
+          team_id,
+          type,
+          clubs!inner (
+            id,
+            name,
+            logo_url,
+            is_pro
+          )
+        )
+      `)
+      .eq('status', 'going')
+      .eq('attendance_points_awarded', false)
+      .not('child_id', 'is', null)
+      .lt('events.event_date', twentyFourHoursAgo);
+
+    if (childRsvpError) {
+      console.error('Error fetching child RSVPs:', childRsvpError);
+    }
+
+    for (const rsvp of childRsvps || []) {
+      const event = rsvp.events as any;
+      const club = event?.clubs;
+
+      // Check Pro status
+      let isPro = club?.is_pro === true;
+      if (!isPro && event?.team_id) {
+        const { data: teamSub } = await supabase
+          .from('team_subscriptions')
+          .select('is_pro, is_pro_football')
+          .eq('team_id', event.team_id)
+          .maybeSingle();
+        isPro = teamSub?.is_pro === true || teamSub?.is_pro_football === true;
+      }
+
+      if (isPro && club?.id) {
+        const { data: clubSub } = await supabase
+          .from('club_subscriptions')
+          .select('disable_points_system')
+          .eq('club_id', club.id)
+          .maybeSingle();
+        if (clubSub?.disable_points_system) {
+          isPro = false;
+        }
+      }
+
+      if (!isPro) {
+        await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
+        childAttendanceProcessed++;
+        continue;
+      }
+
+      const childAttendancePts = 3;
+
+      const { data: childNewPts, error: childRpcErr } = await supabase.rpc('increment_child_ignite_points', {
+        _child_id: rsvp.child_id,
+        _amount: childAttendancePts,
+      });
+
+      if (childRpcErr) {
+        console.error(`Error awarding child attendance points for child ${rsvp.child_id}:`, childRpcErr);
+        await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
+        childAttendanceProcessed++;
+        continue;
+      }
+
+      const childNewBalance = childNewPts || 0;
+      const childPreviousBalance = childNewBalance - childAttendancePts;
+
+      await supabase.from('points_history').insert({
+        child_id: rsvp.child_id,
+        user_id: rsvp.user_id,
+        club_id: club?.id || null,
+        amount: childAttendancePts,
+        balance_after: childNewBalance,
+        source_type: 'attendance',
+        source_id: event.id,
+        description: 'Event attendance bonus',
+      });
+
+      await supabase.from('rsvps').update({ attendance_points_awarded: true }).eq('id', rsvp.id);
+
+      // Check reward threshold for child
+      const { data: childRewards } = await supabase
+        .from('club_rewards')
+        .select('id, name, points_required')
+        .eq('club_id', club?.id)
+        .eq('is_active', true)
+        .lte('points_required', childNewBalance)
+        .gt('points_required', childPreviousBalance)
+        .order('points_required', { ascending: false })
+        .limit(1);
+
+      let childRewardUnlocked = false;
+      let childRewardName: string | undefined;
+      if (childRewards && childRewards.length > 0) {
+        childRewardUnlocked = true;
+        childRewardName = childRewards[0].name;
+      }
+
+      // Get child name for notification
+      const { data: childData } = await supabase
+        .from('children')
+        .select('name')
+        .eq('id', rsvp.child_id)
+        .single();
+      const childName = childData?.name || 'Your child';
+
+      // Notify parent
+      if (rsvp.user_id) {
+        if (childRewardUnlocked) {
+          await supabase.from('notifications').insert({
+            user_id: rsvp.user_id,
+            type: 'reward_unlocked',
+            message: `🎁 ${childName} unlocked a reward: ${childRewardName}!`,
+          });
+        }
+        await supabase.from('notifications').insert({
+          user_id: rsvp.user_id,
+          type: 'points_awarded',
+          message: `${childName} earned ${childAttendancePts} points for attending! 🔥`,
+          related_id: event.id,
+        });
+
+        // Send email to parent
+        try {
+          await supabase.functions.invoke('send-points-notification-email', {
+            body: {
+              recipientUserId: rsvp.user_id,
+              pointsAwarded: childAttendancePts,
+              reason: `${childName} – Event attendance`,
+              totalPoints: childNewBalance,
+              clubName: club?.name || 'Your Club',
+              clubLogoUrl: club?.logo_url,
+              rewardUnlocked: childRewardUnlocked,
+              rewardName: childRewardName,
+            },
+          });
+          emailsSent++;
+        } catch (e) {
+          console.error('Error sending child attendance points email:', e);
+        }
+      }
+
+      childAttendanceProcessed++;
+      childAttendancePointsAwarded += childAttendancePts;
+      console.log(`Child RSVP ${rsvp.id}: Awarded ${childAttendancePts} attendance points to child ${rsvp.child_id} (total: ${childNewBalance})`);
+    }
+
+    const totalPoints = pointsAwarded + attendancePointsAwarded + childAttendancePointsAwarded;
+    console.log(`Processing complete. Duties: ${processedCount}, Attendance: ${attendanceProcessed}, Child attendance: ${childAttendanceProcessed}, Total points: ${totalPoints}, Emails: ${emailsSent}`);
 
     return new Response(
       JSON.stringify({
@@ -397,6 +560,8 @@ Deno.serve(async (req) => {
         pointsAwarded,
         attendanceProcessed,
         attendancePointsAwarded,
+        childAttendanceProcessed,
+        childAttendancePointsAwarded,
         emailsSent,
       }),
       { 
