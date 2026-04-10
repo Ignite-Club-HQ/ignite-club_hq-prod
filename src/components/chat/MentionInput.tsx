@@ -48,6 +48,7 @@ export function MentionInput({
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Auto-resize textarea
