@@ -560,6 +560,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         canReply={true}
         canEdit={isOwnMessage}
         canDelete={isOwnMessage || isAdmin}
+        messageText={msg.text}
         onReply={() => { handleReply(msg); closeActionUi(); }}
         onEdit={() => { handleEdit(msg); closeActionUi(); }}
         onDelete={() => { setShowDeleteConfirm(true); closeActionUi(); }}

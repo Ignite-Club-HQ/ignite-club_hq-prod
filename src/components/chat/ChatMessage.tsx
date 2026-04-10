@@ -776,6 +776,7 @@ export const ChatMessage = memo(function ChatMessage({
           canEdit={isOwn && !imageUrl}
           canDelete={canDelete}
           isSystemMessage={isSystemMessage}
+          messageText={text}
           onReply={handleReply}
           onEdit={handleStartEdit}
           onDelete={handleDelete}
