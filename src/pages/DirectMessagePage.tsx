@@ -606,18 +606,7 @@ export default function DirectMessagePage() {
           reply_to: currentReplyTo ? { text: currentReplyTo.text, author: currentReplyTo.author } : null,
         });
       
-      const messagesToCache: CachedMessage[] = realMessages.map(m => ({
-        id: m.id,
-        text: m.text,
-        author_id: m.author_id,
-        created_at: m.created_at,
-        image_url: m.image_url,
-        reply_to_id: m.reply_to_id,
-        profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
-        reactions: m.reactions || [],
-        reply_to: m.reply_to ? { text: m.reply_to.text, author: m.reply_to.author } : null,
-      }));
-      cacheMessages("dm", conversationId!, messagesToCache);
+      cacheDirectMessages(conversationId!, realMessages);
       
       // Unhide conversation if it was hidden (so it reappears for both users)
       await supabase
