@@ -1588,9 +1588,12 @@ export default function ClubDetailPage() {
         defaultValue={[]} 
         className="space-y-4"
         onValueChange={(value) => {
-          // Auto-refresh members list when expanding if empty
-          if (value.includes("members") && Object.keys(clubMembers).length === 0 && !isMembersLoading && !isMembersFetching) {
-            refetchClubMembers();
+          if (value.includes("members")) {
+            setMembersExpanded(true);
+            // Auto-refresh members list when expanding if empty
+            if (Object.keys(clubMembers).length === 0 && !isMembersLoading && !isMembersFetching) {
+              refetchClubMembers();
+            }
           }
         }}
       >
