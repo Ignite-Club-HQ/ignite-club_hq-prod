@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link } from "lucide-react";
 import {
   Sheet,
   SheetContent,
