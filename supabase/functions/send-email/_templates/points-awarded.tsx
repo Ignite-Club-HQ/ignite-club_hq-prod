@@ -67,7 +67,7 @@ export const PointsAwardedEmail = ({
   rewardUnlocked = false,
   rewardName = "",
 }: PointsAwardedEmailProps) => {
-  const previewText = `You earned ${pointsAwarded} Ignite points!${rewardUnlocked ? ' 🎉 New reward unlocked!' : ''}`;
+  const previewText = `You earned ${pointsAwarded} Reward points!${rewardUnlocked ? ' 🎉 New reward unlocked!' : ''}`;
   const normalizedProfileLink = normalizeLink(profileLink);
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
   const isPositive = pointsAwarded > 0;
@@ -116,8 +116,8 @@ export const PointsAwardedEmail = ({
             
             <Text style={paragraph}>
               {isPositive 
-                ? `Great news! You've earned Ignite points for your contribution.`
-                : `Your Ignite points balance has been updated.`
+                ? `Great news! You've earned Reward points for your contribution.`
+                : `Your Reward points balance has been updated.`
               }
             </Text>
 
@@ -168,7 +168,7 @@ export const PointsAwardedEmail = ({
           {/* Footer */}
           <Section style={footerSection}>
             <Text style={footerText}>
-              This notification was sent by {clubName}. You received this because your Ignite points were updated.
+              This notification was sent by {clubName}. You received this because your Reward points were updated.
             </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
               <tr>
