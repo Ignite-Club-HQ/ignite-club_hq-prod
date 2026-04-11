@@ -1134,137 +1134,173 @@ export default function GroupChatPage() {
 
   // Toggle reaction mutation with optimistic updates
   // Rule: One reaction per user per message. Clicking same emoji removes it, different emoji replaces it.
+  const lastReactionIntentRef = useRef<Record<string, { reactionType: string; action: "add" | "remove" | "update" }>>({});
+
   const toggleReactionMutation = useMutation({
     retry: 1,
     mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
       if (!user) return { action: 'none' as const };
-      
+
       console.log('[Reaction] Starting mutation for message:', messageId, 'type:', reactionType);
-      
-      // Query DATABASE directly for existing reaction (not cache - cache is modified by onMutate)
+
+      const optimisticIntent = lastReactionIntentRef.current[messageId];
+
       const { data: existingReaction, error: fetchError } = await supabase
         .from("message_reactions")
         .select("id, reaction_type")
         .eq("group_message_id", messageId)
         .eq("user_id", user.id)
         .maybeSingle();
-      
+
       if (fetchError) {
         console.error('[Reaction] Fetch existing error:', fetchError);
         throw fetchError;
       }
-      
-      console.log('[Reaction] Existing reaction from DB:', existingReaction);
-      
+
+      console.log('[Reaction] Existing reaction from DB:', existingReaction, 'optimisticIntent:', optimisticIntent);
+
       if (existingReaction) {
         if (existingReaction.reaction_type === reactionType) {
-          // Same emoji - remove reaction
           console.log('[Reaction] Removing existing reaction');
           const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
           if (error) {
             console.error('[Reaction] Delete error:', error);
             throw error;
           }
-          return { action: 'removed' as const, reactionId: existingReaction.id };
-        } else {
-          // Different emoji - update reaction
-          console.log('[Reaction] Updating existing reaction to:', reactionType);
-          const { data, error } = await supabase.from("message_reactions")
-            .update({ reaction_type: reactionType })
-            .eq("id", existingReaction.id)
-            .select()
-            .maybeSingle();
-          if (error) {
-            console.error('[Reaction] Update error:', error);
-            throw error;
-          }
-          console.log('[Reaction] Update success:', data);
-          return { action: 'updated' as const, reaction: data, oldReactionId: existingReaction.id };
+          return { action: 'removed' as const, reactionId: existingReaction.id, messageId };
         }
-      } else {
-        // No existing reaction - add new
-        console.log('[Reaction] Adding new reaction');
-        const { data, error } = await supabase.from("message_reactions").insert({
-          group_message_id: messageId,
-          user_id: user.id,
-          reaction_type: reactionType,
-        }).select().maybeSingle();
-        
+
+        console.log('[Reaction] Updating existing reaction to:', reactionType);
+        const { data, error } = await supabase.from("message_reactions")
+          .update({ reaction_type: reactionType })
+          .eq("id", existingReaction.id)
+          .select()
+          .maybeSingle();
         if (error) {
-          // Handle unique constraint conflict (23505) - reaction already exists
-          if (error.code === '23505') {
-            console.warn('[Reaction] Duplicate reaction, treating as success');
-            return { action: 'added' as const, reaction: null };
-          }
-          console.error('[Reaction] Insert error:', error);
+          console.error('[Reaction] Update error:', error);
           throw error;
         }
-        console.log('[Reaction] Insert success:', data);
-        return { action: 'added' as const, reaction: data ?? { id: `server-${Date.now()}`, user_id: user.id, reaction_type: reactionType, group_message_id: messageId } };
+        console.log('[Reaction] Update success:', data);
+        return { action: 'updated' as const, reaction: data, oldReactionId: existingReaction.id, messageId };
       }
+
+      if (optimisticIntent?.reactionType === reactionType && optimisticIntent.action === 'remove') {
+        console.log('[Reaction] Skipping re-add because latest optimistic intent is remove');
+        return { action: 'removed' as const, reactionId: null, messageId };
+      }
+
+      console.log('[Reaction] Adding new reaction');
+      const { data, error } = await supabase.from("message_reactions").insert({
+        group_message_id: messageId,
+        user_id: user.id,
+        reaction_type: reactionType,
+      }).select().maybeSingle();
+
+      if (error) {
+        if (error.code === '23505') {
+          console.warn('[Reaction] Duplicate reaction, reconciling existing row');
+          const { data: conflictingReaction, error: conflictFetchError } = await supabase
+            .from("message_reactions")
+            .select("*")
+            .eq("group_message_id", messageId)
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (conflictFetchError) throw conflictFetchError;
+
+          if (conflictingReaction?.reaction_type === reactionType) {
+            if (optimisticIntent?.reactionType === reactionType && optimisticIntent.action === 'remove') {
+              const { error: deleteError } = await supabase
+                .from("message_reactions")
+                .delete()
+                .eq("id", conflictingReaction.id);
+              if (deleteError) throw deleteError;
+              return { action: 'removed' as const, reactionId: conflictingReaction.id, messageId };
+            }
+
+            return { action: 'updated' as const, reaction: conflictingReaction, oldReactionId: conflictingReaction.id, messageId };
+          }
+
+          const { data: updatedReaction, error: updateError } = await supabase
+            .from("message_reactions")
+            .update({ reaction_type: reactionType })
+            .eq("id", conflictingReaction?.id)
+            .select()
+            .maybeSingle();
+
+          if (updateError) throw updateError;
+          return { action: 'updated' as const, reaction: updatedReaction, oldReactionId: conflictingReaction?.id, messageId };
+        }
+
+        console.error('[Reaction] Insert error:', error);
+        throw error;
+      }
+
+      console.log('[Reaction] Insert success:', data);
+      return { action: 'added' as const, reaction: data ?? { id: `server-${Date.now()}`, user_id: user.id, reaction_type: reactionType, group_message_id: messageId }, messageId };
     },
     onMutate: async ({ messageId, reactionType }) => {
-      // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
-      
+
       const previousData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
-      
-      // Check if user already has a reaction on this message (any type, including temp)
+
       const existingReaction = previousData?.reactions.find(
         r => r.group_message_id === messageId && r.user_id === user?.id
       );
-      
-      // Optimistically update reactions
+
+      lastReactionIntentRef.current[messageId] = {
+        reactionType,
+        action: !existingReaction ? 'add' : existingReaction.reaction_type === reactionType ? 'remove' : 'update',
+      };
+
       queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
         if (!old) return { messages: [], reactions: [] };
-        
+
         if (existingReaction) {
           if (existingReaction.reaction_type === reactionType) {
-            // Same emoji - remove reaction optimistically
             return { ...old, reactions: old.reactions.filter(r => r.id !== existingReaction.id) };
-          } else {
-            // Different emoji - update reaction optimistically
-            return { 
-              ...old, 
-              reactions: old.reactions.map(r => 
-                r.id === existingReaction.id 
-                  ? { ...r, reaction_type: reactionType }
-                  : r
-              )
-            };
           }
-        } else {
-          // Add reaction optimistically with temp ID
-          const tempReaction: MessageReaction = {
-            id: `temp-reaction-${Date.now()}`,
-            user_id: user!.id,
-            reaction_type: reactionType,
-            group_message_id: messageId,
+
+          return {
+            ...old,
+            reactions: old.reactions.map(r =>
+              r.id === existingReaction.id
+                ? { ...r, reaction_type: reactionType }
+                : r
+            )
           };
-          return { ...old, reactions: [...old.reactions, tempReaction] };
         }
+
+        const tempReaction: MessageReaction = {
+          id: `temp-reaction-${Date.now()}`,
+          user_id: user!.id,
+          reaction_type: reactionType,
+          group_message_id: messageId,
+        };
+        return { ...old, reactions: [...old.reactions, tempReaction] };
       });
-      
-      return { previousData, existingReaction };
+
+      return { previousData, existingReaction, messageId };
     },
     onError: (err, variables, context) => {
-      // Revert on error
       if (context?.previousData) {
         queryClient.setQueryData(["group-messages", groupId], context.previousData);
+      }
+      if (context?.messageId) {
+        delete lastReactionIntentRef.current[context.messageId];
       }
       toast.error("Failed to update reaction");
     },
     onSuccess: (result) => {
       if (!result) return;
-      
+
       queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
         if (!old) return { messages: [], reactions: [] };
-        
+
         if (result.action === 'added' && result.reaction) {
-          // Remove any temp reactions for this message/user and add the real one
-          const filteredReactions = old.reactions.filter(r => 
-            !(r.id.startsWith('temp-reaction-') && 
-              r.group_message_id === result.reaction.group_message_id && 
+          const filteredReactions = old.reactions.filter(r =>
+            !(r.id.startsWith('temp-reaction-') &&
+              r.group_message_id === result.reaction.group_message_id &&
               r.user_id === result.reaction.user_id)
           );
           if (!filteredReactions.some(r => r.id === result.reaction.id)) {
@@ -1272,19 +1308,31 @@ export default function GroupChatPage() {
           }
           return { ...old, reactions: filteredReactions };
         }
-        
+
         if (result.action === 'updated' && result.reaction) {
-          // Replace the old reaction with the updated one
-          return { 
-            ...old, 
-            reactions: old.reactions.map(r => 
-              r.id === result.reaction.id ? result.reaction : r
+          return {
+            ...old,
+            reactions: old.reactions.map(r =>
+              r.id === result.reaction.id || (r.id.startsWith('temp-reaction-') && r.group_message_id === result.reaction.group_message_id && r.user_id === result.reaction.user_id)
+                ? result.reaction
+                : r
             )
           };
         }
-        
+
+        if (result.action === 'removed') {
+          return {
+            ...old,
+            reactions: old.reactions.filter(r => !(r.group_message_id === result.messageId && r.user_id === user?.id))
+          };
+        }
+
         return old;
       });
+
+      if ('messageId' in result && result.messageId) {
+        delete lastReactionIntentRef.current[result.messageId];
+      }
     },
   });
 
