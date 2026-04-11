@@ -1600,7 +1600,6 @@ export default function GroupChatPage() {
                   isAdmin={isAdmin}
                   highlightedMessageId={highlightedMessageId}
                   messageReactions={messageReactions}
-                  reactions={reactions}
                   userId={user?.id}
                   getProfile={getProfile}
                   readFrontier={readFrontier}
@@ -1609,7 +1608,6 @@ export default function GroupChatPage() {
                   handleEdit={handleEdit}
                   deleteMessageMutation={deleteMessageMutation}
                   toggleReactionMutation={toggleReactionMutation}
-                  REACTION_EMOJIS={REACTION_EMOJIS}
                   groupId={groupId || ""}
                 />
               </div>
