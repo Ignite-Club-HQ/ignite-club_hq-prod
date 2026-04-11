@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink } from "lucide-react";
+import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
   SheetContent,
@@ -99,22 +100,20 @@ export function MessageActionSheet({
       },
     });
 
-    // Copy link if message contains URLs
+    // Extract URLs for link actions
     const urls = extractUrls(messageText);
-    if (urls.length === 1) {
+    if (urls.length > 0) {
+      // Open Link action
       actions.push({
-        label: "Copy Link",
-        icon: <Link className="h-5 w-5" />,
+        label: urls.length > 1 ? "Open Link" : "Open Link",
+        icon: <ExternalLink className="h-5 w-5" />,
         onClick: () => {
-          navigator.clipboard.writeText(urls[0]).then(() => {
-            toast.success("Link copied");
-          }).catch(() => {
-            toast.error("Failed to copy");
-          });
+          const fullUrl = urls[0].startsWith('http') ? urls[0] : `https://${urls[0]}`;
+          safeOpenUrl(fullUrl);
         },
       });
-    } else if (urls.length > 1) {
-      // Copy first link, user can copy message for all
+
+      // Copy Link action
       actions.push({
         label: "Copy Link",
         icon: <Link className="h-5 w-5" />,
