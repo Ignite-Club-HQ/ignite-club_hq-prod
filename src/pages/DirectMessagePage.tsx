@@ -1042,8 +1042,8 @@ export default function DirectMessagePage() {
       <div
         ref={scrollAreaRef}
         data-chat-scroll-lock="true"
-        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-none scrollbar-hide"
-        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden' }}
+        className="flex-1 pr-4 -mr-4 relative overflow-y-auto overscroll-contain scrollbar-hide"
+        style={{ WebkitOverflowScrolling: isNativeIOS ? 'auto' : 'touch', visibility: isPinned ? 'visible' : 'hidden', touchAction: 'pan-y' }}
       >
         <div className="p-4" style={{ paddingBottom: isKeyboardOpen ? `${Math.max(128, composerHeight + 40)}px` : `calc(var(--bottom-nav-offset, 0px) + ${Math.max(160, composerHeight + 48)}px)` }}>
           <div className={`min-h-full flex flex-col ${!showLoading && (localMessages?.length || 0) > 0 ? "justify-end gap-4" : ""}`}>
