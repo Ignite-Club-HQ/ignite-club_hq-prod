@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import { memo, useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
+import { MessageReactionsPopover } from "./MessageReactions";
 
 const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
   "❤️": "❤️",
@@ -68,7 +69,6 @@ interface GroupChatMessageRowProps {
   isAdmin: boolean;
   highlightedMessageId: string | null;
   messageReactions: any[];
-  reactions: any[];
   userId?: string;
   getProfile: (id: string) => { display_name: string | null; avatar_url: string | null } | null;
   readFrontier: Record<string, ReaderInfo[]>;
@@ -77,7 +77,6 @@ interface GroupChatMessageRowProps {
   handleEdit: (msg: GroupMessage) => void;
   deleteMessageMutation: { mutate: (id: string) => void };
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
-  REACTION_EMOJIS: string[];
   groupId?: string;
 }
 
@@ -88,7 +87,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   isAdmin,
   highlightedMessageId,
   messageReactions,
-  reactions,
   userId,
   getProfile,
   readFrontier,
@@ -97,14 +95,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   handleEdit,
   deleteMessageMutation,
   toggleReactionMutation,
-  REACTION_EMOJIS,
   groupId,
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showReadReceipts, setShowReadReceipts] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
-  const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
@@ -266,61 +262,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     };
   }, [clearDismissGuard, showReactionPicker]);
 
-  useLayoutEffect(() => {
-    if (!showReactionPicker || !bubbleRef.current) {
-      setPickerPosition(null);
-      return;
-    }
-
-    const updatePosition = () => {
-      const bubble = bubbleRef.current;
-      if (!bubble) return;
-
-      const rect = bubble.getBoundingClientRect();
-      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-      const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
-      const rootStyles = getComputedStyle(document.documentElement);
-      const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-
-      const pickerWidth = Math.min(280, window.innerWidth - 16);
-      const pickerHeight = 52;
-      const topBoundary = viewportOffsetTop + 72;
-      const composerSafeZone = 140;
-      const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - composerSafeZone;
-      const gap = 4;
-
-      const spaceAbove = rect.top - topBoundary;
-      const spaceBelow = bottomBoundary - rect.bottom;
-      const showBelow = spaceAbove < pickerHeight && spaceBelow >= pickerHeight + gap;
-
-      const unclampedTop = showBelow
-        ? rect.bottom + gap
-        : rect.top - pickerHeight - gap;
-      const top = Math.max(
-        topBoundary,
-        Math.min(unclampedTop, bottomBoundary - pickerHeight)
-      );
-
-      let left = isOwnMessage ? rect.right - pickerWidth : rect.left;
-      left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
-
-      setPickerPosition({ top, left });
-    };
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    window.visualViewport?.addEventListener("resize", updatePosition);
-    window.visualViewport?.addEventListener("scroll", updatePosition);
-
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-      window.visualViewport?.removeEventListener("resize", updatePosition);
-      window.visualViewport?.removeEventListener("scroll", updatePosition);
-    };
-  }, [isOwnMessage, showReactionPicker]);
-
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
   const avatarUrl = profile?.avatar_url || msg.author?.avatar_url || undefined;
@@ -339,10 +280,36 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         },
       }
     : null);
-  const currentUserReaction = reactions.find(
-    (reaction) => reaction.group_message_id === msg.id && reaction.user_id === userId,
+  const currentUserReaction = messageReactions.find(
+    (reaction) => reaction.user_id === userId,
   );
-  const normalizedCurrentUserReaction = normalizeGroupReactionType(currentUserReaction?.reaction_type);
+  const normalizedMessageReactions = messageReactions.map((reaction) => ({
+    ...reaction,
+    reaction_type: normalizeGroupReactionType(reaction.reaction_type),
+  }));
+
+  const handleReactionPickerReact = useCallback((reactionType: string) => {
+    const isSelected = normalizeGroupReactionType(currentUserReaction?.reaction_type) === reactionType;
+
+    toggleReactionMutation.mutate({
+      messageId: msg.id,
+      reactionType: isSelected ? (currentUserReaction?.reaction_type || reactionType) : reactionType,
+    });
+
+    closeActionUi();
+  }, [closeActionUi, currentUserReaction, msg.id, toggleReactionMutation]);
+
+  const handleReactionPickerRemove = useCallback((reactionId: string) => {
+    const reaction = messageReactions.find((item) => item.id === reactionId);
+    if (!reaction) return;
+
+    toggleReactionMutation.mutate({
+      messageId: msg.id,
+      reactionType: reaction.reaction_type,
+    });
+
+    closeActionUi();
+  }, [closeActionUi, messageReactions, msg.id, toggleReactionMutation]);
 
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
@@ -485,76 +452,24 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             />
           )}
 
-          {showReactionPicker && pickerPosition && createPortal(
-            <div
-              className="fixed inset-0 z-[100001]"
-              data-reaction-picker="true"
-              onTouchStart={(e) => { e.stopPropagation(); }}
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  // Guard against synthesized clicks on iOS after long-press release
-                  if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
-                  e.stopPropagation();
-                  closeReactionPicker();
-                }
-              }}
-              onTouchEnd={(e) => {
-                if (e.target === e.currentTarget) {
-                  // Guard against synthesized touch events on iOS after long-press release
-                  if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
-                  e.stopPropagation();
-                  e.preventDefault();
-                  closeReactionPicker();
-                }
-              }}
-            >
-              <div
-                className="absolute"
-                style={{ top: pickerPosition.top, left: pickerPosition.left, width: "min(280px, calc(100vw - 16px))" }}
-                onClick={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <div className="bg-popover border rounded-lg p-2 shadow-lg">
-                  <div className="flex gap-1.5">
-                    {REACTION_EMOJIS.map((emoji) => {
-                      const isSelected = normalizedCurrentUserReaction === emoji;
-                      return (
-                        <button
-                          key={emoji}
-                          type="button"
-                          className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 active:bg-accent ${isSelected ? "bg-primary/20" : ""}`}
-                          onTouchEnd={(e) => {
-                            if (preventIfGuarded(e)) return;
-                            e.stopPropagation();
-                            e.preventDefault();
-                            toggleReactionMutation.mutate({
-                              messageId: msg.id,
-                              reactionType: isSelected ? (currentUserReaction?.reaction_type || emoji) : emoji,
-                            });
-                            closeActionUi();
-                          }}
-                          onClick={(e) => {
-                            if (preventIfGuarded(e)) return;
-                            e.stopPropagation();
-                            toggleReactionMutation.mutate({
-                              messageId: msg.id,
-                              reactionType: isSelected ? (currentUserReaction?.reaction_type || emoji) : emoji,
-                            });
-                            closeActionUi();
-                          }}
-                        >
-                          {emoji}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
+          <MessageReactionsPopover
+            reactions={normalizedMessageReactions}
+            currentUserId={userId}
+            onReact={handleReactionPickerReact}
+            onRemove={handleReactionPickerRemove}
+            isMutating={false}
+            isOpen={showReactionPicker}
+            preventIfGuarded={preventIfGuarded}
+            onOpenChange={(open) => {
+              if (open) {
+                setShowReactionPicker(true);
+                return;
+              }
+              closeReactionPicker();
+            }}
+            isOwnMessage={isOwnMessage}
+            anchorRef={bubbleRef}
+          />
         </div>
       </div>
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
