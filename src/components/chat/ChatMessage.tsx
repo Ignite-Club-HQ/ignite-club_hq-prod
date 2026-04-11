@@ -544,10 +544,6 @@ export const ChatMessage = memo(function ChatMessage({
   }, [armDismissGuard, swipeToReplyHandlers]);
 
   const handleReactionClick = useCallback((type: string, existingReactionId?: string) => {
-    if (addReactionMutation.isPending || removeReactionMutation.isPending) {
-      return;
-    }
-
     clearDismissGuard();
     setShowReactionPicker(false);
     setShowMenu(false);
@@ -741,10 +737,9 @@ export const ChatMessage = memo(function ChatMessage({
                 currentUserId={currentUserId}
                 onReact={(type) => handleReactionClick(type)}
                 onRemove={(reactionId) => {
-                  if (addReactionMutation.isPending || removeReactionMutation.isPending) return;
                   removeReactionMutation.mutate(reactionId);
                 }}
-                isMutating={addReactionMutation.isPending || removeReactionMutation.isPending}
+                isMutating={false}
                 isOpen={showReactionPicker}
                 preventIfGuarded={preventIfGuarded}
                 onOpenChange={(open) => {

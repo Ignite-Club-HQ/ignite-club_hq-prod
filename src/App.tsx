@@ -175,10 +175,29 @@ const App = () => {
   useEffect(() => {
     const handler = (event: PromiseRejectionEvent) => {
       console.error("[App] Unhandled promise rejection:", event.reason);
-      event.preventDefault(); // Prevent the error from crashing iOS WebView
+      event.preventDefault();
     };
     window.addEventListener("unhandledrejection", handler);
     return () => window.removeEventListener("unhandledrejection", handler);
+  }, []);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let listener: { remove: () => void } | undefined;
+
+    import('@capacitor/app').then(({ App: CapApp }) => {
+      CapApp.addListener('backButton', ({ canGoBack }) => {
+        if (canGoBack) {
+          window.history.back();
+        } else {
+          CapApp.minimizeApp();
+        }
+      }).then(l => { listener = l; });
+    });
+
+    return () => { listener?.remove(); };
   }, []);
 
   return (
