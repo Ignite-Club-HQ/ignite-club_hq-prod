@@ -29,6 +29,26 @@ import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
 
+const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
+  "❤️": "❤️",
+  "🔥": "🔥",
+  "👏": "👏",
+  "😂": "😂",
+  "👍": "👍",
+  "😢": "😢",
+  like: "❤️",
+  fire: "🔥",
+  clap: "👏",
+  laugh: "😂",
+  thumbsup: "👍",
+  sad: "😢",
+};
+
+const normalizeGroupReactionType = (reactionType?: string | null) => {
+  if (!reactionType) return "";
+  return GROUP_REACTION_EMOJI_MAP[reactionType] || reactionType;
+};
+
 interface GroupMessage {
   id: string;
   text: string;
@@ -319,6 +339,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         },
       }
     : null);
+  const currentUserReaction = reactions.find(
+    (reaction) => reaction.group_message_id === msg.id && reaction.user_id === userId,
+  );
+  const normalizedCurrentUserReaction = normalizeGroupReactionType(currentUserReaction?.reaction_type);
 
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
@@ -495,10 +519,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                 <div className="bg-popover border rounded-lg p-2 shadow-lg">
                   <div className="flex gap-1.5">
                     {REACTION_EMOJIS.map((emoji) => {
-                      const userReaction = reactions.find(
-                        (r) => r.group_message_id === msg.id && r.user_id === userId
-                      );
-                      const isSelected = userReaction?.reaction_type === emoji;
+                      const isSelected = normalizedCurrentUserReaction === emoji;
                       return (
                         <button
                           key={emoji}
@@ -508,13 +529,19 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                             if (preventIfGuarded(e)) return;
                             e.stopPropagation();
                             e.preventDefault();
-                            toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
+                            toggleReactionMutation.mutate({
+                              messageId: msg.id,
+                              reactionType: isSelected ? (currentUserReaction?.reaction_type || emoji) : emoji,
+                            });
                             closeActionUi();
                           }}
                           onClick={(e) => {
                             if (preventIfGuarded(e)) return;
                             e.stopPropagation();
-                            toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
+                            toggleReactionMutation.mutate({
+                              messageId: msg.id,
+                              reactionType: isSelected ? (currentUserReaction?.reaction_type || emoji) : emoji,
+                            });
                             closeActionUi();
                           }}
                         >
@@ -601,15 +628,11 @@ function GroupReactionBadges({
 }) {
   const [viewingType, setViewingType] = useState<string | null>(null);
   const grouped = messageReactions.reduce((acc: any, r: any) => {
-    if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
-    acc[r.reaction_type].push(r);
+    const normalizedType = normalizeGroupReactionType(r.reaction_type);
+    if (!acc[normalizedType]) acc[normalizedType] = [];
+    acc[normalizedType].push(r);
     return acc;
   }, {} as Record<string, any[]>);
-
-  const REACTION_EMOJIS: Record<string, string> = {
-    "❤️": "❤️", "🔥": "🔥", "👏": "👏", "😂": "😂", "👍": "👍", "😢": "😢",
-    like: "❤️", fire: "🔥", clap: "👏", laugh: "😂", thumbsup: "👍", sad: "😢",
-  };
 
   const allUserIds = [...new Set(messageReactions.map((r: any) => r.user_id))];
 
@@ -647,7 +670,6 @@ function GroupReactionBadges({
         viewingType={viewingType}
         onClose={() => setViewingType(null)}
         onChangeType={setViewingType}
-        REACTION_EMOJIS={REACTION_EMOJIS}
       />
     </>
   );
@@ -663,7 +685,6 @@ function GroupReactionsDialog({
   viewingType,
   onClose,
   onChangeType,
-  REACTION_EMOJIS,
 }: {
   messageReactions: any[];
   grouped: Record<string, any[]>;
@@ -674,7 +695,6 @@ function GroupReactionsDialog({
   viewingType: string | null;
   onClose: () => void;
   onChangeType: (type: string) => void;
-  REACTION_EMOJIS: Record<string, string>;
 }) {
   const { data: users = [] } = useQuery({
     queryKey: ["group-reaction-users", allUserIds],
@@ -694,7 +714,7 @@ function GroupReactionsDialog({
     users.find((u: any) => u.id === uid)?.display_name || "Unknown User";
 
   const viewingReactors = viewingType ? (grouped[viewingType] || []) : [];
-  const viewingEmoji = viewingType ? (REACTION_EMOJIS[viewingType] || viewingType) : "";
+  const viewingEmoji = viewingType ? normalizeGroupReactionType(viewingType) : "";
 
   return (
     <Dialog open={!!viewingType} onOpenChange={(open) => !open && onClose()}>
@@ -709,7 +729,7 @@ function GroupReactionsDialog({
         {/* Reaction type tabs */}
         <div className="flex gap-1 pb-2 border-b">
           {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
-            const emoji = REACTION_EMOJIS[type] || type;
+            const emoji = normalizeGroupReactionType(type);
             return (
               <Button
                 key={type}
