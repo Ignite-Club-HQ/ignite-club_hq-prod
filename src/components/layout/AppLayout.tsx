@@ -32,6 +32,7 @@ export function AppLayout() {
 
     if (path === "/messages/broadcast") return true;
     if (/^\/messages\/club\/[^/]+$/.test(path)) return true;
+    if (/^\/messages\/club-admin\/[^/]+$/.test(path)) return true;
     if (/^\/messages\/dm\/[^/]+$/.test(path)) return true;
     if (/^\/groups\/[^/]+$/.test(path)) return true;
 
