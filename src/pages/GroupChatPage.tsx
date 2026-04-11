@@ -543,11 +543,12 @@ export default function GroupChatPage() {
         const incomingByUser = new Map<string, MessageReaction>();
         incomingReactions.forEach((r) => incomingByUser.set(r.user_id, r));
 
-        // Keep previous reactions that are missing from the incoming data
-        // (optimistic or realtime-delivered reactions not yet in the refetch)
+        // Only preserve temporary optimistic reactions that have not been
+        // reconciled yet. Keeping confirmed reactions here can revive deleted
+        // group reactions until the next full refresh.
         const missingFromIncoming = previousReactions.filter((reaction) => {
           if (incomingIds.has(reaction.id)) return false;
-          if (reaction.id.startsWith("temp-")) return !incomingByUser.has(reaction.user_id);
+          if (!reaction.id.startsWith("temp-")) return false;
           return !incomingByUser.has(reaction.user_id);
         });
 
@@ -1460,6 +1461,7 @@ export default function GroupChatPage() {
   const messageReactionsMap = useMemo(() => {
     const map = new Map<string, MessageReaction[]>();
     const reactionsByMessage = new Map<string, MessageReaction[]>();
+    const hasResolvedReactionData = !!messagesData && !Array.isArray(messagesData);
 
     reactions.forEach((reaction) => {
       if (!reaction.group_message_id) return;
@@ -1471,11 +1473,11 @@ export default function GroupChatPage() {
 
     for (const msg of (localMessages || [])) {
       const embedded: MessageReaction[] = (msg as any).reactions || [];
-      map.set(msg.id, reactionsByMessage.get(msg.id) || embedded);
+      map.set(msg.id, hasResolvedReactionData ? (reactionsByMessage.get(msg.id) ?? []) : embedded);
     }
 
     return map;
-  }, [localMessages, reactions]);
+  }, [localMessages, messagesData, reactions]);
 
   // Delete group mutation
   const deleteGroupMutation = useMutation({
