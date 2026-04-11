@@ -272,7 +272,6 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
                     onReactionClick(type);
                   }
                 }}
-                onLongPress={() => setIsOpen(true)}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setIsOpen(true);
