@@ -61,6 +61,26 @@ import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
 const REACTION_EMOJIS = ["👍", "❤️", "🔥", "👏", "😂", "😢"];
 
+const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
+  "❤️": "❤️",
+  "🔥": "🔥",
+  "👏": "👏",
+  "😂": "😂",
+  "👍": "👍",
+  "😢": "😢",
+  like: "❤️",
+  fire: "🔥",
+  clap: "👏",
+  laugh: "😂",
+  thumbsup: "👍",
+  sad: "😢",
+};
+
+const normalizeGroupReactionType = (reactionType?: string | null) => {
+  if (!reactionType) return "";
+  return GROUP_REACTION_EMOJI_MAP[reactionType] || reactionType;
+};
+
 interface GroupMessage {
   id: string;
   text: string;
@@ -1140,7 +1160,9 @@ export default function GroupChatPage() {
     mutationFn: async ({ messageId, reactionType }: { messageId: string; reactionType: string }) => {
       if (!user) return { action: 'none' as const };
 
-      console.log('[Reaction] Starting mutation for message:', messageId, 'type:', reactionType);
+      const normalizedReactionType = normalizeGroupReactionType(reactionType);
+
+      console.log('[Reaction] Starting mutation for message:', messageId, 'type:', normalizedReactionType);
 
       const optimisticIntent = lastReactionIntentRef.current[messageId];
 
@@ -1159,7 +1181,9 @@ export default function GroupChatPage() {
       console.log('[Reaction] Existing reaction from DB:', existingReaction, 'optimisticIntent:', optimisticIntent);
 
       if (existingReaction) {
-        if (existingReaction.reaction_type === reactionType) {
+        const normalizedExistingReactionType = normalizeGroupReactionType(existingReaction.reaction_type);
+
+        if (normalizedExistingReactionType === normalizedReactionType) {
           console.log('[Reaction] Removing existing reaction');
           const { error } = await supabase.from("message_reactions").delete().eq("id", existingReaction.id);
           if (error) {
@@ -1169,9 +1193,9 @@ export default function GroupChatPage() {
           return { action: 'removed' as const, reactionId: existingReaction.id, messageId };
         }
 
-        console.log('[Reaction] Updating existing reaction to:', reactionType);
+        console.log('[Reaction] Updating existing reaction to:', normalizedReactionType);
         const { data, error } = await supabase.from("message_reactions")
-          .update({ reaction_type: reactionType })
+          .update({ reaction_type: normalizedReactionType })
           .eq("id", existingReaction.id)
           .select()
           .maybeSingle();
@@ -1183,7 +1207,7 @@ export default function GroupChatPage() {
         return { action: 'updated' as const, reaction: data, oldReactionId: existingReaction.id, messageId };
       }
 
-      if (optimisticIntent?.reactionType === reactionType && optimisticIntent.action === 'remove') {
+      if (optimisticIntent?.reactionType === normalizedReactionType && optimisticIntent.action === 'remove') {
         console.log('[Reaction] Skipping re-add because latest optimistic intent is remove');
         return { action: 'removed' as const, reactionId: null, messageId };
       }
@@ -1192,7 +1216,7 @@ export default function GroupChatPage() {
       const { data, error } = await supabase.from("message_reactions").insert({
         group_message_id: messageId,
         user_id: user.id,
-        reaction_type: reactionType,
+        reaction_type: normalizedReactionType,
       }).select().maybeSingle();
 
       if (error) {
@@ -1207,8 +1231,8 @@ export default function GroupChatPage() {
 
           if (conflictFetchError) throw conflictFetchError;
 
-          if (conflictingReaction?.reaction_type === reactionType) {
-            if (optimisticIntent?.reactionType === reactionType && optimisticIntent.action === 'remove') {
+          if (normalizeGroupReactionType(conflictingReaction?.reaction_type) === normalizedReactionType) {
+            if (optimisticIntent?.reactionType === normalizedReactionType && optimisticIntent.action === 'remove') {
               const { error: deleteError } = await supabase
                 .from("message_reactions")
                 .delete()
@@ -1222,7 +1246,7 @@ export default function GroupChatPage() {
 
           const { data: updatedReaction, error: updateError } = await supabase
             .from("message_reactions")
-            .update({ reaction_type: reactionType })
+            .update({ reaction_type: normalizedReactionType })
             .eq("id", conflictingReaction?.id)
             .select()
             .maybeSingle();
@@ -1236,7 +1260,7 @@ export default function GroupChatPage() {
       }
 
       console.log('[Reaction] Insert success:', data);
-      return { action: 'added' as const, reaction: data ?? { id: `server-${Date.now()}`, user_id: user.id, reaction_type: reactionType, group_message_id: messageId }, messageId };
+      return { action: 'added' as const, reaction: data ?? { id: `server-${Date.now()}`, user_id: user.id, reaction_type: normalizedReactionType, group_message_id: messageId }, messageId };
     },
     onMutate: async ({ messageId, reactionType }) => {
       await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
@@ -1246,17 +1270,19 @@ export default function GroupChatPage() {
       const existingReaction = previousData?.reactions.find(
         r => r.group_message_id === messageId && r.user_id === user?.id
       );
+      const normalizedReactionType = normalizeGroupReactionType(reactionType);
+      const normalizedExistingReactionType = normalizeGroupReactionType(existingReaction?.reaction_type);
 
       lastReactionIntentRef.current[messageId] = {
-        reactionType,
-        action: !existingReaction ? 'add' : existingReaction.reaction_type === reactionType ? 'remove' : 'update',
+        reactionType: normalizedReactionType,
+        action: !existingReaction ? 'add' : normalizedExistingReactionType === normalizedReactionType ? 'remove' : 'update',
       };
 
       queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
         if (!old) return { messages: [], reactions: [] };
 
         if (existingReaction) {
-          if (existingReaction.reaction_type === reactionType) {
+          if (normalizedExistingReactionType === normalizedReactionType) {
             return { ...old, reactions: old.reactions.filter(r => r.id !== existingReaction.id) };
           }
 
@@ -1264,7 +1290,7 @@ export default function GroupChatPage() {
             ...old,
             reactions: old.reactions.map(r =>
               r.id === existingReaction.id
-                ? { ...r, reaction_type: reactionType }
+                ? { ...r, reaction_type: normalizedReactionType }
                 : r
             )
           };
@@ -1273,7 +1299,7 @@ export default function GroupChatPage() {
         const tempReaction: MessageReaction = {
           id: `temp-reaction-${Date.now()}`,
           user_id: user!.id,
-          reaction_type: reactionType,
+          reaction_type: normalizedReactionType,
           group_message_id: messageId,
         };
         return { ...old, reactions: [...old.reactions, tempReaction] };
