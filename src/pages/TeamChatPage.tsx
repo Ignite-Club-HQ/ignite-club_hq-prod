@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
-import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -161,7 +160,7 @@ export default function TeamChatPage() {
     [replyingTo?.id, editingMessage?.id],
     56,
   );
-  const chatHeight = useChatViewportHeight();
+  
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
@@ -1183,7 +1182,7 @@ export default function TeamChatPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }}>
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none h-full" data-lock-keyboard-scroll="true">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
