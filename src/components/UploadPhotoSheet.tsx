@@ -908,6 +908,20 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
               )}
             </div>
 
+            {/* Caption */}
+            {selectedPhotos.length > 0 && (
+              <div className="px-4">
+                <Input
+                  placeholder="Add a caption (optional)"
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  disabled={uploading}
+                  maxLength={200}
+                  className="text-sm"
+                />
+              </div>
+            )}
+
             {/* Form Fields */}
             <div className="px-4 pb-6 space-y-6">
               {/* Club Selection */}
