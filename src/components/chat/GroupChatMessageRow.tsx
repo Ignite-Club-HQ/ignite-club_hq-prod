@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import { memo, useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -27,6 +28,27 @@ import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { ReportMessageDialog } from "@/components/chat/ReportMessageDialog";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
+import { MessageReactionsPopover } from "./MessageReactions";
+
+const GROUP_REACTION_EMOJI_MAP: Record<string, string> = {
+  "❤️": "❤️",
+  "🔥": "🔥",
+  "👏": "👏",
+  "😂": "😂",
+  "👍": "👍",
+  "😢": "😢",
+  like: "❤️",
+  fire: "🔥",
+  clap: "👏",
+  laugh: "😂",
+  thumbsup: "👍",
+  sad: "😢",
+};
+
+const normalizeGroupReactionType = (reactionType?: string | null) => {
+  if (!reactionType) return "";
+  return GROUP_REACTION_EMOJI_MAP[reactionType] || reactionType;
+};
 
 interface GroupMessage {
   id: string;
@@ -47,7 +69,6 @@ interface GroupChatMessageRowProps {
   isAdmin: boolean;
   highlightedMessageId: string | null;
   messageReactions: any[];
-  reactions: any[];
   userId?: string;
   getProfile: (id: string) => { display_name: string | null; avatar_url: string | null } | null;
   readFrontier: Record<string, ReaderInfo[]>;
@@ -56,7 +77,6 @@ interface GroupChatMessageRowProps {
   handleEdit: (msg: GroupMessage) => void;
   deleteMessageMutation: { mutate: (id: string) => void };
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
-  REACTION_EMOJIS: string[];
   groupId?: string;
 }
 
@@ -67,7 +87,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   isAdmin,
   highlightedMessageId,
   messageReactions,
-  reactions,
   userId,
   getProfile,
   readFrontier,
@@ -76,14 +95,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   handleEdit,
   deleteMessageMutation,
   toggleReactionMutation,
-  REACTION_EMOJIS,
   groupId,
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showReadReceipts, setShowReadReceipts] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
-  const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
@@ -245,61 +262,6 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
     };
   }, [clearDismissGuard, showReactionPicker]);
 
-  useLayoutEffect(() => {
-    if (!showReactionPicker || !bubbleRef.current) {
-      setPickerPosition(null);
-      return;
-    }
-
-    const updatePosition = () => {
-      const bubble = bubbleRef.current;
-      if (!bubble) return;
-
-      const rect = bubble.getBoundingClientRect();
-      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-      const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
-      const rootStyles = getComputedStyle(document.documentElement);
-      const bottomNavOffset = Number.parseFloat(rootStyles.getPropertyValue("--bottom-nav-offset")) || 0;
-
-      const pickerWidth = Math.min(280, window.innerWidth - 16);
-      const pickerHeight = 52;
-      const topBoundary = viewportOffsetTop + 72;
-      const composerSafeZone = 140;
-      const bottomBoundary = viewportOffsetTop + viewportHeight - bottomNavOffset - composerSafeZone;
-      const gap = 4;
-
-      const spaceAbove = rect.top - topBoundary;
-      const spaceBelow = bottomBoundary - rect.bottom;
-      const showBelow = spaceAbove < pickerHeight && spaceBelow >= pickerHeight + gap;
-
-      const unclampedTop = showBelow
-        ? rect.bottom + gap
-        : rect.top - pickerHeight - gap;
-      const top = Math.max(
-        topBoundary,
-        Math.min(unclampedTop, bottomBoundary - pickerHeight)
-      );
-
-      let left = isOwnMessage ? rect.right - pickerWidth : rect.left;
-      left = Math.max(8, Math.min(left, window.innerWidth - pickerWidth - 8));
-
-      setPickerPosition({ top, left });
-    };
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    window.visualViewport?.addEventListener("resize", updatePosition);
-    window.visualViewport?.addEventListener("scroll", updatePosition);
-
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-      window.visualViewport?.removeEventListener("resize", updatePosition);
-      window.visualViewport?.removeEventListener("scroll", updatePosition);
-    };
-  }, [isOwnMessage, showReactionPicker]);
-
   const profile = getProfile(msg.author_id);
   const displayName = profile?.display_name || msg.author?.display_name || "Loading...";
   const avatarUrl = profile?.avatar_url || msg.author?.avatar_url || undefined;
@@ -318,6 +280,36 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         },
       }
     : null);
+  const currentUserReaction = messageReactions.find(
+    (reaction) => reaction.user_id === userId,
+  );
+  const normalizedMessageReactions = messageReactions.map((reaction) => ({
+    ...reaction,
+    reaction_type: normalizeGroupReactionType(reaction.reaction_type),
+  }));
+
+  const handleReactionPickerReact = useCallback((reactionType: string) => {
+    const isSelected = normalizeGroupReactionType(currentUserReaction?.reaction_type) === reactionType;
+
+    toggleReactionMutation.mutate({
+      messageId: msg.id,
+      reactionType: isSelected ? (currentUserReaction?.reaction_type || reactionType) : reactionType,
+    });
+
+    closeActionUi();
+  }, [closeActionUi, currentUserReaction, msg.id, toggleReactionMutation]);
+
+  const handleReactionPickerRemove = useCallback((reactionId: string) => {
+    const reaction = messageReactions.find((item) => item.id === reactionId);
+    if (!reaction) return;
+
+    toggleReactionMutation.mutate({
+      messageId: msg.id,
+      reactionType: reaction.reaction_type,
+    });
+
+    closeActionUi();
+  }, [closeActionUi, messageReactions, msg.id, toggleReactionMutation]);
 
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
@@ -460,73 +452,24 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             />
           )}
 
-          {showReactionPicker && pickerPosition && createPortal(
-            <div
-              className="fixed inset-0 z-[100001]"
-              data-reaction-picker="true"
-              onTouchStart={(e) => { e.stopPropagation(); }}
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  // Guard against synthesized clicks on iOS after long-press release
-                  if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
-                  e.stopPropagation();
-                  closeReactionPicker();
-                }
-              }}
-              onTouchEnd={(e) => {
-                if (e.target === e.currentTarget) {
-                  // Guard against synthesized touch events on iOS after long-press release
-                  if (Date.now() - reactionPickerOpenedAtRef.current < 400) return;
-                  e.stopPropagation();
-                  e.preventDefault();
-                  closeReactionPicker();
-                }
-              }}
-            >
-              <div
-                className="absolute"
-                style={{ top: pickerPosition.top, left: pickerPosition.left, width: "min(280px, calc(100vw - 16px))" }}
-                onClick={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <div className="bg-popover border rounded-lg p-2 shadow-lg">
-                  <div className="flex gap-1.5">
-                    {REACTION_EMOJIS.map((emoji) => {
-                      const userReaction = reactions.find(
-                        (r) => r.group_message_id === msg.id && r.user_id === userId
-                      );
-                      const isSelected = userReaction?.reaction_type === emoji;
-                      return (
-                        <button
-                          key={emoji}
-                          type="button"
-                          className={`inline-flex items-center justify-center h-9 w-9 rounded-md text-lg shrink-0 active:bg-accent ${isSelected ? "bg-primary/20" : ""}`}
-                          onTouchEnd={(e) => {
-                            if (preventIfGuarded(e)) return;
-                            e.stopPropagation();
-                            e.preventDefault();
-                            toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
-                            closeActionUi();
-                          }}
-                          onClick={(e) => {
-                            if (preventIfGuarded(e)) return;
-                            e.stopPropagation();
-                            toggleReactionMutation.mutate({ messageId: msg.id, reactionType: emoji });
-                            closeActionUi();
-                          }}
-                        >
-                          {emoji}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
+          <MessageReactionsPopover
+            reactions={normalizedMessageReactions}
+            currentUserId={userId}
+            onReact={handleReactionPickerReact}
+            onRemove={handleReactionPickerRemove}
+            isMutating={false}
+            isOpen={showReactionPicker}
+            preventIfGuarded={preventIfGuarded}
+            onOpenChange={(open) => {
+              if (open) {
+                setShowReactionPicker(true);
+                return;
+              }
+              closeReactionPicker();
+            }}
+            isOwnMessage={isOwnMessage}
+            anchorRef={bubbleRef}
+          />
         </div>
       </div>
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
@@ -598,74 +541,75 @@ function GroupReactionBadges({
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [viewingType, setViewingType] = useState<string | null>(null);
   const grouped = messageReactions.reduce((acc: any, r: any) => {
-    if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
-    acc[r.reaction_type].push(r);
+    const normalizedType = normalizeGroupReactionType(r.reaction_type);
+    if (!acc[normalizedType]) acc[normalizedType] = [];
+    acc[normalizedType].push(r);
     return acc;
   }, {} as Record<string, any[]>);
-
-  const REACTION_EMOJIS: Record<string, string> = {
-    "❤️": "❤️", "🔥": "🔥", "👏": "👏", "😂": "😂", "👍": "👍", "😢": "😢",
-    like: "❤️", fire: "🔥", clap: "👏", laugh: "😂", thumbsup: "👍", sad: "😢",
-  };
 
   const allUserIds = [...new Set(messageReactions.map((r: any) => r.user_id))];
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <div className="flex flex-wrap gap-1 mt-1">
-          {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
-            const userReaction = items.find((r: any) => r.user_id === userId);
-            const emoji = REACTION_EMOJIS[type] || type;
-            return (
-              <button
-                key={type}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsOpen(true);
-                }}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
-                  userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
-                }`}
-              >
-                <span>{emoji}</span>
-                <span>{items.length}</span>
-              </button>
-            );
-          })}
-        </div>
-      </PopoverTrigger>
-      <GroupReactionsContent
+    <>
+      <div className="flex flex-wrap gap-1 mt-1">
+        {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
+          const userReaction = items.find((r: any) => r.user_id === userId);
+          const emoji = normalizeGroupReactionType(type);
+          return (
+            <button
+              key={type}
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewingType(type);
+              }}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
+              }`}
+            >
+              <span>{emoji}</span>
+              <span>{items.length}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <GroupReactionsDialog
         messageReactions={messageReactions}
+        grouped={grouped}
         allUserIds={allUserIds}
         userId={userId}
         toggleReactionMutation={toggleReactionMutation}
         messageId={messageId}
-        onClose={() => setIsOpen(false)}
-        isOpen={isOpen}
+        viewingType={viewingType}
+        onClose={() => setViewingType(null)}
+        onChangeType={setViewingType}
       />
-    </Popover>
+    </>
   );
 }
 
-function GroupReactionsContent({
+function GroupReactionsDialog({
   messageReactions,
+  grouped,
   allUserIds,
   userId,
   toggleReactionMutation,
   messageId,
+  viewingType,
   onClose,
-  isOpen,
+  onChangeType,
 }: {
   messageReactions: any[];
+  grouped: Record<string, any[]>;
   allUserIds: string[];
   userId?: string;
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
+  viewingType: string | null;
   onClose: () => void;
-  isOpen: boolean;
+  onChangeType: (type: string) => void;
 }) {
   const { data: users = [] } = useQuery({
     queryKey: ["group-reaction-users", allUserIds],
@@ -678,71 +622,82 @@ function GroupReactionsContent({
       if (error) throw error;
       return data;
     },
-    enabled: isOpen && allUserIds.length > 0,
+    enabled: !!viewingType && allUserIds.length > 0,
   });
 
-  const REACTION_EMOJIS: Record<string, string> = {
-    "❤️": "❤️", "🔥": "🔥", "👏": "👏", "😂": "😂", "👍": "👍", "😢": "😢",
-    like: "❤️", fire: "🔥", clap: "👏", laugh: "😂", thumbsup: "👍", sad: "😢",
-  };
-
-  const grouped = messageReactions.reduce((acc: any, r: any) => {
-    if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
-    acc[r.reaction_type].push(r);
-    return acc;
-  }, {} as Record<string, any[]>);
-
   const getUserName = (uid: string) =>
-    users.find((u: any) => u.id === uid)?.display_name || "";
+    users.find((u: any) => u.id === uid)?.display_name || "Unknown User";
+
+  const viewingReactors = viewingType ? (grouped[viewingType] || []) : [];
+  const viewingEmoji = viewingType ? normalizeGroupReactionType(viewingType) : "";
 
   return (
-    <PopoverContent
-      className="w-auto p-3 bg-popover border z-50"
-      align="start"
-      side="top"
-      sideOffset={8}
-      onOpenAutoFocus={(e) => e.preventDefault()}
-    >
-      <div className="flex flex-col gap-3 max-h-60 overflow-y-auto min-w-[160px]">
-        <p className="text-xs font-medium text-muted-foreground">Reactions</p>
-        {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
-          const emoji = REACTION_EMOJIS[type] || type;
-          const userReaction = items.find((r: any) => r.user_id === userId);
-          return (
-            <div key={type} className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <span className="text-base">{emoji}</span>
-                <span className="text-xs text-muted-foreground">({items.length})</span>
-              </div>
-              <div className="pl-6 flex flex-col gap-0.5">
-                {items.map((r: any) => (
-                  <p key={r.id || r.user_id} className="text-sm">
+    <Dialog open={!!viewingType} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="text-xl">{viewingEmoji}</span>
+            <span>Reactions</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Reaction type tabs */}
+        <div className="flex gap-1 pb-2 border-b">
+          {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
+            const emoji = normalizeGroupReactionType(type);
+            return (
+              <Button
+                key={type}
+                variant={viewingType === type ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => onChangeType(type)}
+                className="h-8 px-2 gap-1"
+              >
+                <span>{emoji}</span>
+                <span className="text-xs">{items.length}</span>
+              </Button>
+            );
+          })}
+        </div>
+
+        <ScrollArea className="max-h-[300px]">
+          <div className="space-y-2">
+            {viewingReactors.map((r: any) => {
+              const isCurrentUser = r.user_id === userId;
+              return (
+                <div key={r.id || r.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                      {getUserName(r.user_id)?.charAt(0)?.toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium flex-1">
                     {getUserName(r.user_id)}
-                    {r.user_id === userId && " (you)"}
-                  </p>
-                ))}
-              </div>
-              {userReaction && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-6 h-6 text-xs text-destructive hover:text-destructive justify-start px-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleReactionMutation.mutate({ messageId, reactionType: type });
-                    onClose();
-                  }}
-                >
-                  Remove your {emoji}
-                </Button>
-              )}
-            </div>
-          );
-        })}
-        {users.length === 0 && (
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        )}
-      </div>
-    </PopoverContent>
+                    {isCurrentUser && <span className="text-muted-foreground font-normal"> (you)</span>}
+                  </span>
+                  {isCurrentUser && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleReactionMutation.mutate({ messageId, reactionType: r.reaction_type });
+                        onClose();
+                      }}
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {viewingReactors.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-2">No reactions</p>
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   );
 }
