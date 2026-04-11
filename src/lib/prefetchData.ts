@@ -46,6 +46,13 @@ async function tryEdgePrefetch(
   dmConversations: any[];
 } | null> {
   try {
+    // Only call edge function if we have a valid user session (not just anon key)
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData?.session?.access_token) {
+      console.warn("[Prefetch] No active session, skipping edge function");
+      return null;
+    }
+
     const { data, error } = await supabase.functions.invoke("prefetch-user-data");
 
     if (error || !data) {
