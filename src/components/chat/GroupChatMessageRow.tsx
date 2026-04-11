@@ -639,6 +639,11 @@ function GroupReactionBadges({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  // Directly toggle the reaction
+                  toggleReactionMutation.mutate({ messageId, reactionType: type });
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
                   setOpenType(openType === type ? null : type);
                 }}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
