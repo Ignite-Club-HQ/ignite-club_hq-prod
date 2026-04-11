@@ -66,6 +66,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>("");
+  const [caption, setCaption] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -376,7 +377,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     };
   }, []);
 
-  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string): Promise<string> => {
+  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, photoCaption: string): Promise<string> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
@@ -412,6 +413,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       team_id: teamId || null,
       mini_league_id: miniLeagueId || null,
       file_size: file.size,
+      caption: photoCaption || null,
     });
 
     if (insertError) {
@@ -456,6 +458,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
+    setCaption("");
     setSelectedPhotos([]);
     setUploading(false);
     setUploadProgress(0);
@@ -578,6 +581,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     const clubId = selectedClubId;
     const teamId = selectedTeamId;
     const miniLeagueId = selectedMiniLeagueId;
+    const photoCaption = caption.trim();
     
     // Notify parent about uploading count for skeleton display BEFORE closing
     onUploadingCountChange?.(totalPhotos);
@@ -607,7 +611,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       );
       
       try {
-        const url = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId);
+        const url = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, photoCaption);
         uploadedUrls.push(url);
         successCount++;
       } catch (error: unknown) {
@@ -655,6 +659,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
+    setCaption("");
     setSelectedPhotos([]);
     setUploading(false);
     setUploadProgress(0);
@@ -902,6 +907,20 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                 </div>
               )}
             </div>
+
+            {/* Caption */}
+            {selectedPhotos.length > 0 && (
+              <div className="px-4">
+                <Input
+                  placeholder="Add a caption (optional)"
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  disabled={uploading}
+                  maxLength={200}
+                  className="text-sm"
+                />
+              </div>
+            )}
 
             {/* Form Fields */}
             <div className="px-4 pb-6 space-y-6">
