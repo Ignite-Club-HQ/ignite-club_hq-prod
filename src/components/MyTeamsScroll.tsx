@@ -229,6 +229,7 @@ export function MyTeamsScroll() {
                   src={item.logo_url}
                   alt=""
                   className="h-8 w-8 rounded-full object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
               ) : (
                 <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">

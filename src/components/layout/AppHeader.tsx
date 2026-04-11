@@ -759,6 +759,7 @@ export function AppHeader() {
                         src={activeThemeData.logoUrl!} 
                         alt={activeThemeData.clubName}
                         className="h-8 w-auto max-w-[32px] object-contain"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />
                       <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
                         <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />

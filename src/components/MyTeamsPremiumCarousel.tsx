@@ -161,6 +161,7 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
               src={item.logo_url || item.club_logo_url!}
               alt=""
               className="h-11 w-11 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement?.querySelector('.logo-fallback')?.classList.remove('hidden'); }}
             />
           ) : (
             <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${
