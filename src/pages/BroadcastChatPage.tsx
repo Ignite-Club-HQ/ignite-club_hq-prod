@@ -911,7 +911,7 @@ export default function BroadcastChatPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }}>
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none h-full" data-lock-keyboard-scroll="true">
       {/* Header */}
       <div className="flex items-center gap-3 py-4 border-b bg-background sticky top-0 z-10 shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />

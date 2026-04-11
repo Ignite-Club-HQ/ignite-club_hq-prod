@@ -541,7 +541,7 @@ export default function ClubAdminChatPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }}>
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none h-full" data-lock-keyboard-scroll="true">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
