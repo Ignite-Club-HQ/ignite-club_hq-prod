@@ -598,33 +598,151 @@ function GroupReactionBadges({
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
   const grouped = messageReactions.reduce((acc: any, r: any) => {
     if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
     acc[r.reaction_type].push(r);
     return acc;
   }, {} as Record<string, any[]>);
 
+  const REACTION_EMOJIS: Record<string, string> = {
+    "❤️": "❤️", "🔥": "🔥", "👏": "👏", "😂": "😂", "👍": "👍", "😢": "😢",
+    like: "❤️", fire: "🔥", clap: "👏", laugh: "😂", thumbsup: "👍", sad: "😢",
+  };
+
+  const allUserIds = [...new Set(messageReactions.map((r: any) => r.user_id))];
 
   return (
-    <div className="flex flex-wrap gap-1 mt-1">
-      {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
-        const userReaction = items.find((r: any) => r.user_id === userId);
-        return (
-          <button
-            key={type}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleReactionMutation.mutate({ messageId, reactionType: type });
-            }}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
-              userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
-            }`}
-          >
-            <span>{type}</span>
-            <span>{items.length}</span>
-          </button>
-        );
-      })}
-    </div>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <div className="flex flex-wrap gap-1 mt-1">
+          {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
+            const userReaction = items.find((r: any) => r.user_id === userId);
+            const emoji = REACTION_EMOJIS[type] || type;
+            return (
+              <button
+                key={type}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(true);
+                }}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                  userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
+                }`}
+              >
+                <span>{emoji}</span>
+                <span>{items.length}</span>
+              </button>
+            );
+          })}
+        </div>
+      </PopoverTrigger>
+      <GroupReactionsContent
+        messageReactions={messageReactions}
+        allUserIds={allUserIds}
+        userId={userId}
+        toggleReactionMutation={toggleReactionMutation}
+        messageId={messageId}
+        onClose={() => setIsOpen(false)}
+        isOpen={isOpen}
+      />
+    </Popover>
+  );
+}
+
+function GroupReactionsContent({
+  messageReactions,
+  allUserIds,
+  userId,
+  toggleReactionMutation,
+  messageId,
+  onClose,
+  isOpen,
+}: {
+  messageReactions: any[];
+  allUserIds: string[];
+  userId?: string;
+  toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
+  messageId: string;
+  onClose: () => void;
+  isOpen: boolean;
+}) {
+  const { data: users = [] } = useQuery({
+    queryKey: ["group-reaction-users", allUserIds],
+    queryFn: async () => {
+      if (allUserIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", allUserIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: isOpen && allUserIds.length > 0,
+  });
+
+  const REACTION_EMOJIS: Record<string, string> = {
+    "❤️": "❤️", "🔥": "🔥", "👏": "👏", "😂": "😂", "👍": "👍", "😢": "😢",
+    like: "❤️", fire: "🔥", clap: "👏", laugh: "😂", thumbsup: "👍", sad: "😢",
+  };
+
+  const grouped = messageReactions.reduce((acc: any, r: any) => {
+    if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
+    acc[r.reaction_type].push(r);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  const getUserName = (uid: string) =>
+    users.find((u: any) => u.id === uid)?.display_name || "";
+
+  return (
+    <PopoverContent
+      className="w-auto p-3 bg-popover border z-50"
+      align="start"
+      side="top"
+      sideOffset={8}
+      onOpenAutoFocus={(e) => e.preventDefault()}
+    >
+      <div className="flex flex-col gap-3 max-h-60 overflow-y-auto min-w-[160px]">
+        <p className="text-xs font-medium text-muted-foreground">Reactions</p>
+        {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
+          const emoji = REACTION_EMOJIS[type] || type;
+          const userReaction = items.find((r: any) => r.user_id === userId);
+          return (
+            <div key={type} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-base">{emoji}</span>
+                <span className="text-xs text-muted-foreground">({items.length})</span>
+              </div>
+              <div className="pl-6 flex flex-col gap-0.5">
+                {items.map((r: any) => (
+                  <p key={r.id || r.user_id} className="text-sm">
+                    {getUserName(r.user_id)}
+                    {r.user_id === userId && " (you)"}
+                  </p>
+                ))}
+              </div>
+              {userReaction && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-6 h-6 text-xs text-destructive hover:text-destructive justify-start px-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleReactionMutation.mutate({ messageId, reactionType: type });
+                    onClose();
+                  }}
+                >
+                  Remove your {emoji}
+                </Button>
+              )}
+            </div>
+          );
+        })}
+        {users.length === 0 && (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        )}
+      </div>
+    </PopoverContent>
   );
 }
