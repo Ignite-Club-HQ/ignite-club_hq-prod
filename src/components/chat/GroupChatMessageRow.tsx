@@ -630,64 +630,24 @@ function GroupReactionBadges({
       {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
         const userReaction = items.find((r: any) => r.user_id === userId);
         return (
-          <Popover
+          <button
             key={type}
-            open={openType === type}
-            onOpenChange={(open) => setOpenType(open ? type : null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleReactionMutation.mutate({ messageId, reactionType: type });
+            }}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+              userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
+            }`}
           >
-            <PopoverTrigger asChild>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Directly toggle the reaction
-                  toggleReactionMutation.mutate({ messageId, reactionType: type });
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setOpenType(openType === type ? null : type);
-                }}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
-                  userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
-                }`}
-              >
-                <span>{type}</span>
-                <span>{items.length}</span>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-auto p-3 bg-popover border z-50"
-              align="start"
-              side="top"
-              sideOffset={8}
-              onOpenAutoFocus={(e) => e.preventDefault()}
-            >
-              <div className="flex flex-col gap-2 min-w-[140px]">
-                <p className="text-xs font-medium text-muted-foreground">
-                  {type} ({items.length})
-                </p>
-                {items.map((r: any) => (
-                  <p key={r.id} className="text-sm">
-                    {getUserName(r.user_id)}
-                    {r.user_id === userId && " (you)"}
-                  </p>
-                ))}
-                {userReaction && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs text-destructive hover:text-destructive justify-start px-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleReactionMutation.mutate({ messageId, reactionType: type });
-                      setOpenType(null);
-                    }}
-                  >
-                    Remove your {type}
-                  </Button>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+            <span>{type}</span>
+            <span>{items.length}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
         );
       })}
     </div>
