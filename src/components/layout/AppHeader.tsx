@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { LogoImage } from "@/components/ui/logo-image";
 import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, HelpCircle, Building2, Lock, UserCog, Settings } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
@@ -755,10 +756,15 @@ export function AppHeader() {
                 <>
                   {showClubLogo ? (
                     <div className="relative">
-                      <img 
+                      <LogoImage 
                         src={activeThemeData.logoUrl!} 
                         alt={activeThemeData.clubName}
                         className="h-8 w-auto max-w-[32px] object-contain"
+                        fallback={
+                          <div className="p-1.5 rounded-lg bg-primary">
+                            <Flame className="h-5 w-5 text-primary-foreground" />
+                          </div>
+                        }
                       />
                       <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full shadow-sm" style={{ backgroundColor: 'hsl(160, 84%, 39%)' }}>
                         <Flame className="h-2.5 w-2.5" style={{ color: 'white' }} />

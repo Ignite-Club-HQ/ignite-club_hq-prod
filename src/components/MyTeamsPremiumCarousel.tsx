@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { LogoImage } from "@/components/ui/logo-image";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -157,10 +158,16 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
         {/* Header: avatar + name + badges + menu */}
         <div className="flex items-center gap-3">
           {(item.logo_url || item.club_logo_url) ? (
-            <img
-              src={item.logo_url || item.club_logo_url!}
-              alt=""
+            <LogoImage
+              src={(item.logo_url || item.club_logo_url)!}
               className="h-11 w-11 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
+              fallback={
+                <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${
+                  item.type === "league" ? "bg-accent/60 ring-2 ring-accent" : "bg-primary/10 ring-2 ring-primary/20"
+                }`}>
+                  {item.type === "league" ? <Trophy className="h-5 w-5 text-accent-foreground" /> : <Users className="h-5 w-5 text-primary" />}
+                </div>
+              }
             />
           ) : (
             <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${
