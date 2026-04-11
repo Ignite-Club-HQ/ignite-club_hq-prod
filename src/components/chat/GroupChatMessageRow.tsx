@@ -598,32 +598,12 @@ function GroupReactionBadges({
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
 }) {
-  const [openType, setOpenType] = useState<string | null>(null);
-
-  const allUserIds = [...new Set(messageReactions.map((r: any) => r.user_id))];
-
-  const { data: users = [] } = useQuery({
-    queryKey: ["group-reaction-users", allUserIds],
-    queryFn: async () => {
-      if (allUserIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", allUserIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: openType !== null && allUserIds.length > 0,
-  });
-
   const grouped = messageReactions.reduce((acc: any, r: any) => {
     if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
     acc[r.reaction_type].push(r);
     return acc;
   }, {} as Record<string, any[]>);
 
-  const getUserName = (id: string) =>
-    users.find((u: any) => u.id === id)?.display_name || "";
 
   return (
     <div className="flex flex-wrap gap-1 mt-1">
