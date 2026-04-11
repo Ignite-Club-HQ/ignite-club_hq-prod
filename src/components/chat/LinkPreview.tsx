@@ -93,8 +93,19 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
     return null;
   }
 
+  const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    safeOpenUrl(fullUrl);
+  };
+
   return (
-    <div className="flex w-full max-w-full gap-3 py-2 px-3 min-w-0 overflow-hidden rounded-lg bg-muted/80 dark:bg-muted/60 border border-border/40">
+    <div
+      className="flex w-full max-w-full gap-3 py-2 px-3 min-w-0 overflow-hidden rounded-lg bg-muted/80 dark:bg-muted/60 border border-border/40 cursor-pointer active:opacity-80 transition-opacity"
+      onClick={handleCardClick}
+      role="link"
+    >
       {preview.image && (
         <div className="w-16 h-16 shrink-0 rounded overflow-hidden">
           <img
@@ -115,15 +126,12 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
         {!compact && preview.description && (
           <p className="text-xs text-muted-foreground line-clamp-2">{preview.description}</p>
         )}
-        <button
-          className="text-xs text-muted-foreground truncate hover:underline mt-0.5 text-left block max-w-full"
-          onClick={(e) => { e.stopPropagation(); safeOpenUrl(url.startsWith('http') ? url : `https://${url}`); }}
-        >
+        <p className="text-xs text-muted-foreground truncate mt-0.5 text-left max-w-full">
           {url.length > 50 ? url.slice(0, 47) + '…' : url}
-        </button>
+        </p>
       </div>
       {onRemove && (
-        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={onRemove}>
+        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={(e) => { e.stopPropagation(); onRemove(); }}>
           <X className="h-3 w-3" />
         </Button>
       )}
