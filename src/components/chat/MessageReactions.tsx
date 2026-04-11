@@ -264,16 +264,6 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
                 key={type}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (userReaction) {
-                    // Directly toggle off the user's reaction
-                    onReactionClick(type, userReaction.id);
-                  } else {
-                    // Add this reaction type
-                    onReactionClick(type);
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
                   setIsOpen(true);
                 }}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
