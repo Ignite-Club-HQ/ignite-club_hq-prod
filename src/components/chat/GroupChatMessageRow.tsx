@@ -598,7 +598,7 @@ function GroupReactionBadges({
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [viewingType, setViewingType] = useState<string | null>(null);
   const grouped = messageReactions.reduce((acc: any, r: any) => {
     if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
     acc[r.reaction_type].push(r);
@@ -613,59 +613,67 @@ function GroupReactionBadges({
   const allUserIds = [...new Set(messageReactions.map((r: any) => r.user_id))];
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <div className="flex flex-wrap gap-1 mt-1">
-          {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
-            const userReaction = items.find((r: any) => r.user_id === userId);
-            const emoji = REACTION_EMOJIS[type] || type;
-            return (
-              <button
-                key={type}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsOpen(true);
-                }}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
-                  userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
-                }`}
-              >
-                <span>{emoji}</span>
-                <span>{items.length}</span>
-              </button>
-            );
-          })}
-        </div>
-      </PopoverTrigger>
-      <GroupReactionsContent
+    <>
+      <div className="flex flex-wrap gap-1 mt-1">
+        {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
+          const userReaction = items.find((r: any) => r.user_id === userId);
+          const emoji = REACTION_EMOJIS[type] || type;
+          return (
+            <button
+              key={type}
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewingType(type);
+              }}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                userReaction ? "bg-primary/20 text-primary" : "bg-muted hover:bg-muted/80"
+              }`}
+            >
+              <span>{emoji}</span>
+              <span>{items.length}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <GroupReactionsDialog
         messageReactions={messageReactions}
+        grouped={grouped}
         allUserIds={allUserIds}
         userId={userId}
         toggleReactionMutation={toggleReactionMutation}
         messageId={messageId}
-        onClose={() => setIsOpen(false)}
-        isOpen={isOpen}
+        viewingType={viewingType}
+        onClose={() => setViewingType(null)}
+        onChangeType={setViewingType}
+        REACTION_EMOJIS={REACTION_EMOJIS}
       />
-    </Popover>
+    </>
   );
 }
 
-function GroupReactionsContent({
+function GroupReactionsDialog({
   messageReactions,
+  grouped,
   allUserIds,
   userId,
   toggleReactionMutation,
   messageId,
+  viewingType,
   onClose,
-  isOpen,
+  onChangeType,
+  REACTION_EMOJIS,
 }: {
   messageReactions: any[];
+  grouped: Record<string, any[]>;
   allUserIds: string[];
   userId?: string;
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   messageId: string;
+  viewingType: string | null;
   onClose: () => void;
-  isOpen: boolean;
+  onChangeType: (type: string) => void;
+  REACTION_EMOJIS: Record<string, string>;
 }) {
   const { data: users = [] } = useQuery({
     queryKey: ["group-reaction-users", allUserIds],
@@ -678,71 +686,82 @@ function GroupReactionsContent({
       if (error) throw error;
       return data;
     },
-    enabled: isOpen && allUserIds.length > 0,
+    enabled: !!viewingType && allUserIds.length > 0,
   });
 
-  const REACTION_EMOJIS: Record<string, string> = {
-    "❤️": "❤️", "🔥": "🔥", "👏": "👏", "😂": "😂", "👍": "👍", "😢": "😢",
-    like: "❤️", fire: "🔥", clap: "👏", laugh: "😂", thumbsup: "👍", sad: "😢",
-  };
-
-  const grouped = messageReactions.reduce((acc: any, r: any) => {
-    if (!acc[r.reaction_type]) acc[r.reaction_type] = [];
-    acc[r.reaction_type].push(r);
-    return acc;
-  }, {} as Record<string, any[]>);
-
   const getUserName = (uid: string) =>
-    users.find((u: any) => u.id === uid)?.display_name || "";
+    users.find((u: any) => u.id === uid)?.display_name || "Unknown User";
+
+  const viewingReactors = viewingType ? (grouped[viewingType] || []) : [];
+  const viewingEmoji = viewingType ? (REACTION_EMOJIS[viewingType] || viewingType) : "";
 
   return (
-    <PopoverContent
-      className="w-auto p-3 bg-popover border z-50"
-      align="start"
-      side="top"
-      sideOffset={8}
-      onOpenAutoFocus={(e) => e.preventDefault()}
-    >
-      <div className="flex flex-col gap-3 max-h-60 overflow-y-auto min-w-[160px]">
-        <p className="text-xs font-medium text-muted-foreground">Reactions</p>
-        {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
-          const emoji = REACTION_EMOJIS[type] || type;
-          const userReaction = items.find((r: any) => r.user_id === userId);
-          return (
-            <div key={type} className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <span className="text-base">{emoji}</span>
-                <span className="text-xs text-muted-foreground">({items.length})</span>
-              </div>
-              <div className="pl-6 flex flex-col gap-0.5">
-                {items.map((r: any) => (
-                  <p key={r.id || r.user_id} className="text-sm">
+    <Dialog open={!!viewingType} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="text-xl">{viewingEmoji}</span>
+            <span>Reactions</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Reaction type tabs */}
+        <div className="flex gap-1 pb-2 border-b">
+          {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
+            const emoji = REACTION_EMOJIS[type] || type;
+            return (
+              <Button
+                key={type}
+                variant={viewingType === type ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => onChangeType(type)}
+                className="h-8 px-2 gap-1"
+              >
+                <span>{emoji}</span>
+                <span className="text-xs">{items.length}</span>
+              </Button>
+            );
+          })}
+        </div>
+
+        <ScrollArea className="max-h-[300px]">
+          <div className="space-y-2">
+            {viewingReactors.map((r: any) => {
+              const isCurrentUser = r.user_id === userId;
+              return (
+                <div key={r.id || r.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                      {getUserName(r.user_id)?.charAt(0)?.toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium flex-1">
                     {getUserName(r.user_id)}
-                    {r.user_id === userId && " (you)"}
-                  </p>
-                ))}
-              </div>
-              {userReaction && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-6 h-6 text-xs text-destructive hover:text-destructive justify-start px-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleReactionMutation.mutate({ messageId, reactionType: type });
-                    onClose();
-                  }}
-                >
-                  Remove your {emoji}
-                </Button>
-              )}
-            </div>
-          );
-        })}
-        {users.length === 0 && (
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        )}
-      </div>
-    </PopoverContent>
+                    {isCurrentUser && <span className="text-muted-foreground font-normal"> (you)</span>}
+                  </span>
+                  {isCurrentUser && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleReactionMutation.mutate({ messageId, reactionType: r.reaction_type });
+                        onClose();
+                      }}
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {viewingReactors.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-2">No reactions</p>
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   );
 }
