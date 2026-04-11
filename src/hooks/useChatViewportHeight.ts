@@ -9,7 +9,8 @@ const isNativeAndroid = isNative && Capacitor.getPlatform() === "android";
  * Returns the chat shell height.
  *
  * - Web: rely on 100dvh
- * - Native Android: rely on 100vh + adjustResize
+ * - Native Android: use stable viewport height minus native keyboard height
+ *   (Capacitor Keyboard.resize is set to 'none' so 100vh does NOT shrink)
  * - Native iOS: use stable viewport height minus native keyboard height
  */
 export function useChatViewportHeight(headerOffset = "4rem") {
@@ -20,6 +21,11 @@ export function useChatViewportHeight(headerOffset = "4rem") {
   }
 
   if (isNativeAndroid) {
+    // With Keyboard.resize:'none', 100vh stays full-screen even when
+    // keyboard is open.  Subtract the keyboard height manually.
+    if (nativeKeyboardHeight > 0) {
+      return `calc(100vh - ${nativeKeyboardHeight}px - ${headerOffset})`;
+    }
     return `calc(100vh - ${headerOffset})`;
   }
 
