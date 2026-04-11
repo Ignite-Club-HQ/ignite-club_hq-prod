@@ -641,7 +641,7 @@ function GroupReactionBadges({
       <div className="flex flex-wrap gap-1 mt-1">
         {Object.entries(grouped).map(([type, items]: [string, any[]]) => {
           const userReaction = items.find((r: any) => r.user_id === userId);
-          const emoji = REACTION_EMOJIS[type] || type;
+          const emoji = normalizeGroupReactionType(type);
           return (
             <button
               key={type}
