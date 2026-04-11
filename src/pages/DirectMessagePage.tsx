@@ -250,13 +250,21 @@ export default function DirectMessagePage() {
       const { data, error } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
-        .eq("id", otherUserId)
+        .eq("id", otherUserId!)
         .single();
-      if (error) throw error;
+      if (error) {
+        console.error("[DM] Failed to fetch other user profile:", error.message);
+        throw error;
+      }
+      if (!data?.display_name) {
+        console.warn("[DM] Profile returned without display_name for", otherUserId);
+      }
       return data;
     },
     enabled: !!otherUserId && authReady,
     staleTime: 5 * 60 * 1000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 
   // Check if DM is allowed (both users in Pro club) - skip for Ignite Support
