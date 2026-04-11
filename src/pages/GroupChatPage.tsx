@@ -1209,9 +1209,9 @@ export default function GroupChatPage() {
       
       const previousData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
       
-      // Check if user already has a reaction on this message (any type)
+      // Check if user already has a reaction on this message (any type, including temp)
       const existingReaction = previousData?.reactions.find(
-        r => r.group_message_id === messageId && r.user_id === user?.id && !r.id.startsWith('temp-')
+        r => r.group_message_id === messageId && r.user_id === user?.id
       );
       
       // Optimistically update reactions
@@ -1234,12 +1234,6 @@ export default function GroupChatPage() {
             };
           }
         } else {
-          // Check if there's already a temp reaction for this user on this message
-          const hasTempReaction = old.reactions.some(
-            r => r.id.startsWith('temp-') && r.group_message_id === messageId && r.user_id === user?.id
-          );
-          if (hasTempReaction) return old;
-          
           // Add reaction optimistically with temp ID
           const tempReaction: MessageReaction = {
             id: `temp-reaction-${Date.now()}`,
