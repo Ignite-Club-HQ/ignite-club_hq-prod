@@ -104,7 +104,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
       const roleLabel = inviteRoles.find(r => r.value === selectedRole)?.label || "Player";
       setRoleName(roleLabel);
 
-      const rpcArgs: any = { p_team_id: selectedTeam, p_role: selectedRole };
+      const rpcArgs: any = { p_team_id: selectedTeam, p_role: selectedRole, p_child_name: null, p_child_year_of_birth: null };
       
       if (selectedRole === "parent") {
         if (selectedExistingChildId) {
