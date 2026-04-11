@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { LogoImage } from "@/components/ui/logo-image";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -225,11 +226,14 @@ export function MyTeamsScroll() {
               className="shrink-0 w-[140px] rounded-lg border bg-card p-3 flex flex-col items-center gap-1.5 hover:border-primary/50 transition-colors active:scale-[0.97]"
             >
               {item.logo_url ? (
-                <img
+                <LogoImage
                   src={item.logo_url}
-                  alt=""
                   className="h-8 w-8 rounded-full object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  fallback={
+                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  }
                 />
               ) : (
                 <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
