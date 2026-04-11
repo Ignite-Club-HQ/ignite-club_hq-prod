@@ -685,36 +685,33 @@ export default function MessagesPage() {
     placeholderData: (prev) => prev,
   });
 
-  // Get Pro status for each club to determine which are locked
+  // Get Pro status for each club - derived from memberClubs data
+  const memberClubIds = useMemo(() => {
+    const clubs = memberClubsWithMessages?.clubs ?? [];
+    return clubs.map((c: any) => c.id).filter(Boolean) as string[];
+  }, [memberClubsWithMessages]);
+
   const { data: clubProStatus, isLoading: isLoadingClubProStatus } = useQuery({
-    queryKey: ["club-pro-status", user?.id],
+    queryKey: ["club-pro-status", memberClubIds],
     queryFn: async () => {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .not("club_id", "is", null);
+      if (memberClubIds.length === 0) return {};
 
-      if (!roles || roles.length === 0) return {};
-
-      const clubIds = [...new Set(roles.map((r) => r.club_id).filter(Boolean))];
-      
       const { data: subs } = await supabase
         .from("club_subscriptions")
         .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
-        .in("club_id", clubIds);
+        .in("club_id", memberClubIds);
 
       const statusMap: Record<string, boolean> = {};
-      clubIds.forEach(id => {
+      memberClubIds.forEach(id => {
         const sub = subs?.find(s => s.club_id === id);
-        statusMap[id as string] = sub ? 
+        statusMap[id] = sub ? 
           (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && 
           (!sub.expires_at || new Date(sub.expires_at) > new Date()) : false;
       });
       
       return statusMap;
     },
-    enabled: !!user && initialized,
+    enabled: memberClubIds.length > 0,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
