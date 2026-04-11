@@ -648,8 +648,3 @@ function GroupReactionBadges({
     </div>
   );
 }
-        );
-      })}
-    </div>
-  );
-}
