@@ -458,6 +458,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
+    setCaption("");
     setSelectedPhotos([]);
     setUploading(false);
     setUploadProgress(0);
