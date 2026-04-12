@@ -113,6 +113,7 @@ export default function TeamChatPage() {
   const { teamId } = useParams<{ teamId: string }>();
   const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
+  const swipeBack = useSwipeBack();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;

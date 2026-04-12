@@ -80,6 +80,7 @@ export default function ClubAdminChatPage() {
     56,
   );
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const swipeBack = useSwipeBack();
   
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();

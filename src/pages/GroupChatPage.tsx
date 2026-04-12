@@ -163,6 +163,7 @@ export default function GroupChatPage() {
   const [searchParams] = useSearchParams();
   const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
+  const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [message, setMessage] = useState("");

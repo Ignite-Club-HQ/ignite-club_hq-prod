@@ -77,6 +77,7 @@ const getCachedBroadcastMessages = (): Message[] =>
 export default function BroadcastChatPage() {
   const { user, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
+  const swipeBack = useSwipeBack();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();

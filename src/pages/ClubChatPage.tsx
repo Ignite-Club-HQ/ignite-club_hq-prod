@@ -100,6 +100,7 @@ export default function ClubChatPage() {
   const { clubId } = useParams<{ clubId: string }>();
   const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
+  const swipeBack = useSwipeBack();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
