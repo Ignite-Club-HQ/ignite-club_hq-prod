@@ -1,7 +1,7 @@
 import { RefObject, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
-import { scrollChatToBottom } from "@/lib/chatScroll";
+import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
 
 interface UseChatAutoScrollToLatestOptions {
   scrollContainerRef: RefObject<HTMLElement>;
@@ -48,12 +48,14 @@ export function useChatAutoScrollToLatest({
 
     const handleFocusIn = (event: FocusEvent) => {
       if (!isComposerTarget(event.target)) return;
+      if (!isNearBottom(scrollContainerRef.current)) return;
       snapToBottom();
       setTimeout(snapToBottom, 80);
     };
 
     const handleViewportResize = () => {
       if (!isComposerTarget(document.activeElement)) return;
+      if (!isNearBottom(scrollContainerRef.current)) return;
       snapToBottom();
     };
 
