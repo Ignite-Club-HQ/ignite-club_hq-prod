@@ -8,6 +8,13 @@ const isNative = Capacitor.isNativePlatform();
 const isNativeIOS = isNative && Capacitor.getPlatform() === "ios";
 const isNativeAndroid = isNative && Capacitor.getPlatform() === "android";
 
+const isEditableTarget = (target: EventTarget | null) => {
+  const element = target as HTMLElement | null;
+  return !!element?.closest(
+    "textarea, input:not([type='button']):not([type='checkbox']):not([type='file']):not([type='hidden']):not([type='radio']):not([type='reset']):not([type='submit']), [contenteditable='true']",
+  );
+};
+
 /**
  * Detects soft keyboard visibility using native keyboard events when available,
  * otherwise falls back to visualViewport height changes.
@@ -16,9 +23,39 @@ export function useKeyboardOpen(threshold = KEYBOARD_OPEN_THRESHOLD) {
   const { isKeyboardOpen: iosOpen, keyboardHeight: iosHeight } = useNativeIOSKeyboardState();
   const androidHeight = useNativeAndroidKeyboardState();
   const [fallbackOpen, setFallbackOpen] = useState(false);
+  const [isEditableFocused, setIsEditableFocused] = useState(false);
 
   useEffect(() => {
-    if (isNativeIOS || isNativeAndroid) return;
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const syncFocusedEditable = () => {
+      setIsEditableFocused(isEditableTarget(document.activeElement));
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      setIsEditableFocused(isEditableTarget(event.target) || isEditableTarget(document.activeElement));
+    };
+
+    const handleFocusOut = () => {
+      requestAnimationFrame(syncFocusedEditable);
+    };
+
+    syncFocusedEditable();
+    window.addEventListener("focusin", handleFocusIn);
+    window.addEventListener("focusout", handleFocusOut);
+    window.addEventListener("blur", syncFocusedEditable);
+    document.addEventListener("visibilitychange", syncFocusedEditable);
+
+    return () => {
+      window.removeEventListener("focusin", handleFocusIn);
+      window.removeEventListener("focusout", handleFocusOut);
+      window.removeEventListener("blur", syncFocusedEditable);
+      document.removeEventListener("visibilitychange", syncFocusedEditable);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
 
     const vv = window.visualViewport;
     if (!vv) return;
@@ -40,8 +77,8 @@ export function useKeyboardOpen(threshold = KEYBOARD_OPEN_THRESHOLD) {
     };
   }, [threshold]);
 
-  if (isNativeIOS) return iosOpen || iosHeight > threshold;
-  if (isNativeAndroid) return androidHeight > threshold;
-  return fallbackOpen;
+  if (isNativeIOS) return iosOpen || iosHeight > threshold || fallbackOpen || isEditableFocused;
+  if (isNativeAndroid) return androidHeight > threshold || fallbackOpen || isEditableFocused;
+  return fallbackOpen || isEditableFocused;
 }
 
