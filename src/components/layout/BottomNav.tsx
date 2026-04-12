@@ -11,6 +11,7 @@ import {
   IOS_NAV_GUARD_EVENT,
   readSafeAreaInsetBottomPx,
 } from "@/lib/iosLayoutStability";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
