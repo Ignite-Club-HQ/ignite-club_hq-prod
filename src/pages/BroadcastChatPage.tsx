@@ -7,6 +7,8 @@ import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Flame, Search } from "lucide-react";
+import { ChatBackButton } from "@/components/chat/ChatBackButton";
+import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";

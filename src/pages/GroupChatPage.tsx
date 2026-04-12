@@ -11,6 +11,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
+import { ChatBackButton } from "@/components/chat/ChatBackButton";
+import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";

@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search } from "lucide-react";
+import { ChatBackButton } from "@/components/chat/ChatBackButton";
+import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
