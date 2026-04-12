@@ -944,7 +944,7 @@ export default function DirectMessagePage() {
     return (
       <div className="py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate("/messages")} aria-label="Back to messages">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-3">
@@ -986,7 +986,7 @@ export default function DirectMessagePage() {
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate("/messages")} aria-label="Back to messages">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           {isIgniteSupportConversation ? (

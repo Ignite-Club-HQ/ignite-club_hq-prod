@@ -46,13 +46,7 @@ export function AppLayout() {
 
   useChatRouteOverscrollLock(isChatThreadRoute);
 
-  // When bottom nav is hidden in chat threads, reset the offset so inputs sit at the bottom
-  useEffect(() => {
-    if (isChatThreadRoute) {
-      document.documentElement.style.setProperty("--bottom-nav-offset", "env(safe-area-inset-bottom, 0px)");
-    }
-    // BottomNav will re-set the variable when it mounts on non-chat routes
-  }, [isChatThreadRoute]);
+  // BottomNav is now always visible, so no need to reset offset for chat routes
 
   const loadingLogo = useMemo(() => igniteIcon, []);
   const appViewportStyle = useMemo(() => (
@@ -261,7 +255,7 @@ export function AppLayout() {
       <main id="main-content" aria-label="Main content" className={mainClassName}>
         <Outlet />
       </main>
-      {!isChatThreadRoute && <BottomNav />}
+      <BottomNav />
       <OfflineIndicator />
       <NativeNotificationPrompt userId={user?.id} />
       <PendingInviteWelcomeDialog />

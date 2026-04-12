@@ -1124,7 +1124,7 @@ export default function ClubChatPage() {
   return (
     <div className="flex flex-col" style={{ height: chatHeight, paddingBottom: "calc(var(--bottom-nav-offset, 0px) + 1rem)" }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate("/messages")} aria-label="Back to messages">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Avatar className="h-10 w-10">
@@ -1163,7 +1163,7 @@ export default function ClubChatPage() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate("/messages")} aria-label="Back to messages">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <button
