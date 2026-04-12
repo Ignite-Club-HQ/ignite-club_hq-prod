@@ -250,7 +250,7 @@ export function AppLayout() {
     : "flex-1 pb-28 px-4 max-w-lg mx-auto w-full";
   
   return (
-    <div className={`bg-background flex flex-col overscroll-none`} style={appViewportStyle}>
+    <div className={`bg-background flex flex-col overscroll-none min-h-0`} style={appViewportStyle}>
       <SkipToContent />
       <AppHeader />
       <main id="main-content" aria-label="Main content" className={mainClassName}>
