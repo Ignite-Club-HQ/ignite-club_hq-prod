@@ -108,18 +108,14 @@ export function AdminRsvpChanger({
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
-        <button
-          className="flex items-center gap-1.5 shrink-0 group"
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-8 px-3"
           disabled={isPending}
         >
-          {isPending ? (
-            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-          ) : (
-            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors underline underline-offset-2">
-              Change
-            </span>
-          )}
-        </button>
+          {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Change"}
+        </Button>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader className="pb-2">
