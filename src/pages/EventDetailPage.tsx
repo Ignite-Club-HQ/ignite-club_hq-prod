@@ -2445,6 +2445,7 @@ export default function EventDetailPage() {
                           status,
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
+                        memberRole={!rsvp.child_id && !rsvp.mini_league_player_id ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0] : undefined}
                       />
                     ))}
                     {/* Show event guests in the going list */}
@@ -2493,6 +2494,7 @@ export default function EventDetailPage() {
                           status,
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
+                        memberRole={!rsvp.child_id && !rsvp.mini_league_player_id ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0] : undefined}
                       />
                     ))}
                   </div>
@@ -2520,6 +2522,7 @@ export default function EventDetailPage() {
                           status,
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
+                        memberRole={!rsvp.child_id && !rsvp.mini_league_player_id ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0] : undefined}
                       />
                     ))}
                   </div>
