@@ -224,6 +224,8 @@ function buildAes128gcmBody(salt: Uint8Array, localPublicKey: Uint8Array, cipher
 }
 
 // Log push notification delivery status
+// Uses insert for new entries. If a placeholder was pre-inserted during dedup claiming,
+// the endpoint will be 'pending' — we update it instead.
 async function logDeliveryStatus(
   supabase: any,
   notificationId: string | null,
@@ -235,16 +237,36 @@ async function logDeliveryStatus(
   retryCount: number = 0
 ) {
   try {
+    const logData = {
+      notification_id: notificationId,
+      user_id: userId,
+      endpoint: endpoint.substring(0, 500),
+      status,
+      status_code: statusCode,
+      error_message: errorMessage ? `${errorMessage} (retries: ${retryCount})`.substring(0, 1000) : null
+    };
+
+    // If we pre-claimed with a placeholder, update instead of inserting a duplicate
+    if (notificationId) {
+      const { data: existing } = await supabase
+        .from('push_notification_logs')
+        .select('id, endpoint')
+        .eq('notification_id', notificationId)
+        .eq('endpoint', 'pending')
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('push_notification_logs')
+          .update({ endpoint: logData.endpoint, status: logData.status, status_code: logData.status_code, error_message: logData.error_message })
+          .eq('id', existing.id);
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from('push_notification_logs')
-      .insert({
-        notification_id: notificationId,
-        user_id: userId,
-        endpoint: endpoint.substring(0, 500),
-        status,
-        status_code: statusCode,
-        error_message: errorMessage ? `${errorMessage} (retries: ${retryCount})`.substring(0, 1000) : null
-      });
+      .insert(logData);
     
     if (error) {
       console.error('Failed to log push delivery status');
@@ -557,6 +579,56 @@ serve(async (req) => {
     const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@igniteclubhq.com';
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Deduplication: if this notificationId already has a push log entry, skip to prevent
+    // duplicate pushes caused by pg_net delivering the same HTTP request twice.
+    if (notificationId) {
+      const { data: existingLog } = await supabase
+        .from('push_notification_logs')
+        .select('id')
+        .eq('notification_id', notificationId)
+        .limit(1)
+        .maybeSingle();
+      
+      if (existingLog) {
+        console.log(`[PUSH] Duplicate detected: notification ${notificationId} already has a push log, skipping`);
+        return new Response(
+          JSON.stringify({ 
+            message: 'Duplicate push skipped',
+            sent: 0,
+            total: 0,
+            reason: 'Already processed'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Pre-insert a placeholder log to claim this notification and prevent concurrent duplicates
+      const { error: claimError } = await supabase
+        .from('push_notification_logs')
+        .insert({
+          notification_id: notificationId,
+          user_id: userId,
+          endpoint: 'pending',
+          status: 'sent',
+          status_code: null,
+          error_message: null
+        });
+      
+      if (claimError) {
+        // If insert fails due to unique constraint, another instance already claimed it
+        console.log(`[PUSH] Could not claim notification ${notificationId}, likely already being processed: ${claimError.message}`);
+        return new Response(
+          JSON.stringify({ 
+            message: 'Duplicate push skipped (claim failed)',
+            sent: 0,
+            total: 0,
+            reason: 'Already being processed'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
     
     // Check user preferences before sending
     const shouldSend = await checkUserPreference(supabase, userId, notificationType);
