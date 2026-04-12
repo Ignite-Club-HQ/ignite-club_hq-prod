@@ -57,7 +57,7 @@ export function AdminRsvpChanger({
     setOpen(false);
   };
 
-  // No current status — show "Set Status" button
+  // No current status — show "Change" button (same as having a status)
   if (!currentStatus) {
     return (
       <Drawer open={open} onOpenChange={setOpen}>
@@ -65,11 +65,10 @@ export function AdminRsvpChanger({
           <Button
             variant="outline"
             size="sm"
-            className="text-xs gap-1 h-7"
+            className="text-xs h-8 px-3"
             disabled={isPending}
           >
-            {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Set Status"}
-            <ChevronDown className="h-3 w-3" />
+            {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Change"}
           </Button>
         </DrawerTrigger>
         <DrawerContent>
