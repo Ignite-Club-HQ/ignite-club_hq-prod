@@ -150,6 +150,9 @@ const AttendeeCard = ({
           {isChildRsvp && !isMiniLeague && (
             <p className="text-xs text-muted-foreground">Child</p>
           )}
+          {!isChildRsvp && !isMiniLeaguePlayerRsvp && memberRole && (
+            <p className="text-xs text-muted-foreground capitalize">{memberRole}</p>
+          )}
           {rsvp.notes && (
             <p className="text-xs text-muted-foreground truncate">{rsvp.notes}</p>
           )}
