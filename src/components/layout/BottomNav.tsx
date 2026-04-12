@@ -11,6 +11,7 @@ import {
   IOS_NAV_GUARD_EVENT,
   readSafeAreaInsetBottomPx,
 } from "@/lib/iosLayoutStability";
+import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
@@ -28,6 +29,20 @@ const DEFAULT_NAV_GUARD_MS = 900;
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
   const location = useLocation();
+  const isKeyboardOpen = useKeyboardOpen();
+
+  const isChatThreadRoute = useMemo(() => {
+    const path = location.pathname;
+    if (path === "/messages/broadcast") return true;
+    if (/^\/messages\/club\/[^/]+$/.test(path)) return true;
+    if (/^\/messages\/club-admin\/[^/]+$/.test(path)) return true;
+    if (/^\/messages\/dm\/[^/]+$/.test(path)) return true;
+    if (/^\/groups\/[^/]+$/.test(path)) return true;
+    if (/^\/messages\/[^/]+$/.test(path) && path !== "/messages" && path !== "/messages/welcome") return true;
+    return false;
+  }, [location.pathname]);
+
+  const shouldHideNav = isChatThreadRoute && isKeyboardOpen;
 
   const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-roles-nav", user?.id],
@@ -242,31 +257,40 @@ export function BottomNav() {
     const root = document.documentElement;
     root.style.setProperty("--bottom-nav-safe-inset", navBottomInset);
     root.style.setProperty("--bottom-nav-safe-inset-px", nativeInsetFloor);
-    root.style.setProperty("--bottom-nav-offset", `calc(4rem + ${navBottomInset})`);
-  }, [navBottomInset, nativeInsetFloor]);
+    // When nav is hidden (keyboard open on chat), set offset to 0 so chat viewport expands
+    root.style.setProperty(
+      "--bottom-nav-offset",
+      shouldHideNav ? "0px" : `calc(4rem + ${navBottomInset})`
+    );
+  }, [navBottomInset, nativeInsetFloor, shouldHideNav]);
 
   const gpuLayerStyle = shouldStabilizeIOSLayout
-    ? { transform: "translate3d(0,0,0)", willChange: "transform", backfaceVisibility: "hidden" as const }
+    ? { willChange: "transform", backfaceVisibility: "hidden" as const }
     : {};
+
+  const hideTransform = shouldHideNav ? "translateY(100%)" : "translate3d(0,0,0)";
 
   return (
     <>
-      {isNativePlatform && (
+      {isNativePlatform && !shouldHideNav && (
         <div
           className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
           style={{
             height: `calc(4rem + ${navBottomInset})`,
+            transform: "translate3d(0,0,0)",
             ...gpuLayerStyle,
           }}
         />
       )}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg transition-transform duration-200 ease-out"
         style={{
           paddingBottom: navBottomInset,
+          transform: hideTransform,
           ...gpuLayerStyle,
         }}
         aria-label="Main navigation"
+        aria-hidden={shouldHideNav}
       >
         <div className="flex items-center justify-around min-h-[4rem] max-w-lg mx-auto px-2">
           {navItems.map(({ to, icon: Icon, label, requiresPro }) => (
