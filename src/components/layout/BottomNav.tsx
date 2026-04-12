@@ -31,6 +31,7 @@ export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
   const location = useLocation();
   const isKeyboardOpen = useKeyboardOpen();
+  const nativeKbHeight = useNativeKeyboardHeight();
 
   const isChatThreadRoute = useMemo(() => {
     const path = location.pathname;
@@ -43,7 +44,8 @@ export function BottomNav() {
     return false;
   }, [location.pathname]);
 
-  const shouldHideNav = isChatThreadRoute && isKeyboardOpen;
+  // Use both keyboard detection signals for maximum reliability on native
+  const shouldHideNav = isChatThreadRoute && (isKeyboardOpen || nativeKbHeight > 0);
 
   const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-roles-nav", user?.id],
