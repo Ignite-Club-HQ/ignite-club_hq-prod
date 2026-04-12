@@ -2592,7 +2592,12 @@ export default function EventDetailPage() {
                               {member.display_name?.charAt(0)?.toUpperCase() || "?"}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-semibold text-sm truncate">{member.display_name || "Unknown"}</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-sm truncate block">{member.display_name || "Unknown"}</span>
+                            {member.roles?.[0] && (
+                              <p className="text-xs text-muted-foreground capitalize">{member.roles[0]}</p>
+                            )}
+                          </div>
                         </div>
                         {(isAdmin || isAppAdmin) && (
                           <AdminRsvpChanger
