@@ -172,7 +172,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       <>
         {/* YouTube embeds */}
         {youtubeUrls.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-2 min-w-0 max-w-full">
             {youtubeUrls.map(({ url, videoId }) => (
               <YouTubeEmbed key={url} videoId={videoId} compact />
             ))}
@@ -181,7 +181,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
         {/* Link previews for non-YouTube URLs */}
         {otherUrls.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-2 min-w-0 max-w-full">
             {otherUrls.map((url) => (
               <LinkPreview key={url} url={url} compact />
             ))}
@@ -192,7 +192,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 min-w-0 max-w-full">
       {/* Image attachment */}
       {imageUrl && !imageError && (
         <div className="rounded-lg overflow-hidden max-w-xs">
@@ -227,7 +227,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
       {/* Text content */}
       {text && (
-        <div className="whitespace-pre-wrap" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+        <div className="min-w-0 max-w-full whitespace-pre-wrap" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
           {parts.length === 0 ? (
             // Fallback: render text as-is if parsing fails
             text
@@ -241,7 +241,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     href={part.content}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline hover:opacity-80"
+                    className="inline-block max-w-full align-top break-words underline hover:opacity-80"
                     onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(part.content); }}
                   >
                     {part.linkText}
@@ -259,7 +259,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     href={ensureProtocol(part.content)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline hover:opacity-80 break-all"
+                    className="inline-block max-w-full align-top break-all underline hover:opacity-80"
                     onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(ensureProtocol(part.content)); }}
                   >
                     {truncateUrl(part.content)}
@@ -292,7 +292,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
       {/* YouTube embeds - only if showPreviews */}
       {showPreviews && youtubeUrls.length > 0 && (
-        <div className="space-y-2 mt-2">
+        <div className="space-y-2 mt-2 min-w-0 max-w-full">
           {youtubeUrls.map(({ url, videoId }) => (
             <YouTubeEmbed key={url} videoId={videoId} compact />
           ))}
@@ -301,7 +301,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
       {/* Link previews for non-YouTube URLs - only if showPreviews */}
       {showPreviews && otherUrls.length > 0 && (
-        <div className="space-y-2 mt-2">
+        <div className="space-y-2 mt-2 min-w-0 max-w-full">
           {otherUrls.map((url) => (
             <LinkPreview key={url} url={url} compact />
           ))}

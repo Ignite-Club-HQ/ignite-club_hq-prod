@@ -630,7 +630,7 @@ export const ChatMessage = memo(function ChatMessage({
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
   return (
-    <div className={`flex gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
+    <div className={`flex min-w-0 max-w-full gap-3 group ${isOwn && !isClubAnnouncement ? "flex-row-reverse" : ""} ${isInteracting ? "relative z-[100000]" : ""}`}>
       {isInteracting && createPortal(
         <div
           className="fixed inset-0 dark:bg-black/[0.22] bg-black/[0.28] z-[99999] animate-fade-in"
@@ -670,12 +670,12 @@ export const ChatMessage = memo(function ChatMessage({
           </AvatarFallback>
         </Avatar>
       )}
-      <div className={`flex flex-col min-w-0 max-w-[75%] ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
+      <div className={`flex w-full min-w-0 max-w-[75%] flex-col ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
         {(isClubAnnouncement || (!isOwn && hasName)) && (
           <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName || "Club"}</p>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
-        <div className="relative group/msg">
+        <div className="relative min-w-0 max-w-full group/msg">
           {/* Swipe indicator - text only, shown when past threshold */}
           {canReply && swipeState.pastThreshold && (
             <div
@@ -692,6 +692,7 @@ export const ChatMessage = memo(function ChatMessage({
           )}
           {/* Swipe-to-reply wrapper */}
           <div
+            className="min-w-0 max-w-full"
             style={{
               transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
               transition: swipeState.isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -706,7 +707,7 @@ export const ChatMessage = memo(function ChatMessage({
           >
             <div
               ref={bubbleRef}
-              className={`relative rounded-2xl px-4 py-2 select-none transition-all duration-100 overflow-hidden ${
+              className={`relative max-w-full rounded-2xl px-4 py-2 select-none transition-all duration-100 overflow-hidden ${
                 isOwn && !isClubAnnouncement
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : "bg-muted rounded-bl-sm"
@@ -721,7 +722,7 @@ export const ChatMessage = memo(function ChatMessage({
                 };
               })() : undefined}
             >
-              <div className="text-sm overflow-hidden">
+              <div className="text-sm min-w-0 max-w-full overflow-hidden">
                 <MessageContent 
                   text={text} 
                   imageUrl={imageUrl} 
@@ -779,7 +780,7 @@ export const ChatMessage = memo(function ChatMessage({
           onBlock={() => setShowBlockDialog(true)}
         />
         {/* Link previews rendered outside the message bubble */}
-        <div className="w-full min-w-0 max-w-full overflow-hidden">
+        <div className="w-full min-w-0 max-w-full self-stretch overflow-hidden">
           <MessageContent text={text} previewsOnly />
         </div>
         

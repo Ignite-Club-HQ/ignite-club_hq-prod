@@ -341,13 +341,13 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         />,
         document.body
       )}
-      <div className={`flex gap-2 max-w-[85%] group ${isOwnMessage ? "flex-row-reverse" : ""}`}>
+      <div className={`flex w-full min-w-0 gap-2 max-w-[85%] group ${isOwnMessage ? "flex-row-reverse" : ""}`}>
         <Avatar className="h-8 w-8 shrink-0">
           <AvatarImage src={avatarUrl} />
           <AvatarFallback>{displayName[0]?.toUpperCase() || "?"}</AvatarFallback>
         </Avatar>
 
-        <div className={`flex flex-col min-w-0 ${isOwnMessage ? "items-end" : "items-start"}`}>
+        <div className={`flex w-full min-w-0 max-w-full flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-medium">{displayName}</span>
             {msg.id.startsWith("queued-") && (
@@ -367,7 +367,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             </div>
           )}
 
-          <div className="relative group/msg">
+          <div className="relative min-w-0 max-w-full group/msg">
             {/* Swipe indicator - text only, shown when past threshold */}
             {swipeState.pastThreshold && (
               <div
@@ -384,6 +384,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             )}
             {/* Swipe-to-reply wrapper */}
             <div
+              className="min-w-0 max-w-full"
               style={{
                 transform: swipeState.offsetX > 0 ? `translateX(${swipeState.offsetX}px)` : undefined,
                 transition: swipeState.isSwiping ? 'none' : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -399,7 +400,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`rounded-lg px-3 py-2 select-none transition-all duration-100 overflow-hidden ${
+                className={`relative max-w-full rounded-lg px-3 py-2 select-none transition-all duration-100 overflow-hidden ${
                   isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted"
                 } ${tapFlash ? "scale-[0.97] ring-2 ring-primary/40 brightness-[0.92] dark:brightness-[1.15]" : ""} ${isInteracting ? "scale-[1.01] border border-primary/[0.18] dark:border-primary/20" : "border border-transparent"}`}
                 style={isInteracting ? (() => {
@@ -412,7 +413,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                   };
                 })() : undefined}
               >
-                <div className="text-sm overflow-hidden"><MessageContent text={msg.text} imageUrl={msg.image_url} /></div>
+                <div className="text-sm min-w-0 max-w-full overflow-hidden"><MessageContent text={msg.text} imageUrl={msg.image_url} /></div>
               </div>
             </div>
           </div>
