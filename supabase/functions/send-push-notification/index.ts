@@ -224,6 +224,8 @@ function buildAes128gcmBody(salt: Uint8Array, localPublicKey: Uint8Array, cipher
 }
 
 // Log push notification delivery status
+// Uses insert for new entries. If a placeholder was pre-inserted during dedup claiming,
+// the endpoint will be 'pending' — we update it instead.
 async function logDeliveryStatus(
   supabase: any,
   notificationId: string | null,
@@ -235,16 +237,36 @@ async function logDeliveryStatus(
   retryCount: number = 0
 ) {
   try {
+    const logData = {
+      notification_id: notificationId,
+      user_id: userId,
+      endpoint: endpoint.substring(0, 500),
+      status,
+      status_code: statusCode,
+      error_message: errorMessage ? `${errorMessage} (retries: ${retryCount})`.substring(0, 1000) : null
+    };
+
+    // If we pre-claimed with a placeholder, update instead of inserting a duplicate
+    if (notificationId) {
+      const { data: existing } = await supabase
+        .from('push_notification_logs')
+        .select('id, endpoint')
+        .eq('notification_id', notificationId)
+        .eq('endpoint', 'pending')
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('push_notification_logs')
+          .update({ endpoint: logData.endpoint, status: logData.status, status_code: logData.status_code, error_message: logData.error_message })
+          .eq('id', existing.id);
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from('push_notification_logs')
-      .insert({
-        notification_id: notificationId,
-        user_id: userId,
-        endpoint: endpoint.substring(0, 500),
-        status,
-        status_code: statusCode,
-        error_message: errorMessage ? `${errorMessage} (retries: ${retryCount})`.substring(0, 1000) : null
-      });
+      .insert(logData);
     
     if (error) {
       console.error('Failed to log push delivery status');
