@@ -29,6 +29,20 @@ const DEFAULT_NAV_GUARD_MS = 900;
 export function BottomNav() {
   const { unreadMessagesCount, user } = useAuth();
   const location = useLocation();
+  const isKeyboardOpen = useKeyboardOpen();
+
+  const isChatThreadRoute = useMemo(() => {
+    const path = location.pathname;
+    if (path === "/messages/broadcast") return true;
+    if (/^\/messages\/club\/[^/]+$/.test(path)) return true;
+    if (/^\/messages\/club-admin\/[^/]+$/.test(path)) return true;
+    if (/^\/messages\/dm\/[^/]+$/.test(path)) return true;
+    if (/^\/groups\/[^/]+$/.test(path)) return true;
+    if (/^\/messages\/[^/]+$/.test(path) && path !== "/messages" && path !== "/messages/welcome") return true;
+    return false;
+  }, [location.pathname]);
+
+  const shouldHideNav = isChatThreadRoute && isKeyboardOpen;
 
   const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-roles-nav", user?.id],
