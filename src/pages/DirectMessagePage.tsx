@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search } from "lucide-react";
+import { ChatBackButton } from "@/components/chat/ChatBackButton";
+import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
@@ -155,6 +157,7 @@ export default function DirectMessagePage() {
   const [searchParams] = useSearchParams();
   const { user, profile, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
+  const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [message, setMessage] = useState("");
@@ -981,17 +984,15 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }}>
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <ChatBackButton />
           {isIgniteSupportConversation ? (
             <>
-              <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+              <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
                 <Flame className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
@@ -1001,18 +1002,18 @@ export default function DirectMessagePage() {
             </>
           ) : (
             <>
-              <Avatar className="h-10 w-10">
+              <Avatar className="h-10 w-10 shrink-0">
                 <AvatarImage src={otherUser?.avatar_url || undefined} />
                 <AvatarFallback>{otherUser?.display_name?.charAt(0).toUpperCase() || "?"}</AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <h1 className="font-semibold">{otherUser?.display_name || "Unknown User"}</h1>
+                <h1 className="font-semibold truncate">{otherUser?.display_name || "Unknown User"}</h1>
               </div>
             </>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)}>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
             <Search className="h-4 w-4" />
           </Button>
           {!isIgniteSupportConversation && (

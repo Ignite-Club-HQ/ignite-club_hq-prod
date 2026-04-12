@@ -102,7 +102,7 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
 
   return (
     <div
-      className="flex w-full max-w-full gap-3 py-2 px-3 min-w-0 overflow-hidden rounded-lg bg-muted/80 dark:bg-muted/60 border border-border/40 cursor-pointer active:opacity-80 transition-opacity"
+      className="flex w-full max-w-full min-w-0 box-border items-start gap-3 overflow-hidden rounded-lg border border-border/40 bg-muted/80 px-3 py-2 transition-opacity cursor-pointer active:opacity-80 dark:bg-muted/60"
       onClick={handleCardClick}
       onTouchEnd={(e) => e.stopPropagation()}
       role="link"
@@ -117,7 +117,7 @@ export function LinkPreview({ url, onRemove, compact = false }: LinkPreviewProps
           />
         </div>
       )}
-      <div className="flex-1 min-w-0 flex flex-col justify-center">
+      <div className="flex flex-1 min-w-0 flex-col justify-center overflow-hidden">
         {preview.siteName && (
           <p className="text-xs text-muted-foreground truncate">{preview.siteName}</p>
         )}

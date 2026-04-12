@@ -68,6 +68,7 @@ import { EventGroupsManager } from "@/components/EventGroupsManager";
 import { EventViewsAdminSection } from "@/components/EventViewsAdminSection";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
@@ -105,7 +106,8 @@ const AttendeeCard = ({
   isMiniLeague,
   onChangeStatus,
   currentStatus,
-}: { 
+  memberRole,
+}: {
   rsvp: any; 
   hasPaid?: boolean;
   isAdmin?: boolean;
@@ -115,6 +117,7 @@ const AttendeeCard = ({
   isMiniLeague?: boolean;
   onChangeStatus?: (status: RsvpStatus) => void;
   currentStatus?: RsvpStatus;
+  memberRole?: string;
 }) => {
   const isChildRsvp = !!rsvp.child_id;
   const isMiniLeaguePlayerRsvp = !!rsvp.mini_league_player_id;
@@ -126,79 +129,69 @@ const AttendeeCard = ({
   const avatarInitial = displayName?.charAt(0)?.toUpperCase() || "?";
 
   return (
-    <Card>
-      <CardContent className="p-3">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
-            {!isChildRsvp && !isMiniLeaguePlayerRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
-            <AvatarFallback className="text-xs">
-              {avatarInitial}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium truncate">{displayName}</span>
-              {isChildRsvp && !isMiniLeague && (
-                <Badge variant="outline" className="text-xs shrink-0">
-                  Child
-                </Badge>
-              )}
-              {showPrice && hasPaid && (
-                <Badge variant="default" className="text-xs bg-primary shrink-0">
-                  <Check className="h-3 w-3 mr-1" />
-                  Paid
-                </Badge>
-              )}
-            </div>
-            {rsvp.notes && (
-              <p className="text-sm text-muted-foreground mt-1 truncate">{rsvp.notes}</p>
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <Avatar className="h-9 w-9 shrink-0">
+          {!isChildRsvp && !isMiniLeaguePlayerRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
+          <AvatarFallback className="text-xs bg-muted">
+            {avatarInitial}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm truncate min-w-0">{displayName}</span>
+            {showPrice && hasPaid && (
+              <Badge variant="default" className="text-xs bg-primary shrink-0">
+                <Check className="h-3 w-3 mr-1" />
+                Paid
+              </Badge>
             )}
           </div>
-          {/* Admin RSVP status change buttons - admins and coaches can override for all events */}
-          {isAdmin && onChangeStatus && (
-            <div className="flex gap-1 shrink-0">
-              {rsvpOptions.filter(opt => opt.value !== currentStatus).map(({ value, icon }) => (
-                <Button
-                  key={value}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => onChangeStatus(value)}
-                  disabled={isPending}
-                  title={`Change to ${value}`}
-                >
-                  <span className="text-sm">{icon}</span>
-                </Button>
-              ))}
-            </div>
+          {isChildRsvp && !isMiniLeague && (
+            <p className="text-xs text-muted-foreground">Child</p>
           )}
-          {/* Admin-only payment toggle */}
-          {isAdmin && showPrice && onTogglePayment && (
-            <Button
-              variant={hasPaid ? "secondary" : "outline"}
-              size="sm"
-              onClick={onTogglePayment}
-              disabled={isPending}
-              className="shrink-0"
-            >
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : hasPaid ? (
-                <>
-                  <Check className="h-4 w-4 mr-1" />
-                  Paid
-                </>
-              ) : (
-                <>
-                  <DollarSign className="h-4 w-4 mr-1" />
-                  Mark Paid
-                </>
-              )}
-            </Button>
+          {!isChildRsvp && !isMiniLeaguePlayerRsvp && memberRole && (
+            <p className="text-xs text-muted-foreground capitalize">{memberRole}</p>
+          )}
+          {rsvp.notes && (
+            <p className="text-xs text-muted-foreground truncate">{rsvp.notes}</p>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {isAdmin && onChangeStatus && currentStatus && (
+          <AdminRsvpChanger
+            currentStatus={currentStatus}
+            playerName={displayName || "Unknown"}
+            onChangeStatus={onChangeStatus}
+            isPending={isPending}
+          />
+        )}
+        {isAdmin && showPrice && onTogglePayment && (
+          <Button
+            variant={hasPaid ? "secondary" : "outline"}
+            size="sm"
+            onClick={onTogglePayment}
+            disabled={isPending}
+            className="shrink-0"
+          >
+            {isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : hasPaid ? (
+              <>
+                <Check className="h-4 w-4 mr-1" />
+                Paid
+              </>
+            ) : (
+              <>
+                <DollarSign className="h-4 w-4 mr-1" />
+                Mark Paid
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -2424,7 +2417,7 @@ export default function EventDetailPage() {
           return (
             <>
               {/* Going */}
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm font-medium text-primary">
                   <span>✅</span>
                   <span>Going ({goingRsvps.length + (eventGuests?.length || 0)})</span>
@@ -2432,7 +2425,7 @@ export default function EventDetailPage() {
                 {goingRsvps.length === 0 && (!eventGuests || eventGuests.length === 0) ? (
                   <p className="text-muted-foreground text-sm pl-6">No one yet</p>
                 ) : (
-                  <div className="space-y-1 pl-6">
+                  <div className="divide-y divide-border/50 pl-6">
                     {goingRsvps.map((rsvp: any) => (
                       <AttendeeCard 
                         key={rsvp.id} 
@@ -2452,37 +2445,36 @@ export default function EventDetailPage() {
                           status,
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
+                        memberRole={!rsvp.child_id && !rsvp.mini_league_player_id ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0] : undefined}
                       />
                     ))}
                     {/* Show event guests in the going list */}
                     {eventGuests?.map((guest: any) => (
-                      <div key={guest.id} className="flex items-center gap-3 py-1.5">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-muted text-muted-foreground text-sm">
+                      <div key={guest.id} className="flex items-center gap-3 py-2.5">
+                        <Avatar className="h-9 w-9 shrink-0">
+                          <AvatarFallback className="bg-muted text-muted-foreground text-xs">
                             {guest.guest_name.charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{guest.guest_name}</p>
+                          <p className="text-sm font-semibold truncate">{guest.guest_name}</p>
                           <p className="text-xs text-muted-foreground">Guest of {guest.added_by_name}</p>
                         </div>
-                        <Badge variant="outline" className="text-xs">Guest</Badge>
+                        <Badge variant="outline" className="text-xs shrink-0">Guest</Badge>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Maybe */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-warning">
-                  <span>🤔</span>
-                  <span>Maybe ({maybeRsvps.length})</span>
-                </div>
-                {maybeRsvps.length === 0 ? (
-                  <p className="text-muted-foreground text-sm pl-6">No one</p>
-                ) : (
-                  <div className="space-y-1 pl-6">
+              {/* Maybe - hide if empty */}
+              {maybeRsvps.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium text-warning">
+                    <span>🤔</span>
+                    <span>Maybe ({maybeRsvps.length})</span>
+                  </div>
+                  <div className="divide-y divide-border/50 pl-6">
                     {maybeRsvps.map((rsvp: any) => (
                       <AttendeeCard 
                         key={rsvp.id} 
@@ -2502,22 +2494,21 @@ export default function EventDetailPage() {
                           status,
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
+                        memberRole={!rsvp.child_id && !rsvp.mini_league_player_id ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0] : undefined}
                       />
                     ))}
                   </div>
-                )}
-              </div>
-
-              {/* Not Going */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                  <span>❌</span>
-                  <span>Can't Go ({notGoingRsvps.length})</span>
                 </div>
-                {notGoingRsvps.length === 0 ? (
-                  <p className="text-muted-foreground text-sm pl-6">No one</p>
-                ) : (
-                  <div className="space-y-1 pl-6">
+              )}
+
+              {/* Not Going - hide if empty */}
+              {notGoingRsvps.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                    <span>❌</span>
+                    <span>Can't Go ({notGoingRsvps.length})</span>
+                  </div>
+                  <div className="divide-y divide-border/50 pl-6">
                     {notGoingRsvps.map((rsvp: any) => (
                       <AttendeeCard 
                         key={rsvp.id} 
@@ -2531,15 +2522,16 @@ export default function EventDetailPage() {
                           status,
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
+                        memberRole={!rsvp.child_id && !rsvp.mini_league_player_id ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0] : undefined}
                       />
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              {/* Not Responded */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              {/* Not Responded - always visible, highlighted */}
+              <div className="space-y-1 rounded-lg bg-warning/5 border border-warning/20 p-3 -mx-1">
+                <div className="flex items-center gap-2 text-sm font-medium text-warning">
                   <span>⏳</span>
                   <span>Not Responded ({totalNotResponded})</span>
                 </div>
@@ -2548,103 +2540,78 @@ export default function EventDetailPage() {
                     {(rsvps?.length || 0) > 0 ? "Everyone has responded" : "No members to respond"}
                   </p>
                 ) : (
-                  <div className="space-y-1 pl-6">
-                    {/* Mini-league players or Children (treated as players) */}
+                  <div className="divide-y divide-border/50 pl-6">
                     {notRespondedChildren.map((child: any) => (
-                      <Card key={`child-${child.id}`}>
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarFallback className="text-xs bg-primary text-primary-foreground">
-                                  {child.name?.charAt(0)?.toUpperCase() || "?"}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{child.name || "Unknown"}</span>
-                                {!isMiniLeagueEvent && <Badge variant="outline" className="text-xs">Child</Badge>}
-                              </div>
-                            </div>
-                            {/* Admin RSVP controls for all events */}
-                            {(isAdmin || isAppAdmin) && (
-                              <div className="flex gap-1">
-                                {rsvpOptions.map(({ value, icon }) => (
-                                  <Button
-                                    key={value}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => {
-                                      if (isMiniLeagueEvent) {
-                                        // For mini-league events, use adminRsvpMutation
-                                        adminRsvpMutation.mutate({
-                                          playerId: child.id,
-                                          playerName: child.name,
-                                          childId: child.child_id,
-                                          parentUserId: child.parent_user_id,
-                                          status: value,
-                                        });
-                                      } else {
-                                        // For team events, use rsvpForChildMutation
-                                        rsvpForChildMutation.mutate({
-                                          childId: child.id,
-                                          childName: child.name,
-                                          parentUserId: child.parent_id,
-                                          status: value,
-                                        });
-                                      }
-                                    }}
-                                    disabled={adminRsvpMutation.isPending || rsvpForChildMutation.isPending}
-                                    title={`Set ${child.name} to ${value}`}
-                                  >
-                                    <span className="text-sm">{icon}</span>
-                                  </Button>
-                                ))}
-                              </div>
+                      <div key={`child-${child.id}`} className="flex items-center justify-between gap-3 py-2.5">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Avatar className="h-9 w-9 shrink-0">
+                            <AvatarFallback className="text-xs bg-muted">
+                              {child.name?.charAt(0)?.toUpperCase() || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-sm truncate block">{child.name || "Unknown"}</span>
+                            {!isMiniLeagueEvent && (
+                              <p className="text-xs text-muted-foreground">Child</p>
                             )}
                           </div>
-                        </CardContent>
-                      </Card>
+                        </div>
+                        {(isAdmin || isAppAdmin) && (
+                          <AdminRsvpChanger
+                            currentStatus={null}
+                            playerName={child.name || "Unknown"}
+                            onChangeStatus={(status) => {
+                              if (isMiniLeagueEvent) {
+                                adminRsvpMutation.mutate({
+                                  playerId: child.id,
+                                  playerName: child.name,
+                                  childId: child.child_id,
+                                  parentUserId: child.parent_user_id,
+                                  status,
+                                });
+                              } else {
+                                rsvpForChildMutation.mutate({
+                                  childId: child.id,
+                                  childName: child.name,
+                                  parentUserId: child.parent_id,
+                                  status,
+                                });
+                              }
+                            }}
+                            isPending={adminRsvpMutation.isPending || rsvpForChildMutation.isPending}
+                          />
+                        )}
+                      </div>
                     ))}
-                    {/* Members (for non-mini-league events) */}
                     {!isMiniLeagueEvent && notResponded.map((member: any) => (
-                      <Card key={member.id}>
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={member.avatar_url || undefined} />
-                                <AvatarFallback className="text-xs">
-                                  {member.display_name?.charAt(0)?.toUpperCase() || "?"}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="font-medium">{member.display_name || "Unknown"}</span>
-                            </div>
-                            {/* Admin RSVP controls for team/club events */}
-                            {(isAdmin || isAppAdmin) && (
-                              <div className="flex gap-1">
-                                {rsvpOptions.map(({ value, icon }) => (
-                                  <Button
-                                    key={value}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => rsvpForMemberMutation.mutate({
-                                      memberId: member.id,
-                                      memberName: member.display_name,
-                                      status: value,
-                                    })}
-                                    disabled={rsvpForMemberMutation.isPending}
-                                    title={`Set ${member.display_name} to ${value}`}
-                                  >
-                                    <span className="text-sm">{icon}</span>
-                                  </Button>
-                                ))}
-                              </div>
+                      <div key={member.id} className="flex items-center justify-between gap-3 py-2.5">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Avatar className="h-9 w-9 shrink-0">
+                            <AvatarImage src={member.avatar_url || undefined} />
+                            <AvatarFallback className="text-xs bg-muted">
+                              {member.display_name?.charAt(0)?.toUpperCase() || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-sm truncate block">{member.display_name || "Unknown"}</span>
+                            {member.roles?.[0] && (
+                              <p className="text-xs text-muted-foreground capitalize">{member.roles[0]}</p>
                             )}
                           </div>
-                        </CardContent>
-                      </Card>
+                        </div>
+                        {(isAdmin || isAppAdmin) && (
+                          <AdminRsvpChanger
+                            currentStatus={null}
+                            playerName={member.display_name || "Unknown"}
+                            onChangeStatus={(status) => rsvpForMemberMutation.mutate({
+                              memberId: member.id,
+                              memberName: member.display_name,
+                              status,
+                            })}
+                            isPending={rsvpForMemberMutation.isPending}
+                          />
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}

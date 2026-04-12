@@ -3104,6 +3104,39 @@ export type Database = {
           },
         ]
       }
+      message_deletions: {
+        Row: {
+          author_id: string
+          context_id: string | null
+          created_at: string
+          deleted_by: string | null
+          id: string
+          message_id: string
+          message_text_preview: string | null
+          message_type: string
+        }
+        Insert: {
+          author_id: string
+          context_id?: string | null
+          created_at?: string
+          deleted_by?: string | null
+          id?: string
+          message_id: string
+          message_text_preview?: string | null
+          message_type: string
+        }
+        Update: {
+          author_id?: string
+          context_id?: string | null
+          created_at?: string
+          deleted_by?: string | null
+          id?: string
+          message_id?: string
+          message_text_preview?: string | null
+          message_type?: string
+        }
+        Relationships: []
+      }
       message_reactions: {
         Row: {
           broadcast_message_id: string | null
