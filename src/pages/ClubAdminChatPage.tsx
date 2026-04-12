@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Users, Search } from "lucide-react";
+import { ChatBackButton } from "@/components/chat/ChatBackButton";
+import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { toast } from "sonner";
@@ -78,6 +80,7 @@ export default function ClubAdminChatPage() {
     56,
   );
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const swipeBack = useSwipeBack();
   
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
@@ -540,30 +543,28 @@ export default function ClubAdminChatPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none h-full" data-lock-keyboard-scroll="true">
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none h-full" data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <Avatar className="h-10 w-10">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <ChatBackButton />
+          <Avatar className="h-10 w-10 shrink-0">
             <AvatarImage src={isMember ? (club?.logo_url || undefined) : (memberProfile?.avatar_url || undefined)} />
             <AvatarFallback className="bg-primary/10 text-primary">
               {(isMember ? club?.name : memberProfile?.display_name)?.charAt(0).toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <h1 className="font-semibold flex items-center gap-2">
+          <div className="min-w-0">
+            <h1 className="font-semibold flex items-center gap-2 truncate">
               {chatTitle}
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-muted-foreground shrink-0" />
             </h1>
-            <p className="text-xs text-muted-foreground">{chatSubtitle}</p>
+            <p className="text-xs text-muted-foreground truncate">{chatSubtitle}</p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)}>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
             <Search className="h-4 w-4" />
           </Button>
           <ChatHeaderMenu

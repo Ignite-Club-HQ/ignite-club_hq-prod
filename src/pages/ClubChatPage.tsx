@@ -8,6 +8,8 @@ import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Building2, Search } from "lucide-react";
+import { ChatBackButton } from "@/components/chat/ChatBackButton";
+import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
@@ -98,6 +100,7 @@ export default function ClubChatPage() {
   const { clubId } = useParams<{ clubId: string }>();
   const { user, profile, refreshUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
+  const swipeBack = useSwipeBack();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1159,15 +1162,13 @@ export default function ClubChatPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none h-full" data-lock-keyboard-scroll="true">
+    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none h-full" data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
+      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <ChatBackButton />
         <button
-          className="flex items-center gap-3 flex-1 min-w-0 active:opacity-70 transition-opacity"
+          className="flex items-center gap-3 flex-1 min-w-0 min-h-[44px] active:opacity-70 transition-opacity rounded-lg"
           onClick={() => setMembersOpen(true)}
         >
           <Avatar className="h-10 w-10">
@@ -1181,7 +1182,7 @@ export default function ClubChatPage() {
           </div>
         </button>
         <div className="flex items-center shrink-0">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)}>
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
             <Search className="h-4 w-4" />
           </Button>
           <ChatMuteButton chatType="club" chatId={clubId!} />
