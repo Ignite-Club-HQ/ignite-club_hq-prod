@@ -46,20 +46,12 @@ export function AppLayout() {
 
   useChatRouteOverscrollLock(isChatThreadRoute);
 
-  // When bottom nav is hidden in chat threads, reset the offset so inputs sit at the bottom
-  useEffect(() => {
-    if (isChatThreadRoute) {
-      document.documentElement.style.setProperty("--bottom-nav-offset", "env(safe-area-inset-bottom, 0px)");
-    }
-    // BottomNav will re-set the variable when it mounts on non-chat routes
-  }, [isChatThreadRoute]);
+  // BottomNav is now always visible — no need to reset the offset for chat routes
 
   const loadingLogo = useMemo(() => igniteIcon, []);
   const appViewportStyle = useMemo(() => (
-    isChatThreadRoute 
-      ? { height: "var(--stable-vh, 100dvh)", maxHeight: "var(--stable-vh, 100dvh)" } 
-      : { minHeight: "var(--stable-vh, 100dvh)" }
-  ), [isChatThreadRoute]);
+    { minHeight: "var(--stable-vh, 100dvh)" }
+  ), []);
 
   // Debug logging for profile state - must be before any conditional returns
   useEffect(() => {
@@ -251,17 +243,17 @@ export function AppLayout() {
 
 
   const mainClassName = isChatThreadRoute
-    ? "flex-1 min-h-0 max-w-lg mx-auto w-full overflow-hidden px-0 pb-0"
+    ? "flex-1 min-h-0 max-w-lg mx-auto w-full overflow-hidden px-0 pb-16"
     : "flex-1 pb-28 px-4 max-w-lg mx-auto w-full";
   
   return (
-    <div className={`bg-background flex flex-col overscroll-none ${isChatThreadRoute ? 'overflow-hidden' : ''}`} style={appViewportStyle}>
+    <div className={`bg-background flex flex-col overscroll-none`} style={appViewportStyle}>
       <SkipToContent />
       <AppHeader />
       <main id="main-content" aria-label="Main content" className={mainClassName}>
         <Outlet />
       </main>
-      {!isChatThreadRoute && <BottomNav />}
+      <BottomNav />
       <OfflineIndicator />
       <NativeNotificationPrompt userId={user?.id} />
       <PendingInviteWelcomeDialog />
