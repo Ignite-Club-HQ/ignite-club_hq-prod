@@ -129,7 +129,8 @@ const AttendeeCard = ({
   return (
     <Card>
       <CardContent className="p-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
           <Avatar className="h-8 w-8">
             {!isChildRsvp && !isMiniLeaguePlayerRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
             <AvatarFallback className="text-xs">
@@ -137,7 +138,7 @@ const AttendeeCard = ({
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium truncate">{displayName}</span>
               {isChildRsvp && !isMiniLeague && (
                 <Badge variant="outline" className="text-xs shrink-0">
@@ -155,6 +156,8 @@ const AttendeeCard = ({
               <p className="text-sm text-muted-foreground mt-1 truncate">{rsvp.notes}</p>
             )}
           </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
           {/* Admin RSVP status change - "Status + Change" pattern */}
           {isAdmin && onChangeStatus && currentStatus && (
             <AdminRsvpChanger
@@ -188,6 +191,7 @@ const AttendeeCard = ({
               )}
             </Button>
           )}
+          </div>
         </div>
       </CardContent>
     </Card>
