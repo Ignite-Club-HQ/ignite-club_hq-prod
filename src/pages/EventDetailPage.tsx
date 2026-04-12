@@ -140,6 +140,12 @@ const AttendeeCard = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm truncate min-w-0">{displayName}</span>
+            {isChildRsvp && !isMiniLeague && (
+              <span className="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">Child</span>
+            )}
+            {!isChildRsvp && !isMiniLeaguePlayerRsvp && memberRole && (
+              <span className="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">{memberRole}</span>
+            )}
             {showPrice && hasPaid && (
               <Badge variant="default" className="text-xs bg-primary shrink-0">
                 <Check className="h-3 w-3 mr-1" />
@@ -147,12 +153,6 @@ const AttendeeCard = ({
               </Badge>
             )}
           </div>
-          {isChildRsvp && !isMiniLeague && (
-            <p className="text-xs text-muted-foreground">Child</p>
-          )}
-          {!isChildRsvp && !isMiniLeaguePlayerRsvp && memberRole && (
-            <p className="text-xs text-muted-foreground capitalize">{memberRole}</p>
-          )}
           {rsvp.notes && (
             <p className="text-xs text-muted-foreground truncate">{rsvp.notes}</p>
           )}
@@ -2549,11 +2549,13 @@ export default function EventDetailPage() {
                               {child.name?.charAt(0)?.toUpperCase() || "?"}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-sm truncate block">{child.name || "Unknown"}</span>
-                            {!isMiniLeagueEvent && (
-                              <p className="text-xs text-muted-foreground">Child</p>
-                            )}
+                           <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm truncate min-w-0">{child.name || "Unknown"}</span>
+                              {!isMiniLeagueEvent && (
+                                <span className="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">Child</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         {(isAdmin || isAppAdmin) && (
@@ -2593,10 +2595,12 @@ export default function EventDetailPage() {
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-sm truncate block">{member.display_name || "Unknown"}</span>
-                            {member.roles?.[0] && (
-                              <p className="text-xs text-muted-foreground capitalize">{member.roles[0]}</p>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm truncate min-w-0">{member.display_name || "Unknown"}</span>
+                              {member.roles?.[0] && (
+                                <span className="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">{member.roles[0]}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         {(isAdmin || isAppAdmin) && (
