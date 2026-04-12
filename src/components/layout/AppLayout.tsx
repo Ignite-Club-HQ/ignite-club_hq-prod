@@ -243,7 +243,7 @@ export function AppLayout() {
 
 
   const mainClassName = isChatThreadRoute
-    ? "flex-1 min-h-0 max-w-lg mx-auto w-full overflow-hidden px-0 pb-16"
+    ? "flex-1 min-h-0 max-w-lg mx-auto w-full overflow-hidden px-0"
     : "flex-1 pb-28 px-4 max-w-lg mx-auto w-full";
   
   return (
