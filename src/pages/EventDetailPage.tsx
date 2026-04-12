@@ -106,7 +106,8 @@ const AttendeeCard = ({
   isMiniLeague,
   onChangeStatus,
   currentStatus,
-}: { 
+  memberRole,
+}: {
   rsvp: any; 
   hasPaid?: boolean;
   isAdmin?: boolean;
@@ -116,6 +117,7 @@ const AttendeeCard = ({
   isMiniLeague?: boolean;
   onChangeStatus?: (status: RsvpStatus) => void;
   currentStatus?: RsvpStatus;
+  memberRole?: string;
 }) => {
   const isChildRsvp = !!rsvp.child_id;
   const isMiniLeaguePlayerRsvp = !!rsvp.mini_league_player_id;
@@ -147,6 +149,9 @@ const AttendeeCard = ({
           </div>
           {isChildRsvp && !isMiniLeague && (
             <p className="text-xs text-muted-foreground">Child</p>
+          )}
+          {!isChildRsvp && !isMiniLeaguePlayerRsvp && memberRole && (
+            <p className="text-xs text-muted-foreground capitalize">{memberRole}</p>
           )}
           {rsvp.notes && (
             <p className="text-xs text-muted-foreground truncate">{rsvp.notes}</p>
@@ -2440,6 +2445,7 @@ export default function EventDetailPage() {
                           status,
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
+                        memberRole={!rsvp.child_id && !rsvp.mini_league_player_id ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0] : undefined}
                       />
                     ))}
                     {/* Show event guests in the going list */}
@@ -2488,6 +2494,7 @@ export default function EventDetailPage() {
                           status,
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
+                        memberRole={!rsvp.child_id && !rsvp.mini_league_player_id ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0] : undefined}
                       />
                     ))}
                   </div>
@@ -2515,6 +2522,7 @@ export default function EventDetailPage() {
                           status,
                           playerName: rsvp.mini_league_player_id ? rsvp.mini_league_players?.name : (rsvp.child_id ? rsvp.children?.name : rsvp.profiles?.display_name)
                         })}
+                        memberRole={!rsvp.child_id && !rsvp.mini_league_player_id ? membersWithRoles?.find((m: any) => m.id === rsvp.user_id)?.roles?.[0] : undefined}
                       />
                     ))}
                   </div>
@@ -2584,7 +2592,12 @@ export default function EventDetailPage() {
                               {member.display_name?.charAt(0)?.toUpperCase() || "?"}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-semibold text-sm truncate">{member.display_name || "Unknown"}</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-sm truncate block">{member.display_name || "Unknown"}</span>
+                            {member.roles?.[0] && (
+                              <p className="text-xs text-muted-foreground capitalize">{member.roles[0]}</p>
+                            )}
+                          </div>
                         </div>
                         {(isAdmin || isAppAdmin) && (
                           <AdminRsvpChanger
