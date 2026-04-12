@@ -113,17 +113,10 @@ export function AdminRsvpChanger({
           className="flex items-center gap-1.5 shrink-0 group"
           disabled={isPending}
         >
-          <Badge
-            variant="outline"
-            className={`text-xs font-medium ${config.badgeClass} pr-1.5`}
-          >
-            <span className="mr-1">{config.icon}</span>
-            {config.label}
-          </Badge>
           {isPending ? (
             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
           ) : (
-            <span className="text-[11px] text-muted-foreground group-hover:text-foreground transition-colors underline underline-offset-2">
+            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors underline underline-offset-2">
               Change
             </span>
           )}
