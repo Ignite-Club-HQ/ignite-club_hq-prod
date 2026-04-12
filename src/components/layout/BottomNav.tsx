@@ -12,6 +12,7 @@ import {
   readSafeAreaInsetBottomPx,
 } from "@/lib/iosLayoutStability";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home", requiresPro: false },
