@@ -265,27 +265,32 @@ export function BottomNav() {
   }, [navBottomInset, nativeInsetFloor, shouldHideNav]);
 
   const gpuLayerStyle = shouldStabilizeIOSLayout
-    ? { transform: "translate3d(0,0,0)", willChange: "transform", backfaceVisibility: "hidden" as const }
+    ? { willChange: "transform", backfaceVisibility: "hidden" as const }
     : {};
+
+  const hideTransform = shouldHideNav ? "translateY(100%)" : "translate3d(0,0,0)";
 
   return (
     <>
-      {isNativePlatform && (
+      {isNativePlatform && !shouldHideNav && (
         <div
           className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
           style={{
             height: `calc(4rem + ${navBottomInset})`,
+            transform: "translate3d(0,0,0)",
             ...gpuLayerStyle,
           }}
         />
       )}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card backdrop-blur-lg transition-transform duration-200 ease-out"
         style={{
           paddingBottom: navBottomInset,
+          transform: hideTransform,
           ...gpuLayerStyle,
         }}
         aria-label="Main navigation"
+        aria-hidden={shouldHideNav}
       >
         <div className="flex items-center justify-around min-h-[4rem] max-w-lg mx-auto px-2">
           {navItems.map(({ to, icon: Icon, label, requiresPro }) => (
