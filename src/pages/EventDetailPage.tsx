@@ -106,7 +106,8 @@ const AttendeeCard = ({
   isMiniLeague,
   onChangeStatus,
   currentStatus,
-}: { 
+  memberRole,
+}: {
   rsvp: any; 
   hasPaid?: boolean;
   isAdmin?: boolean;
@@ -116,6 +117,7 @@ const AttendeeCard = ({
   isMiniLeague?: boolean;
   onChangeStatus?: (status: RsvpStatus) => void;
   currentStatus?: RsvpStatus;
+  memberRole?: string;
 }) => {
   const isChildRsvp = !!rsvp.child_id;
   const isMiniLeaguePlayerRsvp = !!rsvp.mini_league_player_id;
