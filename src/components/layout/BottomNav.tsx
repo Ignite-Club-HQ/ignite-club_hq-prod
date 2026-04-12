@@ -257,8 +257,12 @@ export function BottomNav() {
     const root = document.documentElement;
     root.style.setProperty("--bottom-nav-safe-inset", navBottomInset);
     root.style.setProperty("--bottom-nav-safe-inset-px", nativeInsetFloor);
-    root.style.setProperty("--bottom-nav-offset", `calc(4rem + ${navBottomInset})`);
-  }, [navBottomInset, nativeInsetFloor]);
+    // When nav is hidden (keyboard open on chat), set offset to 0 so chat viewport expands
+    root.style.setProperty(
+      "--bottom-nav-offset",
+      shouldHideNav ? "0px" : `calc(4rem + ${navBottomInset})`
+    );
+  }, [navBottomInset, nativeInsetFloor, shouldHideNav]);
 
   const gpuLayerStyle = shouldStabilizeIOSLayout
     ? { transform: "translate3d(0,0,0)", willChange: "transform", backfaceVisibility: "hidden" as const }
