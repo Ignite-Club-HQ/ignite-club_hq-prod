@@ -155,23 +155,14 @@ const AttendeeCard = ({
               <p className="text-sm text-muted-foreground mt-1 truncate">{rsvp.notes}</p>
             )}
           </div>
-          {/* Admin RSVP status change buttons - admins and coaches can override for all events */}
-          {isAdmin && onChangeStatus && (
-            <div className="flex gap-1 shrink-0">
-              {rsvpOptions.filter(opt => opt.value !== currentStatus).map(({ value, icon }) => (
-                <Button
-                  key={value}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => onChangeStatus(value)}
-                  disabled={isPending}
-                  title={`Change to ${value}`}
-                >
-                  <span className="text-sm">{icon}</span>
-                </Button>
-              ))}
-            </div>
+          {/* Admin RSVP status change - "Status + Change" pattern */}
+          {isAdmin && onChangeStatus && currentStatus && (
+            <AdminRsvpChanger
+              currentStatus={currentStatus}
+              playerName={displayName || "Unknown"}
+              onChangeStatus={onChangeStatus}
+              isPending={isPending}
+            />
           )}
           {/* Admin-only payment toggle */}
           {isAdmin && showPrice && onTogglePayment && (
@@ -2568,40 +2559,29 @@ export default function EventDetailPage() {
                             </div>
                             {/* Admin RSVP controls for all events */}
                             {(isAdmin || isAppAdmin) && (
-                              <div className="flex gap-1">
-                                {rsvpOptions.map(({ value, icon }) => (
-                                  <Button
-                                    key={value}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => {
-                                      if (isMiniLeagueEvent) {
-                                        // For mini-league events, use adminRsvpMutation
-                                        adminRsvpMutation.mutate({
-                                          playerId: child.id,
-                                          playerName: child.name,
-                                          childId: child.child_id,
-                                          parentUserId: child.parent_user_id,
-                                          status: value,
-                                        });
-                                      } else {
-                                        // For team events, use rsvpForChildMutation
-                                        rsvpForChildMutation.mutate({
-                                          childId: child.id,
-                                          childName: child.name,
-                                          parentUserId: child.parent_id,
-                                          status: value,
-                                        });
-                                      }
-                                    }}
-                                    disabled={adminRsvpMutation.isPending || rsvpForChildMutation.isPending}
-                                    title={`Set ${child.name} to ${value}`}
-                                  >
-                                    <span className="text-sm">{icon}</span>
-                                  </Button>
-                                ))}
-                              </div>
+                              <AdminRsvpChanger
+                                currentStatus={null}
+                                playerName={child.name || "Unknown"}
+                                onChangeStatus={(status) => {
+                                  if (isMiniLeagueEvent) {
+                                    adminRsvpMutation.mutate({
+                                      playerId: child.id,
+                                      playerName: child.name,
+                                      childId: child.child_id,
+                                      parentUserId: child.parent_user_id,
+                                      status,
+                                    });
+                                  } else {
+                                    rsvpForChildMutation.mutate({
+                                      childId: child.id,
+                                      childName: child.name,
+                                      parentUserId: child.parent_id,
+                                      status,
+                                    });
+                                  }
+                                }}
+                                isPending={adminRsvpMutation.isPending || rsvpForChildMutation.isPending}
+                              />
                             )}
                           </div>
                         </CardContent>
@@ -2623,25 +2603,16 @@ export default function EventDetailPage() {
                             </div>
                             {/* Admin RSVP controls for team/club events */}
                             {(isAdmin || isAppAdmin) && (
-                              <div className="flex gap-1">
-                                {rsvpOptions.map(({ value, icon }) => (
-                                  <Button
-                                    key={value}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => rsvpForMemberMutation.mutate({
-                                      memberId: member.id,
-                                      memberName: member.display_name,
-                                      status: value,
-                                    })}
-                                    disabled={rsvpForMemberMutation.isPending}
-                                    title={`Set ${member.display_name} to ${value}`}
-                                  >
-                                    <span className="text-sm">{icon}</span>
-                                  </Button>
-                                ))}
-                              </div>
+                              <AdminRsvpChanger
+                                currentStatus={null}
+                                playerName={member.display_name || "Unknown"}
+                                onChangeStatus={(status) => rsvpForMemberMutation.mutate({
+                                  memberId: member.id,
+                                  memberName: member.display_name,
+                                  status,
+                                })}
+                                isPending={rsvpForMemberMutation.isPending}
+                              />
                             )}
                           </div>
                         </CardContent>
