@@ -261,7 +261,7 @@ export function AppLayout() {
       <main id="main-content" aria-label="Main content" className={mainClassName}>
         <Outlet />
       </main>
-      {!isChatThreadRoute && <BottomNav />}
+      <BottomNav />
       <OfflineIndicator />
       <NativeNotificationPrompt userId={user?.id} />
       <PendingInviteWelcomeDialog />
