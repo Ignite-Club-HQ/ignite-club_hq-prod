@@ -49,9 +49,12 @@ export function AppLayout() {
   // BottomNav is now always visible — no need to reset the offset for chat routes
 
   const loadingLogo = useMemo(() => igniteIcon, []);
-  const appViewportStyle = useMemo(() => (
-    { minHeight: "var(--stable-vh, 100dvh)" }
-  ), []);
+  const appViewportStyle = useMemo(
+    () => (isChatThreadRoute
+      ? { height: "var(--stable-vh, 100dvh)" }
+      : { minHeight: "var(--stable-vh, 100dvh)" }),
+    [isChatThreadRoute]
+  );
 
   // Debug logging for profile state - must be before any conditional returns
   useEffect(() => {
