@@ -1514,7 +1514,7 @@ export default function GroupChatPage() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate("/messages")} aria-label="Back to messages">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/messages")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <button
