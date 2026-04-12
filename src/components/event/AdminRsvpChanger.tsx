@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, ChevronDown } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -57,7 +56,7 @@ export function AdminRsvpChanger({
     setOpen(false);
   };
 
-  // No current status — show "Set Status" button
+  // No current status — show "Change" button (same as having a status)
   if (!currentStatus) {
     return (
       <Drawer open={open} onOpenChange={setOpen}>
@@ -65,11 +64,10 @@ export function AdminRsvpChanger({
           <Button
             variant="outline"
             size="sm"
-            className="text-xs gap-1 h-7"
+            className="text-xs h-8 px-3"
             disabled={isPending}
           >
-            {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Set Status"}
-            <ChevronDown className="h-3 w-3" />
+            {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Change"}
           </Button>
         </DrawerTrigger>
         <DrawerContent>
@@ -109,18 +107,14 @@ export function AdminRsvpChanger({
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
-        <button
-          className="flex items-center gap-1.5 shrink-0 group"
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-8 px-3"
           disabled={isPending}
         >
-          {isPending ? (
-            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-          ) : (
-            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors underline underline-offset-2">
-              Change
-            </span>
-          )}
-        </button>
+          {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Change"}
+        </Button>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader className="pb-2">
