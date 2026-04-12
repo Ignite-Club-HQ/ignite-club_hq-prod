@@ -259,7 +259,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     href={ensureProtocol(part.content)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline hover:opacity-80 break-all"
+                    className="underline hover:opacity-80 break-all inline-block max-w-full overflow-hidden text-ellipsis"
                     onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(ensureProtocol(part.content)); }}
                   >
                     {truncateUrl(part.content)}
