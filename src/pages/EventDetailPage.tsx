@@ -138,8 +138,8 @@ const AttendeeCard = ({
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium truncate">{displayName}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium truncate min-w-0">{displayName}</span>
               {isChildRsvp && !isMiniLeague && (
                 <Badge variant="outline" className="text-xs shrink-0">
                   Child
