@@ -999,8 +999,8 @@ export default function JoinTeamPage() {
     );
   }
 
-  // Check if pending invite is already used
-  if (pendingInviteData?.status !== "pending") {
+  // Check if pending invite is already used (only for pending invite routes)
+  if (isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
