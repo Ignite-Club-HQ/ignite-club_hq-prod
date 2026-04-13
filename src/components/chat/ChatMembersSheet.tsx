@@ -293,7 +293,64 @@ export function ChatMembersSheet({
           <SheetTitle>{chatName}</SheetTitle>
         </SheetHeader>
         
-        <div className="mt-6">
+        <div className="mt-4">
+          {/* Navigation links */}
+          {chatType === "team" && (
+            <div className="mb-3">
+              <button
+                onClick={() => { setOpen(false); navigate(`/team/${chatId}`); }}
+                className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
+              >
+                <span className="text-sm font-medium">View team page</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+              {teamClubId && (
+                <button
+                  onClick={() => { setOpen(false); navigate(`/club/${teamClubId}`); }}
+                  className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
+                >
+                  <span className="text-sm text-muted-foreground">View club page</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+              <Separator className="mt-2" />
+            </div>
+          )}
+          {chatType === "club" && (
+            <div className="mb-3">
+              <button
+                onClick={() => { setOpen(false); navigate(`/club/${chatId}`); }}
+                className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
+              >
+                <span className="text-sm font-medium">View club page</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <Separator className="mt-2" />
+            </div>
+          )}
+          {chatType === "group" && (teamId || clubId) && (
+            <div className="mb-3">
+              {teamId && (
+                <button
+                  onClick={() => { setOpen(false); navigate(`/team/${teamId}`); }}
+                  className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
+                >
+                  <span className="text-sm font-medium">View team page</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+              {clubId && (
+                <button
+                  onClick={() => { setOpen(false); navigate(`/club/${clubId}`); }}
+                  className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
+                >
+                  <span className="text-sm text-muted-foreground">View club page</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+              <Separator className="mt-2" />
+            </div>
+          )}
           <div>
             <h3 className="text-sm font-medium mb-3">
               Members {uniqueMembers.length > 0 && `(${uniqueMembers.length})`}
