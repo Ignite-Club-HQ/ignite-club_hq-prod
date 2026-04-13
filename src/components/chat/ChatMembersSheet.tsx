@@ -255,6 +255,11 @@ export function ChatMembersSheet({
     staleTime: 1000 * 60 * 2,
   });
 
+  const handleNavigateToPage = (path: string) => {
+    navigate(path);
+    setOpen(false);
+  };
+
   const formatRole = (role: string) => {
     return role.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
   };
@@ -300,8 +305,9 @@ export function ChatMembersSheet({
           {chatType === "team" && (
             <div className="mb-3">
               <button
-                onClick={() => { setOpen(false); navigate(`/teams/${chatId}`); }}
-                className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
+                type="button"
+                onClick={() => handleNavigateToPage(`/teams/${chatId}`)}
+                className="flex w-full touch-manipulation items-center justify-between rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/50 active:bg-muted"
               >
                 <span className="text-sm font-medium">View team page</span>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -312,8 +318,9 @@ export function ChatMembersSheet({
           {chatType === "club" && (
             <div className="mb-3">
               <button
-                onClick={() => { setOpen(false); navigate(`/clubs/${chatId}`); }}
-                className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
+                type="button"
+                onClick={() => handleNavigateToPage(`/clubs/${chatId}`)}
+                className="flex w-full touch-manipulation items-center justify-between rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/50 active:bg-muted"
               >
                 <span className="text-sm font-medium">View club page</span>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -325,8 +332,9 @@ export function ChatMembersSheet({
             <div className="mb-3">
               {teamId && (
                 <button
-                  onClick={() => { setOpen(false); navigate(`/teams/${teamId}`); }}
-                  className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
+                  type="button"
+                  onClick={() => handleNavigateToPage(`/teams/${teamId}`)}
+                  className="flex w-full touch-manipulation items-center justify-between rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/50 active:bg-muted"
                 >
                   <span className="text-sm font-medium">View team page</span>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -334,8 +342,9 @@ export function ChatMembersSheet({
               )}
               {clubId && (
                 <button
-                  onClick={() => { setOpen(false); navigate(`/clubs/${clubId}`); }}
-                  className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
+                  type="button"
+                  onClick={() => handleNavigateToPage(`/clubs/${clubId}`)}
+                  className="flex w-full touch-manipulation items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted/50 active:bg-muted"
                 >
                   <span className="text-sm text-muted-foreground">View club page</span>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
