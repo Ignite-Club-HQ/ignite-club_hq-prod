@@ -132,7 +132,7 @@ export default function TeamDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs (id, name, is_pro, sport, class_mode_enabled)")
+        .select("*, clubs (id, name, is_pro, sport, class_mode_enabled, bot_user_id)")
         .eq("id", id!)
         .single();
       if (error) throw error;
@@ -402,10 +402,13 @@ export default function TeamDetailPage() {
       return {};
     }
     
+    // Filter out club bot account from member list
+    const botUserId = team?.clubs?.bot_user_id;
+    
     return rawMembers.reduce((acc, role) => {
       // user_id should always be present in user_roles table
       const userId = role.user_id;
-      if (!userId) return acc;
+      if (!userId || userId === botUserId) return acc;
       
       if (!acc[userId]) {
         // Try to get cached profile data for faster initial render
