@@ -1311,56 +1311,12 @@ export default function JoinTeamPage() {
           )}
 
           {/* Fixed role display for admin invites - no role selection */}
-          {isFixedRoleInvite ? (
-            <div className="flex items-center justify-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">You'll join as:</span>
-              <Badge variant="secondary">{roleLabels[invite.role as AppRole]}</Badge>
-            </div>
-          ) : (
-            /* Role selection for non-admin invites */
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Users className="h-4 w-4" />
-                <span>Select your role(s) in this team:</span>
-              </div>
-              
-              <div className="space-y-2 pl-1">
-                {selectableRoles.map((role) => {
-                  const isDisabled = existingRoles?.includes(role) || !!nameValidationError;
-                  const isChecked = selectedRoles.includes(role);
-                  
-                  return (
-                    <div key={role} className="flex items-center space-x-3">
-                      <Checkbox
-                        id={role}
-                        checked={isChecked}
-                        disabled={isDisabled}
-                        onCheckedChange={() => toggleRole(role)}
-                      />
-                      <Label 
-                        htmlFor={role} 
-                        className={`flex items-center gap-2 cursor-pointer ${isDisabled ? 'opacity-50' : ''}`}
-                      >
-                        {roleLabels[role]}
-                        {existingRoles?.includes(role) && (
-                          <Badge variant="outline" className="text-xs">Already assigned</Badge>
-                        )}
-                      </Label>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {selectedRoles.length > 0 && !nameValidationError && (
-                <div className="flex flex-wrap gap-1 justify-center">
-                  {selectedRoles.map(role => (
-                    <Badge key={role} variant="secondary">{roleLabels[role]}</Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {/* Fixed role display - all invites use a predetermined role */}
+          <div className="flex items-center justify-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">You'll join as:</span>
+            <Badge variant="secondary">{roleLabels[invite.role as AppRole]}</Badge>
+          </div>
 
           <Button 
             onClick={handleJoinClick} 
@@ -1372,17 +1328,13 @@ export default function JoinTeamPage() {
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : null}
             {!joinMutation.isPending && !(user && profileLoading) && (
-              !user 
+                !user 
                 ? "Create Account to Join"
                 : nameValidationError 
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion
                     ? "Complete Profile to Join"
-                    : isFixedRoleInvite
-                      ? `Join as ${roleLabels[invite.role as AppRole]}`
-                      : selectedRoles.length === 0 
-                        ? "Select at least one role" 
-                        : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
+                    : `Join as ${roleLabels[invite.role as AppRole]}`
             )}
           </Button>
           <Button 
