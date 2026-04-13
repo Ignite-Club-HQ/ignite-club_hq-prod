@@ -45,20 +45,6 @@ export function ChatMembersSheet({
   const previousCountRef = useRef<number | null>(null);
   const cacheKey = `chat-members-count-${chatType}-${chatId}`;
 
-  // For team chats, resolve the parent club_id for "View club page" link
-  const { data: teamClubId } = useQuery({
-    queryKey: ["team-club-id", chatId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("teams")
-        .select("club_id")
-        .eq("id", chatId)
-        .maybeSingle();
-      return data?.club_id ?? null;
-    },
-    enabled: open && chatType === "team",
-    staleTime: 1000 * 60 * 30,
-  });
 
   // Check if this is a personal group (no team_id or club_id)
   const isPersonalGroup = chatType === "group" && !teamId && !clubId;
