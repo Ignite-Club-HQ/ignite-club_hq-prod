@@ -10,6 +10,7 @@ import { clearRolesCache } from "@/lib/rolesCache";
 import { clearClubTeamCache } from "@/lib/clubTeamCache";
 import { syncPasskeyAccountsFromDatabase } from "@/hooks/usePasskey";
 import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
+import { fetchUnreadMessageCounts, getTotalUnreadMessageCount } from "@/lib/unreadMessageCounts";
 import { markProfileCompleted } from "@/components/InviteFlowProgress";
 import { isNativePlatform, unregisterNativePush } from "@/lib/nativePush";
 
@@ -287,22 +288,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // MESSAGE_NOTIFICATION_TYPES imported from @/lib/notificationTypes
 
   const fetchUnreadCount = async (userId: string) => {
-    const [allResult, messagesResult] = await Promise.all([
+    const [allResult, messageCounts] = await Promise.all([
       supabase
         .from("notifications")
         .select("*", { count: "exact", head: true })
         .eq("user_id", userId)
         .eq("is_read", false),
-      supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("is_read", false)
-        .in("type", MESSAGE_NOTIFICATION_TYPES)
+      fetchUnreadMessageCounts(userId),
     ]);
     
     setUnreadCount(allResult.count || 0);
-    setUnreadMessagesCount(messagesResult.count || 0);
+    setUnreadMessagesCount(getTotalUnreadMessageCount(messageCounts));
   };
 
   useEffect(() => {
