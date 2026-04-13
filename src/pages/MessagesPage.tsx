@@ -272,19 +272,10 @@ export default function MessagesPage() {
         });
       }
 
-      // Look up conversation_id for DM messages
-      if (dmMessageIds.length > 0) {
-        const { data: dmMessages } = await supabase
-          .from("direct_messages")
-          .select("id, conversation_id")
-          .in("id", dmMessageIds);
-        
-        dmMessages?.forEach(msg => {
-          if (msg.conversation_id) {
-            counts.dms[msg.conversation_id] = (counts.dms[msg.conversation_id] || 0) + 1;
-          }
-        });
-      }
+      // For DM notifications, related_id is the conversation_id directly
+      dmMessageIds.forEach(conversationId => {
+        counts.dms[conversationId] = (counts.dms[conversationId] || 0) + 1;
+      });
       
       return counts;
     },
