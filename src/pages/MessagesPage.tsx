@@ -1520,7 +1520,7 @@ export default function MessagesPage() {
                       {item.name}
                     </h3>
                     {typeLabel && (
-                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal text-muted-foreground shrink-0 border-muted">
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
                         {typeLabel}
                       </Badge>
                     )}
@@ -1574,7 +1574,7 @@ export default function MessagesPage() {
                   <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
                   {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                   {typeLabel && (
-                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal text-muted-foreground shrink-0 border-muted">
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
                       {typeLabel}
                     </Badge>
                   )}
