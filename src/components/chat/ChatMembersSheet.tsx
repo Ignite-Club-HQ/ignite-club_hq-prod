@@ -320,15 +320,6 @@ export function ChatMembersSheet({
                 <span className="text-sm font-medium">View team page</span>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </button>
-              {teamClubId && (
-                <button
-                  onClick={() => { setOpen(false); navigate(`/clubs/${teamClubId}`); }}
-                  className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
-                >
-                  <span className="text-sm text-muted-foreground">View club page</span>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              )}
               <Separator className="mt-2" />
             </div>
           )}
