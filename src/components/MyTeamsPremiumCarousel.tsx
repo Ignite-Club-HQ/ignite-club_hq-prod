@@ -700,8 +700,8 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: M
                   <Search className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">Join a Team</p>
-                  <p className="text-xs text-muted-foreground">Search for an existing team or use an invite link</p>
+                  <p className="text-sm font-medium">Join with Code</p>
+                  <p className="text-xs text-muted-foreground">Use an invite link or code to join a team</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
@@ -731,11 +731,11 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: M
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">My Teams</h2>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {onInvite && items.length > 0 && (
             <button
               onClick={onInvite}
-              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+              className="text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-1"
             >
               <UserPlus className="h-3 w-3" />
               Invite
@@ -744,10 +744,10 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: M
           {onJoinTeam && (
             <button
               onClick={onJoinTeam}
-              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+              className="text-xs font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground hover:bg-muted/80 transition-colors flex items-center gap-1"
             >
               <Plus className="h-3 w-3" />
-              Join a Team
+              Join with Code
             </button>
           )}
         </div>

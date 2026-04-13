@@ -280,7 +280,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
       <SheetTrigger asChild>
         <Button size="sm">
           <UserPlus className="h-4 w-4 mr-2" />
-          Add Member
+          Invite to Team
         </Button>
       </SheetTrigger>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
