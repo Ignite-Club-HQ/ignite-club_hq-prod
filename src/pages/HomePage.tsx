@@ -1526,19 +1526,8 @@ export default function HomePage() {
         </p>
       </div>
 
-      {/* Quick Actions */}
-      <HomeQuickActions
-        onCreateTeam={() => {
-          if (activeClubFilter) {
-            navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-          } else {
-            navigate("/clubs", { state: { fromCreateTeam: true } });
-          }
-        }}
-        onInvite={() => setMemberInviteOpen(true)}
-        onJoinTeam={() => setTeamDialogOpen(true)}
-        hasTeams={!!userRoles?.some(r => r.team_id)}
-      />
+      {/* Next Up Carousel - unified event section */}
+      <NextUpCarousel events={events || []} isLoading={isLoading} />
 
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
@@ -1594,8 +1583,19 @@ export default function HomePage() {
         );
       })()}
 
-      {/* Next Up Carousel - unified event section */}
-      <NextUpCarousel events={events || []} isLoading={isLoading} />
+      {/* Quick Actions */}
+      <HomeQuickActions
+        onCreateTeam={() => {
+          if (activeClubFilter) {
+            navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+          } else {
+            navigate("/clubs", { state: { fromCreateTeam: true } });
+          }
+        }}
+        onInvite={() => setMemberInviteOpen(true)}
+        onJoinTeam={() => setTeamDialogOpen(true)}
+        hasTeams={!!userRoles?.some(r => r.team_id)}
+      />
 
       {/* Mini League Live Matches Widget */}
       <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />

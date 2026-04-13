@@ -700,8 +700,8 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: M
                   <Search className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">Join with Code</p>
-                  <p className="text-xs text-muted-foreground">Use an invite link or code to join a team</p>
+                  <p className="text-sm font-medium">Join a Team</p>
+                  <p className="text-xs text-muted-foreground">Use an invite link to join a team</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </CardContent>
@@ -747,7 +747,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: M
               className="text-xs font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground hover:bg-muted/80 transition-colors flex items-center gap-1"
             >
               <Plus className="h-3 w-3" />
-              Join with Code
+              Join a Team
             </button>
           )}
         </div>
