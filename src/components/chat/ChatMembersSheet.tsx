@@ -314,7 +314,7 @@ export function ChatMembersSheet({
           {chatType === "team" && (
             <div className="mb-3">
               <button
-                onClick={() => { setOpen(false); navigate(`/team/${chatId}`); }}
+                onClick={() => { setOpen(false); navigate(`/teams/${chatId}`); }}
                 className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
               >
                 <span className="text-sm font-medium">View team page</span>
@@ -322,7 +322,7 @@ export function ChatMembersSheet({
               </button>
               {teamClubId && (
                 <button
-                  onClick={() => { setOpen(false); navigate(`/club/${teamClubId}`); }}
+                  onClick={() => { setOpen(false); navigate(`/clubs/${teamClubId}`); }}
                   className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
                 >
                   <span className="text-sm text-muted-foreground">View club page</span>
@@ -335,7 +335,7 @@ export function ChatMembersSheet({
           {chatType === "club" && (
             <div className="mb-3">
               <button
-                onClick={() => { setOpen(false); navigate(`/club/${chatId}`); }}
+                onClick={() => { setOpen(false); navigate(`/clubs/${chatId}`); }}
                 className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
               >
                 <span className="text-sm font-medium">View club page</span>
@@ -348,7 +348,7 @@ export function ChatMembersSheet({
             <div className="mb-3">
               {teamId && (
                 <button
-                  onClick={() => { setOpen(false); navigate(`/team/${teamId}`); }}
+                  onClick={() => { setOpen(false); navigate(`/teams/${teamId}`); }}
                   className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
                 >
                   <span className="text-sm font-medium">View team page</span>
@@ -357,7 +357,7 @@ export function ChatMembersSheet({
               )}
               {clubId && (
                 <button
-                  onClick={() => { setOpen(false); navigate(`/club/${clubId}`); }}
+                  onClick={() => { setOpen(false); navigate(`/clubs/${clubId}`); }}
                   className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors text-left"
                 >
                   <span className="text-sm text-muted-foreground">View club page</span>
