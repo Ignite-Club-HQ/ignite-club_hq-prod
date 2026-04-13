@@ -1628,7 +1628,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     return (
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetTrigger asChild>
-          <Button size="sm" onClick={() => setOpen(true)}>
+          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
             Invite to Team
           </Button>
@@ -1713,7 +1713,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     return (
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetTrigger asChild>
-          <Button size="sm" onClick={() => setOpen(true)}>
+          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
             Invite to Team
           </Button>
