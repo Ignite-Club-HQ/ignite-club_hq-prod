@@ -1628,9 +1628,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     return (
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetTrigger asChild>
-          <Button size="sm" onClick={() => setOpen(true)}>
+          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
-            Add Member
+            Invite to Team
           </Button>
         </SheetTrigger>
         <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl overflow-y-auto">
@@ -1713,9 +1713,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     return (
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetTrigger asChild>
-          <Button size="sm" onClick={() => setOpen(true)}>
+          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
-            Add Member
+            Invite to Team
           </Button>
         </SheetTrigger>
         <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl">
@@ -1823,19 +1823,19 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button size="sm" onClick={() => setOpen(true)}>
+        <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
           <UserPlus className="h-4 w-4 mr-2" />
-          Add Member
+          Invite to Team
         </Button>
       </SheetTrigger>
       <SheetContent side="bottom" enableDragToClose className="h-[90vh] rounded-t-2xl flex flex-col overflow-hidden">
         <SheetHeader className="mb-4 shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            Add Team Member
+            Invite to Team
           </SheetTitle>
           <SheetDescription>
-            Add an existing user or enter a name to send an invite
+            Send a link or code to players, parents & coaches
           </SheetDescription>
         </SheetHeader>
 
