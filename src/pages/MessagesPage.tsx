@@ -16,7 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
-import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
+import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 
 const MESSAGES_PER_PAGE = 15;
@@ -187,99 +187,7 @@ export default function MessagesPage() {
   // Fetch unread message notifications grouped by thread
   const { data: unreadCounts } = useQuery({
     queryKey: ["unread-message-counts", user?.id],
-    queryFn: async () => {
-      const { data: notifications } = await supabase
-        .from("notifications")
-        .select("id, type, related_id")
-        .eq("user_id", user!.id)
-        .eq("is_read", false)
-        .in("type", MESSAGE_NOTIFICATION_TYPES);
-      
-      const counts: {
-        broadcast: number;
-        teams: Record<string, number>;
-        clubs: Record<string, number>;
-        groups: Record<string, number>;
-        dms: Record<string, number>;
-      } = {
-        broadcast: 0,
-        teams: {},
-        clubs: {},
-        groups: {},
-        dms: {},
-      };
-      
-      if (!notifications?.length) return counts;
-      
-      // Separate notifications by type
-      const teamMessageIds: string[] = [];
-      const clubMessageIds: string[] = [];
-      const groupMessageIds: string[] = [];
-      const dmMessageIds: string[] = [];
-      
-      notifications.forEach(n => {
-        if (n.type === 'broadcast') {
-          counts.broadcast++;
-        } else if (n.type === 'team_message' && n.related_id) {
-          teamMessageIds.push(n.related_id);
-        } else if (n.type === 'club_message' && n.related_id) {
-          clubMessageIds.push(n.related_id);
-        } else if (n.type === 'group_message' && n.related_id) {
-          groupMessageIds.push(n.related_id);
-        } else if (n.type === 'direct_message' && n.related_id) {
-          dmMessageIds.push(n.related_id);
-        }
-      });
-      
-      // Look up team_id for team messages
-      if (teamMessageIds.length > 0) {
-        const { data: teamMessages } = await supabase
-          .from("team_messages")
-          .select("id, team_id")
-          .in("id", teamMessageIds);
-        
-        teamMessages?.forEach(msg => {
-          if (msg.team_id) {
-            counts.teams[msg.team_id] = (counts.teams[msg.team_id] || 0) + 1;
-          }
-        });
-      }
-      
-      // Look up club_id for club messages
-      if (clubMessageIds.length > 0) {
-        const { data: clubMessages } = await supabase
-          .from("club_messages")
-          .select("id, club_id")
-          .in("id", clubMessageIds);
-        
-        clubMessages?.forEach(msg => {
-          if (msg.club_id) {
-            counts.clubs[msg.club_id] = (counts.clubs[msg.club_id] || 0) + 1;
-          }
-        });
-      }
-      
-      // Look up group_id for group messages
-      if (groupMessageIds.length > 0) {
-        const { data: groupMessages } = await supabase
-          .from("group_messages")
-          .select("id, group_id")
-          .in("id", groupMessageIds);
-        
-        groupMessages?.forEach(msg => {
-          if (msg.group_id) {
-            counts.groups[msg.group_id] = (counts.groups[msg.group_id] || 0) + 1;
-          }
-        });
-      }
-
-      // For DM notifications, related_id is the conversation_id directly
-      dmMessageIds.forEach(conversationId => {
-        counts.dms[conversationId] = (counts.dms[conversationId] || 0) + 1;
-      });
-      
-      return counts;
-    },
+    queryFn: () => fetchUnreadMessageCounts(user!.id),
     enabled: !!user && initialized,
     refetchInterval: 30000,
     staleTime: 30000,
