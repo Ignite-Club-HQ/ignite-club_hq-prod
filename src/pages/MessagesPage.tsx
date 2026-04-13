@@ -912,6 +912,7 @@ export default function MessagesPage() {
       if (!cachedData?.dmConversations?.length) return undefined;
       return cachedData.dmConversations.map(conv => ({
         ...conv,
+        created_at: (conv as any).created_at || conv.updated_at,
         last_message: cachedData.latestDMMessages?.[conv.id] ? {
           text: cachedData.latestDMMessages[conv.id].text,
           image_url: cachedData.latestDMMessages[conv.id].image_url || null,
