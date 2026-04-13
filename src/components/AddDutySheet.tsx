@@ -19,6 +19,7 @@ const ALL_DUTY_OPTIONS = [
   { id: "Linemarker", label: "Linemarker", icon: PaintBucket, description: "Mark the pitch" },
   { id: "Referee", label: "Referee", icon: Megaphone, description: "Officiate the game" },
   { id: "Subs Manager", label: "Subs Manager", icon: UserCog, description: "Pitch board access" },
+  { id: "Game Steward", label: "Game Steward", icon: ShieldCheck, description: "Ground safety & conduct" },
   { id: "Oranges", label: "Oranges", icon: Apple, description: "Half-time oranges" },
   { id: "Snacks", label: "Snacks", icon: Cookie, description: "Snacks & treats" },
   { id: "custom", label: "Other", icon: FileText, description: "Custom duty" },
