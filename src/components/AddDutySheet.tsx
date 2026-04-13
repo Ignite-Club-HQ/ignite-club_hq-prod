@@ -26,7 +26,7 @@ const ALL_DUTY_OPTIONS = [
 ];
 
 // For mini league session level: all duties available (auto-distributed to matches)
-const MINI_LEAGUE_SESSION_DUTIES = ["Canteen", "Linemarker", "Referee", "Linesperson", "Subs Manager", "Oranges", "Snacks", "custom"];
+const MINI_LEAGUE_SESSION_DUTIES = ["Canteen", "Linemarker", "Referee", "Linesperson", "Subs Manager", "Game Steward", "Oranges", "Snacks", "custom"];
 
 // For mini league match level: only Referee and Linesperson
 const MINI_LEAGUE_MATCH_DUTIES = ["Linesperson", "Referee", "Subs Manager", "Oranges", "Snacks"];
