@@ -1613,17 +1613,7 @@ export default function HomePage() {
 
 
       {/* My Teams & Leagues - Premium Carousel */}
-      <MyTeamsPremiumCarousel
-        onJoinTeam={() => setTeamDialogOpen(true)}
-        onInvite={() => setMemberInviteOpen(true)}
-        onCreateTeam={() => {
-          if (activeClubFilter) {
-            navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
-          } else {
-            navigate("/clubs", { state: { fromCreateTeam: true } });
-          }
-        }}
-      />
+      <MyTeamsPremiumCarousel />
 
       <MemberInviteSheet open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
 
