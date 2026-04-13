@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
+import { setInviteFlowContext } from "@/components/InviteFlowProgress";
 import { Button } from "@/components/ui/button";
 import { Smartphone, Download } from "lucide-react";
 
@@ -54,6 +55,12 @@ export default function NativeOnlyGate({ children }: { children: React.ReactNode
   const handleGetApp = (platform: "ios" | "android") => {
     // Persist the invite path so PWAPendingInviteHandler can resume after install
     localStorage.setItem("pwa_pending_invite", fullPath);
+    // Also set invite flow context so it survives the install
+    setInviteFlowContext({
+      active: true,
+      inviteToken: fullPath.split("/").pop() || undefined,
+      currentStep: "install",
+    });
     window.location.href = platform === "ios" ? APP_STORE_URL : PLAY_STORE_URL;
   };
 
