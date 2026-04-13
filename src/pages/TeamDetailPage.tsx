@@ -425,7 +425,7 @@ export default function TeamDetailPage() {
       acc[userId].roles.push({ id: role.id, role: role.role });
       return acc;
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
-  }, [rawMembers]);
+  }, [rawMembers, team?.clubs?.bot_user_id]);
 
   const pitchBoardMembers = useMemo(() => [
     ...rawMembers.map(m => ({
