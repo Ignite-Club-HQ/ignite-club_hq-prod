@@ -166,7 +166,7 @@ export default function AddMemberDialog({ type, entityId, entityName, clubId }: 
     <>
       <Button size="sm" onClick={() => setOpen(true)}>
         <UserPlus className="h-4 w-4 mr-2" />
-        Add Members
+        Invite Members
       </Button>
       <ResponsiveDialog open={open} onOpenChange={setOpen}>
         <ResponsiveDialogContent className="sm:max-w-md">
@@ -176,7 +176,7 @@ export default function AddMemberDialog({ type, entityId, entityName, clubId }: 
                 <Users className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <ResponsiveDialogTitle>Add Member</ResponsiveDialogTitle>
+                <ResponsiveDialogTitle>Invite Member</ResponsiveDialogTitle>
                 <ResponsiveDialogDescription className="text-sm">
                   {entityName}
                 </ResponsiveDialogDescription>
