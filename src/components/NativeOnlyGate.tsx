@@ -52,6 +52,8 @@ export default function NativeOnlyGate({ children }: { children: React.ReactNode
   };
 
   const handleGetApp = (platform: "ios" | "android") => {
+    // Persist the invite path so PWAPendingInviteHandler can resume after install
+    localStorage.setItem("pwa_pending_invite", fullPath);
     window.location.href = platform === "ios" ? APP_STORE_URL : PLAY_STORE_URL;
   };
 
