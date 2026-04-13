@@ -28,6 +28,9 @@ const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
 const IGNITE_BRAND_COLOR = "#10b981";
 const IGNITE_ICON_URL = `${PRODUCTION_DOMAIN}/ignite-icon.png`;
 
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub&pcampaignid=web_share";
+const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
+
 const isValidExternalUrl = (url?: string): boolean => {
   if (!url) return false;
   return url.startsWith('http://') || url.startsWith('https://');
@@ -104,6 +107,27 @@ export const ChildAddedEmail = ({
 
           {/* CTA */}
           <Section style={ctaSection}>
+            {/* Download buttons */}
+            <Text style={stepLabel}>📲 Download the app</Text>
+            <Section style={storeButtonsRow}>
+              <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
+                <tr>
+                  <td style={{ paddingRight: '6px' }}>
+                    <Button style={playStoreBtn} href={PLAY_STORE_URL}>
+                      ▶️ Google Play
+                    </Button>
+                  </td>
+                  <td style={{ paddingLeft: '6px' }}>
+                    <Button style={appStoreBtn} href={APP_STORE_URL}>
+                      🍎 App Store
+                    </Button>
+                  </td>
+                </tr>
+              </table>
+            </Section>
+
+            {/* View team button */}
+            <Text style={stepLabel}>👇 Then tap below to see their team</Text>
             <Section style={mainCtaSection}>
               <Button style={{ ...mainCtaButton, backgroundColor: primaryColor }} href={deepLinkUrl}>
                 View Their Team
