@@ -16,13 +16,12 @@ import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messages
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
+import { isIgniteSupportUser } from "@/lib/systemUser";
 
 const MESSAGES_PER_PAGE = 15;
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
-import ChatGroupCard from "@/components/chat/ChatGroupCard";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
-import { DMConversationsList } from "@/components/chat/DMConversationsList";
 import { NewMessageMenu } from "@/components/chat/NewMessageMenu";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import {
@@ -146,6 +145,22 @@ interface Club {
   sport: string | null;
 }
 
+interface UnifiedConversation {
+  type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support';
+  id: string;
+  key: string;
+  name: string;
+  avatarUrl?: string | null;
+  link: string;
+  lastActivity: string;
+  lastMessage?: { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean };
+  unreadCount: number;
+  isMuted: boolean;
+  isLocked?: boolean;
+  canManage?: boolean;
+  dmData?: any;
+}
+
 export default function MessagesPage() {
   const { user, initialized, refreshUnreadCount } = useAuth();
   usePageTitle("Messages");
@@ -184,11 +199,13 @@ export default function MessagesPage() {
         teams: Record<string, number>;
         clubs: Record<string, number>;
         groups: Record<string, number>;
+        dms: Record<string, number>;
       } = {
         broadcast: 0,
         teams: {},
         clubs: {},
         groups: {},
+        dms: {},
       };
       
       if (!notifications?.length) return counts;
@@ -197,6 +214,7 @@ export default function MessagesPage() {
       const teamMessageIds: string[] = [];
       const clubMessageIds: string[] = [];
       const groupMessageIds: string[] = [];
+      const dmMessageIds: string[] = [];
       
       notifications.forEach(n => {
         if (n.type === 'broadcast') {
@@ -207,6 +225,8 @@ export default function MessagesPage() {
           clubMessageIds.push(n.related_id);
         } else if (n.type === 'group_message' && n.related_id) {
           groupMessageIds.push(n.related_id);
+        } else if (n.type === 'direct_message' && n.related_id) {
+          dmMessageIds.push(n.related_id);
         }
       });
       
@@ -248,6 +268,20 @@ export default function MessagesPage() {
         groupMessages?.forEach(msg => {
           if (msg.group_id) {
             counts.groups[msg.group_id] = (counts.groups[msg.group_id] || 0) + 1;
+          }
+        });
+      }
+
+      // Look up conversation_id for DM messages
+      if (dmMessageIds.length > 0) {
+        const { data: dmMessages } = await supabase
+          .from("direct_messages")
+          .select("id, conversation_id")
+          .in("id", dmMessageIds);
+        
+        dmMessages?.forEach(msg => {
+          if (msg.conversation_id) {
+            counts.dms[msg.conversation_id] = (counts.dms[msg.conversation_id] || 0) + 1;
           }
         });
       }
@@ -366,7 +400,6 @@ export default function MessagesPage() {
             .maybeSingle();
           
           if (msgData) {
-            // Fetch author profile - start with empty string, will be populated from DB
             let authorName = "";
             if (msgData.author_id) {
               const { data: profile } = await supabase
@@ -413,7 +446,6 @@ export default function MessagesPage() {
       
       if (!data) return null;
       
-      // Fetch author profile - start with empty string, will be populated from DB
       let authorName = "";
       if (data.author_id) {
         const { data: profile } = await supabase
@@ -485,7 +517,6 @@ export default function MessagesPage() {
           if (msgData) {
             let authorName = "";
             const isAnnouncement = !!(msgData.is_club_announcement && msgData.club_announcement_name);
-            // For club announcements, use the club name
             if (isAnnouncement) {
               authorName = msgData.club_announcement_name!;
             } else if (msgData.author_id) {
@@ -742,7 +773,6 @@ export default function MessagesPage() {
             .maybeSingle();
           
           if (msgData) {
-            // Fetch author profile separately
             let authorName = "";
             if (msgData.author_id) {
               const { data: profile } = await supabase
@@ -793,7 +823,6 @@ export default function MessagesPage() {
       };
       
       data?.forEach((pref) => {
-        // Only treat as muted if indefinite (null) or not yet expired
         const isActive = pref.muted_until === null || new Date(pref.muted_until) > now;
         if (!isActive) return;
         
@@ -809,11 +838,126 @@ export default function MessagesPage() {
     placeholderData: (prev) => prev,
   });
 
+  // Fetch DM conversations
+  const { data: dmConversations, isLoading: dmLoading, isFetching: dmFetching } = useQuery({
+    queryKey: ["dm-conversations", user?.id],
+    queryFn: async () => {
+      const { data: convos, error } = await supabase
+        .from("direct_conversations")
+        .select("*")
+        .or(`participant_1.eq.${user!.id},participant_2.eq.${user!.id}`)
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+      if (!convos?.length) return [];
+
+      const otherUserIds = convos.map(c => 
+        c.participant_1 === user!.id ? c.participant_2 : c.participant_1
+      );
+
+      const [profilesResult, messagesResult] = await Promise.all([
+        supabase.from("profiles").select("id, display_name, avatar_url").in("id", otherUserIds),
+        Promise.all(
+          convos.map(async (conv) => {
+            const { data } = await supabase
+              .from("direct_messages")
+              .select("text, image_url, created_at, author_id")
+              .eq("conversation_id", conv.id)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            return { conversationId: conv.id, message: data };
+          })
+        ),
+      ]);
+
+      const profileMap = new Map(profilesResult.data?.map(p => [p.id, p]) || []);
+      const messageMap = new Map(messagesResult.map(m => [m.conversationId, m.message]));
+
+      const result = convos.map(conv => {
+        const otherUserId = conv.participant_1 === user!.id ? conv.participant_2 : conv.participant_1;
+        return {
+          ...conv,
+          other_user: profileMap.get(otherUserId) || null,
+          last_message: messageMap.get(conv.id) || null,
+        };
+      });
+
+      // Cache
+      const dmConversationsForCache = result.map(conv => ({
+        id: conv.id,
+        participant_1: conv.participant_1,
+        participant_2: conv.participant_2,
+        updated_at: conv.updated_at,
+        other_user: conv.other_user,
+      }));
+      const latestDMMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
+      result.forEach(conv => {
+        if (conv.last_message) {
+          latestDMMessages[conv.id] = {
+            text: conv.last_message.text,
+            author: conv.last_message.author_id === user!.id ? "You" : (conv.other_user?.display_name || ""),
+            created_at: conv.last_message.created_at,
+            image_url: conv.last_message.image_url,
+          };
+        }
+      });
+      cacheMessagesPageData(user!.id, { dmConversations: dmConversationsForCache, latestDMMessages });
+
+      return result;
+    },
+    enabled: !!user && initialized && !!hasAnyProAccess,
+    staleTime: 30000,
+    placeholderData: () => {
+      if (!cachedData?.dmConversations?.length) return undefined;
+      return cachedData.dmConversations.map(conv => ({
+        ...conv,
+        created_at: (conv as any).created_at || conv.updated_at,
+        last_message: cachedData.latestDMMessages?.[conv.id] ? {
+          text: cachedData.latestDMMessages[conv.id].text,
+          image_url: cachedData.latestDMMessages[conv.id].image_url || null,
+          created_at: cachedData.latestDMMessages[conv.id].created_at,
+          author_id: cachedData.latestDMMessages[conv.id].author === "You" ? user?.id || "" : conv.other_user?.id || "",
+        } : null,
+      }));
+    },
+  });
+
+  // Fetch hidden DM conversations
+  const { data: hiddenConversationIds } = useQuery({
+    queryKey: ["hidden-dm-conversations", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("hidden_dm_conversations")
+        .select("conversation_id")
+        .eq("user_id", user!.id);
+      return new Set(data?.map(h => h.conversation_id) || []);
+    },
+    enabled: !!user,
+  });
+
+  // Fetch system messages (welcome message from Ignite Support)
+  const { data: systemMessage } = useQuery({
+    queryKey: ["system-messages", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("system_messages")
+        .select("*")
+        .eq("user_id", user!.id)
+        .eq("message_type", "welcome")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   // Cache fresh data when it arrives
   useEffect(() => {
     if (!user?.id) return;
     
-    // Only cache when we have fresh data (not placeholder)
     const hasData = teams || memberClubs || adminClubs || chatGroups?.length || latestBroadcast;
     if (!hasData) return;
     
@@ -833,9 +977,7 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!user) return;
     
-    // Use requestIdleCallback to defer prefetching until browser is idle
     const prefetchAll = () => {
-      // Prefetch broadcast messages (lightweight - no profiles join)
       queryClient.prefetchQuery({
         queryKey: ["broadcast-messages"],
         queryFn: async () => {
@@ -846,17 +988,13 @@ export default function MessagesPage() {
             .limit(MESSAGES_PER_PAGE + 1);
           
           if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-
           const hasMore = messagesData.length > MESSAGES_PER_PAGE;
           const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-          const reversedMessages = [...messagesToDisplay].reverse();
-
-          return { messages: reversedMessages, hasOlderMessages: hasMore };
+          return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
         },
         staleTime: 1000 * 60,
       });
 
-      // Prefetch team messages (lightweight)
       teams?.forEach((team) => {
         queryClient.prefetchQuery({
           queryKey: ["team-messages", team.id],
@@ -869,18 +1007,14 @@ export default function MessagesPage() {
               .limit(MESSAGES_PER_PAGE + 1);
             
             if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-            
             const hasMore = messagesData.length > MESSAGES_PER_PAGE;
             const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-            const reversedMessages = [...messagesToDisplay].reverse();
-
-            return { messages: reversedMessages, hasOlderMessages: hasMore };
+            return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
           },
           staleTime: 1000 * 60,
         });
       });
 
-      // Prefetch club messages (lightweight)
       memberClubs?.forEach((club) => {
         queryClient.prefetchQuery({
           queryKey: ["club-messages", club.id],
@@ -893,18 +1027,14 @@ export default function MessagesPage() {
               .limit(MESSAGES_PER_PAGE + 1);
             
             if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-            
             const hasMore = messagesData.length > MESSAGES_PER_PAGE;
             const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-            const reversedMessages = [...messagesToDisplay].reverse();
-
-            return { messages: reversedMessages, hasOlderMessages: hasMore };
+            return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
           },
           staleTime: 1000 * 60,
         });
       });
 
-      // Prefetch group messages (lightweight)
       chatGroups?.forEach((group) => {
         queryClient.prefetchQuery({
           queryKey: ["group-messages", group.id],
@@ -917,19 +1047,15 @@ export default function MessagesPage() {
               .limit(MESSAGES_PER_PAGE + 1);
             
             if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-            
             const hasMore = messagesData.length > MESSAGES_PER_PAGE;
             const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-            const reversedMessages = [...messagesToDisplay].reverse();
-
-            return { messages: reversedMessages, hasOlderMessages: hasMore };
+            return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
           },
           staleTime: 1000 * 60,
         });
       });
     };
 
-    // Defer prefetching to not block initial render
     if ('requestIdleCallback' in window) {
       (window as any).requestIdleCallback(prefetchAll, { timeout: 2000 });
     } else {
@@ -944,12 +1070,8 @@ export default function MessagesPage() {
     cachedData.chatGroups?.length > 0
   );
 
-  // Track if fresh data is still loading (for skeleton states)
-  // With placeholderData, isLoading should be false when cached data exists — but guard further:
   const hasAnyDisplayData = !!(teams?.length || memberClubs?.length || chatGroups?.length);
   const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingProAccess || isLoadingClubProStatus);
-
-  // Show skeleton loading UI when fresh data is loading and we have nothing to show yet
   const showSkeletonLoading = isLoadingFreshData;
 
   // Determine which data to display (prefer fresh, fallback to cached)
@@ -958,36 +1080,29 @@ export default function MessagesPage() {
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
   const allChatGroups = chatGroups?.length > 0 ? chatGroups : (cachedData?.chatGroups as any) || [];
   
-  // Filter chat groups by user's roles - committee members and app admins see all
-  // League groups additionally require the user's child to be assigned to that league
+  // Filter chat groups by user's roles
   const displayChatGroups = useMemo(() => {
     if (isAppAdmin || isCommitteeMember) return allChatGroups;
     if (!userAllRoles?.length) return [];
     
     return allChatGroups.filter((group: any) => {
       const allowedRoles: string[] = group.allowed_roles || [];
-      if (allowedRoles.length === 0) return true; // No restrictions
+      if (allowedRoles.length === 0) return true;
       
-      // League group: must also have a child in that specific league
       if (group.mini_league_id) {
-        // Admins/coaches with a role in the club can always see league groups
         const isLeagueAdmin = userAllRoles.some((ur: any) => 
           ["club_admin", "league_admin", "coach", "team_admin"].includes(ur.role) && 
           ur.club_id === group.club_id
         );
         if (isLeagueAdmin) return true;
-        
-        // Parents/players: must have a child assigned to this specific league
         if (!userLeagueIds?.has(group.mini_league_id)) return false;
       }
       
       return userAllRoles.some((ur: any) => {
         if (!allowedRoles.includes(ur.role)) return false;
-        // Club-level group: user must have matching role in that club
         if (group.club_id && !group.team_id && !group.mini_league_id) {
           return ur.club_id === group.club_id;
         }
-        // Team-level group: user must have matching role in that team
         if (group.team_id) {
           return ur.team_id === group.team_id;
         }
@@ -995,15 +1110,14 @@ export default function MessagesPage() {
       });
     });
   }, [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember]);
+
   const displayLatestBroadcast = latestBroadcast || cachedData?.latestBroadcast;
   const displayLatestTeamMessages = latestTeamMessages || {};
   const displayLatestClubMessages = latestClubMessages || {};
   const displayLatestGroupMessages = latestGroupMessages || {};
 
-  // Show all member clubs (Pro ones are accessible, non-Pro ones are locked)
   const displayClubsWithAnnouncements = displayMemberClubs;
 
-  // Check if user can create groups (requires admin role AND Pro access)
   const canCreateGroups = (adminTeamIds?.length || adminClubs?.length || isAppAdmin || isCommitteeMember) && (hasAnyProAccess || isAppAdmin);
 
   // Filter all items based on search query and active club filter
@@ -1027,12 +1141,9 @@ export default function MessagesPage() {
 
   const filteredLeagueChats = useMemo(() => {
     let groups = leagueChats;
-    
-    // Apply club filter if active
     if (effectiveClubFilter) {
       groups = groups.filter((group: any) => group.club_id === effectiveClubFilter);
     }
-    
     if (!query) return groups;
     return groups.filter((group: any) => {
       const groupName = group.name?.toLowerCase() || "";
@@ -1043,15 +1154,12 @@ export default function MessagesPage() {
 
   const filteredChatGroups = useMemo(() => {
     let groups = regularChatGroups;
-    
-    // Apply club filter if active
     if (effectiveClubFilter) {
       groups = groups.filter((group: any) => 
         group.club_id === effectiveClubFilter || 
         (group.team_id && (activeClubFilter ? activeClubTeamIds.includes(group.team_id) : displayTeams.some((t: any) => t.id === group.team_id && t.clubs?.id === effectiveClubFilter)))
       );
     }
-    
     if (!query) return groups;
     return groups.filter((group: any) => {
       const groupName = group.name?.toLowerCase() || "";
@@ -1063,10 +1171,8 @@ export default function MessagesPage() {
 
   const filteredTeams = useMemo(() => {
     let teamsToFilter = displayTeams || [];
-    
     if (effectiveClubFilter) {
       if (activeClubFilter) {
-        // Theme filter: use resolved team IDs with fallback
         const hasResolvedActiveClubTeams = activeClubTeamIds.length > 0;
         teamsToFilter = teamsToFilter.filter((team: any) => {
           const matchesResolvedIds = hasResolvedActiveClubTeams && activeClubTeamIds.includes(team.id);
@@ -1074,55 +1180,517 @@ export default function MessagesPage() {
           return matchesResolvedIds || matchesClubRelation;
         });
       } else {
-        // Local filter: use club relation on team
         teamsToFilter = teamsToFilter.filter((team: any) => team.clubs?.id === effectiveClubFilter);
       }
     }
-    
-    if (!query) {
-      return [...teamsToFilter].sort((a: any, b: any) =>
-        (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" })
-      );
-    }
-    return teamsToFilter
-      .filter((team: any) =>
-        team.name.toLowerCase().includes(query) ||
-        team.clubs?.name?.toLowerCase()?.includes(query)
-      )
-      .sort((a: any, b: any) =>
-        (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" })
-      );
+    if (!query) return teamsToFilter;
+    return teamsToFilter.filter((team: any) =>
+      team.name.toLowerCase().includes(query) ||
+      team.clubs?.name?.toLowerCase()?.includes(query)
+    );
   }, [displayTeams, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds]);
 
   const filteredClubs = useMemo(() => {
     let clubsToFilter = displayClubsWithAnnouncements || [];
-    
-    // Apply club filter if active - only show the active club
     if (effectiveClubFilter) {
       clubsToFilter = clubsToFilter.filter((club: any) => club.id === effectiveClubFilter);
     }
-    
     if (!query) return clubsToFilter;
     return clubsToFilter.filter((club: any) =>
       club.name.toLowerCase().includes(query)
     );
   }, [displayClubsWithAnnouncements, query, effectiveClubFilter]);
 
-  // Always show broadcast in club mode - it's a global announcements channel
   const showBroadcast = !query || "announcements".includes(query);
 
-  const hasNoResults = query && 
-    filteredChatGroups.length === 0 && 
-    filteredLeagueChats.length === 0 &&
-    filteredTeams.length === 0 && 
-    filteredClubs.length === 0 && 
-    !showBroadcast;
+  // Filtered DM conversations
+  const filteredDMs = useMemo(() => {
+    if (!dmConversations) return [];
+    return dmConversations.filter((conv: any) => {
+      if (hiddenConversationIds?.has(conv.id)) return false;
+      if (!query) return true;
+      return conv.other_user?.display_name?.toLowerCase().includes(query);
+    });
+  }, [dmConversations, hiddenConversationIds, query]);
 
+  // Check if Ignite Support should show
+  const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
+
+  // Build unified conversation list
+  const unifiedConversations = useMemo(() => {
+    const items: UnifiedConversation[] = [];
+
+    // Broadcast
+    if (showBroadcast) {
+      items.push({
+        type: 'broadcast',
+        id: 'broadcast',
+        key: 'broadcast',
+        name: 'Announcements',
+        link: '/messages/broadcast',
+        lastActivity: displayLatestBroadcast?.created_at || '',
+        lastMessage: displayLatestBroadcast ? {
+          text: displayLatestBroadcast.text,
+          author: (displayLatestBroadcast.profiles as any)?.display_name || '',
+          created_at: displayLatestBroadcast.created_at,
+          image_url: displayLatestBroadcast.image_url,
+        } : undefined,
+        unreadCount: unreadCounts?.broadcast || 0,
+        isMuted: false,
+      });
+    }
+
+    // Clubs
+    filteredClubs.forEach((club: any) => {
+      const lastMsg = displayLatestClubMessages?.[club.id];
+      const hasProAccess = isLoadingClubProStatus ? true : (clubProStatus?.[club.id] === true);
+      items.push({
+        type: 'club',
+        id: club.id,
+        key: `club-${club.id}`,
+        name: club.name,
+        avatarUrl: club.logo_url,
+        link: `/messages/club/${club.id}`,
+        lastActivity: lastMsg?.created_at || '',
+        lastMessage: lastMsg,
+        unreadCount: unreadCounts?.clubs[club.id] || 0,
+        isMuted: mutedChats?.clubs.has(club.id) || false,
+        isLocked: !isLoadingClubProStatus && !hasProAccess,
+      });
+    });
+
+    // Teams
+    filteredTeams.forEach((team: any) => {
+      const lastMsg = displayLatestTeamMessages?.[team.id];
+      items.push({
+        type: 'team',
+        id: team.id,
+        key: `team-${team.id}`,
+        name: team.name,
+        avatarUrl: team.logo_url || team.clubs?.logo_url,
+        link: `/messages/${team.id}`,
+        lastActivity: lastMsg?.created_at || '',
+        lastMessage: lastMsg,
+        unreadCount: unreadCounts?.teams[team.id] || 0,
+        isMuted: mutedChats?.teams.has(team.id) || false,
+      });
+    });
+
+    // League chats
+    filteredLeagueChats.forEach((group: any) => {
+      const lastMsg = displayLatestGroupMessages?.[group.id];
+      items.push({
+        type: 'league',
+        id: group.id,
+        key: `league-${group.id}`,
+        name: group.name,
+        link: `/groups/${group.id}`,
+        lastActivity: lastMsg?.created_at || '',
+        lastMessage: lastMsg,
+        unreadCount: unreadCounts?.groups[group.id] || 0,
+        isMuted: mutedChats?.groups.has(group.id) || false,
+      });
+    });
+
+    // Chat groups
+    filteredChatGroups.forEach((group: any) => {
+      const lastMsg = displayLatestGroupMessages?.[group.id];
+      items.push({
+        type: 'group',
+        id: group.id,
+        key: `group-${group.id}`,
+        name: group.name,
+        link: `/groups/${group.id}`,
+        lastActivity: lastMsg?.created_at || '',
+        lastMessage: lastMsg,
+        unreadCount: unreadCounts?.groups[group.id] || 0,
+        isMuted: mutedChats?.groups.has(group.id) || false,
+      });
+    });
+
+    // DM conversations
+    filteredDMs.forEach((conv: any) => {
+      const isSupport = isIgniteSupportUser(conv.other_user?.id);
+      items.push({
+        type: 'dm',
+        id: conv.id,
+        key: `dm-${conv.id}`,
+        name: isSupport ? "Ignite Support" : (conv.other_user?.display_name || "Unknown User"),
+        avatarUrl: conv.other_user?.avatar_url,
+        link: `/messages/dm/${conv.id}`,
+        lastActivity: conv.last_message?.created_at || conv.updated_at || '',
+        lastMessage: conv.last_message ? {
+          text: conv.last_message.text,
+          author: conv.last_message.author_id === user?.id ? "You" : (conv.other_user?.display_name || ""),
+          created_at: conv.last_message.created_at,
+          image_url: conv.last_message.image_url,
+        } : undefined,
+        unreadCount: unreadCounts?.dms[conv.id] || 0,
+        isMuted: false,
+        dmData: conv,
+      });
+    });
+
+    // Ignite Support system message (if not already shown as a DM)
+    if (showIgniteSupport && !filteredDMs.some((conv: any) => isIgniteSupportUser(conv.other_user?.id))) {
+      items.push({
+        type: 'support',
+        id: 'ignite-support',
+        key: 'ignite-support',
+        name: 'Ignite Support',
+        link: '/messages/welcome',
+        lastActivity: systemMessage?.created_at || '',
+        lastMessage: systemMessage ? {
+          text: systemMessage.text.substring(0, 60) + '...',
+          author: '',
+          created_at: systemMessage.created_at,
+        } : undefined,
+        unreadCount: 0,
+        isMuted: false,
+      });
+    }
+
+    return items;
+  }, [
+    showBroadcast, displayLatestBroadcast, unreadCounts,
+    filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, clubProStatus, mutedChats,
+    filteredTeams, displayLatestTeamMessages,
+    filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
+    filteredDMs, user?.id, showIgniteSupport, systemMessage,
+  ]);
+
+  // Split into unread and recent
+  const unreadItems = useMemo(() => {
+    return unifiedConversations
+      .filter(c => c.unreadCount > 0)
+      .sort((a, b) => {
+        if (!a.lastActivity && !b.lastActivity) return 0;
+        if (!a.lastActivity) return 1;
+        if (!b.lastActivity) return -1;
+        return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
+      });
+  }, [unifiedConversations]);
+
+  const recentItems = useMemo(() => {
+    return unifiedConversations
+      .filter(c => c.unreadCount === 0)
+      .sort((a, b) => {
+        if (!a.lastActivity && !b.lastActivity) return 0;
+        if (!a.lastActivity) return 1;
+        if (!b.lastActivity) return -1;
+        return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
+      });
+  }, [unifiedConversations]);
+
+  const hasNoResults = query && unifiedConversations.length === 0;
   const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0;
 
-  // Check if user has admin role but no Pro access (show upgrade prompt)
-  // Only show after ALL relevant queries have loaded AND not refetching to prevent flash after reconnection
   const hasAdminRoleButNoPro = !isLoadingProAccess && !isFetchingProAccess && !!(adminTeamIds?.length || adminClubs?.length) && hasAnyProAccess === false && isAppAdmin === false;
+
+  // Type label map
+  const typeLabels: Record<string, string> = {
+    club: 'Club',
+    team: 'Team',
+    group: 'Group',
+    league: 'League',
+    dm: 'DM',
+  };
+
+  // Render a unified conversation card
+  const renderConversationCard = (item: UnifiedConversation) => {
+    const hasUnread = item.unreadCount > 0;
+    const typeLabel = typeLabels[item.type];
+
+    // Broadcast card
+    if (item.type === 'broadcast') {
+      return (
+        <Link key={item.key} to={item.link}>
+          <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
+            <CardContent className="py-[18px] px-3 flex items-center gap-3">
+              <div className="relative shrink-0">
+                <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                  <Flame className="h-4 w-4 text-white" />
+                </div>
+                {hasUnread && (
+                  <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-1">
+                  <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {item.lastMessage?.created_at && (
+                      <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
+                    )}
+                    {hasUnread && (
+                      <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                        {item.unreadCount > 9 ? "9+" : item.unreadCount}
+                      </span>
+                    )}
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                </div>
+                <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                  <MessagePreview 
+                    text={item.lastMessage?.text} 
+                    imageUrl={item.lastMessage?.image_url}
+                    author={item.lastMessage?.author}
+                    hasUnread={hasUnread}
+                    fallback="Official announcements and updates"
+                  />
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      );
+    }
+
+    // Support card (Ignite Support system message)
+    if (item.type === 'support') {
+      return (
+        <Link key={item.key} to={item.link}>
+          <Card className="hover:border-primary/50 transition-colors">
+            <CardContent className="py-[18px] px-3 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                <Flame className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-1">
+                  <h3 className="truncate text-[15px] leading-tight font-semibold">Ignite Support</h3>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {item.lastMessage?.created_at && (
+                      <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
+                    )}
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                </div>
+                <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
+                  {item.lastMessage?.text || "Welcome message"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      );
+    }
+
+    // Locked club card
+    if (item.type === 'club' && item.isLocked) {
+      return (
+        <Link key={item.key} to={item.link}>
+          <Card className="opacity-70 hover:border-primary/50 transition-colors">
+            <CardContent className="py-3 px-2.5 flex items-center gap-2">
+              <div className="relative">
+                <Avatar className="h-10 w-10 grayscale">
+                  <AvatarImage src={item.avatarUrl || undefined} />
+                  <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
+                    {item.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-muted flex items-center justify-center border-2 border-background">
+                  <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="truncate font-semibold text-muted-foreground text-sm">{item.name}</h3>
+                  <Badge variant="secondary" className="gap-1 text-[10px] shrink-0 px-1.5 py-0">
+                    <Crown className="h-2.5 w-2.5" />
+                    Pro
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground truncate">
+                  Club Pro required for club-wide chat
+                </p>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+      );
+    }
+
+    // DM card
+    if (item.type === 'dm') {
+      const conv = item.dmData;
+      const isOwn = conv?.last_message?.author_id === user?.id;
+      const isSupport = isIgniteSupportUser(conv?.other_user?.id);
+      
+      return (
+        <Link key={item.key} to={item.link}>
+          <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
+            <CardContent className="py-[18px] px-3 flex items-center gap-3">
+              <div className="relative shrink-0">
+                {isSupport ? (
+                  <div className="h-9 w-9 rounded-full flex items-center justify-center" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
+                    <Flame className="h-5 w-5 text-white" />
+                  </div>
+                ) : (
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={conv?.other_user?.avatar_url || undefined} />
+                    <AvatarFallback className="bg-secondary text-secondary-foreground">
+                      {conv?.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+                {hasUnread && (
+                  <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>
+                      {item.name}
+                    </h3>
+                    {typeLabel && (
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal text-muted-foreground shrink-0 border-muted">
+                        {typeLabel}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {item.lastMessage?.created_at && (
+                      <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
+                    )}
+                    {hasUnread && (
+                      <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                        {item.unreadCount > 9 ? "9+" : item.unreadCount}
+                      </span>
+                    )}
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                </div>
+                <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                  <span className="flex items-center gap-1.5">
+                    {isOwn && <span className="text-muted-foreground">You:</span>}
+                    {conv?.last_message?.image_url && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                    <span className="truncate">
+                      {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text) : 
+                       conv?.last_message?.image_url ? "Image" : "Start a conversation"}
+                    </span>
+                  </span>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      );
+    }
+
+    // Group/League card
+    if (item.type === 'group' || item.type === 'league') {
+      return (
+        <Card
+          key={item.key}
+          className={`hover:border-primary/50 transition-colors cursor-pointer ${hasUnread ? 'border-primary/30' : ''}`}
+          onClick={() => navigate(item.link)}
+          tabIndex={0}
+          role="link"
+        >
+          <CardContent className="py-[18px] px-3 flex items-center gap-3">
+            <div className="relative shrink-0">
+              <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center">
+                <Users className="h-5 w-5 text-secondary-foreground" />
+              </div>
+              {hasUnread && (
+                <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
+                  {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
+                  {typeLabel && (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal text-muted-foreground shrink-0 border-muted">
+                      {typeLabel}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  {item.lastMessage?.created_at && (
+                    <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
+                  )}
+                  {hasUnread && (
+                    <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                      {item.unreadCount > 9 ? "9+" : item.unreadCount}
+                    </span>
+                  )}
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+              </div>
+              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                <MessagePreview 
+                  text={item.lastMessage?.text} 
+                  imageUrl={item.lastMessage?.image_url}
+                  author={item.lastMessage?.author}
+                  hasUnread={hasUnread}
+                  fallback="No messages yet"
+                />
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // Club/Team card (default)
+    return (
+      <Link key={item.key} to={item.link}>
+        <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
+          <CardContent className="py-[18px] px-3 flex items-center gap-3">
+            <div className="relative shrink-0">
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={item.avatarUrl || undefined} />
+                <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
+                  {item.name.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              {hasUnread && (
+                <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
+                  {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
+                  {typeLabel && (
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal text-muted-foreground shrink-0 border-muted">
+                      {typeLabel}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  {item.lastMessage?.created_at && (
+                    <span className="text-xs text-muted-foreground">{formatTimeShort(item.lastMessage.created_at)}</span>
+                  )}
+                  {hasUnread && (
+                    <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                      {item.unreadCount > 9 ? "9+" : item.unreadCount}
+                    </span>
+                  )}
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+              </div>
+              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                <MessagePreview 
+                  text={item.lastMessage?.text} 
+                  imageUrl={item.lastMessage?.image_url}
+                  author={item.lastMessage?.author}
+                  hasUnread={hasUnread}
+                  fallback={item.type === 'club' ? "Club-wide announcements" : "No messages yet"}
+                  isAnnouncement={(item.lastMessage as any)?.is_announcement}
+                />
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+    );
+  };
 
   return (
     <div className="py-6 space-y-6">
@@ -1142,7 +1710,6 @@ export default function MessagesPage() {
             <Button 
               size="sm" 
               onClick={() => {
-                // Navigate to club upgrade if user is club admin, otherwise team upgrade
                 if (adminClubs?.length && adminClubs[0]?.id) {
                   navigate(`/clubs/${adminClubs[0].id}/upgrade`);
                 } else if (adminTeamIds?.length && adminTeamIds[0]) {
@@ -1163,13 +1730,11 @@ export default function MessagesPage() {
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">Messages</h1>
-          {/* Stale indicator when showing cached data and refreshing */}
           {isLoadingFreshData && hasCachedData && (
             <RefreshCw className="h-4 w-4 text-muted-foreground animate-spin" />
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Club filter button - only show when not in club theme mode and user has multiple clubs */}
           {!activeClubFilter && displayMemberClubs.length > 1 && (
             <Button
               variant={hasLocalFilter ? "default" : "outline"}
@@ -1178,7 +1743,6 @@ export default function MessagesPage() {
                 if (hasLocalFilter) {
                   setLocalClubFilter("all");
                 } else {
-                  // Cycle: show a simple drawer with club options
                   setShowClubFilterDrawer(true);
                 }
               }}
@@ -1265,7 +1829,7 @@ export default function MessagesPage() {
         </DrawerContent>
       </Drawer>
 
-      {/* All Messages List */}
+      {/* Unified Messages List */}
       <div className="space-y-2">
         {/* Skeleton loading when no cache available */}
         {showSkeletonLoading && (
@@ -1277,229 +1841,28 @@ export default function MessagesPage() {
           </>
         )}
 
-
-        {/* Club Chats Section */}
-        {!showSkeletonLoading && filteredClubs.length > 0 && (
-          <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
-            <span className="text-sm font-medium text-muted-foreground">Club Chats</span>
-          </div>
+        {/* Unread Section */}
+        {!showSkeletonLoading && unreadItems.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 pb-1">
+              <span className="text-sm font-semibold text-foreground">Unread</span>
+              <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
+                {unreadItems.length}
+              </span>
+            </div>
+            {unreadItems.map(renderConversationCard)}
+          </>
         )}
-        {!showSkeletonLoading && filteredClubs.map((club: any) => {
-          const lastMessage = displayLatestClubMessages?.[club.id];
-          const unreadCount = unreadCounts?.clubs[club.id] || 0;
-          const hasUnread = unreadCount > 0;
-          const isMuted = mutedChats?.clubs.has(club.id);
-          // Only determine lock status after clubProStatus has loaded to prevent flash
-          const hasProAccess = isLoadingClubProStatus ? true : (clubProStatus?.[club.id] === true);
-          
-          // Locked club chat card (non-Pro) - still clickable for admin access
-          if (!isLoadingClubProStatus && !hasProAccess) {
-            return (
-              <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
-                <Card className="opacity-70 hover:border-primary/50 transition-colors">
-                  <CardContent className="py-3 px-2.5 flex items-center gap-2">
-                    <div className="relative">
-                      <Avatar className="h-10 w-10 grayscale">
-                        <AvatarImage src={club.logo_url || undefined} />
-                        <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
-                          {club.name.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-muted flex items-center justify-center border-2 border-background">
-                        <Lock className="h-2.5 w-2.5 text-muted-foreground" />
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="truncate font-semibold text-muted-foreground text-sm">{club.name}</h3>
-                        <Badge variant="secondary" className="gap-1 text-[10px] shrink-0 px-1.5 py-0">
-                          <Crown className="h-2.5 w-2.5" />
-                          Pro
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        Club Pro required for club-wide chat
-                      </p>
-                    </div>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          }
-          
-          return (
-            <Link key={`club-${club.id}`} to={`/messages/club/${club.id}`}>
-              <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                <CardContent className="py-[18px] px-3 flex items-center gap-3">
-                  <div className="relative shrink-0">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={club.logo_url || undefined} />
-                      <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
-                        {club.name.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    {hasUnread && (
-                      <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{club.name}</h3>
-                        {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
-                      </div>
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        {lastMessage?.created_at && (
-                          <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
-                        )}
-                        {hasUnread && (
-                          <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                            {unreadCount > 9 ? "9+" : unreadCount}
-                          </span>
-                        )}
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                    </div>
-                    <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
-                      <MessagePreview 
-                        text={lastMessage?.text} 
-                        imageUrl={lastMessage?.image_url}
-                        author={lastMessage?.author}
-                        hasUnread={hasUnread}
-                        fallback="Club-wide announcements"
-                      />
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
 
-        {/* Team Chats Section */}
-        {!showSkeletonLoading && filteredTeams.length > 0 && (
-          <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
-            <span className="text-sm font-medium text-muted-foreground">Team Chats</span>
-          </div>
+        {/* Recent Section */}
+        {!showSkeletonLoading && recentItems.length > 0 && (
+          <>
+            <div className={`flex items-center gap-2 pb-1 ${unreadItems.length > 0 ? 'pt-4 border-t mt-2' : ''}`}>
+              <span className="text-sm font-medium text-muted-foreground">Recent</span>
+            </div>
+            {recentItems.map(renderConversationCard)}
+          </>
         )}
-        {!showSkeletonLoading &&
-          filteredTeams.map((team: any) => {
-            const lastMessage = displayLatestTeamMessages?.[team.id];
-            const unreadCount = unreadCounts?.teams[team.id] || 0;
-            const hasUnread = unreadCount > 0;
-            const isMuted = mutedChats?.teams.has(team.id);
-            return (
-              <Link key={`team-${team.id}`} to={`/messages/${team.id}`}>
-                <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
-                  <CardContent className="py-[18px] px-3 flex items-center gap-3">
-                    <div className="relative shrink-0">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={team.logo_url || team.clubs?.logo_url || undefined} />
-                        <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
-                          {team.name.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      {hasUnread && (
-                        <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{team.name}</h3>
-                          {isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
-                        </div>
-                        <div className="flex items-center gap-0.5 shrink-0">
-                          {lastMessage?.created_at && (
-                            <span className="text-xs text-muted-foreground">{formatTimeShort(lastMessage.created_at)}</span>
-                          )}
-                          {hasUnread && (
-                            <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                              {unreadCount > 9 ? "9+" : unreadCount}
-                            </span>
-                          )}
-                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                        </div>
-                      </div>
-                      <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
-                        <MessagePreview 
-                          text={lastMessage?.text} 
-                          imageUrl={lastMessage?.image_url}
-                          author={lastMessage?.author}
-                          hasUnread={hasUnread}
-                          fallback="No messages yet"
-                          isAnnouncement={(lastMessage as any)?.is_announcement}
-                        />
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })
-        }
-
-        {/* League Chats Section */}
-        {!showSkeletonLoading && filteredLeagueChats.length > 0 && (
-          <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
-            <span className="text-sm font-medium text-muted-foreground">League Chats</span>
-          </div>
-        )}
-        {!showSkeletonLoading && filteredLeagueChats.map((group: any) => {
-          const canManage =
-            isAppAdmin ||
-            group.created_by === user?.id ||
-            (group.club_id && adminClubs?.some((c) => c.id === group.club_id));
-
-          const lastMessage = displayLatestGroupMessages?.[group.id];
-          const unreadCount = unreadCounts?.groups[group.id] || 0;
-          const isMuted = mutedChats?.groups.has(group.id) || false;
-
-          return (
-            <ChatGroupCard
-              key={`league-${group.id}`}
-              group={group}
-              lastMessage={lastMessage}
-              unreadCount={unreadCount}
-              isMuted={isMuted}
-              canManage={!!canManage}
-              onDelete={(groupId) => deleteGroupMutation.mutate(groupId)}
-              MessagePreviewComponent={MessagePreview}
-            />
-          );
-        })}
-
-        {/* Chat Groups Section */}
-        {!showSkeletonLoading && filteredChatGroups.length > 0 && (
-          <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
-            <span className="text-sm font-medium text-muted-foreground">Group Chats</span>
-          </div>
-        )}
-        {!showSkeletonLoading && filteredChatGroups.map((group: any) => {
-          const canManage =
-            isAppAdmin ||
-            group.created_by === user?.id ||
-            (group.club_id && adminClubs?.some((c) => c.id === group.club_id)) ||
-            (group.team_id && adminTeamIds?.includes(group.team_id));
-
-          const lastMessage = displayLatestGroupMessages?.[group.id];
-          const unreadCount = unreadCounts?.groups[group.id] || 0;
-          const isMuted = mutedChats?.groups.has(group.id) || false;
-
-          return (
-            <ChatGroupCard
-              key={`group-${group.id}`}
-              group={group}
-              lastMessage={lastMessage}
-              unreadCount={unreadCount}
-              isMuted={isMuted}
-              canManage={!!canManage}
-              onDelete={(groupId) => deleteGroupMutation.mutate(groupId)}
-              MessagePreviewComponent={MessagePreview}
-            />
-          );
-        })}
 
         {/* Empty state when no results */}
         {!showSkeletonLoading && hasNoResults && (
@@ -1524,67 +1887,9 @@ export default function MessagesPage() {
           </Card>
         )}
 
-        {/* Direct Messages Section - Pro feature */}
-        {!showSkeletonLoading && hasAnyProAccess && (
-          <DMConversationsList searchQuery={searchQuery} hasProAccess={hasAnyProAccess} />
-        )}
-
         {/* Contact Club - Pro feature */}
         {!showSkeletonLoading && (
           <ContactClubButton clubFilter={activeClubFilter} />
-        )}
-
-        {/* Announcements Section */}
-        {!showSkeletonLoading && showBroadcast && (
-          <>
-            <div className="flex items-center gap-2 pt-4 pb-1 border-t mt-2">
-              <span className="text-sm font-medium text-muted-foreground">Support</span>
-            </div>
-            {(() => {
-              const hasUnread = (unreadCounts?.broadcast || 0) > 0;
-              return (
-                <Link to="/messages/broadcast">
-                  <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
-                    <CardContent className="py-[18px] px-3 flex items-center gap-3">
-                      <div className="relative shrink-0">
-                        <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                          <Flame className="h-4 w-4 text-white" />
-                        </div>
-                        {hasUnread && (
-                          <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-1">
-                          <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>Announcements</h3>
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            {displayLatestBroadcast?.created_at && (
-                              <span className="text-xs text-muted-foreground">{formatTimeShort(displayLatestBroadcast.created_at)}</span>
-                            )}
-                            {hasUnread && (
-                              <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                                {unreadCounts?.broadcast > 9 ? "9+" : unreadCounts?.broadcast}
-                              </span>
-                            )}
-                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                          </div>
-                        </div>
-                        <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
-                          <MessagePreview 
-                            text={displayLatestBroadcast?.text} 
-                            imageUrl={displayLatestBroadcast?.image_url}
-                            author={(displayLatestBroadcast?.profiles as any)?.display_name}
-                            hasUnread={hasUnread}
-                            fallback="Official announcements and updates"
-                          />
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })()}
-          </>
         )}
 
         {/* Sponsor/Ad Carousel */}
