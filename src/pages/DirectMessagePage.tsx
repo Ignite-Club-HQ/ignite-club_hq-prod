@@ -183,8 +183,29 @@ export default function DirectMessagePage() {
   const isNativePlatform = Capacitor.isNativePlatform();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const [composerHeight, setComposerHeight] = useState(112);
-  
-  const scrollToBottom = useCallback(() => {
+
+  // Mark direct message notifications as read when opening this thread
+  useEffect(() => {
+    if (!user || !conversationId) return;
+    
+    const markNotificationsAsRead = async () => {
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("user_id", user.id)
+        .eq("type", "direct_message")
+        .eq("related_id", conversationId)
+        .eq("is_read", false);
+      
+      // Refresh unread counts
+      refreshUnreadCount();
+      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+    };
+    
+    markNotificationsAsRead();
+  }, [user, conversationId, refreshUnreadCount, queryClient]);
+
+
     scrollChatToBottom(scrollAreaRef.current);
   }, []);
 
