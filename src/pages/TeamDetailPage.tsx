@@ -540,7 +540,7 @@ export default function TeamDetailPage() {
       );
       
       // Strip email for non-admins to protect privacy
-      if (!isCoachOrAdmin) {
+      if (!isCoachOrAdmin && !isClubAdmin) {
         return invitesWithProfiles.map(inv => ({
           ...inv,
           invited_email: undefined,
