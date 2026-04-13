@@ -71,6 +71,7 @@ import { MyTeamsPremiumCarousel } from "@/components/MyTeamsPremiumCarousel";
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import MemberInviteSheet from "@/components/MemberInviteSheet";
+import { HomeQuickActions } from "@/components/HomeQuickActions";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -1524,6 +1525,20 @@ export default function HomePage() {
           Here's what's coming up{activeClubName ? ` @ ${activeClubName}` : ''}
         </p>
       </div>
+
+      {/* Quick Actions */}
+      <HomeQuickActions
+        onCreateTeam={() => {
+          if (activeClubFilter) {
+            navigate(`/clubs/${activeClubFilter}`, { state: { fromCreateTeam: true } });
+          } else {
+            navigate("/clubs", { state: { fromCreateTeam: true } });
+          }
+        }}
+        onInvite={() => setMemberInviteOpen(true)}
+        onJoinTeam={() => setTeamDialogOpen(true)}
+        hasTeams={!!userRoles?.some(r => r.team_id)}
+      />
 
       {/* Game Timer Widget - shown when game in progress */}
       {/* Only members of the SPECIFIC team with active timer can see this widget */}
