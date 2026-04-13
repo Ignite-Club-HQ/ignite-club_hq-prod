@@ -1499,7 +1499,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(selectedRole);
     const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
     const email = customEmail.trim();
-    const appDownload = `\n\n📲 Download "Ignite Club HQ" to get started:\n🍎 App Store: https://apps.apple.com/au/app/ignite-club-hq/id6758928691\n▶️ Google Play: https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub`;
+    const appDownload = `\n\n📲 Get the app:\nApple: https://apps.apple.com/au/app/ignite-club-hq/id6758928691\nAndroid: https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub`;
     const emailNote = email ? `\n\nSign up with ${email} so your account links automatically.` : "";
     const link = overrideLink || inviteShareLink || inviteLink || "";
 
