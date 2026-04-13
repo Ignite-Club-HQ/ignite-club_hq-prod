@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Loader2, Utensils, Flag, PaintBucket, Megaphone, FileText, UserCog, Apple, Cookie } from "lucide-react";
+import { Loader2, Utensils, Flag, PaintBucket, Megaphone, FileText, UserCog, Apple, Cookie, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
