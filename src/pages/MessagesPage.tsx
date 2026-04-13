@@ -1397,13 +1397,10 @@ export default function MessagesPage() {
     if (item.type === 'broadcast') {
       return (
         <Link key={item.key} to={item.link}>
-          <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
+          <Card className="hover:border-primary/50 transition-colors bg-primary/5">
             <CardContent className="py-[18px] px-3 flex items-center gap-3">
-              <div className="relative shrink-0">
+              <div className="shrink-0">
                 <ConversationAvatar type="broadcast" name="Announcements" className="h-9 w-9" />
-                {hasUnread && (
-                  <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
-                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-1">
@@ -1420,7 +1417,7 @@ export default function MessagesPage() {
                     <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
                 </div>
-                <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
                   <MessagePreview 
                     text={item.lastMessage?.text} 
                     imageUrl={item.lastMessage?.image_url}
@@ -1507,16 +1504,13 @@ export default function MessagesPage() {
       
       return (
         <Link key={item.key} to={item.link}>
-          <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
+          <Card className="hover:border-primary/50 transition-colors">
             <CardContent className="py-[18px] px-3 flex items-center gap-3">
-              <div className="relative shrink-0">
+              <div className="shrink-0">
                 {isSupport ? (
                   <ConversationAvatar type="support" name="Ignite Support" className="h-9 w-9" />
                 ) : (
                   <ConversationAvatar type="dm" name={item.name} avatarUrl={conv?.other_user?.avatar_url} className="h-9 w-9" />
-                )}
-                {hasUnread && (
-                  <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -1526,7 +1520,7 @@ export default function MessagesPage() {
                       {item.name}
                     </h3>
                     {typeLabel && (
-                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal text-muted-foreground shrink-0 border-muted">
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
                         {typeLabel}
                       </Badge>
                     )}
@@ -1543,7 +1537,7 @@ export default function MessagesPage() {
                     <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
                 </div>
-                <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+                <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
                   <span className="flex items-center gap-1.5">
                     {isOwn && <span className="text-muted-foreground">You:</span>}
                     {conv?.last_message?.image_url && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
@@ -1565,17 +1559,14 @@ export default function MessagesPage() {
       return (
         <Card
           key={item.key}
-          className={`hover:border-primary/50 transition-colors cursor-pointer ${hasUnread ? 'border-primary/30' : ''}`}
+          className="hover:border-primary/50 transition-colors cursor-pointer"
           onClick={() => navigate(item.link)}
           tabIndex={0}
           role="link"
         >
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
-            <div className="relative shrink-0">
+            <div className="shrink-0">
               <ConversationAvatar type={item.type} name={item.name} className="h-9 w-9" />
-              {hasUnread && (
-                <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
-              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-1">
@@ -1583,7 +1574,7 @@ export default function MessagesPage() {
                   <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
                   {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                   {typeLabel && (
-                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal text-muted-foreground shrink-0 border-muted">
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
                       {typeLabel}
                     </Badge>
                   )}
@@ -1600,7 +1591,7 @@ export default function MessagesPage() {
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </div>
-              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
                 <MessagePreview 
                   text={item.lastMessage?.text} 
                   imageUrl={item.lastMessage?.image_url}
@@ -1618,13 +1609,10 @@ export default function MessagesPage() {
     // Club/Team card (default)
     return (
       <Link key={item.key} to={item.link}>
-        <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
+        <Card className="hover:border-primary/50 transition-colors">
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
-            <div className="relative shrink-0">
+            <div className="shrink-0">
               <ConversationAvatar type={item.type} name={item.name} avatarUrl={item.avatarUrl} className="h-9 w-9" />
-              {hasUnread && (
-                <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
-              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-1">
@@ -1632,7 +1620,7 @@ export default function MessagesPage() {
                   <h3 className={`truncate text-[15px] leading-tight ${hasUnread ? 'font-bold' : 'font-semibold'}`}>{item.name}</h3>
                   {item.isMuted && <BellOff className="h-3 w-3 text-muted-foreground shrink-0" />}
                   {typeLabel && (
-                    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal text-muted-foreground shrink-0 border-muted">
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 font-normal text-muted-foreground/70 shrink-0 border-muted/60">
                       {typeLabel}
                     </Badge>
                   )}
@@ -1649,7 +1637,7 @@ export default function MessagesPage() {
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </div>
-              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground font-medium' : 'text-foreground/70'}`}>
+              <p className={`text-[13px] leading-relaxed mt-1 line-clamp-2 ${hasUnread ? 'text-foreground/90' : 'text-muted-foreground'}`}>
                 <MessagePreview 
                   text={item.lastMessage?.text} 
                   imageUrl={item.lastMessage?.image_url}
@@ -1818,8 +1806,8 @@ export default function MessagesPage() {
         {/* Unread Section */}
         {!showSkeletonLoading && unreadItems.length > 0 && (
           <>
-            <div className="flex items-center gap-2 pb-1">
-              <span className="text-sm font-semibold text-foreground">Unread</span>
+            <div className="flex items-center gap-2 pb-1.5">
+              <span className="text-[13px] font-bold uppercase tracking-wide text-foreground">Unread</span>
               <span className="h-5 min-w-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
                 {unreadItems.length}
               </span>
@@ -1831,8 +1819,8 @@ export default function MessagesPage() {
         {/* Recent Section */}
         {!showSkeletonLoading && recentItems.length > 0 && (
           <>
-            <div className={`flex items-center gap-2 pb-1 ${unreadItems.length > 0 ? 'pt-4 border-t mt-2' : ''}`}>
-              <span className="text-sm font-medium text-muted-foreground">Recent</span>
+            <div className={`flex items-center gap-2 pb-1.5 ${unreadItems.length > 0 ? 'pt-5 border-t border-border/50 mt-3' : ''}`}>
+              <span className="text-[13px] font-bold uppercase tracking-wide text-muted-foreground">Recent</span>
             </div>
             {recentItems.map(renderConversationCard)}
           </>
