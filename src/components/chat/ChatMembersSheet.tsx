@@ -263,7 +263,43 @@ export function ChatMembersSheet({
   const formatRole = (role: string) => {
     return role.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
   };
-...
+
+  // Check if member count decreased and trigger refresh
+  useEffect(() => {
+    if (!membersLoading && uniqueMembers.length > 0) {
+      const storedCount = localStorage.getItem(cacheKey);
+      const previousCount = storedCount ? parseInt(storedCount, 10) : null;
+      
+      if (previousCount !== null && uniqueMembers.length < previousCount) {
+        queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
+      }
+      
+      localStorage.setItem(cacheKey, uniqueMembers.length.toString());
+      previousCountRef.current = uniqueMembers.length;
+    }
+  }, [uniqueMembers.length, membersLoading, cacheKey, queryClient, chatType, chatId]);
+
+  const isExternallyControlled = externalOpen !== undefined;
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      {!isExternallyControlled && (
+        <SheetTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            title="View members"
+          >
+            <Users className="h-4 w-4" />
+          </Button>
+        </SheetTrigger>
+      )}
+      <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+        <SheetHeader>
+          <SheetTitle>{chatName}</SheetTitle>
+        </SheetHeader>
+        
         <div className="mt-4">
           {/* Navigation links */}
           {chatType === "team" && (
