@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, Loader2, BellOff, VolumeOff } from "lucide-react";
+import { Users, Loader2, ChevronRight } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
+import { Separator } from "@/components/ui/separator";
 
 interface ChatMembersSheetProps {
   chatType: "team" | "club" | "group";
@@ -39,9 +40,11 @@ export function ChatMembersSheet({
   const [internalOpen, setInternalOpen] = useState(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const setOpen = onExternalOpenChange || setInternalOpen;
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const previousCountRef = useRef<number | null>(null);
   const cacheKey = `chat-members-count-${chatType}-${chatId}`;
+
 
   // Check if this is a personal group (no team_id or club_id)
   const isPersonalGroup = chatType === "group" && !teamId && !clubId;
@@ -252,6 +255,11 @@ export function ChatMembersSheet({
     staleTime: 1000 * 60 * 2,
   });
 
+  const handleNavigateToPage = (path: string) => {
+    navigate(path);
+    setOpen(false);
+  };
+
   const formatRole = (role: string) => {
     return role.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
   };
@@ -292,7 +300,59 @@ export function ChatMembersSheet({
           <SheetTitle>{chatName}</SheetTitle>
         </SheetHeader>
         
-        <div className="mt-6">
+        <div className="mt-4">
+          {/* Navigation links */}
+          {chatType === "team" && (
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={() => handleNavigateToPage(`/teams/${chatId}`)}
+                className="flex w-full touch-manipulation items-center justify-between rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/50 active:bg-muted"
+              >
+                <span className="text-sm font-medium">View team page</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <Separator className="mt-2" />
+            </div>
+          )}
+          {chatType === "club" && (
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={() => handleNavigateToPage(`/clubs/${chatId}`)}
+                className="flex w-full touch-manipulation items-center justify-between rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/50 active:bg-muted"
+              >
+                <span className="text-sm font-medium">View club page</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <Separator className="mt-2" />
+            </div>
+          )}
+          {chatType === "group" && (teamId || clubId) && (
+            <div className="mb-3">
+              {teamId && (
+                <button
+                  type="button"
+                  onClick={() => handleNavigateToPage(`/teams/${teamId}`)}
+                  className="flex w-full touch-manipulation items-center justify-between rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/50 active:bg-muted"
+                >
+                  <span className="text-sm font-medium">View team page</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+              {clubId && (
+                <button
+                  type="button"
+                  onClick={() => handleNavigateToPage(`/clubs/${clubId}`)}
+                  className="flex w-full touch-manipulation items-center justify-between rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted/50 active:bg-muted"
+                >
+                  <span className="text-sm text-muted-foreground">View club page</span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+              <Separator className="mt-2" />
+            </div>
+          )}
           <div>
             <h3 className="text-sm font-medium mb-3">
               Members {uniqueMembers.length > 0 && `(${uniqueMembers.length})`}
