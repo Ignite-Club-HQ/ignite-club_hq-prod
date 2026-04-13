@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image, MessageCircle, Building2, Search, UserPlus } from "lucide-react";
+import { Users, Calendar, Trophy, Plus, ChevronRight, MoreVertical, Image, MessageCircle, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -299,13 +299,8 @@ function TeamCard({ item, nextEvent, photos, unreadMessages }: {
     </Card>
   );
 }
-interface MyTeamsPremiumCarouselProps {
-  onJoinTeam?: () => void;
-  onCreateTeam?: () => void;
-  onInvite?: () => void;
-}
 
-export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: MyTeamsPremiumCarouselProps) {
+export function MyTeamsPremiumCarousel() {
   const { user, initialized } = useAuth();
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
@@ -616,100 +611,12 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: M
     );
   }
 
-  const addTeamCard = (onJoinTeam || onCreateTeam) ? (
-    <Card
-      className="shrink-0 w-[85vw] max-w-[340px] cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all snap-start"
-      onClick={() => {
-        if (onJoinTeam && onCreateTeam) {
-          // Could show a choice, but for simplicity navigate to create
-          onCreateTeam();
-        } else if (onJoinTeam) {
-          onJoinTeam();
-        } else if (onCreateTeam) {
-          onCreateTeam();
-        }
-      }}
-    >
-      <CardContent className="p-4 flex flex-col items-center justify-center gap-2 min-h-[100px]">
-        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-          <Plus className="h-5 w-5 text-primary" />
-        </div>
-        <span className="text-sm font-medium text-primary">Join or Create Team</span>
-        {onJoinTeam && onCreateTeam && (
-          <div className="flex gap-3 mt-1">
-            <button
-              className="text-[11px] text-muted-foreground hover:text-primary hover:underline"
-              onClick={(e) => { e.stopPropagation(); onJoinTeam(); }}
-            >
-              Join team
-            </button>
-            <span className="text-[11px] text-muted-foreground">•</span>
-            <button
-              className="text-[11px] text-muted-foreground hover:text-primary hover:underline"
-              onClick={(e) => { e.stopPropagation(); onCreateTeam(); }}
-            >
-              Create team
-            </button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  ) : null;
 
   const showCreateClub = !activeClubFilter;
 
   // Empty state: onboarding with clear paths
   if (items.length === 0) {
-    return (
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Get Started</h2>
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Welcome to Ignite! Clubs are your organisation (e.g. your sports club), and teams sit inside them. Here's how to get going:
-          </p>
-        </div>
-
-        <div className="grid gap-3">
-          {/* Create a Club */}
-          {showCreateClub && (
-            <Card
-              className="cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all"
-              onClick={() => navigate("/clubs", { state: { fromCreateClub: true } })}
-            >
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <Building2 className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">Create a Club</p>
-                  <p className="text-xs text-muted-foreground">Set up your organisation and start adding teams</p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Join a Team */}
-          {onJoinTeam && (
-            <Card
-              className="cursor-pointer border border-dashed border-muted-foreground/20 bg-card/50 hover:border-muted-foreground/40 hover:bg-accent/30 transition-all"
-              onClick={onJoinTeam}
-            >
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                  <Search className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">Join a Team</p>
-                  <p className="text-xs text-muted-foreground">Search for an existing team or use an invite link</p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </section>
-    );
+    return null;
   }
 
   const createClubCard = showCreateClub ? (
@@ -729,29 +636,7 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: M
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">My Teams</h2>
-        <div className="flex items-center gap-3">
-          {onInvite && items.length > 0 && (
-            <button
-              onClick={onInvite}
-              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
-            >
-              <UserPlus className="h-3 w-3" />
-              Invite
-            </button>
-          )}
-          {onJoinTeam && (
-            <button
-              onClick={onJoinTeam}
-              className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
-            >
-              <Plus className="h-3 w-3" />
-              Join a Team
-            </button>
-          )}
-        </div>
-      </div>
+      <h2 className="text-lg font-semibold">My Teams</h2>
       <ScrollArea className="w-full">
         <div className="flex gap-3 pb-3 snap-x snap-mandatory">
           {items.map((item) => (
@@ -763,7 +648,6 @@ export function MyTeamsPremiumCarousel({ onJoinTeam, onCreateTeam, onInvite }: M
               unreadMessages={unreadCounts[item.id]}
             />
           ))}
-          {addTeamCard}
           {createClubCard}
         </div>
         <ScrollBar orientation="horizontal" />
