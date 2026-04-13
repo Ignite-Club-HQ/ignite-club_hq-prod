@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import { useChatDraft } from "@/hooks/useChatDraft";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useChatAutoScrollToLatest } from "@/hooks/useChatAutoScrollToLatest";
 import { useInitialChatBottomPin } from "@/hooks/useInitialChatBottomPin";
