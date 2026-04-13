@@ -292,23 +292,13 @@ export default function JoinTeamPage() {
     }
   }, [joined]);
 
-  // Check if this is a fixed role invite:
-  // - Admin roles don't allow additional selection
-  // - Pending invites (email-based) always use the role chosen by the inviter
-  // - Regular team invites (shareable links) use the role set when the link was created
-  const isFixedRoleInvite = true; // All invite types now use a fixed role
-
+  // All invite types now use a fixed role — no role selection UI needed
   // Initialize selected roles with invite role if user doesn't have it yet
   useEffect(() => {
     if (invite?.role && existingRoles && !existingRoles.includes(invite.role as AppRole)) {
-      // For fixed role invites, only set the fixed role
-      if (isFixedRoleInvite) {
-        setSelectedRoles([invite.role as AppRole]);
-      } else {
-        setSelectedRoles([invite.role as AppRole]);
-      }
+      setSelectedRoles([invite.role as AppRole]);
     }
-  }, [invite?.role, existingRoles, isFixedRoleInvite]);
+  }, [invite?.role, existingRoles]);
 
   const toggleRole = (role: AppRole) => {
     setSelectedRoles(prev => 
@@ -1017,11 +1007,47 @@ export default function JoinTeamPage() {
     );
   }
 
+  // Check if invite is expired or maxed out (for regular team invites)
+  const isExpired = !isPendingInvite && invite?.expires_at && new Date(invite.expires_at) < new Date();
+  const isMaxedOut = !isPendingInvite && invite?.max_uses && invite.uses_count >= invite.max_uses;
+
+  if (isExpired) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Invite Expired</h2>
+            <p className="text-muted-foreground mb-4">
+              This invite link has expired. Please ask your team admin for a new invite.
+            </p>
+            <Button onClick={() => navigate("/")}>Go to Home</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isMaxedOut) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Invite Link Used</h2>
+            <p className="text-muted-foreground mb-4">
+              This invite link has reached its usage limit. Please ask your team admin for a new invite.
+            </p>
+            <Button onClick={() => navigate("/")}>Go to Home</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Check if user already has all selectable roles
   const availableRoles = selectableRoles.filter(role => !existingRoles.includes(role));
-  const allRolesAssigned = isFixedRoleInvite
-    ? !!invite?.role && existingRoles.includes(invite.role as AppRole)
-    : availableRoles.length === 0;
+  const allRolesAssigned = !!invite?.role && existingRoles.includes(invite.role as AppRole);
 
   if (allRolesAssigned) {
     return (
@@ -1285,56 +1311,12 @@ export default function JoinTeamPage() {
           )}
 
           {/* Fixed role display for admin invites - no role selection */}
-          {isFixedRoleInvite ? (
-            <div className="flex items-center justify-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">You'll join as:</span>
-              <Badge variant="secondary">{roleLabels[invite.role as AppRole]}</Badge>
-            </div>
-          ) : (
-            /* Role selection for non-admin invites */
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Users className="h-4 w-4" />
-                <span>Select your role(s) in this team:</span>
-              </div>
-              
-              <div className="space-y-2 pl-1">
-                {selectableRoles.map((role) => {
-                  const isDisabled = existingRoles?.includes(role) || !!nameValidationError;
-                  const isChecked = selectedRoles.includes(role);
-                  
-                  return (
-                    <div key={role} className="flex items-center space-x-3">
-                      <Checkbox
-                        id={role}
-                        checked={isChecked}
-                        disabled={isDisabled}
-                        onCheckedChange={() => toggleRole(role)}
-                      />
-                      <Label 
-                        htmlFor={role} 
-                        className={`flex items-center gap-2 cursor-pointer ${isDisabled ? 'opacity-50' : ''}`}
-                      >
-                        {roleLabels[role]}
-                        {existingRoles?.includes(role) && (
-                          <Badge variant="outline" className="text-xs">Already assigned</Badge>
-                        )}
-                      </Label>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {selectedRoles.length > 0 && !nameValidationError && (
-                <div className="flex flex-wrap gap-1 justify-center">
-                  {selectedRoles.map(role => (
-                    <Badge key={role} variant="secondary">{roleLabels[role]}</Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {/* Fixed role display - all invites use a predetermined role */}
+          <div className="flex items-center justify-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">You'll join as:</span>
+            <Badge variant="secondary">{roleLabels[invite.role as AppRole]}</Badge>
+          </div>
 
           <Button 
             onClick={handleJoinClick} 
@@ -1346,17 +1328,13 @@ export default function JoinTeamPage() {
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : null}
             {!joinMutation.isPending && !(user && profileLoading) && (
-              !user 
+                !user 
                 ? "Create Account to Join"
                 : nameValidationError 
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion
                     ? "Complete Profile to Join"
-                    : isFixedRoleInvite
-                      ? `Join as ${roleLabels[invite.role as AppRole]}`
-                      : selectedRoles.length === 0 
-                        ? "Select at least one role" 
-                        : `Join as ${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''}`
+                    : `Join as ${roleLabels[invite.role as AppRole]}`
             )}
           </Button>
           <Button 
