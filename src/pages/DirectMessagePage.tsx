@@ -160,7 +160,7 @@ export default function DirectMessagePage() {
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
-  const [message, setMessage] = useState("");
+  const [message, setMessage, clearDraft] = useChatDraft(conversationId);
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);

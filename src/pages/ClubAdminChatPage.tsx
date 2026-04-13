@@ -63,7 +63,7 @@ export default function ClubAdminChatPage() {
   const { user, profile, initialized } = useAuth();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
-  const [message, setMessage] = useState("");
+  const [message, setMessage, clearDraft] = useChatDraft(conversationId);
   const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);

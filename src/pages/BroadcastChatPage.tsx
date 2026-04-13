@@ -84,7 +84,7 @@ export default function BroadcastChatPage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
-  const [message, setMessage] = useState("");
+  const [message, setMessage, clearDraft] = useChatDraft("broadcast");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
