@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus, Filter, Check, Building2 } from "lucide-react";
+import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1399,9 +1400,7 @@ export default function MessagesPage() {
           <Card className={`hover:border-primary/50 transition-colors bg-primary/5 ${hasUnread ? 'border-primary/30' : ''}`}>
             <CardContent className="py-[18px] px-3 flex items-center gap-3">
               <div className="relative shrink-0">
-                <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                  <Flame className="h-4 w-4 text-white" />
-                </div>
+                <ConversationAvatar type="broadcast" name="Announcements" className="h-9 w-9" />
                 {hasUnread && (
                   <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
                 )}
@@ -1443,9 +1442,7 @@ export default function MessagesPage() {
         <Link key={item.key} to={item.link}>
           <Card className="hover:border-primary/50 transition-colors">
             <CardContent className="py-[18px] px-3 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                <Flame className="h-5 w-5 text-white" />
-              </div>
+              <ConversationAvatar type="support" name="Ignite Support" className="h-9 w-9" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-1">
                   <h3 className="truncate text-[15px] leading-tight font-semibold">Ignite Support</h3>
@@ -1514,16 +1511,9 @@ export default function MessagesPage() {
             <CardContent className="py-[18px] px-3 flex items-center gap-3">
               <div className="relative shrink-0">
                 {isSupport ? (
-                  <div className="h-9 w-9 rounded-full flex items-center justify-center" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                    <Flame className="h-5 w-5 text-white" />
-                  </div>
+                  <ConversationAvatar type="support" name="Ignite Support" className="h-9 w-9" />
                 ) : (
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={conv?.other_user?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-secondary text-secondary-foreground">
-                      {conv?.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
+                  <ConversationAvatar type="dm" name={item.name} avatarUrl={conv?.other_user?.avatar_url} className="h-9 w-9" />
                 )}
                 {hasUnread && (
                   <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
@@ -1582,9 +1572,7 @@ export default function MessagesPage() {
         >
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <div className="relative shrink-0">
-              <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center">
-                <Users className="h-5 w-5 text-secondary-foreground" />
-              </div>
+              <ConversationAvatar type={item.type} name={item.name} className="h-9 w-9" />
               {hasUnread && (
                 <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
               )}
@@ -1633,12 +1621,7 @@ export default function MessagesPage() {
         <Card className={`hover:border-primary/50 transition-colors ${hasUnread ? 'border-primary/30' : ''}`}>
           <CardContent className="py-[18px] px-3 flex items-center gap-3">
             <div className="relative shrink-0">
-              <Avatar className="h-9 w-9">
-                <AvatarImage src={item.avatarUrl || undefined} />
-                <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
-                  {item.name.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <ConversationAvatar type={item.type} name={item.name} avatarUrl={item.avatarUrl} className="h-9 w-9" />
               {hasUnread && (
                 <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-destructive border-2 border-background" />
               )}
