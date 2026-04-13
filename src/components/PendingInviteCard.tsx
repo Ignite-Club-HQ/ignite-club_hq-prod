@@ -524,6 +524,20 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 </Badge>
               )}
             </div>
+            {isAdmin && invite.invited_email && (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5 group"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(invite.invited_email!);
+                  toast({ title: "Email copied", description: invite.invited_email });
+                }}
+              >
+                <span className="truncate max-w-[180px]">{invite.invited_email}</span>
+                <Copy className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </button>
+            )}
             <div className="flex items-center gap-1.5 flex-wrap mt-1">
               <Badge variant="outline" className={`${roleColor} text-xs`}>
                 {roleLabel}

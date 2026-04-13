@@ -1,0 +1,1 @@
+INSERT INTO public.child_guardians (child_id, guardian_id, is_primary, relationship_type) VALUES ('a3f0c5c0-0fd9-41a4-a4f6-937a033adf34', 'df6fcd04-451c-4f97-b8fe-27c5263ddb13', false, 'parent');
