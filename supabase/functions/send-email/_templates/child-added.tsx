@@ -296,6 +296,42 @@ const clubSignature = {
   margin: '0',
 };
 
+const stepLabel = {
+  color: '#1a1a1a',
+  fontSize: '14px',
+  fontWeight: '600' as const,
+  lineHeight: '20px',
+  margin: '0 0 8px 0',
+  textAlign: 'center' as const,
+};
+
+const storeButtonsRow = {
+  textAlign: 'center' as const,
+  margin: '0 0 20px 0',
+};
+
+const playStoreBtn = {
+  backgroundColor: '#1a1a1a',
+  borderRadius: '8px',
+  color: '#ffffff',
+  fontSize: '13px',
+  fontWeight: '600' as const,
+  textDecoration: 'none',
+  padding: '10px 16px',
+  display: 'inline-block',
+};
+
+const appStoreBtn = {
+  backgroundColor: '#1a1a1a',
+  borderRadius: '8px',
+  color: '#ffffff',
+  fontSize: '13px',
+  fontWeight: '600' as const,
+  textDecoration: 'none',
+  padding: '10px 16px',
+  display: 'inline-block',
+};
+
 const footerDivider = {
   borderColor: '#e5e7eb',
   margin: '0',
