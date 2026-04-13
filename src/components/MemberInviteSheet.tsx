@@ -142,15 +142,16 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
   const handleShare = async () => {
     if (!generatedLink) return;
     const childInfo = linkedChildName ? ` (for ${linkedChildName})` : "";
-    const msg = `Join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}${childInfo}! Tap here: ${generatedLink}\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
+    const textBody = `Join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}${childInfo}!`;
 
     if (Capacitor.isNativePlatform()) {
       try {
-        await Share.share({ title: `Join ${clubName || teamName}`, text: msg, dialogTitle: "Share invite" });
+        await Share.share({ title: `Join ${clubName || teamName}`, text: textBody, url: generatedLink, dialogTitle: "Share invite" });
         return;
       } catch { /* cancelled */ }
     }
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+    const webMsg = `${textBody} ${generatedLink}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(webMsg)}`, "_blank");
   };
 
   const handleCopy = async () => {
