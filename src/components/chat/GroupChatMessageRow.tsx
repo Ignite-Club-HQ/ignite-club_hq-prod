@@ -413,9 +413,13 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                   };
                 })() : undefined}
               >
-                <div className="text-sm min-w-0 max-w-full overflow-hidden"><MessageContent text={msg.text} imageUrl={msg.image_url} /></div>
+                <div className="text-sm min-w-0 max-w-full overflow-hidden"><MessageContent text={msg.text} imageUrl={msg.image_url} showPreviews={false} /></div>
               </div>
             </div>
+          </div>
+          {/* Link previews rendered outside the message bubble */}
+          <div className="w-full min-w-0 max-w-full self-stretch overflow-hidden">
+            <MessageContent text={msg.text} previewsOnly />
           </div>
 
           {isOwnMessage && frontierReaders.length > 0 ? (
