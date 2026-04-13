@@ -205,7 +205,7 @@ export default function DirectMessagePage() {
     markNotificationsAsRead();
   }, [user, conversationId, refreshUnreadCount, queryClient]);
 
-
+  const scrollToBottom = useCallback(() => {
     scrollChatToBottom(scrollAreaRef.current);
   }, []);
 
