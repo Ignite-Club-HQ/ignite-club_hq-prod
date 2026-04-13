@@ -155,7 +155,7 @@ export default function DirectMessagePage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, profile, initialized } = useAuth();
+  const { user, profile, initialized, refreshUnreadCount } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
   const queryClient = useQueryClient();
@@ -183,7 +183,28 @@ export default function DirectMessagePage() {
   const isNativePlatform = Capacitor.isNativePlatform();
   useChatAutoScrollToLatest({ scrollContainerRef: scrollAreaRef });
   const [composerHeight, setComposerHeight] = useState(112);
-  
+
+  // Mark direct message notifications as read when opening this thread
+  useEffect(() => {
+    if (!user || !conversationId) return;
+    
+    const markNotificationsAsRead = async () => {
+      await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("user_id", user.id)
+        .eq("type", "direct_message")
+        .eq("related_id", conversationId)
+        .eq("is_read", false);
+      
+      // Refresh unread counts
+      refreshUnreadCount();
+      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+    };
+    
+    markNotificationsAsRead();
+  }, [user, conversationId, refreshUnreadCount, queryClient]);
+
   const scrollToBottom = useCallback(() => {
     scrollChatToBottom(scrollAreaRef.current);
   }, []);
