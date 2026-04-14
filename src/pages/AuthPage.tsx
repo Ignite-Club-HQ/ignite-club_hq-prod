@@ -472,7 +472,7 @@ export default function AuthPage() {
   const shouldLowerDefaultSignIn = isSignInMode && isNativePlatform && !isSignInKeyboardOpen;
   const signInViewportClassName = isSignInMode
     ? isSignInKeyboardOpen
-      ? `justify-center pb-4`
+      ? `justify-start pb-4`
       : 'justify-center pt-6 pb-10'
     : 'overflow-y-auto';
   const signInStackClassName = isSignInMode
@@ -502,7 +502,7 @@ export default function AuthPage() {
       
       <div
         ref={signInScrollRef}
-        className={`flex-1 flex flex-col items-center px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''} ${isSignInKeyboardOpen ? 'overflow-hidden' : ''}`}
+        className={`flex-1 flex flex-col items-center px-4 ${signInViewportClassName} ${isInInviteFlow ? 'pt-16' : ''} ${isSignInKeyboardOpen ? 'overflow-y-auto' : ''}`}
       >
       <div className={`w-full max-w-md ${signInStackClassName}`}>
         {/* Logo — compacts when keyboard is open on native sign-in */}
