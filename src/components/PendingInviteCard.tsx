@@ -201,7 +201,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     },
   });
 
-    if (!inviteLink) {
+  const handleCopyLink = async () => {
       toast({ title: "No invite link available", variant: "destructive" });
       return;
     }
