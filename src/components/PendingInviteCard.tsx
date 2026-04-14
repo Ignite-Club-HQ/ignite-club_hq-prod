@@ -604,9 +604,33 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             </div>
           </div>
 
-          {/* Action menu - always visible for admins */}
+          {/* Action buttons - always visible for admins */}
           {isAdmin && (
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-0.5 shrink-0">
+              {inviteLink && (
+                <>
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCopyLink}>
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p className="text-xs">Copy invite link</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleShareInvite}>
+                          <Share2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent><p className="text-xs">Share via SMS / WhatsApp</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </>
+              )}
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8">

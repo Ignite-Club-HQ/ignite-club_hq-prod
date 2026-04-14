@@ -48,15 +48,29 @@ export function useChatAutoScrollToLatest({
 
     const handleFocusIn = (event: FocusEvent) => {
       if (!isComposerTarget(event.target)) return;
-      if (!isNearBottom(scrollContainerRef.current)) return;
-      snapToBottom();
-      setTimeout(snapToBottom, 80);
+      // Always reset the outer window scroll — the document should never
+      // scroll in a chat page or the header disappears on Android.
+      resetViewportScroll();
+      requestAnimationFrame(resetViewportScroll);
+      // Only auto-scroll the chat container to bottom if the user was
+      // already near the bottom; otherwise preserve their scroll position.
+      if (isNearBottom(scrollContainerRef.current)) {
+        snapToBottom();
+        setTimeout(snapToBottom, 80);
+      } else {
+        // Extra resets to counteract Android's delayed document scroll
+        setTimeout(resetViewportScroll, 80);
+        setTimeout(resetViewportScroll, 300);
+      }
     };
 
     const handleViewportResize = () => {
       if (!isComposerTarget(document.activeElement)) return;
-      if (!isNearBottom(scrollContainerRef.current)) return;
-      snapToBottom();
+      // Always keep the outer window pinned to top
+      resetViewportScroll();
+      if (isNearBottom(scrollContainerRef.current)) {
+        snapToBottom();
+      }
     };
 
     let disposeKeyboardScrollLock: (() => void) | undefined;
