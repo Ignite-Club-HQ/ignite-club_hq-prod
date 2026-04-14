@@ -550,36 +550,12 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             </div>
           </div>
 
-          {/* Quick action buttons - only for admins, revealed by long-press */}
-          {isAdmin && showActions && (
-            <div className="flex items-center gap-1">
-              {/* Show Resend Email button when email failed or not sent */}
-              {invite.invited_email && (!invite.email_sent_at || invite.email_error) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2 gap-1 text-xs hidden sm:flex border-orange-500/30 text-orange-600 hover:bg-orange-500/10"
-                  onClick={() => handleResendEmail()}
-                  disabled={isResending}
-                >
-                  {isResending ? (
-                    <>
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <RotateCw className="h-3 w-3" />
-                      Resend Email
-                    </>
-                  )}
-                </Button>
-              )}
-              
-              
-              <DropdownMenu modal={false} onOpenChange={(open) => { if (!open) setShowActions(false); }}>
+          {/* Action menu - always visible for admins */}
+          {isAdmin && (
+            <div className="flex items-center gap-1 shrink-0">
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 touch-none">
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
