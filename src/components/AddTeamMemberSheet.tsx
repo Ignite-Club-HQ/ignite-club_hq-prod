@@ -2057,18 +2057,19 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
             {/* Child fields for existing user with parent role */}
             {selectedUser && selectedRole === "parent" && (
-              <div className="space-y-3 p-4 rounded-xl bg-pink-500/5 border border-pink-500/20">
+              <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 of 2 — Add your child's details</p>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Baby className="h-4 w-4 text-pink-600" />
-                    <Label className="text-pink-600 font-medium">Child Player(s)</Label>
+                    <Baby className="h-4 w-4 text-primary" />
+                    <Label className="text-primary font-medium">Child Player(s)</Label>
                   </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
-                    className="h-7 text-xs border-pink-500/30 text-pink-600 hover:bg-pink-500/10"
+                    className="h-7 text-xs border-primary/30 text-primary hover:bg-primary/10"
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     Add Child
@@ -2076,9 +2077,21 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </div>
                 
                 {singleChildren.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Add the child player(s) for this team.
-                  </p>
+                  <div className="flex flex-col items-center gap-2 py-3">
+                    <Baby className="h-8 w-8 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground text-center">
+                      Add your child's details to continue
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
+                      className="mt-1"
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      Add Child
+                    </Button>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     {singleChildren.map((child, idx) => {
@@ -2382,18 +2395,19 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
                 {/* Child fields for parent role (new member) */}
                 {selectedRole === "parent" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-pink-500/5 border border-pink-500/20">
+                  <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 of 2 — Add your child's details</p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Baby className="h-4 w-4 text-pink-600" />
-                        <Label className="text-pink-600 font-medium">Child Player(s)</Label>
+                        <Baby className="h-4 w-4 text-primary" />
+                        <Label className="text-primary font-medium">Child Player(s)</Label>
                       </div>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
-                        className="h-7 text-xs border-pink-500/30 text-pink-600 hover:bg-pink-500/10"
+                        className="h-7 text-xs border-primary/30 text-primary hover:bg-primary/10"
                       >
                         <Plus className="h-3 w-3 mr-1" />
                         Add Child
@@ -2401,9 +2415,21 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     </div>
                     
                     {singleChildren.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        Add child player(s) to register on this team.
-                      </p>
+                      <div className="flex flex-col items-center gap-2 py-3">
+                        <Baby className="h-8 w-8 text-muted-foreground/40" />
+                        <p className="text-sm text-muted-foreground text-center">
+                          Add your child's details to continue
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
+                          className="mt-1"
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-1.5" />
+                          Add Child
+                        </Button>
+                      </div>
                     ) : (
                       <div className="space-y-2">
                         {singleChildren.map((child, idx) => {
@@ -2558,7 +2584,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         </Avatar>
                         <div className="flex-1">
                           <p className="text-sm font-medium">{selectedSecondParent.display_name}</p>
-                          <p className="text-xs text-muted-foreground">Will be added directly</p>
+                          <p className="text-xs text-muted-foreground">Joins team immediately</p>
                         </div>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                           setSelectedSecondParent(null);
@@ -3108,28 +3134,50 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             selectedUser ? (
               <Button
                 className="w-full h-12 text-base font-semibold"
-                onClick={() => addExistingUserMutation.mutate()}
+                onClick={() => {
+                  if (selectedRole === "parent" && singleChildren.length === 0) {
+                    setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
+                    return;
+                  }
+                  addExistingUserMutation.mutate();
+                }}
                 disabled={addExistingUserMutation.isPending}
+                variant={selectedRole === "parent" && singleChildren.length === 0 ? "outline" : "default"}
               >
                 {addExistingUserMutation.isPending ? (
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : selectedRole === "parent" && singleChildren.length === 0 ? (
+                  <Baby className="h-5 w-5 mr-2" />
                 ) : (
                   <UserPlus className="h-5 w-5 mr-2" />
                 )}
-                Continue
+                {selectedRole === "parent" && singleChildren.length === 0 
+                  ? "Add child to continue" 
+                  : "Continue"}
               </Button>
             ) : (
               <Button
                 className="w-full h-12 text-base font-semibold"
-                onClick={() => addPendingMemberMutation.mutate()}
-                disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
+                onClick={() => {
+                  if (selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()) {
+                    setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
+                    return;
+                  }
+                  addPendingMemberMutation.mutate();
+                }}
+                disabled={!nameInput.trim() || addPendingMemberMutation.isPending || (selectedRole === "parent" && singleChildren.length === 0 && !nameInput.trim())}
+                variant={selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim() ? "outline" : "default"}
               >
                 {addPendingMemberMutation.isPending ? (
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim() ? (
+                  <Baby className="h-5 w-5 mr-2" />
                 ) : (
                   <UserPlus className="h-5 w-5 mr-2" />
                 )}
-                Continue
+                {selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()
+                  ? "Add child to continue"
+                  : "Continue"}
               </Button>
             )
           ) : (
