@@ -601,6 +601,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      )}
 
       {/* Send Reminder Bottom Sheet */}
       <Sheet open={showReminderSheet} onOpenChange={setShowReminderSheet}>
