@@ -78,17 +78,8 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
     ? allTeams.filter(t => t.club_id === effectiveClubId)
     : allTeams;
 
-  // Only show clubs that actually have teams the user belongs to
-  const clubsWithTeams = useMemo(() => {
-    const clubIdsWithTeams = new Set(allTeams.map(t => t.club_id));
-    return clubs.filter(c => clubIdsWithTeams.has(c.id));
-  }, [clubs, allTeams]);
-
-  // Use clubsWithTeams for the picker — no point showing clubs with zero teams
-  const pickableClubs = clubsWithTeams.length > 0 ? clubsWithTeams : clubs;
-
   // Determine what step to show
-  const needsClubPick = !activeClubFilter && pickableClubs.length > 1 && !selectedClubId;
+  const needsClubPick = !activeClubFilter && clubs.length > 1 && !selectedClubId;
 
   // Auto-select if only one team after filtering
   useEffect(() => {
@@ -99,15 +90,15 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       onOpenChange(false);
       setInviteSheetOpen(true);
     }
-  }, [filteredTeams, open, selectedTeamId, needsClubPick]);
+  }, [filteredTeams, open, selectedTeamId, needsClubPick, onOpenChange]);
 
-  // Auto-select club if only one pickable club
+  // Auto-select club if only one club
   useEffect(() => {
     if (!open || activeClubFilter) return;
-    if (pickableClubs.length === 1 && !selectedClubId) {
-      setSelectedClubId(pickableClubs[0].id);
+    if (clubs.length === 1 && !selectedClubId) {
+      setSelectedClubId(clubs[0].id);
     }
-  }, [pickableClubs, open, activeClubFilter, selectedClubId]);
+  }, [clubs, open, activeClubFilter, selectedClubId]);
 
   const handleClubSelect = (clubId: string) => {
     setSelectedClubId(clubId);
@@ -174,17 +165,17 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
 
             <div className="pt-2 space-y-3">
               {/* Club picker — only when no active club filter and multiple clubs */}
-              {!activeClubFilter && pickableClubs.length > 1 && (
+              {!activeClubFilter && clubs.length > 1 && (
                 <MobileCardSelect
                   value={selectedClubId || ""}
                   onValueChange={handleClubSelect}
-                  options={pickableClubs.map(c => ({
+                  options={clubs.map(c => ({
                     value: c.id,
                     label: c.name,
                   }))}
                   label="Select Club"
                   placeholder="Choose a club..."
-                  searchable={pickableClubs.length > 5}
+                  searchable={clubs.length > 5}
                   searchPlaceholder="Search clubs..."
                   emptyMessage="No clubs found."
                 />
