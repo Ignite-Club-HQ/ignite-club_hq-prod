@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, UserCheck, Send, Trash2, Pencil, Mail, Loader2, Copy, Share2, ArrowRightLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -453,97 +453,204 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   // Determine if email was the original invite method
   const hasEmail = !!invite.invited_email;
 
+  // Swipe-to-reveal state
+  const swipeRef = useRef<HTMLDivElement>(null);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const currentXRef = useRef(0);
+  const isSwipingRef = useRef(false);
+  const directionLockedRef = useRef<'horizontal' | 'vertical' | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const SWIPE_THRESHOLD = 60;
+  const MAX_SWIPE = 180;
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isAdmin) return;
+    startXRef.current = e.touches[0].clientX;
+    startYRef.current = e.touches[0].clientY;
+    currentXRef.current = swipeOffset;
+    isSwipingRef.current = true;
+    directionLockedRef.current = null;
+  }, [isAdmin, swipeOffset]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isSwipingRef.current || !isAdmin) return;
+    const diffX = startXRef.current - e.touches[0].clientX;
+    const diffY = e.touches[0].clientY - startYRef.current;
+
+    // Lock direction after 10px of movement
+    if (!directionLockedRef.current && (Math.abs(diffX) > 10 || Math.abs(diffY) > 10)) {
+      directionLockedRef.current = Math.abs(diffX) > Math.abs(diffY) ? 'horizontal' : 'vertical';
+    }
+
+    if (directionLockedRef.current === 'vertical') {
+      isSwipingRef.current = false;
+      return;
+    }
+
+    if (directionLockedRef.current === 'horizontal') {
+      e.preventDefault();
+      const raw = currentXRef.current + diffX;
+      const clamped = Math.max(0, Math.min(raw, MAX_SWIPE));
+      setSwipeOffset(clamped);
+
+      // Cancel long press during swipe
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    }
+  }, [isAdmin]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isSwipingRef.current) return;
+    isSwipingRef.current = false;
+    directionLockedRef.current = null;
+
+    if (swipeOffset > SWIPE_THRESHOLD) {
+      setSwipeOffset(MAX_SWIPE);
+      // Mark hint as seen
+      try { localStorage.setItem('pending_invite_swipe_hint_seen', '1'); } catch {}
+    } else {
+      setSwipeOffset(0);
+    }
+  }, [swipeOffset]);
+
+  // Close swipe when clicking elsewhere
+  useEffect(() => {
+    if (swipeOffset === 0) return;
+    const close = () => setSwipeOffset(0);
+    document.addEventListener('touchstart', close, { once: true });
+    return () => document.removeEventListener('touchstart', close);
+  }, [swipeOffset]);
+
   return (
     <>
-      <Card
-        className="border bg-card select-none"
-        onPointerDown={(e) => {
-          if (!isAdmin) return;
-          longPressTriggered.current = false;
-          longPressTimer.current = setTimeout(() => {
-            longPressTriggered.current = true;
-            setShowContextMenu(true);
-            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-              navigator.vibrate(10);
-            }
-          }, 500);
-        }}
-        onPointerUp={() => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-        }}
-        onPointerCancel={() => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-        }}
-        onPointerMove={() => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-        }}
-        onContextMenu={(e) => {
-          if (isAdmin) {
-            e.preventDefault();
-            setShowContextMenu(true);
-          }
-        }}
-      >
-        <CardContent className="p-2.5 flex items-center gap-2.5">
-          <div className="relative shrink-0">
-            <Avatar className="h-9 w-9">
-              <AvatarImage src={avatarUrl || undefined} />
-              <AvatarFallback className="bg-muted text-muted-foreground text-sm">
-                {displayName[0]?.toUpperCase() || "?"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="absolute -bottom-0.5 -right-0.5 p-0.5 rounded-full bg-amber-500">
-              <Clock className="h-2 w-2 text-white" />
-            </div>
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate leading-tight">{displayName}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <Badge variant="outline" className={`${roleColor} text-[10px] px-1.5 py-0 h-[18px] leading-none`}>
-                {roleLabel}
-              </Badge>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-[18px] leading-none bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
-                Pending
-              </Badge>
-              {isExistingUser && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-[18px] leading-none bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
-                  <UserCheck className="h-2.5 w-2.5 mr-0.5" />
-                  Linked
-                </Badge>
-              )}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">Sent {timeAgo}</p>
-          </div>
-
-          {isAdmin && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="shrink-0 h-7 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-2"
-              onClick={(e) => {
-                if (longPressTriggered.current) {
-                  e.preventDefault();
-                  return;
-                }
-                setShowReminderSheet(true);
-              }}
+      <div className="relative overflow-hidden rounded-lg">
+        {/* Revealed actions behind the card */}
+        {isAdmin && (
+          <div className="absolute inset-y-0 right-0 flex items-stretch">
+            <button
+              onClick={() => { setSwipeOffset(0); handleOpenEdit(); }}
+              className="w-[60px] flex flex-col items-center justify-center gap-0.5 bg-blue-500 text-white text-[10px] font-medium active:bg-blue-600 transition-colors"
             >
-              <Send className="h-3 w-3" />
-              Remind
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+              <Pencil className="h-4 w-4" />
+              Edit
+            </button>
+            <button
+              onClick={() => { setSwipeOffset(0); handleShareInvite(); }}
+              className="w-[60px] flex flex-col items-center justify-center gap-0.5 bg-emerald-500 text-white text-[10px] font-medium active:bg-emerald-600 transition-colors"
+            >
+              <Share2 className="h-4 w-4" />
+              Share
+            </button>
+            <button
+              onClick={() => { setSwipeOffset(0); setShowDeleteDialog(true); }}
+              className="w-[60px] flex flex-col items-center justify-center gap-0.5 bg-destructive text-destructive-foreground text-[10px] font-medium active:opacity-80 transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+              Revoke
+            </button>
+          </div>
+        )}
+
+        {/* Sliding card */}
+        <div
+          ref={swipeRef}
+          style={{
+            transform: `translateX(-${swipeOffset}px)`,
+            transition: isSwipingRef.current ? 'none' : 'transform 0.25s ease-out',
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <Card
+            className="border bg-card select-none"
+            onPointerDown={(e) => {
+              if (!isAdmin) return;
+              if (swipeOffset > 0) { setSwipeOffset(0); return; }
+              longPressTriggered.current = false;
+              longPressTimer.current = setTimeout(() => {
+                longPressTriggered.current = true;
+                setShowContextMenu(true);
+                if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                  navigator.vibrate(10);
+                }
+              }, 500);
+            }}
+            onPointerUp={() => {
+              if (longPressTimer.current) {
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
+              }
+            }}
+            onPointerCancel={() => {
+              if (longPressTimer.current) {
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
+              }
+            }}
+            onContextMenu={(e) => {
+              if (isAdmin) {
+                e.preventDefault();
+                setShowContextMenu(true);
+              }
+            }}
+          >
+            <CardContent className="p-2.5 flex items-center gap-2.5">
+              <div className="relative shrink-0">
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={avatarUrl || undefined} />
+                  <AvatarFallback className="bg-muted text-muted-foreground text-sm">
+                    {displayName[0]?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-0.5 -right-0.5 p-0.5 rounded-full bg-amber-500">
+                  <Clock className="h-2 w-2 text-white" />
+                </div>
+              </div>
+              
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate leading-tight">{displayName}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Badge variant="outline" className={`${roleColor} text-[10px] px-1.5 py-0 h-[18px] leading-none`}>
+                    {roleLabel}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-[18px] leading-none bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                    Pending
+                  </Badge>
+                  {isExistingUser && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-[18px] leading-none bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                      <UserCheck className="h-2.5 w-2.5 mr-0.5" />
+                      Linked
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">Sent {timeAgo}</p>
+              </div>
+
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0 h-7 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-2"
+                  onClick={(e) => {
+                    if (longPressTriggered.current || swipeOffset > 0) {
+                      e.preventDefault();
+                      return;
+                    }
+                    setShowReminderSheet(true);
+                  }}
+                >
+                  <Send className="h-3 w-3" />
+                  Remind
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* Long-press context menu */}
       {isAdmin && (
@@ -557,6 +664,10 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             <DropdownMenuItem onClick={handleOpenEdit}>
               <Pencil className="h-4 w-4 mr-2" />
               Edit name/role
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleShareInvite}>
+              <Share2 className="h-4 w-4 mr-2" />
+              Share invite
             </DropdownMenuItem>
             {teamId && clubId && (
               <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
