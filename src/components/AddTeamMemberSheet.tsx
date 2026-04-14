@@ -157,6 +157,18 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const debouncedSecondParentSearch = useDebounce(secondParentSearch, 300);
 
   const debouncedNameInput = useDebounce(nameInput, 300);
+  const autoChildTriggered = useRef(false);
+
+  // Auto-open first child input when Parent role is selected and name/user is provided
+  useEffect(() => {
+    if (selectedRole === "parent" && (selectedUser || nameInput.trim()) && singleChildren.length === 0 && !autoChildTriggered.current) {
+      autoChildTriggered.current = true;
+      setSingleChildren([{ id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
+    }
+    if (selectedRole !== "parent") {
+      autoChildTriggered.current = false;
+    }
+  }, [selectedRole, selectedUser, nameInput, singleChildren.length]);
 
   // Fetch existing members (separate key from TeamDetail members query to avoid cache shape collisions)
   const { data: existingMembers } = useQuery({
