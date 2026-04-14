@@ -254,7 +254,6 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     if (Capacitor.isNativePlatform()) {
       try {
         await Share.share({
-          title: `Join ${clubName}`,
           text: message,
           dialogTitle: `Join ${clubName}`,
         });

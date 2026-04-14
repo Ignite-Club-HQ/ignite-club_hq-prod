@@ -1801,7 +1801,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     if (Capacitor.isNativePlatform()) {
                       try {
                         await Share.share({
-                          title: `Join ${clubBranding?.name || teamName}`,
                           text: msg,
                           dialogTitle: `Share invite`,
                         });
