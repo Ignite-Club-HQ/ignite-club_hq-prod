@@ -1238,6 +1238,14 @@ export default function TeamChatPage() {
           />
         </div>
       </div>
+      {/* Inline invite banner below header */}
+      <button
+        onClick={() => setInviteSheetOpen(true)}
+        className="flex items-center gap-2 mx-3 mt-2 mb-1 px-3 py-1.5 rounded-full border border-dashed border-primary/30 bg-primary/5 text-primary text-xs font-medium touch-manipulation active:bg-primary/15 transition-colors w-fit"
+      >
+        <UserPlus className="h-3.5 w-3.5" />
+        + Invite to Team
+      </button>
 
 
       {/* Notification Nudge */}
@@ -1335,14 +1343,6 @@ export default function TeamChatPage() {
       {/* Input - Fixed at bottom above nav bar */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
       <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-hidden border-t bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
-        {/* Inline invite pill */}
-        <button
-          onClick={() => setInviteSheetOpen(true)}
-          className="flex items-center gap-2 mx-2 mt-2 mb-1 px-4 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium touch-manipulation active:bg-primary/20 transition-colors w-fit"
-        >
-          <UserPlus className="h-4 w-4" />
-          + Invite to Team
-        </button>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
