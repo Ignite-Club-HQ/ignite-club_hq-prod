@@ -9,7 +9,7 @@ import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
-import InviteOtherParentSheet from "@/components/InviteOtherParentSheet";
+
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
