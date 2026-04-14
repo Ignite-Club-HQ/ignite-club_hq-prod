@@ -2485,9 +2485,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   </div>
                                 </div>
                               </div>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
                               {child.existingChildId && (
                                 <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
                                   <CheckCircle2 className="h-3 w-3" />
