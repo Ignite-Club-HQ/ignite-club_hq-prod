@@ -2209,6 +2209,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         </div>
                       );
                     })}
+                    <button
+                      type="button"
+                      onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors mt-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add another child
+                    </button>
                   </div>
                 )}
               </div>
