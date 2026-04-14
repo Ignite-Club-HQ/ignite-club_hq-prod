@@ -65,19 +65,49 @@ export default function AddMemberDialog({ type, entityId, entityName, clubId }: 
       if (membersError) throw membersError;
       
       const memberIds = [...new Set(clubMembers?.map(m => m.user_id) || [])];
-      if (memberIds.length === 0) return [];
       
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", memberIds)
-        .ilike("display_name", `%${debouncedSearch}%`)
-        .limit(10);
+      const profiles = memberIds.length > 0
+        ? await supabase
+            .from("profiles")
+            .select("id, display_name, avatar_url")
+            .in("id", memberIds)
+            .ilike("display_name", `%${debouncedSearch}%`)
+            .limit(10)
+            .then(({ data, error }) => {
+              if (error) throw error;
+              return (data || []).map(p => ({ ...p, isPending: false as const }));
+            })
+        : [];
       
-      if (error) throw error;
-      return data;
+      return profiles;
     },
     enabled: debouncedSearch.length >= 2 && !!resolvedClubId,
+  });
+
+  // Search pending invites
+  const { data: pendingInvites } = useQuery({
+    queryKey: ["pending-invite-search", debouncedSearch, entityId, type],
+    queryFn: async () => {
+      if (!debouncedSearch || debouncedSearch.length < 2) return [];
+      
+      const query = supabase
+        .from("pending_invites")
+        .select("id, invited_label, invited_email, role, status")
+        .eq("status", "pending")
+        .ilike("invited_label", `%${debouncedSearch}%`)
+        .limit(10);
+      
+      if (type === "team") {
+        query.eq("team_id", entityId);
+      } else {
+        query.eq("club_id", entityId);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: debouncedSearch.length >= 2 && !!entityId,
   });
 
   const { data: existingMembers } = useQuery({
