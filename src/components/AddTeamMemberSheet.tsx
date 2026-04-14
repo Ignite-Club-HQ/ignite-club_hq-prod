@@ -2893,26 +2893,31 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               onChange={(e) => updateChild(member.id, child.id, "name", e.target.value)}
                               className={`h-8 text-sm flex-1 ${child.existingChildId ? 'border-amber-500/50' : ''}`}
                             />
-                            <Input
-                              placeholder="#"
-                              value={child.jerseyNumber}
-                              onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
-                              className="h-8 text-sm w-12"
-                              maxLength={2}
-                              inputMode="numeric"
-                            />
-                            <Input
-                              placeholder="Year"
-                              value={child.yearOfBirth}
-                              onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
-                              className="h-8 text-sm w-16"
-                              maxLength={4}
-                            />
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6"
                               onClick={() => removeChildFromMember(member.id, child.id)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Jersey #"
+                              value={child.jerseyNumber}
+                              onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
+                              className="h-7 text-xs w-20"
+                              maxLength={2}
+                              inputMode="numeric"
+                            />
+                            <Input
+                              placeholder="Birth year"
+                              value={child.yearOfBirth}
+                              onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
+                              className="h-7 text-xs w-24"
+                              maxLength={4}
+                            />
                             >
                               <X className="h-3 w-3" />
                             </Button>
