@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, Folder, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, BarChart3, Archive, ArchiveRestore, MoreVertical, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
@@ -82,7 +82,7 @@ import { TeamSponsorSelector } from "@/components/TeamSponsorSelector";
 import PendingInvitesList from "@/components/PendingInvitesList";
 
 import TeamRewardsManager from "@/components/TeamRewardsManager";
-import { getFolderColorClass } from "@/components/TeamFoldersManager";
+import { cn } from "@/lib/utils";
 import { ClassAttendanceSingle } from "@/components/ClassAttendanceSingle";
 import { cn } from "@/lib/utils";
 
@@ -219,37 +219,7 @@ export default function TeamDetailPage() {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
-  // Fetch team folders for move-to-folder functionality
-  const { data: teamFolders = [] } = useQuery({
-    queryKey: ["team-folders", team?.club_id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("team_folders")
-        .select("*")
-        .eq("club_id", team!.club_id)
-        .order("sort_order");
-      return data || [];
-    },
-    enabled: !!team?.club_id,
-  });
-
-  const moveTeamToFolderMutation = useMutation({
-    mutationFn: async ({ teamId, folderId }: { teamId: string; folderId: string | null }) => {
-      const { error } = await supabase
-        .from("teams")
-        .update({ folder_id: folderId })
-        .eq("id", teamId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["team", id] });
-      queryClient.invalidateQueries({ queryKey: ["club-teams", team?.club_id] });
-      toast({ title: "Team moved successfully" });
-    },
-    onError: () => {
-      toast({ title: "Failed to move team", variant: "destructive" });
-    },
-  });
+  // Note: team folders query and mutation removed - "Move to Folder" no longer in this page
 
   // Track if subscription data is still loading - don't show Pro lock while loading OR refetching
   // Must wait for:
@@ -719,244 +689,177 @@ export default function TeamDetailPage() {
 
   return (
     <div className="py-6 space-y-6">
-      {/* Header with integrated team identity */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" aria-label="Go back" onClick={() => {
-          if (window.history.length > 1) {
-            navigate(-1);
-          } else {
-            navigate(`/clubs/${team.club_id}`);
-          }
-        }}>
-          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-        </Button>
-        <Avatar className="h-9 w-9 border-2 border-primary/20 shrink-0">
-          <AvatarImage src={team.logo_url || undefined} />
-          <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
-            {team.name?.charAt(0)?.toUpperCase() || "T"}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold truncate">{team.name}</h1>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {isTeamPro && !hasProFootball && (
-              <Badge className="bg-yellow-500 text-yellow-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO</Badge>
-            )}
-            {hasProFootball && (
-              <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
-            )}
-            {isOnTrial && isTeamPro && (
-              <Badge variant="outline" className="text-amber-600 border-amber-500 text-[10px] px-1.5 py-0 h-4 shrink-0">Free Trial</Badge>
-            )}
-            <p className="text-[11px] text-muted-foreground leading-tight truncate">
-              {(() => {
-                const coaches = Object.values(members).filter(m => m.roles.some(r => r.role === 'coach'));
-                const coachName = coaches.length > 0 ? coaches[0].profile?.display_name : null;
-                if (coachName) return `Coach: ${coachName}`;
-                if (team.description) return team.description;
-                return null;
-              })()}
-            </p>
+      {/* Header Row 1: Back button, Team name, 3-dot menu */}
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" aria-label="Go back" onClick={() => {
+            if (window.history.length > 1) {
+              navigate(-1);
+            } else {
+              navigate(`/clubs/${team.club_id}`);
+            }
+          }}>
+            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold truncate leading-tight">{team.name}</h1>
           </div>
-        </div>
-        {/* Stacked member avatars */}
-        <div className="flex -space-x-1.5 shrink-0 mr-1">
-          {Object.values(members).slice(0, 3).map((member, i) => (
-            <Avatar key={i} className="h-6 w-6 border-2 border-background">
-              <AvatarImage src={member.profile?.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary/20 text-primary text-[8px]">
-                {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
-              </AvatarFallback>
-            </Avatar>
-          ))}
-          {Object.keys(members).length + teamChildren.length > 3 && (
-            <Avatar className="h-6 w-6 border-2 border-background">
-              <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
-                +{Object.keys(members).length + teamChildren.length - 3}
-              </AvatarFallback>
-            </Avatar>
-          )}
-        </div>
-          <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" aria-label="Invite to team" onClick={() => {
-              // Find and click the AddTeamMemberSheet trigger in the members section
-              const addMemberBtn = document.querySelector('[data-invite-trigger]') as HTMLButtonElement;
-              if (addMemberBtn) addMemberBtn.click();
-            }}>
-              <UserPlus className="h-4 w-4" aria-hidden="true" />
-            </Button>
           {isAdmin && isClassMode && (
             <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
               <Pencil className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
           {(isAdmin || isClubAdmin) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Team options menu">
-                <MoreVertical className="h-5 w-5" aria-hidden="true" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit {isClassMode ? "Class" : "Team"}
-              </DropdownMenuItem>}
-              {isClassMode && (
-                <DropdownMenuItem onClick={async () => {
-                  // Duplicate class: create a copy with "(Copy)" suffix
-                  const { data: newTeam, error } = await supabase
-                    .from("teams")
-                    .insert({
-                      name: `${team.name} (Copy)`,
-                      club_id: team.club_id,
-                      level_age: (team as any).level_age || null,
-                      description: (team as any).description || null,
-                      folder_id: (team as any).folder_id || null,
-                      team_type: (team as any).team_type || "mixed",
-                      created_by: user!.id,
-                      class_day: (team as any).class_day || null,
-                      class_time: (team as any).class_time || null,
-                      class_duration_minutes: (team as any).class_duration_minutes || null,
-                      class_capacity: (team as any).class_capacity || null,
-                    })
-                    .select()
-                    .single();
-                  if (error) {
-                    toast({ title: "Failed to duplicate class", variant: "destructive" });
-                  } else {
-                    toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
-                    navigate(`/teams/${newTeam.id}/edit`);
-                  }
-                }}>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Duplicate Class
-                </DropdownMenuItem>
-              )}
-              {teamFolders.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <FolderOpen className="h-4 w-4 mr-2" />
-                      Move to Folder
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem
-                        onClick={() => moveTeamToFolderMutation.mutate({ teamId: id!, folderId: null })}
-                        disabled={(team as any)?.folder_id === null}
-                      >
-                        <FolderOpen className="h-4 w-4 mr-2 text-muted-foreground" />
-                        Uncategorized
-                      </DropdownMenuItem>
-                      {teamFolders.map((folder: any) => (
-                        <DropdownMenuItem
-                          key={folder.id}
-                          onClick={() => moveTeamToFolderMutation.mutate({ teamId: id!, folderId: folder.id })}
-                          disabled={(team as any)?.folder_id === folder.id}
-                        >
-                          <Folder className={`h-4 w-4 mr-2 ${getFolderColorClass(folder.color || 'default').className}`} />
-                          {folder.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              {/* Leave Team - only for members (not pure club admins) */}
-              {userRoles.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-warning">
-                        <LogOut className="h-4 w-4 mr-2" />
-                        Leave Team
-                      </DropdownMenuItem>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Leave Team?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          You will be removed from {team?.name || "this team"}. You'll need a new invite to rejoin.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={async () => {
-                            const { error } = await supabase
-                              .from("user_roles")
-                              .delete()
-                              .eq("user_id", user!.id)
-                              .eq("team_id", id!);
-                            if (error) {
-                              toast({ title: "Failed to leave team", variant: "destructive" });
-                            } else {
-                              // Delete RSVPs for future events on this team
-                              const today = new Date().toISOString().slice(0, 10);
-                              const { data: futureEvents } = await supabase
-                                .from("events")
-                                .select("id")
-                                .eq("team_id", id!)
-                                .gte("event_date", today);
-                              if (futureEvents && futureEvents.length > 0) {
-                                await supabase
-                                  .from("rsvps")
-                                  .delete()
-                                  .eq("user_id", user!.id)
-                                  .in("event_id", futureEvents.map(e => e.id));
-                              }
-                              toast({ title: `You left ${team?.name || "the team"}` });
-                              queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                              queryClient.invalidateQueries({ queryKey: ["user-roles"] });
-                              queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
-                              queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events"] });
-                              queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
-                              queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
-                              queryClient.invalidateQueries({ queryKey: ["events"] });
-                              queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
-                              navigate(`/clubs/${team?.club_id}`);
-                            }
-                          }}
-                          className="bg-destructive text-destructive-foreground"
-                        >
-                          Leave
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </>
-              )}
-              {isAdmin && <DropdownMenuSeparator />}
-              {isAdmin && <ArchiveTeamDialog
-                teamId={id!}
-                teamName={team?.name || ""}
-                clubId={team?.club_id || ""}
-                isArchived={(team as any)?.is_archived || false}
-                currentSeasonLabel={(team as any)?.season_label}
-                onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
-                trigger={
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
-                    {(team as any)?.is_archived ? (
-                      <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
-                    ) : (
-                      <><Archive className="h-4 w-4 mr-2" />Archive Team</>
-                    )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Team options menu">
+                  <MoreVertical className="h-5 w-5" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit {isClassMode ? "Class" : "Team"}
+                </DropdownMenuItem>}
+                {isClassMode && (
+                  <DropdownMenuItem onClick={async () => {
+                    const { data: newTeam, error } = await supabase
+                      .from("teams")
+                      .insert({
+                        name: `${team.name} (Copy)`,
+                        club_id: team.club_id,
+                        level_age: (team as any).level_age || null,
+                        description: (team as any).description || null,
+                        folder_id: (team as any).folder_id || null,
+                        team_type: (team as any).team_type || "mixed",
+                        created_by: user!.id,
+                        class_day: (team as any).class_day || null,
+                        class_time: (team as any).class_time || null,
+                        class_duration_minutes: (team as any).class_duration_minutes || null,
+                        class_capacity: (team as any).class_capacity || null,
+                      })
+                      .select()
+                      .single();
+                    if (error) {
+                      toast({ title: "Failed to duplicate class", variant: "destructive" });
+                    } else {
+                      toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
+                      navigate(`/teams/${newTeam.id}/edit`);
+                    }
+                  }}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Duplicate Class
                   </DropdownMenuItem>
+                )}
+                {/* Leave Team - only for members (not pure club admins) */}
+                {userRoles.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-warning">
+                          <LogOut className="h-4 w-4 mr-2" />
+                          Leave Team
+                        </DropdownMenuItem>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Leave Team?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            You will be removed from {team?.name || "this team"}. You'll need a new invite to rejoin.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async () => {
+                              const { error } = await supabase
+                                .from("user_roles")
+                                .delete()
+                                .eq("user_id", user!.id)
+                                .eq("team_id", id!);
+                              if (error) {
+                                toast({ title: "Failed to leave team", variant: "destructive" });
+                              } else {
+                                const today = new Date().toISOString().slice(0, 10);
+                                const { data: futureEvents } = await supabase
+                                  .from("events")
+                                  .select("id")
+                                  .eq("team_id", id!)
+                                  .gte("event_date", today);
+                                if (futureEvents && futureEvents.length > 0) {
+                                  await supabase
+                                    .from("rsvps")
+                                    .delete()
+                                    .eq("user_id", user!.id)
+                                    .in("event_id", futureEvents.map(e => e.id));
+                                }
+                                toast({ title: `You left ${team?.name || "the team"}` });
+                                queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                                queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+                                queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
+                                queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events"] });
+                                queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
+                                queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
+                                queryClient.invalidateQueries({ queryKey: ["events"] });
+                                queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+                                navigate(`/clubs/${team?.club_id}`);
+                              }
+                            }}
+                            className="bg-destructive text-destructive-foreground"
+                          >
+                            Leave
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
+                )}
+                {isAdmin && <DropdownMenuSeparator />}
+                {isAdmin && <ArchiveTeamDialog
+                  teamId={id!}
+                  teamName={team?.name || ""}
+                  clubId={team?.club_id || ""}
+                  isArchived={(team as any)?.is_archived || false}
+                  currentSeasonLabel={(team as any)?.season_label}
+                  onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
+                  trigger={
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
+                      {(team as any)?.is_archived ? (
+                        <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
+                      ) : (
+                        <><Archive className="h-4 w-4 mr-2" />Archive Team</>
+                      )}
+                    </DropdownMenuItem>
+                  }
+                />
                 }
-              />
-              }
-              {isAdmin && <DropdownMenuItem
-                className="text-destructive"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Team
-              </DropdownMenuItem>}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+                {isAdmin && <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Team
+                </DropdownMenuItem>}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+        {/* Header Row 2: Badges + member count */}
+        <div className="flex items-center gap-1.5 pl-[52px]">
+          {isTeamPro && !hasProFootball && (
+            <Badge className="bg-yellow-500 text-yellow-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO</Badge>
+          )}
+          {hasProFootball && (
+            <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
+          )}
+          {isOnTrial && isTeamPro && (
+            <Badge variant="outline" className="text-amber-600 border-amber-500 text-[10px] px-1.5 py-0 h-4 shrink-0">Free Trial</Badge>
+          )}
+          <span className="text-xs text-muted-foreground">
+            {Object.keys(members).length + teamChildren.length} member{Object.keys(members).length + teamChildren.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </div>
 
       {/* Soft-deleted banner */}
