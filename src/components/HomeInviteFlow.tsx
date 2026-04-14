@@ -47,32 +47,24 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       // Get teams
       const teamIds = [...new Set(roles.map(r => r.team_id).filter(Boolean))] as string[];
 
-      const promises: Record<string, Promise<any>> = {};
+      let teams: any[] = [];
+      let clubs: any[] = [];
 
       if (teamIds.length > 0) {
-        promises.teams = supabase
+        const { data } = await supabase
           .from("teams")
           .select("id, name, club_id, clubs(id, name)")
-          .in("id", teamIds)
-          .then(r => r.data || []);
+          .in("id", teamIds);
+        teams = (data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
       }
 
       if (allClubIds.length > 0) {
-        promises.clubs = supabase
+        const { data } = await supabase
           .from("clubs")
           .select("id, name")
-          .in("id", allClubIds)
-          .then(r => r.data || []);
+          .in("id", allClubIds);
+        clubs = (data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
       }
-
-      const results = await Promise.all(
-        Object.entries(promises).map(async ([key, p]) => [key, await p] as const)
-      );
-      const data: Record<string, any> = {};
-      for (const [key, value] of results) data[key] = value;
-
-      const teams = (data.teams || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
-      const clubs = (data.clubs || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
 
       return { teams, clubs };
     },
