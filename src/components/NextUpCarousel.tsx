@@ -9,10 +9,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { format, isToday, isTomorrow, parseISO, isSameWeek, addWeeks, differenceInCalendarDays } from "date-fns";
+import { format } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { Link } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
+import { formatEventContextualDate, getEventUrgencyBadge } from "@/lib/eventRelativeDate";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -40,36 +41,11 @@ interface NextUpCarouselProps {
 const NEXT_UP_CARD_MIN_HEIGHT = "";
 
 function formatContextualDate(dateStr: string) {
-  const date = parseISO(dateStr);
-  const now = new Date();
-  const time = format(date, "h:mm a");
-
-  if (isToday(date)) return { label: "Today", time };
-  if (isTomorrow(date)) return { label: "Tomorrow", time };
-
-  const weekOpts = { weekStartsOn: 1 as const };
-
-  if (date > now && isSameWeek(date, now, weekOpts)) {
-    return { label: `This ${format(date, "EEEE")}`, time };
-  }
-  if (date > now && isSameWeek(date, addWeeks(now, 1), weekOpts)) {
-    return { label: `Next ${format(date, "EEEE")}`, time };
-  }
-  return { label: format(date, "EEE, MMM d"), time };
+  return formatEventContextualDate(dateStr);
 }
 
 function getUrgencyBadge(dateStr: string) {
-  const date = parseISO(dateStr);
-  const now = new Date();
-  const daysAway = differenceInCalendarDays(date, now);
-  const weekOpts = { weekStartsOn: 1 as const };
-
-  if (isToday(date)) return { text: "🔴 Today", className: "bg-destructive/15 text-destructive border-destructive/30" };
-  if (isTomorrow(date)) return { text: "⏳ Tomorrow", className: "bg-warning/15 text-warning border-warning/30" };
-  if (daysAway === 2) return { text: "⏳ In 2 days", className: "bg-warning/10 text-warning border-warning/20" };
-  if (date > now && isSameWeek(date, now, weekOpts)) return { text: `📅 This ${format(date, "EEEE")}`, className: "bg-primary/10 text-primary border-primary/20" };
-  if (date > now && isSameWeek(date, addWeeks(now, 1), weekOpts)) return { text: `📅 Next ${format(date, "EEEE")}`, className: "bg-muted text-muted-foreground border-border" };
-  return null;
+  return getEventUrgencyBadge(dateStr);
 }
 
 const typeBadgeStyles: Record<string, string> = {
