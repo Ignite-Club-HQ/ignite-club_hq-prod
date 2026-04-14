@@ -2391,39 +2391,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 {selectedRole === "parent" && (
                   <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
                     <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 of 2 — Add your child's details</p>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Baby className="h-4 w-4 text-primary" />
-                        <Label className="text-primary font-medium">Child Player(s)</Label>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
-                        className="h-7 text-xs border-primary/30 text-primary hover:bg-primary/10"
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Child
-                      </Button>
+                    <div className="flex items-center gap-2">
+                      <Baby className="h-4 w-4 text-primary" />
+                      <Label className="text-primary font-medium">Child Player(s)</Label>
                     </div>
                     
                     {singleChildren.length === 0 ? (
-                      <div className="flex flex-col items-center gap-2 py-3">
-                        <Baby className="h-8 w-8 text-muted-foreground/40" />
-                        <p className="text-sm text-muted-foreground text-center">
-                          Add your child's details to continue
-                        </p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
-                          className="mt-1"
-                        >
-                          <Plus className="h-3.5 w-3.5 mr-1.5" />
-                          Add Child
-                        </Button>
-                      </div>
+                      <p className="text-sm text-muted-foreground">Loading...</p>
                     ) : (
                       <div className="space-y-2">
                         {singleChildren.map((child, idx) => {
