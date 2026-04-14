@@ -2614,9 +2614,31 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </TabsContent>
 
           <TabsContent value="bulk" className="space-y-4 mt-0">
+            {/* Role Selection for bulk mode */}
+            <div className="space-y-2 mb-2">
+              <Label className="text-sm font-medium">Default role</Label>
+              <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {roleOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSelectedRole(opt.value)}
+                    className={`p-2.5 rounded-xl text-center transition-all border ${
+                      selectedRole === opt.value
+                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                        : "border-border bg-muted/40 hover:bg-muted text-foreground"
+                    }`}
+                  >
+                    <p className="text-sm font-medium">
+                      {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Add multiple members at once. Email addresses are optional — members without emails will get a shareable link.
+                Add multiple members at once. Email addresses are optional.
               </p>
               
               {/* Parent role preview hint for bulk tab */}
