@@ -236,33 +236,64 @@ export default function AddMemberDialog({ type, entityId, entityName, clubId }: 
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
-                ) : filteredResults?.length === 0 ? (
+                ) : (filteredResults?.length === 0 && (!pendingInvites || pendingInvites.length === 0)) ? (
                   <p className="text-sm text-muted-foreground text-center py-6">
                     No users found
                   </p>
                 ) : (
-                  filteredResults?.map((user) => (
-                    <div
-                      key={user.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                        selectedUserId === user.id 
-                          ? "bg-primary text-primary-foreground shadow-sm" 
-                          : "hover:bg-background border border-transparent hover:border-border"
-                      }`}
-                      onClick={() => setSelectedUserId(user.id)}
-                    >
-                      <Avatar className="h-9 w-9 border-2 border-background">
-                        <AvatarImage src={user.avatar_url || undefined} />
-                        <AvatarFallback className={selectedUserId === user.id ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/20 text-primary"}>
-                          {user.display_name?.charAt(0) || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium text-sm flex-1">{user.display_name || "Unknown"}</span>
-                      {selectedUserId === user.id && (
-                        <CheckCircle2 className="h-5 w-5" />
-                      )}
-                    </div>
-                  ))
+                  <>
+                    {filteredResults?.map((user) => (
+                      <div
+                        key={user.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                          selectedUserId === user.id 
+                            ? "bg-primary text-primary-foreground shadow-sm" 
+                            : "hover:bg-background border border-transparent hover:border-border"
+                        }`}
+                        onClick={() => setSelectedUserId(user.id)}
+                      >
+                        <Avatar className="h-9 w-9 border-2 border-background">
+                          <AvatarImage src={user.avatar_url || undefined} />
+                          <AvatarFallback className={selectedUserId === user.id ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/20 text-primary"}>
+                            {user.display_name?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium text-sm flex-1">{user.display_name || "Unknown"}</span>
+                        {selectedUserId === user.id && (
+                          <CheckCircle2 className="h-5 w-5" />
+                        )}
+                      </div>
+                    ))}
+                    {pendingInvites && pendingInvites.length > 0 && (
+                      <>
+                        {(filteredResults?.length ?? 0) > 0 && (
+                          <div className="px-2 pt-2 pb-1">
+                            <p className="text-xs font-medium text-muted-foreground">Pending Invites</p>
+                          </div>
+                        )}
+                        {pendingInvites.map((invite) => (
+                          <div
+                            key={invite.id}
+                            className="flex items-center gap-3 p-3 rounded-lg border border-transparent opacity-70 cursor-default"
+                          >
+                            <Avatar className="h-9 w-9 border-2 border-background">
+                              <AvatarFallback className="bg-amber-500/20 text-amber-600">
+                                {invite.invited_label?.charAt(0) || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium text-sm block truncate">{invite.invited_label || invite.invited_email || "Unknown"}</span>
+                              <span className="text-xs text-muted-foreground capitalize">{invite.role}</span>
+                            </div>
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-xs shrink-0">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Invited
+                            </Badge>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             )}
