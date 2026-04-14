@@ -651,24 +651,9 @@ export default function DirectMessagePage() {
       queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
       queryClient.invalidateQueries({ queryKey: ["hidden-dm-conversations"] });
       
-      // Fire-and-forget: directly invoke push notification for instant delivery
-      // This bypasses pg_net trigger delays; tag-based deduplication prevents duplicates
-      if (otherUserId) {
-        const senderName = profileRef.current?.display_name || 'Someone';
-        supabase.functions.invoke('send-push-notification', {
-          body: {
-            userId: otherUserId,
-            title: 'Ignite Club HQ',
-            body: `${senderName} sent you a message`,
-            url: `/messages/dm/${conversationId}`,
-            notificationId: newMessage.id,
-            tag: `direct_message-${newMessage.id}`,
-            notificationType: 'direct_message',
-          },
-        }).catch((err) => {
-          console.warn('[DM] Direct push invocation failed (trigger fallback exists):', err);
-        });
-      }
+      // Push notification is handled by the DB trigger on notifications table.
+      // Do NOT invoke send-push-notification directly here — it causes duplicate pushes
+      // because the trigger and direct call use different notificationIds for dedup.
     },
     onError: (error, variables) => {
       console.error('[DM] Send message error:', error, 'Message text:', variables.text?.slice(0, 20));
