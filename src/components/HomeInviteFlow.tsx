@@ -37,32 +37,36 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       const { data: roles } = await supabase
         .from("user_roles")
         .select("team_id, club_id")
-        .eq("user_id", user!.id)
-        .not("team_id", "is", null);
+        .eq("user_id", user!.id);
 
       if (!roles || roles.length === 0) return { teams: [], clubs: [] };
+
+      // Get unique club IDs from ALL roles (not just team-based ones)
+      const allClubIds = [...new Set(roles.map(r => r.club_id).filter(Boolean))] as string[];
+
+      // Get teams
       const teamIds = [...new Set(roles.map(r => r.team_id).filter(Boolean))] as string[];
 
-      const { data: teamData } = await supabase
-        .from("teams")
-        .select("id, name, club_id, clubs(id, name)")
-        .in("id", teamIds);
+      let teams: any[] = [];
+      let clubs: any[] = [];
 
-      if (!teamData) return { teams: [], clubs: [] };
-
-      const sorted = teamData.sort((a, b) => a.name.localeCompare(b.name));
-
-      // Extract unique clubs
-      const clubMap = new Map<string, { id: string; name: string }>();
-      for (const t of sorted) {
-        const club = t.clubs as any;
-        if (club?.id && !clubMap.has(club.id)) {
-          clubMap.set(club.id, { id: club.id, name: club.name });
-        }
+      if (teamIds.length > 0) {
+        const { data } = await supabase
+          .from("teams")
+          .select("id, name, club_id, clubs(id, name)")
+          .in("id", teamIds);
+        teams = (data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
       }
-      const clubs = Array.from(clubMap.values()).sort((a, b) => a.name.localeCompare(b.name));
 
-      return { teams: sorted, clubs };
+      if (allClubIds.length > 0) {
+        const { data } = await supabase
+          .from("clubs")
+          .select("id, name")
+          .in("id", allClubIds);
+        clubs = (data || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
+      }
+
+      return { teams, clubs };
     },
   });
 
