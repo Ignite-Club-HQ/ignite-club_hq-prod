@@ -1850,7 +1850,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="bottom" enableDragToClose className="h-[85vh] rounded-t-2xl flex flex-col overflow-hidden">
+      <SheetContent side="bottom" enableDragToClose className="max-h-[85vh] rounded-t-2xl flex flex-col overflow-hidden" data-lock-keyboard-scroll="true">
         <SheetHeader className="mb-3 shrink-0">
           <SheetTitle>Invite to Team</SheetTitle>
           <SheetDescription>
