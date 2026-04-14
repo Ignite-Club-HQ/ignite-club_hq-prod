@@ -165,17 +165,17 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
 
             <div className="pt-2 space-y-3">
               {/* Club picker — only when no active club filter and multiple clubs */}
-              {!activeClubFilter && pickableClubs.length > 1 && (
+              {!activeClubFilter && clubs.length > 1 && (
                 <MobileCardSelect
                   value={selectedClubId || ""}
                   onValueChange={handleClubSelect}
-                  options={pickableClubs.map(c => ({
+                  options={clubs.map(c => ({
                     value: c.id,
                     label: c.name,
                   }))}
                   label="Select Club"
                   placeholder="Choose a club..."
-                  searchable={pickableClubs.length > 5}
+                  searchable={clubs.length > 5}
                   searchPlaceholder="Search clubs..."
                   emptyMessage="No clubs found."
                 />
