@@ -135,6 +135,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
           teamName={selectedTeam.name}
           clubId={selectedTeam.club_id || (selectedTeam.clubs as any)?.id || ""}
           canBulkInvite={canBulkInvite}
+          triggerVariant="none"
           externalOpen={inviteSheetOpen}
           onExternalOpenChange={handleInviteSheetChange}
         />
