@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
@@ -12,6 +12,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { getCachedRoles } from "@/lib/rolesCache";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 
 interface HomeInviteFlowProps {
@@ -83,6 +84,15 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
 
   const selectedTeam = teams.find(t => t.id === selectedTeamId);
 
+  const canBulkInvite = useMemo(() => {
+    if (!selectedTeamId) return false;
+    const roles = getCachedRoles();
+    if (!roles) return false;
+    return roles.some(r =>
+      ['club_admin', 'team_admin', 'coach', 'app_admin'].includes(r.role) &&
+      (r.team_id === selectedTeamId || (selectedTeam && r.club_id === selectedTeam.club_id))
+    );
+  }, [selectedTeamId, selectedTeam]);
   return (
     <>
       {/* Team picker dialog — only shown when multiple teams */}
@@ -124,6 +134,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
           teamId={selectedTeam.id}
           teamName={selectedTeam.name}
           clubId={selectedTeam.club_id || (selectedTeam.clubs as any)?.id || ""}
+          canBulkInvite={canBulkInvite}
           triggerVariant="none"
           externalOpen={inviteSheetOpen}
           onExternalOpenChange={handleInviteSheetChange}

@@ -5,17 +5,16 @@ interface HomeQuickActionsProps {
   onInvite: () => void;
   onJoinTeam: () => void;
   hasTeams: boolean;
-  isAdmin: boolean;
 }
 
-export function HomeQuickActions({ onCreateTeam, onInvite, onJoinTeam, hasTeams, isAdmin }: HomeQuickActionsProps) {
+export function HomeQuickActions({ onCreateTeam, onInvite, onJoinTeam, hasTeams }: HomeQuickActionsProps) {
   const actions = [
     {
       label: "Invite to Team",
       description: "Send a link to players, parents & coaches",
       icon: UserPlus,
       onClick: onInvite,
-      show: hasTeams && isAdmin,
+      show: hasTeams,
     },
     {
       label: "Join a Team",
