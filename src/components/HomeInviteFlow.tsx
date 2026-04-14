@@ -23,20 +23,24 @@ interface HomeInviteFlowProps {
 export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
+  const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
 
-  const { data: teams = [] } = useQuery({
-    queryKey: ["home-invite-teams", user?.id, activeClubFilter],
+  // Effective club filter: use activeClubFilter if set, otherwise the manually selected club
+  const effectiveClubId = activeClubFilter || selectedClubId;
+
+  const { data: teamsAndClubs } = useQuery({
+    queryKey: ["home-invite-teams-clubs", user?.id],
     enabled: !!user && open,
     queryFn: async () => {
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("team_id")
+        .select("team_id, club_id")
         .eq("user_id", user!.id)
         .not("team_id", "is", null);
 
-      if (!roles || roles.length === 0) return [];
+      if (!roles || roles.length === 0) return { teams: [], clubs: [] };
       const teamIds = [...new Set(roles.map(r => r.team_id).filter(Boolean))] as string[];
 
       const { data: teamData } = await supabase
@@ -44,23 +48,58 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
         .select("id, name, club_id, clubs(id, name)")
         .in("id", teamIds);
 
-      if (!teamData) return [];
-      return teamData
-        .filter(t => !activeClubFilter || t.club_id === activeClubFilter)
-        .sort((a, b) => a.name.localeCompare(b.name));
+      if (!teamData) return { teams: [], clubs: [] };
+
+      const sorted = teamData.sort((a, b) => a.name.localeCompare(b.name));
+
+      // Extract unique clubs
+      const clubMap = new Map<string, { id: string; name: string }>();
+      for (const t of sorted) {
+        const club = t.clubs as any;
+        if (club?.id && !clubMap.has(club.id)) {
+          clubMap.set(club.id, { id: club.id, name: club.name });
+        }
+      }
+      const clubs = Array.from(clubMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+      return { teams: sorted, clubs };
     },
   });
 
-  // Auto-select if only one team
+  const allTeams = teamsAndClubs?.teams || [];
+  const clubs = teamsAndClubs?.clubs || [];
+
+  // Filter teams by effective club
+  const filteredTeams = effectiveClubId
+    ? allTeams.filter(t => t.club_id === effectiveClubId)
+    : allTeams;
+
+  // Determine what step to show
+  const needsClubPick = !activeClubFilter && clubs.length > 1 && !selectedClubId;
+
+  // Auto-select if only one team after filtering
   useEffect(() => {
-    if (teams.length === 1 && open && !selectedTeamId) {
-      const team = teams[0];
-      setSelectedTeamId(team.id);
-      // Immediately open the invite sheet
+    if (!open || selectedTeamId) return;
+    if (needsClubPick) return;
+    if (filteredTeams.length === 1) {
+      setSelectedTeamId(filteredTeams[0].id);
       onOpenChange(false);
       setInviteSheetOpen(true);
     }
-  }, [teams, open, selectedTeamId]);
+  }, [filteredTeams, open, selectedTeamId, needsClubPick]);
+
+  // Auto-select club if only one
+  useEffect(() => {
+    if (!open || activeClubFilter) return;
+    if (clubs.length === 1 && !selectedClubId) {
+      setSelectedClubId(clubs[0].id);
+    }
+  }, [clubs, open, activeClubFilter, selectedClubId]);
+
+  const handleClubSelect = (clubId: string) => {
+    setSelectedClubId(clubId);
+    // Don't close dialog — teams will re-filter and either auto-select or show team picker
+  };
 
   const handleTeamSelect = (teamId: string) => {
     setSelectedTeamId(teamId);
@@ -72,17 +111,19 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
     setInviteSheetOpen(isOpen);
     if (!isOpen) {
       setSelectedTeamId(null);
+      setSelectedClubId(null);
     }
   };
 
   const handleClose = (v: boolean) => {
     if (!v) {
       setSelectedTeamId(null);
+      setSelectedClubId(null);
     }
     onOpenChange(v);
   };
 
-  const selectedTeam = teams.find(t => t.id === selectedTeamId);
+  const selectedTeam = allTeams.find(t => t.id === selectedTeamId);
 
   const canBulkInvite = useMemo(() => {
     if (!selectedTeamId) return false;
@@ -93,10 +134,13 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
       (r.team_id === selectedTeamId || (selectedTeam && r.club_id === selectedTeam.club_id))
     );
   }, [selectedTeamId, selectedTeam]);
+
+  // Show dialog when: needs club pick, or needs team pick (multiple filtered teams)
+  const showPicker = open && (needsClubPick || filteredTeams.length > 1);
+
   return (
     <>
-      {/* Team picker dialog — only shown when multiple teams */}
-      {teams.length > 1 && (
+      {showPicker && (
         <ResponsiveDialog open={open} onOpenChange={handleClose}>
           <ResponsiveDialogContent className="max-w-md">
             <ResponsiveDialogHeader>
@@ -105,24 +149,46 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                 Invite to Team
               </ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
-                Choose a team to invite someone to.
+                {needsClubPick
+                  ? "Choose a club first, then select a team."
+                  : "Choose a team to invite someone to."}
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
 
-            <div className="pt-2">
-              <MobileCardSelect
-                value=""
-                onValueChange={handleTeamSelect}
-                options={teams.map(t => ({
-                  value: t.id,
-                  label: activeClubFilter ? t.name : `${t.name} (${(t.clubs as any)?.name || ""})`,
-                }))}
-                label="Select Team"
-                placeholder="Choose a team..."
-                searchable={teams.length > 5}
-                searchPlaceholder="Search teams..."
-                emptyMessage="No teams found."
-              />
+            <div className="pt-2 space-y-3">
+              {/* Club picker — only when no active club filter and multiple clubs */}
+              {!activeClubFilter && clubs.length > 1 && (
+                <MobileCardSelect
+                  value={selectedClubId || ""}
+                  onValueChange={handleClubSelect}
+                  options={clubs.map(c => ({
+                    value: c.id,
+                    label: c.name,
+                  }))}
+                  label="Select Club"
+                  placeholder="Choose a club..."
+                  searchable={clubs.length > 5}
+                  searchPlaceholder="Search clubs..."
+                  emptyMessage="No clubs found."
+                />
+              )}
+
+              {/* Team picker — only after club is resolved and multiple teams */}
+              {!needsClubPick && filteredTeams.length > 1 && (
+                <MobileCardSelect
+                  value=""
+                  onValueChange={handleTeamSelect}
+                  options={filteredTeams.map(t => ({
+                    value: t.id,
+                    label: t.name,
+                  }))}
+                  label="Select Team"
+                  placeholder="Choose a team..."
+                  searchable={filteredTeams.length > 5}
+                  searchPlaceholder="Search teams..."
+                  emptyMessage="No teams found."
+                />
+              )}
             </div>
           </ResponsiveDialogContent>
         </ResponsiveDialog>
