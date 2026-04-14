@@ -87,6 +87,8 @@ interface AddTeamMemberSheetProps {
   externalOpen?: boolean;
   /** Callback when open state changes externally */
   onExternalOpenChange?: (open: boolean) => void;
+  /** Pre-fill as a guardian invite for an existing child */
+  prefillGuardianChild?: { childId: string; childName: string } | null;
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
@@ -96,7 +98,7 @@ const allRoleOptions: { value: TeamRole; label: string; description: string; col
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default", externalOpen, onExternalOpenChange }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default", externalOpen, onExternalOpenChange, prefillGuardianChild }: AddTeamMemberSheetProps) {
   // Filter role options based on team type
   const roleOptions = allRoleOptions.filter(opt => {
     if (teamType === "junior") {
@@ -159,6 +161,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const debouncedNameInput = useDebounce(nameInput, 300);
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
+
+  // Pre-fill guardian child when opened via child's "Invite Parent" action
+  useEffect(() => {
+    if (prefillGuardianChild && open) {
+      setSelectedRole("parent");
+      setSingleChildren([{
+        id: crypto.randomUUID(),
+        name: prefillGuardianChild.childName,
+        yearOfBirth: "",
+        jerseyNumber: "",
+      }]);
+      autoChildTriggered.current = true;
+    }
+  }, [prefillGuardianChild, open]);
 
   // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
   useEffect(() => {
@@ -1801,7 +1817,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     if (Capacitor.isNativePlatform()) {
                       try {
                         await Share.share({
-                          title: `Join ${clubBranding?.name || teamName}`,
                           text: msg,
                           dialogTitle: `Share invite`,
                         });
@@ -1898,7 +1913,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </div>
         )}
 
-        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-32 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           {canBulkInvite && (
             <TabsList className="grid w-full grid-cols-2 mb-4">

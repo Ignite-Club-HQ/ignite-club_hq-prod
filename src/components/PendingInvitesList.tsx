@@ -1,19 +1,5 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mail, UserCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+import { ChevronLeft, X } from "lucide-react";
 import PendingInviteCard from "./PendingInviteCard";
 
 interface PendingInvite {
@@ -38,216 +24,44 @@ interface PendingInvitesListProps {
   isAdmin?: boolean;
 }
 
-const roleLabels: Record<string, string> = {
-  player: "Player",
-  parent: "Parent",
-  coach: "Coach",
-  team_admin: "Team Admin",
-  club_admin: "Club Admin",
-};
+const HINT_KEY = "pending_invite_swipe_hint_seen";
 
 export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = true }: PendingInvitesListProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [isResendingAll, setIsResendingAll] = useState(false);
-  const [isDismissing, setIsDismissing] = useState(false);
-  const [showResendAllDialog, setShowResendAllDialog] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin || invites.length === 0) return;
+    try {
+      if (!localStorage.getItem(HINT_KEY)) {
+        setShowHint(true);
+      }
+    } catch {}
+  }, [isAdmin, invites.length]);
+
+  const dismissHint = () => {
+    setShowHint(false);
+    try { localStorage.setItem(HINT_KEY, "1"); } catch {}
+  };
 
   if (invites.length === 0) return null;
 
-  const invitesWithEmail = invites.filter(inv => inv.invited_email);
-
-  const handleDismissJoined = async () => {
-    setIsDismissing(true);
-    try {
-      const { data: count, error } = await supabase.rpc("dismiss_accepted_pending_invites", {
-        p_team_id: teamId || null,
-        p_club_id: clubId || null,
-      });
-      if (error) throw error;
-      const dismissed = count || 0;
-      queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
-      toast({
-        title: dismissed > 0
-          ? `Dismissed ${dismissed} stale invite${dismissed !== 1 ? "s" : ""}`
-          : "No stale invites found",
-        description: dismissed > 0
-          ? "Invites for members who already joined have been cleared."
-          : "All pending invites are for users who haven't joined yet.",
-      });
-    } catch (err) {
-      console.error("[PendingInvites] Dismiss error:", err);
-      toast({ title: "Failed to dismiss invites", variant: "destructive" });
-    } finally {
-      setIsDismissing(false);
-    }
-  };
-
-  const handleResendAll = async () => {
-    if (invitesWithEmail.length === 0) return;
-    setIsResendingAll(true);
-
-    // Fetch all invite tokens and metadata in one query
-    const { data: inviteDetails } = await supabase
-      .from("pending_invites")
-      .select("id, invite_token, metadata, team_id, club_id")
-      .in("id", invitesWithEmail.map(i => i.id));
-
-    const detailsMap = new Map((inviteDetails || []).map(d => [d.id, d]));
-
-    // Fetch club/team branding once
-    let clubName = "The Club";
-    let clubLogoUrl: string | undefined;
-    let clubContactEmail: string | undefined;
-    let teamName = "";
-
-    if (teamId) {
-      const { data: tData } = await supabase
-        .from("teams")
-        .select("name, club_id, clubs(name, logo_url, contact_email)")
-        .eq("id", teamId)
-        .single();
-      teamName = tData?.name || "";
-      clubName = (tData?.clubs as any)?.name || clubName;
-      clubLogoUrl = (tData?.clubs as any)?.logo_url || undefined;
-      clubContactEmail = (tData?.clubs as any)?.contact_email || undefined;
-    } else if (clubId) {
-      const { data: cData } = await supabase
-        .from("clubs")
-        .select("name, logo_url, contact_email")
-        .eq("id", clubId)
-        .single();
-      clubName = cData?.name || clubName;
-      clubLogoUrl = cData?.logo_url || undefined;
-      clubContactEmail = cData?.contact_email || undefined;
-    }
-
-    let sentCount = 0;
-    let failCount = 0;
-
-    for (const invite of invitesWithEmail) {
-      const detail = detailsMap.get(invite.id);
-      if (!detail?.invite_token) {
-        failCount++;
-        continue;
-      }
-
-      try {
-        const inviteLinkForEmail = `${window.location.origin}/join/p/${detail.invite_token}`;
-        const recipientName = invite.invited_label || invite.profiles?.display_name || "Member";
-        const meta = detail.metadata as { children?: { name: string }[]; customMessage?: string } | null;
-        const childrenNames = invite.role === "parent" && meta?.children
-          ? meta.children.map(c => c.name)
-          : undefined;
-
-        // Resolve team name for invites that may belong to different teams
-        let inviteTeamName = teamName;
-        if (!teamName && detail.team_id) {
-          const { data: t } = await supabase.from("teams").select("name").eq("id", detail.team_id).single();
-          inviteTeamName = t?.name || "";
-        }
-
-        const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
-          body: {
-            to: invite.invited_email,
-            subject: childrenNames && childrenNames.length === 1
-              ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
-              : childrenNames && childrenNames.length > 1
-                ? `Reminder: ${clubName} — see which team your kids are in ⚽`
-                : `Reminder: ${clubName} — you've been added to the team ⚽`,
-            template: "team-invite",
-            senderName: clubName !== "The Club" ? clubName : undefined,
-            replyTo: clubContactEmail,
-            templateData: {
-              recipientName,
-              invitedEmail: invite.invited_email,
-              teamName: inviteTeamName || clubName,
-              clubName,
-              roleName: roleLabels[invite.role] || invite.role.replace("_", " "),
-              inviteLink: inviteLinkForEmail,
-              clubLogoUrl,
-              childrenNames,
-              customMessage: meta?.customMessage,
-            },
-          },
-        });
-
-        if (funcError) throw funcError;
-
-        if (emailResult?.verified && emailResult?.success) {
-          await supabase
-            .from("pending_invites")
-            .update({
-              email_sent_at: new Date().toISOString(),
-              email_id: emailResult.emailId,
-              email_error: null,
-            } as any)
-            .eq("id", invite.id);
-          sentCount++;
-        } else {
-          throw new Error(emailResult?.error || "Email not verified");
-        }
-      } catch {
-        failCount++;
-      }
-    }
-
-    queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
-    setIsResendingAll(false);
-    setShowResendAllDialog(false);
-
-    if (failCount === 0) {
-      toast({ title: `Resent ${sentCount} invite email${sentCount !== 1 ? "s" : ""}` });
-    } else {
-      toast({
-        title: `Sent ${sentCount}, failed ${failCount}`,
-        description: "Some emails could not be sent",
-        variant: failCount === invitesWithEmail.length ? "destructive" : undefined,
-      });
-    }
-  };
-
   return (
-    <div className="space-y-2">
-      <div className="px-1 py-1.5 flex items-center justify-between gap-2">
+    <div className="space-y-1.5">
+      <div className="px-1 py-1.5">
         <span className="text-sm text-muted-foreground">
           {invites.length} pending invite{invites.length !== 1 ? "s" : ""}
         </span>
-        {isAdmin && (
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDismissJoined}
-              disabled={isDismissing}
-              className="h-7 text-xs gap-1.5"
-            >
-              {isDismissing ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <UserCheck className="h-3 w-3" />
-              )}
-              Dismiss Joined
-            </Button>
-            {invitesWithEmail.length > 1 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowResendAllDialog(true)}
-                disabled={isResendingAll}
-                className="h-7 text-xs gap-1.5"
-              >
-                {isResendingAll ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Mail className="h-3 w-3" />
-                )}
-                Resend All
-              </Button>
-            )}
-          </div>
-        )}
       </div>
+
+      {showHint && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/60 text-xs text-muted-foreground">
+          <ChevronLeft className="h-3.5 w-3.5 shrink-0 animate-pulse" />
+          <span className="flex-1">Swipe left on a card to manage invite</span>
+          <button onClick={dismissHint} className="shrink-0 p-0.5 rounded hover:bg-muted">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {invites.map((invite) => (
         <PendingInviteCard
@@ -258,30 +72,6 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
           isAdmin={isAdmin}
         />
       ))}
-
-      <AlertDialog open={showResendAllDialog} onOpenChange={setShowResendAllDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Resend All Invite Emails?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will resend invite emails to {invitesWithEmail.length} pending invite{invitesWithEmail.length !== 1 ? "s" : ""} that have email addresses.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isResendingAll}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleResendAll} disabled={isResendingAll}>
-              {isResendingAll ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                "Resend All"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
