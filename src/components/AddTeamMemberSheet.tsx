@@ -2917,6 +2917,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
                               className="h-7 text-xs w-24"
                               maxLength={4}
+                            />
                           </div>
                           {child.existingChildId && (
                             <p className="text-[10px] text-emerald-600 pl-1 flex items-center gap-1">
