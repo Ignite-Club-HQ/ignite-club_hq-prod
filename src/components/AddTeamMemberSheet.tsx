@@ -1850,25 +1850,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent side="bottom" enableDragToClose className="h-[90vh] rounded-t-2xl flex flex-col overflow-hidden">
-        <SheetHeader className="mb-4 shrink-0">
-          <SheetTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            Invite to Team
-          </SheetTitle>
+      <SheetContent side="bottom" enableDragToClose className="h-[85vh] rounded-t-2xl flex flex-col overflow-hidden">
+        <SheetHeader className="mb-3 shrink-0">
+          <SheetTitle>Invite to Team</SheetTitle>
           <SheetDescription>
-            Send a link or code to players, parents & coaches
+            Add players, parents or coaches
           </SheetDescription>
         </SheetHeader>
 
         {/* Club admin confirmation banner */}
         {isClubAdminOnly && (
-          <div className="mb-4 shrink-0">
+          <div className="mb-3 shrink-0">
             <ClubAdminConfirmBanner teamName={teamName} action="add members" />
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-6">
+        <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24">
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           {canBulkInvite && (
             <TabsList className="grid w-full grid-cols-2 mb-4">
@@ -1883,65 +1880,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             </TabsList>
           )}
 
-          {/* Role Selection - shared between modes */}
-          <div className="space-y-2 mb-5">
-            <Label>Role</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              To add child players, select Parent and add their details
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {roleOptions.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setSelectedRole(opt.value)}
-                  className={`p-3 rounded-xl text-left transition-all border-2 ${
-                    selectedRole === opt.value
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border hover:border-primary/50 hover:bg-muted/50"
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Badge variant="outline" className={opt.color}>
-                      {opt.label}
-                    </Badge>
-                    {opt.icon && <span className="text-sm">{opt.icon}</span>}
-                  </div>
-                  <p className="text-xs text-muted-foreground">{opt.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <TabsContent value="single" className="space-y-5 mt-0">
-            {/* Parent role preview - shows what fields will be available */}
-            {selectedRole === "parent" && (
-              <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20 mb-3">
-                <div className="flex items-start gap-2">
-                  <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-pink-600">Adding a parent with child players</p>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      After adding the parent, you'll be able to add their child's details. 
-                      The child will be registered as a player when the parent accepts the invite.
-                    </p>
-                    <div className="bg-background/50 rounded-lg p-2 border border-pink-500/10">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Example child fields:</p>
-                      <div className="flex flex-wrap gap-2">
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span>Child's Name</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span>Year of Birth</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+          <TabsContent value="single" className="space-y-4 mt-0">
             {/* Selected User Preview */}
             {selectedUser && (
               <>
