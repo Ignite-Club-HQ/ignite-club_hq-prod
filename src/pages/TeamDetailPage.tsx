@@ -777,15 +777,13 @@ export default function TeamDetailPage() {
             </Avatar>
           )}
         </div>
-          {(isAdmin || isClubAdmin) && (
-            <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" aria-label="Invite to team" onClick={() => {
+          <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" aria-label="Invite to team" onClick={() => {
               // Find and click the AddTeamMemberSheet trigger in the members section
               const addMemberBtn = document.querySelector('[data-invite-trigger]') as HTMLButtonElement;
               if (addMemberBtn) addMemberBtn.click();
             }}>
               <UserPlus className="h-4 w-4" aria-hidden="true" />
             </Button>
-          )}
           {isAdmin && isClassMode && (
             <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
               <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -1428,15 +1426,13 @@ export default function TeamDetailPage() {
                     </SelectContent>
                   </Select>
                   <div className="flex gap-2">
-                    {(isAdmin || isClubAdmin) && (
-                      <AddTeamMemberSheet 
+                    <AddTeamMemberSheet 
                         teamId={id!} 
                         teamName={team.name} 
                         clubId={team.club_id}
                         teamType={(team as any).team_type || "mixed"}
                         isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
                       />
-                    )}
                   </div>
                 </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
@@ -1448,15 +1444,13 @@ export default function TeamDetailPage() {
                       <p className="font-medium text-foreground">No members yet</p>
                       <p className="text-sm text-muted-foreground mt-1">Invite players, parents or coaches to get started</p>
                     </div>
-                    {(isAdmin || isClubAdmin) && (
-                      <AddTeamMemberSheet
+                    <AddTeamMemberSheet
                         teamId={id!}
                         teamName={team.name}
                         clubId={team.club_id}
                         teamType={(team as any).team_type || "mixed"}
                         isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
                       />
-                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
