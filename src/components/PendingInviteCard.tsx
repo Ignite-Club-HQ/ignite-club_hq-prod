@@ -462,11 +462,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   return (
     <>
       <Card
-        className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5 select-none"
-        onTouchStart={handleCardTouchStart}
-        onTouchMove={handleCardTouchMove}
-        onTouchEnd={handleCardTouchEnd}
-        onContextMenu={(e) => { if (isAdmin) e.preventDefault(); }}
+        className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5"
       >
         <CardContent className="p-3 flex items-center gap-3">
           <div className="relative">
