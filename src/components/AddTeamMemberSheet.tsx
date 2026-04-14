@@ -2346,7 +2346,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             )}
 
             {/* Email / delivery for new members (name entered, not existing user) */}
-            {!selectedUser && nameInput.trim() && (
+            {!selectedUser && nameConfirmed && nameInput.trim() && (
               <>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">How to deliver invite?</Label>
@@ -2425,7 +2425,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </div>
 
                 {/* Child fields for parent role (new member) */}
-                {selectedRole === "parent" && nameInput.trim() && (
+                {selectedRole === "parent" && nameConfirmed && nameInput.trim() && (
                   <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
                     <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 of 2 — Add your child's details</p>
                     <div className="flex items-center gap-2">
