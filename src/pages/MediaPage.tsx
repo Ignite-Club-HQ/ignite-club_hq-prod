@@ -516,7 +516,10 @@ export default function MediaPage() {
   const hasProAccess = isAppAdmin || hasProClub === true;
   const hasProAccessQueryFailed = !!proAccessError;
   const proAccessEverResolved = useRef(false);
-  if (hasProClub !== undefined || hasProAccessQueryFailed) {
+  // Only mark as resolved when the query ran with REAL role data (not empty due to auth race).
+  // If roles haven't loaded yet, a premature `false` from empty candidateIds must not be treated as final.
+  const rolesAreReady = !!userRoles && !loadingRoles;
+  if ((hasProClub !== undefined && rolesAreReady) || hasProAccessQueryFailed || isAppAdmin) {
     proAccessEverResolved.current = true;
   }
 
