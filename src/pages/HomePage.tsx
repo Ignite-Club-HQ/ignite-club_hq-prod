@@ -70,7 +70,7 @@ import { UpcomingClassesWidget } from "@/components/UpcomingClassesWidget";
 import { MyTeamsPremiumCarousel } from "@/components/MyTeamsPremiumCarousel";
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { ContactClubButton } from "@/components/ContactClubButton";
-import MemberInviteSheet from "@/components/MemberInviteSheet";
+import HomeInviteFlow from "@/components/HomeInviteFlow";
 import { HomeQuickActions } from "@/components/HomeQuickActions";
 
 type EventType = "game" | "training" | "social";
@@ -1615,7 +1615,7 @@ export default function HomePage() {
       {/* My Teams & Leagues - Premium Carousel */}
       <MyTeamsPremiumCarousel />
 
-      <MemberInviteSheet open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
+      <HomeInviteFlow open={memberInviteOpen} onOpenChange={setMemberInviteOpen} />
 
       {/* Upcoming Classes Widget - for parents with enrolled children */}
       <UpcomingClassesWidget />
