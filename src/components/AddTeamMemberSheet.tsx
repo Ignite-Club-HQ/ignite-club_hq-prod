@@ -2410,74 +2410,81 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                           const matches = !child.existingChildId && !child.confirmedNew && !child.pendingInviteId ? findMatchingChildren(child.name) : [];
                           return (
                             <div key={child.id} className="space-y-1">
-                              <div className="flex gap-2 items-start">
-                                <div className="flex-1 space-y-1 relative">
-                                  <Input
-                                    placeholder="Child's name"
-                                    value={child.name}
-                                    autoFocus={idx === 0 && !child.name}
-                                    onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
-                                    ))}
-                                    className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
-                                  />
-                                  {matches.length > 0 && !child.existingChildId && (
-                                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                                      {matches.map(m => (
-                                        <button
-                                          key={m.id}
-                                          type="button"
-                                          onClick={() => setSingleChildren(singleChildren.map(c => 
-                                            c.id === child.id ? ((m as any).isPending
-                                              ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
-                                              : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
-                                          ))}
-                                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
-                                        >
-                                          <span className="font-medium">{m.name}</span>
-                                          <span className="text-xs text-muted-foreground">{m.parent_name} {m.year_of_birth ? `· ${m.year_of_birth}` : ''}</span>
-                                        </button>
+                              <div className="space-y-2">
+                                <div className="flex gap-2 items-start">
+                                  <div className="flex-1 space-y-1 relative">
+                                    <Input
+                                      placeholder="Child's name"
+                                      value={child.name}
+                                      autoFocus={idx === 0 && !child.name}
+                                      onChange={(e) => setSingleChildren(singleChildren.map(c => 
+                                        c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
                                       ))}
-                                    </div>
-                                  )}
+                                      className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                    />
+                                    {matches.length > 0 && !child.existingChildId && (
+                                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                                        {matches.map(m => (
+                                          <button
+                                            key={m.id}
+                                            type="button"
+                                            onClick={() => setSingleChildren(singleChildren.map(c => 
+                                              c.id === child.id ? ((m as any).isPending
+                                                ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
+                                                : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
+                                            ))}
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
+                                          >
+                                            <span className="font-medium">{m.name}</span>
+                                            <span className="text-xs text-muted-foreground">{m.parent_name} {m.year_of_birth ? `· ${m.year_of_birth}` : ''}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-9 w-9 text-destructive hover:text-destructive"
+                                    onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </div>
-                                <div className="w-16">
-                                  <Input
-                                    placeholder="#"
-                                    value={child.jerseyNumber}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, "").slice(0, 2);
-                                      setSingleChildren(singleChildren.map(c => 
-                                        c.id === child.id ? { ...c, jerseyNumber: val } : c
-                                      ));
-                                    }}
-                                    className="h-9"
-                                    maxLength={2}
-                                    inputMode="numeric"
-                                  />
+                                <div className="flex gap-2 pl-0">
+                                  <div className="w-20">
+                                    <Input
+                                      placeholder="Jersey #"
+                                      value={child.jerseyNumber}
+                                      onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                        setSingleChildren(singleChildren.map(c => 
+                                          c.id === child.id ? { ...c, jerseyNumber: val } : c
+                                        ));
+                                      }}
+                                      className="h-8 text-xs"
+                                      maxLength={2}
+                                      inputMode="numeric"
+                                    />
+                                  </div>
+                                  <div className="w-24">
+                                    <Input
+                                      placeholder="Birth year"
+                                      value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
+                                      onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                                        setSingleChildren(singleChildren.map(c => 
+                                          c.id === child.id ? { ...c, yearOfBirth: val } : c
+                                        ));
+                                      }}
+                                      className="h-8 text-xs"
+                                      maxLength={4}
+                                      disabled={!!child.existingChildId}
+                                    />
+                                  </div>
                                 </div>
-                                <div className="w-20">
-                                  <Input
-                                    placeholder="Year"
-                                    value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                                      setSingleChildren(singleChildren.map(c => 
-                                        c.id === child.id ? { ...c, yearOfBirth: val } : c
-                                      ));
-                                    }}
-                                    className="h-9"
-                                    maxLength={4}
-                                    disabled={!!child.existingChildId}
-                                  />
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-9 w-9 text-destructive hover:text-destructive"
-                                  onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
-                                >
+                              </div>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
