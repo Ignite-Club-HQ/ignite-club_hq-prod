@@ -2874,9 +2874,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   
                   {/* Children inputs for parent role */}
                   {member.role === "parent" && (
-                    <div className="space-y-2 pl-3 border-l-2 border-pink-500/30">
+                    <div className="space-y-2 pl-3 border-l-2 border-primary/30">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-pink-600 flex items-center gap-1">
+                        <span className="text-xs font-medium text-primary flex items-center gap-1">
                           <Baby className="h-3 w-3" />
                           Children
                         </span>
