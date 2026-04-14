@@ -161,13 +161,21 @@ serve(async (req) => {
       month: "long",
       day: "numeric",
     });
-    const eventTime = event.start_time
-      ? new Date(`2000-01-01T${event.start_time}`).toLocaleTimeString("en-AU", {
+    let eventTime = "TBC";
+    if (event.start_time) {
+      // start_time may be a full timestamp ("2026-04-16 06:30:00+00") or bare time ("17:00:00")
+      const timeStr = String(event.start_time);
+      const parsed = timeStr.includes("T") || timeStr.includes(" ")
+        ? new Date(timeStr)
+        : new Date(`2000-01-01T${timeStr}`);
+      if (!isNaN(parsed.getTime())) {
+        eventTime = parsed.toLocaleTimeString("en-AU", {
           hour: "numeric",
           minute: "2-digit",
           hour12: true,
-        })
-      : "TBC";
+        });
+      }
+    }
     const eventLocation = event.suburb || event.address || undefined;
     const teamName = (event.teams as any)?.name || "Your Team";
     const clubName = (event.clubs as any)?.name || "Your Club";
