@@ -162,6 +162,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
 
+  // Pre-fill guardian child when opened via child's "Invite Parent" action
+  useEffect(() => {
+    if (prefillGuardianChild && open) {
+      setSelectedRole("parent");
+      setSingleChildren([{
+        id: crypto.randomUUID(),
+        name: prefillGuardianChild.childName,
+        yearOfBirth: "",
+        jerseyNumber: "",
+      }]);
+      autoChildTriggered.current = true;
+    }
+  }, [prefillGuardianChild, open]);
+
   // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
   useEffect(() => {
     const nameReady = selectedUser || nameConfirmed;
