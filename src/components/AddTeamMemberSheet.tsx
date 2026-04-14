@@ -2394,7 +2394,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </div>
 
                 {/* Child fields for parent role (new member) */}
-                {selectedRole === "parent" && (
+                {selectedRole === "parent" && nameInput.trim() && (
                   <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
                     <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 of 2 — Add your child's details</p>
                     <div className="flex items-center gap-2">
@@ -2907,7 +2907,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               placeholder="Jersey #"
                               value={child.jerseyNumber}
                               onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
-                              className="h-7 text-xs w-20"
+                              className="h-9 text-sm w-24"
                               maxLength={2}
                               inputMode="numeric"
                             />
@@ -2915,7 +2915,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               placeholder="Birth year"
                               value={child.yearOfBirth}
                               onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
-                              className="h-7 text-xs w-24"
+                              className="h-9 text-sm w-28"
                               maxLength={4}
                             />
                           </div>
