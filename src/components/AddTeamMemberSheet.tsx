@@ -1894,7 +1894,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24">
+        <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           {canBulkInvite && (
             <TabsList className="grid w-full grid-cols-2 mb-4">
