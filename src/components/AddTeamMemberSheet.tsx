@@ -3124,6 +3124,41 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </TabsContent>
         </Tabs>
         </div>
+
+        {/* Sticky CTA footer */}
+        {mode === "single" && (
+          <div className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6">
+            {selectedUser ? (
+              <Button
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => addExistingUserMutation.mutate()}
+                disabled={addExistingUserMutation.isPending}
+              >
+                {addExistingUserMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : (
+                  <UserPlus className="h-5 w-5 mr-2" />
+                )}
+                {selectedRole === "parent" && (selectedSecondParent || (secondParentName.trim() && secondParentEmail.trim()))
+                  ? `Continue`
+                  : `Continue`}
+              </Button>
+            ) : (
+              <Button
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => addPendingMemberMutation.mutate()}
+                disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
+              >
+                {addPendingMemberMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : (
+                  <UserPlus className="h-5 w-5 mr-2" />
+                )}
+                Continue
+              </Button>
+            )}
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
