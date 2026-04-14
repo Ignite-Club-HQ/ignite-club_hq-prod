@@ -2266,9 +2266,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             {/* Second parent/guardian for existing user */}
             {selectedUser && selectedRole === "parent" && singleChildren.length > 0 && (
               <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 3 of 3 — Optional</p>
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-blue-600" />
-                  <Label className="text-blue-600 font-medium">Second Parent / Guardian (Optional)</Label>
+                  <Label className="text-blue-600 font-medium">Second Parent / Guardian</Label>
                 </div>
 
                 {selectedSecondParent ? (
@@ -2594,9 +2595,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 {/* Second parent/guardian fields (new member) */}
                 {selectedRole === "parent" && singleChildren.length > 0 && (
                   <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 3 of 3 — Optional</p>
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-blue-600" />
-                      <Label className="text-blue-600 font-medium">Second Parent / Guardian (Optional)</Label>
+                      <Label className="text-blue-600 font-medium">Second Parent / Guardian</Label>
                     </div>
 
                     {selectedSecondParent ? (
