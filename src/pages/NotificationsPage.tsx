@@ -530,6 +530,7 @@ export default function NotificationsPage() {
       case "event_cancelled":
       case "event_updated":
       case "event_reminder":
+      case "event_view_reminder":
       case "duty_assigned":
       case "rsvp":
       case "rsvp_update":
