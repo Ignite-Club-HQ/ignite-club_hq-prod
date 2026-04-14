@@ -6208,6 +6208,18 @@ export type Database = {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
+      can_view_message_read: {
+        Args: {
+          _broadcast_message_id: string
+          _club_admin_message_id: string
+          _club_message_id: string
+          _direct_message_id: string
+          _group_message_id: string
+          _team_message_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       can_view_mini_league: {
         Args: { _mini_league_id: string; _user_id: string }
         Returns: boolean
