@@ -1641,19 +1641,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   if (bulkResults.length > 0) {
     return (
       <Sheet open={open} onOpenChange={handleClose}>
-        <SheetTrigger asChild>
-          {triggerVariant === "icon" ? (
-            <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
-              <UserPlus className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Invite to Team
-            </Button>
-          )}
-        </SheetTrigger>
-        <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl overflow-y-auto">
+        {triggerVariant !== "none" && (
+          <SheetTrigger asChild>
+            {triggerVariant === "icon" ? (
+              <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
+                <UserPlus className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite to Team
+              </Button>
+            )}
+          </SheetTrigger>
+        )}
           <SheetHeader className="mb-6">
             <SheetTitle className="flex items-center gap-2 text-green-600">
               <CheckCircle2 className="h-5 w-5" />
@@ -1732,19 +1733,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   if (inviteLink) {
     return (
       <Sheet open={open} onOpenChange={handleClose}>
-        <SheetTrigger asChild>
-          {triggerVariant === "icon" ? (
-            <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
-              <UserPlus className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Invite to Team
-            </Button>
-          )}
-        </SheetTrigger>
-        <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl">
+        {triggerVariant !== "none" && (
+          <SheetTrigger asChild>
+            {triggerVariant === "icon" ? (
+              <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
+                <UserPlus className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite to Team
+              </Button>
+            )}
+          </SheetTrigger>
+        )}
           <SheetHeader className="mb-6">
             <SheetTitle className="flex items-center gap-2 text-green-600">
               <CheckCircle2 className="h-5 w-5" />
@@ -1848,18 +1850,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        {triggerVariant === "icon" ? (
-          <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
-            <UserPlus className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Invite to Team
-          </Button>
-        )}
-      </SheetTrigger>
+      {triggerVariant !== "none" && (
+        <SheetTrigger asChild>
+          {triggerVariant === "icon" ? (
+            <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Invite to Team
+            </Button>
+          )}
+        </SheetTrigger>
+      )}
       <SheetContent side="bottom" enableDragToClose className="max-h-[85vh] rounded-t-2xl flex flex-col overflow-hidden" data-lock-keyboard-scroll="true">
         <SheetHeader className="mb-3 shrink-0">
           <SheetTitle>Invite to Team</SheetTitle>
