@@ -636,6 +636,12 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                     )}
                     {!invite.invited_email ? "Send email" : invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
                   </DropdownMenuItem>
+                  {teamId && clubId && (
+                    <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      Move to team
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => setShowDeleteDialog(true)}
