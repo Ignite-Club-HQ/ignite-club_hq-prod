@@ -25,11 +25,12 @@ import { RecurringEventActionDialog } from "@/components/RecurringEventActionDia
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
 import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users, MoreVertical } from "lucide-react";
-import { format, parseISO, isToday, isTomorrow, differenceInCalendarDays } from "date-fns";
+import { format } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { formatEventContextualDate } from "@/lib/eventRelativeDate";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -65,15 +66,8 @@ const typeBadgeStyles: Record<string, string> = {
 };
 
 function formatContextualDate(dateStr: string) {
-  const date = parseISO(dateStr);
-  const now = new Date();
-  const time = format(date, "h:mm a");
-  if (isToday(date)) return `Today · ${time}`;
-  if (isTomorrow(date)) return `Tomorrow · ${time}`;
-  const daysAway = differenceInCalendarDays(date, now);
-  if (daysAway > 0 && daysAway <= 6) return `This ${format(date, "EEEE")} · ${time}`;
-  if (daysAway > 6 && daysAway <= 13) return `Next ${format(date, "EEEE")} · ${time}`;
-  return `${format(date, "EEE d MMM")} · ${time}`;
+  const { label, time } = formatEventContextualDate(dateStr);
+  return `${label} · ${time}`;
 }
 
 function buildFamilyRsvpSummary(
