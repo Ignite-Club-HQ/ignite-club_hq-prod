@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { MoreVertical, RefreshCw, Pencil, Trash2 } from "lucide-react";
+import { MoreVertical, RefreshCw, Pencil, Trash2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +14,7 @@ interface ChatHeaderMenuProps {
   isRefreshing?: boolean;
   onEditGroup?: () => void;
   onDeleteGroup?: () => void;
+  onSearch?: () => void;
 }
 
 export function ChatHeaderMenu({
@@ -22,8 +22,9 @@ export function ChatHeaderMenu({
   isRefreshing = false,
   onEditGroup,
   onDeleteGroup,
+  onSearch,
 }: ChatHeaderMenuProps) {
-  const hasAnyAction = !!onRefresh || !!onEditGroup || !!onDeleteGroup;
+  const hasAnyAction = !!onRefresh || !!onEditGroup || !!onDeleteGroup || !!onSearch;
   if (!hasAnyAction) return null;
 
   return (
@@ -39,8 +40,16 @@ export function ChatHeaderMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="bg-popover min-w-[180px]">
+        {onSearch && (
+          <DropdownMenuItem onClick={onSearch}>
+            <Search className="h-4 w-4 mr-2" />
+            Search messages
+          </DropdownMenuItem>
+        )}
+
         {(onEditGroup || onDeleteGroup) && (
           <>
+            {onSearch && <DropdownMenuSeparator />}
             {onEditGroup && (
               <DropdownMenuItem onClick={onEditGroup}>
                 <Pencil className="h-4 w-4 mr-2" />
@@ -56,18 +65,20 @@ export function ChatHeaderMenu({
                 Delete group
               </DropdownMenuItem>
             )}
-            {onRefresh && <DropdownMenuSeparator />}
           </>
         )}
 
         {onRefresh && (
-          <DropdownMenuItem
-            onClick={() => void onRefresh()}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-            Refresh messages
-          </DropdownMenuItem>
+          <>
+            {(onEditGroup || onDeleteGroup || onSearch) && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              onClick={() => void onRefresh()}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+              Refresh messages
+            </DropdownMenuItem>
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
