@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2 } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
@@ -158,6 +158,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   const debouncedNameInput = useDebounce(nameInput, 300);
   const autoChildTriggered = useRef(false);
+  const [nameConfirmed, setNameConfirmed] = useState(false);
 
   // Auto-open first child input when Parent role is selected and an existing user is picked
   useEffect(() => {
@@ -1556,6 +1557,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const handleClose = () => {
     setOpen(false);
     setNameInput("");
+    setNameConfirmed(false);
     setSelectedUser(null);
     setCustomEmail("");
     setDeliveryMethod("share");
@@ -1841,6 +1843,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 setInviteLink(null);
                 setInviteShareLink(null);
                 setNameInput("");
+                setNameConfirmed(false);
                 setCustomEmail("");
                 setDeliveryMethod("share");
                 setSingleChildren([]);
