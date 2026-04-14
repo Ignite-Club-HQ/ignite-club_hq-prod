@@ -157,7 +157,50 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     ? `https://igniteclubhq.app/j/${pendingShortCode}` 
     : inviteLink;
 
-  const handleCopyLink = async () => {
+  // Fetch teams in the club for "Move to Team" (only when teamId is set)
+  const { data: clubTeams = [] } = useQuery({
+    queryKey: ["club-teams-for-pending-move", clubId, teamId],
+    queryFn: async () => {
+      if (!clubId) return [];
+      const { data, error } = await supabase
+        .from("teams")
+        .select("id, name, is_archived")
+        .eq("club_id", clubId!)
+        .order("name");
+      if (error) throw error;
+      return (data || []).filter((t) => !t.is_archived && t.id !== teamId);
+    },
+    enabled: showMoveSheet && !!clubId && !!teamId,
+  });
+
+  const movePendingInviteMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedMoveTeamId) throw new Error("No team selected");
+      const { error } = await supabase
+        .from("pending_invites")
+        .update({ team_id: selectedMoveTeamId })
+        .eq("id", invite.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      const targetTeam = clubTeams.find((t) => t.id === selectedMoveTeamId);
+      toast({
+        title: "Invite moved",
+        description: `${invite.invited_label || "Invite"} moved to ${targetTeam?.name || "new team"}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
+      setShowMoveSheet(false);
+      setSelectedMoveTeamId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to move invite",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    },
+  });
+
     if (!inviteLink) {
       toast({ title: "No invite link available", variant: "destructive" });
       return;
