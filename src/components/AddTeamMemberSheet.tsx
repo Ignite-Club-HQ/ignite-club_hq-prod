@@ -2160,7 +2160,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               </Button>
                             </div>
                             <div className="flex gap-2 pl-0">
-                              <div className="w-20">
+                              <div className="flex-1">
                                 <Input
                                   placeholder="Jersey #"
                                   value={child.jerseyNumber}
@@ -2170,12 +2170,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       c.id === child.id ? { ...c, jerseyNumber: val } : c
                                     ));
                                   }}
-                                  className="h-8 text-xs"
+                                  className="h-10 text-sm"
                                   maxLength={2}
                                   inputMode="numeric"
                                 />
                               </div>
-                              <div className="w-24">
+                              <div className="flex-1">
                                 <Input
                                   placeholder="Birth year"
                                   value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
@@ -2185,7 +2185,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                       c.id === child.id ? { ...c, yearOfBirth: val } : c
                                     ));
                                   }}
-                                  className="h-8 text-xs"
+                                  className="h-10 text-sm"
                                   maxLength={4}
                                   disabled={!!child.existingChildId}
                                 />
@@ -2485,7 +2485,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                   </Button>
                                 </div>
                                 <div className="flex gap-2 pl-0">
-                                  <div className="w-20">
+                                  <div className="flex-1">
                                     <Input
                                       placeholder="Jersey #"
                                       value={child.jerseyNumber}
@@ -2495,12 +2495,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                           c.id === child.id ? { ...c, jerseyNumber: val } : c
                                         ));
                                       }}
-                                      className="h-8 text-xs"
+                                      className="h-10 text-sm"
                                       maxLength={2}
                                       inputMode="numeric"
                                     />
                                   </div>
-                                  <div className="w-24">
+                                  <div className="flex-1">
                                     <Input
                                       placeholder="Birth year"
                                       value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
@@ -2510,7 +2510,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                           c.id === child.id ? { ...c, yearOfBirth: val } : c
                                         ));
                                       }}
-                                      className="h-8 text-xs"
+                                      className="h-10 text-sm"
                                       maxLength={4}
                                       disabled={!!child.existingChildId}
                                     />
