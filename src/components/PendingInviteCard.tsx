@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, Copy, Share2 } from "lucide-react";
+import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, Copy, Share2, ArrowRightLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Capacitor } from "@capacitor/core";
 
@@ -40,6 +40,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -93,6 +101,8 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [showMoveSheet, setShowMoveSheet] = useState(false);
+  const [selectedMoveTeamId, setSelectedMoveTeamId] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState("");
   const [editName, setEditName] = useState(invite.invited_label || "");
   const [editRole, setEditRole] = useState<AppRole>(invite.role as AppRole);
@@ -155,9 +165,55 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     ? `https://igniteclubhq.app/j/${pendingShortCode}` 
     : inviteLink;
 
+  // Fetch teams in the club for "Move to Team" (only when teamId is set)
+  const { data: clubTeams = [] } = useQuery({
+    queryKey: ["club-teams-for-pending-move", clubId, teamId],
+    queryFn: async () => {
+      if (!clubId) return [];
+      const { data, error } = await supabase
+        .from("teams")
+        .select("id, name, is_archived")
+        .eq("club_id", clubId!)
+        .order("name");
+      if (error) throw error;
+      return (data || []).filter((t) => !t.is_archived && t.id !== teamId);
+    },
+    enabled: showMoveSheet && !!clubId && !!teamId,
+  });
+
+  const movePendingInviteMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedMoveTeamId) throw new Error("No team selected");
+      const { error } = await supabase
+        .from("pending_invites")
+        .update({ team_id: selectedMoveTeamId })
+        .eq("id", invite.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      const targetTeam = clubTeams.find((t) => t.id === selectedMoveTeamId);
+      toast({
+        title: "Invite moved",
+        description: `${invite.invited_label || "Invite"} moved to ${targetTeam?.name || "new team"}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
+      setShowMoveSheet(false);
+      setSelectedMoveTeamId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to move invite",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCopyLink = async () => {
     if (!inviteLink) {
       toast({ title: "No invite link available", variant: "destructive" });
+      return;
+    }
       return;
     }
     try {
@@ -588,6 +644,12 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                     )}
                     {!invite.invited_email ? "Send email" : invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
                   </DropdownMenuItem>
+                  {teamId && clubId && (
+                    <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      Move to team
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => setShowDeleteDialog(true)}
@@ -721,6 +783,61 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Move to Team Sheet */}
+      <Sheet open={showMoveSheet} onOpenChange={setShowMoveSheet}>
+        <SheetContent side="bottom" className="max-h-[80vh] rounded-t-2xl">
+          <SheetHeader className="text-left pb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-primary" />
+              Move Pending Invite
+            </SheetTitle>
+            <SheetDescription>
+              Move <span className="font-medium text-foreground">{invite.invited_label || "this invite"}</span> to another team
+            </SheetDescription>
+          </SheetHeader>
+
+          {clubTeams.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No other teams available</p>
+          ) : (
+            <RadioGroup
+              value={selectedMoveTeamId || ""}
+              onValueChange={setSelectedMoveTeamId}
+              className="space-y-2 max-h-[40vh] overflow-y-auto pr-1"
+            >
+              {clubTeams.map((team) => (
+                <Label
+                  key={team.id}
+                  htmlFor={`move-pending-${team.id}`}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                    selectedMoveTeamId === team.id
+                      ? "bg-primary/10 border-primary"
+                      : "bg-muted/30 border-border hover:bg-muted/50"
+                  }`}
+                >
+                  <RadioGroupItem value={team.id} id={`move-pending-${team.id}`} />
+                  <span className="text-sm font-medium">{team.name}</span>
+                </Label>
+              ))}
+            </RadioGroup>
+          )}
+
+          <div className="pt-4">
+            <Button
+              className="w-full h-12 text-base font-semibold"
+              disabled={!selectedMoveTeamId || movePendingInviteMutation.isPending}
+              onClick={() => movePendingInviteMutation.mutate()}
+            >
+              {movePendingInviteMutation.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              ) : (
+                <ArrowRightLeft className="h-5 w-5 mr-2" />
+              )}
+              Move to Team
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
