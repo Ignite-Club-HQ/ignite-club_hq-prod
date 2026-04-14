@@ -2641,32 +2641,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 Add multiple members at once. Email addresses are optional.
               </p>
               
-              {/* Parent role preview hint for bulk tab */}
+              {/* Contextual hint for parent role */}
               {(selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")) && (
-                <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20">
-                  <div className="flex items-start gap-2">
-                    <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-pink-600">Adding parents with child players</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        For each parent row, you can add their children's details below.
-                      </p>
-                      <div className="bg-background/50 rounded-lg p-2 border border-pink-500/10">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Child fields per parent:</p>
-                        <div className="flex flex-wrap gap-2">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <User className="h-3 w-3" />
-                            <span>Child's Name</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            <span>Year of Birth</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Baby className="h-3.5 w-3.5 text-pink-500" />
+                  Add child details under each parent row
+                </p>
               )}
               
               {/* CSV Import */}
