@@ -2641,32 +2641,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 Add multiple members at once. Email addresses are optional.
               </p>
               
-              {/* Parent role preview hint for bulk tab */}
+              {/* Contextual hint for parent role */}
               {(selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")) && (
-                <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20">
-                  <div className="flex items-start gap-2">
-                    <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-pink-600">Adding parents with child players</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        For each parent row, you can add their children's details below.
-                      </p>
-                      <div className="bg-background/50 rounded-lg p-2 border border-pink-500/10">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Child fields per parent:</p>
-                        <div className="flex flex-wrap gap-2">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <User className="h-3 w-3" />
-                            <span>Child's Name</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            <span>Year of Birth</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Baby className="h-3.5 w-3.5 text-pink-500" />
+                  Add child details under each parent row
+                </p>
               )}
               
               {/* CSV Import */}
@@ -3102,33 +3082,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               )}
             </div>
 
-            <Button
-              className="w-full h-12 text-base font-semibold"
-              onClick={() => addBulkMembersMutation.mutate(undefined)}
-              disabled={validBulkCount === 0 || addBulkMembersMutation.isPending}
-            >
-              {addBulkMembersMutation.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              ) : (
-                <Send className="h-5 w-5 mr-2" />
-              )}
-              {validBulkCount > 0 
-                ? (() => {
-                    const emailCount = bulkMembers.filter(m => m.name.trim() && m.email.trim()).length;
-                    return emailCount > 0
-                      ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""} & Send ${emailCount} Invite${emailCount > 1 ? "s" : ""}`
-                      : `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""}`;
-                  })()
-                : "Enter names to continue"}
-            </Button>
           </TabsContent>
         </Tabs>
         </div>
 
         {/* Sticky CTA footer */}
-        {mode === "single" && (
-          <div className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6">
-            {selectedUser ? (
+        <div className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6">
+          {mode === "single" ? (
+            selectedUser ? (
               <Button
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => addExistingUserMutation.mutate()}
@@ -3139,9 +3100,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 ) : (
                   <UserPlus className="h-5 w-5 mr-2" />
                 )}
-                {selectedRole === "parent" && (selectedSecondParent || (secondParentName.trim() && secondParentEmail.trim()))
-                  ? `Continue`
-                  : `Continue`}
+                Continue
               </Button>
             ) : (
               <Button
@@ -3156,9 +3115,24 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 )}
                 Continue
               </Button>
-            )}
-          </div>
-        )}
+            )
+          ) : (
+            <Button
+              className="w-full h-12 text-base font-semibold"
+              onClick={() => addBulkMembersMutation.mutate(undefined)}
+              disabled={validBulkCount === 0 || addBulkMembersMutation.isPending}
+            >
+              {addBulkMembersMutation.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              ) : (
+                <Send className="h-5 w-5 mr-2" />
+              )}
+              {validBulkCount > 0 
+                ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""}`
+                : "Enter names to continue"}
+            </Button>
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   );
