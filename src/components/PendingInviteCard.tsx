@@ -456,7 +456,46 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
 
   return (
     <>
-      <Card className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5">
+      <Card
+        className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5 select-none"
+        onPointerDown={(e) => {
+          if (!isAdmin) return;
+          longPressTriggered.current = false;
+          longPressTimer.current = setTimeout(() => {
+            longPressTriggered.current = true;
+            setShowContextMenu(true);
+            // Haptic feedback on native
+            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+              navigator.vibrate(10);
+            }
+          }, 500);
+        }}
+        onPointerUp={() => {
+          if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+          }
+        }}
+        onPointerCancel={() => {
+          if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+          }
+        }}
+        onPointerMove={(e) => {
+          // Cancel long press if finger moves (scrolling)
+          if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+          }
+        }}
+        onContextMenu={(e) => {
+          if (isAdmin) {
+            e.preventDefault();
+            setShowContextMenu(true);
+          }
+        }}
+      >
         <CardContent className="p-3 flex items-center gap-3">
           <div className="relative">
             <Avatar className="h-10 w-10 ring-2 ring-orange-500/30 ring-offset-2 ring-offset-background">
@@ -505,70 +544,64 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 Sent {timeAgo}
               </span>
             </div>
+            {isAdmin && (
+              <p className="text-[10px] text-muted-foreground/60 mt-1 italic">Hold to edit or revoke</p>
+            )}
           </div>
 
-          {/* Action buttons - Send Reminder CTA + 3-dot menu */}
+          {/* Send Reminder CTA only */}
           {isAdmin && (
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="shrink-0">
               <Button
                 size="sm"
                 variant="default"
                 className="h-8 text-xs font-semibold gap-1.5 px-3"
-                onClick={() => setShowReminderSheet(true)}
+                onClick={(e) => {
+                  if (longPressTriggered.current) {
+                    e.preventDefault();
+                    return;
+                  }
+                  setShowReminderSheet(true);
+                }}
               >
                 <Send className="h-3.5 w-3.5" />
                 <span className="hidden xs:inline">Remind</span>
               </Button>
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 touch-none"
-                    onPointerDown={(e) => {
-                      // Track touch start position to distinguish taps from scrolls
-                      (e.currentTarget as any)._touchStart = { x: e.clientX, y: e.clientY };
-                    }}
-                    onClick={(e) => {
-                      const start = (e.currentTarget as any)._touchStart;
-                      if (start) {
-                        const dx = Math.abs(e.clientX - start.x);
-                        const dy = Math.abs(e.clientY - start.y);
-                        // If finger moved more than 8px, it was a scroll — suppress
-                        if (dx > 8 || dy > 8) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          return;
-                        }
-                      }
-                    }}
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleOpenEdit}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit name/role
-                  </DropdownMenuItem>
-                  {teamId && clubId && (
-                    <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
-                      <ArrowRightLeft className="h-4 w-4 mr-2" />
-                      Move to team
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Revoke invite
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Long-press context menu */}
+      {isAdmin && (
+        <DropdownMenu open={showContextMenu} onOpenChange={setShowContextMenu} modal={true}>
+          <DropdownMenuTrigger className="sr-only" />
+          <DropdownMenuContent
+            align="end"
+            className="min-w-[180px]"
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
+            <DropdownMenuItem onClick={handleOpenEdit}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit name/role
+            </DropdownMenuItem>
+            {teamId && clubId && (
+              <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
+                <ArrowRightLeft className="h-4 w-4 mr-2" />
+                Move to team
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              onClick={() => setShowDeleteDialog(true)}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Revoke invite
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
         </CardContent>
       </Card>
 
