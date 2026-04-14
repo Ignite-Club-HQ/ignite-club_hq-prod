@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2 } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
@@ -79,6 +79,14 @@ interface AddTeamMemberSheetProps {
   teamType?: TeamType;
   /** True when the user is a club admin but NOT a direct member of this team */
   isClubAdminOnly?: boolean;
+  /** Whether the user can use bulk/multiple invite mode (admin/coach only) */
+  canBulkInvite?: boolean;
+  /** Trigger button style: "default" shows full button, "icon" shows icon-only, "none" hides trigger (use externalOpen) */
+  triggerVariant?: "default" | "icon" | "none";
+  /** Externally controlled open state */
+  externalOpen?: boolean;
+  /** Callback when open state changes externally */
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
@@ -88,7 +96,7 @@ const allRoleOptions: { value: TeamRole; label: string; description: string; col
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default", externalOpen, onExternalOpenChange }: AddTeamMemberSheetProps) {
   // Filter role options based on team type
   const roleOptions = allRoleOptions.filter(opt => {
     if (teamType === "junior") {
@@ -111,7 +119,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = externalOpen !== undefined;
+  const open = isControlled ? externalOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (isControlled) onExternalOpenChange?.(v);
+    else setInternalOpen(v);
+  };
   const [nameInput, setNameInput] = useState("");
   const [selectedUser, setSelectedUser] = useState<{
     id: string;
@@ -143,6 +157,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const debouncedSecondParentSearch = useDebounce(secondParentSearch, 300);
 
   const debouncedNameInput = useDebounce(nameInput, 300);
+  const autoChildTriggered = useRef(false);
+  const [nameConfirmed, setNameConfirmed] = useState(false);
+
+  // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
+  useEffect(() => {
+    const nameReady = selectedUser || nameConfirmed;
+    if (selectedRole === "parent" && nameReady && singleChildren.length === 0 && !autoChildTriggered.current) {
+      autoChildTriggered.current = true;
+      setSingleChildren([{ id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
+    }
+    if (selectedRole !== "parent") {
+      autoChildTriggered.current = false;
+    }
+  }, [selectedRole, selectedUser, nameConfirmed, singleChildren.length]);
 
   // Fetch existing members (separate key from TeamDetail members query to avoid cache shape collisions)
   const { data: existingMembers } = useQuery({
@@ -1499,7 +1527,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     const isAdminRole = ['club_admin', 'committee_member', 'coach', 'team_admin'].includes(selectedRole);
     const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
     const email = customEmail.trim();
-    const appDownload = `\n\n📲 Download "Ignite Club HQ" from the App Store or Google Play to get started.`;
+    const appDownload = `\n\n📲 Get the app:\nApple: https://apps.apple.com/au/app/ignite-club-hq/id6758928691\nAndroid: https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub`;
     const emailNote = email ? `\n\nSign up with ${email} so your account links automatically.` : "";
     const link = overrideLink || inviteShareLink || inviteLink || "";
 
@@ -1530,6 +1558,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const handleClose = () => {
     setOpen(false);
     setNameInput("");
+    setNameConfirmed(false);
     setSelectedUser(null);
     setCustomEmail("");
     setDeliveryMethod("share");
@@ -1539,6 +1568,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setInviteSent(false);
     setMode("single");
     setSingleChildren([]);
+    autoChildTriggered.current = false;
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [], selectedUser: null }]);
     setBulkResults([]);
     setCustomMessage("");
@@ -1627,12 +1657,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   if (bulkResults.length > 0) {
     return (
       <Sheet open={open} onOpenChange={handleClose}>
-        <SheetTrigger asChild>
-          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Invite to Team
-          </Button>
-        </SheetTrigger>
+        {triggerVariant !== "none" && (
+          <SheetTrigger asChild>
+            {triggerVariant === "icon" ? (
+              <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
+                <UserPlus className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite to Team
+              </Button>
+            )}
+          </SheetTrigger>
+        )}
         <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl overflow-y-auto">
           <SheetHeader className="mb-6">
             <SheetTitle className="flex items-center gap-2 text-green-600">
@@ -1712,12 +1750,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   if (inviteLink) {
     return (
       <Sheet open={open} onOpenChange={handleClose}>
-        <SheetTrigger asChild>
-          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Invite to Team
-          </Button>
-        </SheetTrigger>
+        {triggerVariant !== "none" && (
+          <SheetTrigger asChild>
+            {triggerVariant === "icon" ? (
+              <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
+                <UserPlus className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite to Team
+              </Button>
+            )}
+          </SheetTrigger>
+        )}
         <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl">
           <SheetHeader className="mb-6">
             <SheetTitle className="flex items-center gap-2 text-green-600">
@@ -1798,6 +1844,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 setInviteLink(null);
                 setInviteShareLink(null);
                 setNameInput("");
+                setNameConfirmed(false);
                 setCustomEmail("");
                 setDeliveryMethod("share");
                 setSingleChildren([]);
@@ -1822,663 +1869,660 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Invite to Team
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="bottom" enableDragToClose className="h-[90vh] rounded-t-2xl flex flex-col overflow-hidden">
-        <SheetHeader className="mb-4 shrink-0">
-          <SheetTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            Invite to Team
-          </SheetTitle>
+      {triggerVariant !== "none" && (
+        <SheetTrigger asChild>
+          {triggerVariant === "icon" ? (
+            <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Invite to Team
+            </Button>
+          )}
+        </SheetTrigger>
+      )}
+      <SheetContent side="bottom" enableDragToClose className="max-h-[85vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain" data-lock-keyboard-scroll="true" data-allow-scroll style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+        <SheetHeader className="mb-3 shrink-0">
+          <SheetTitle>Invite to Team</SheetTitle>
           <SheetDescription>
-            Send a link or code to players, parents & coaches
+            Add players, parents or coaches
           </SheetDescription>
         </SheetHeader>
 
         {/* Club admin confirmation banner */}
         {isClubAdminOnly && (
-          <div className="mb-4 shrink-0">
+          <div className="mb-3 shrink-0">
             <ClubAdminConfirmBanner teamName={teamName} action="add members" />
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-6">
+        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="single" className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4" />
-              Single
-            </TabsTrigger>
-            <TabsTrigger value="bulk" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Multiple
-            </TabsTrigger>
-          </TabsList>
+          {canBulkInvite && (
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="single" className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                Single
+              </TabsTrigger>
+              <TabsTrigger value="bulk" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Multiple
+              </TabsTrigger>
+            </TabsList>
+          )}
 
-          {/* Role Selection - shared between modes */}
-          <div className="space-y-2 mb-5">
-            <Label>Role</Label>
-            <p className="text-xs text-muted-foreground mb-2">
-              To add child players, select Parent and add their details
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {roleOptions.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setSelectedRole(opt.value)}
-                  className={`p-3 rounded-xl text-left transition-all border-2 ${
-                    selectedRole === opt.value
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border hover:border-primary/50 hover:bg-muted/50"
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Badge variant="outline" className={opt.color}>
-                      {opt.label}
-                    </Badge>
-                    {opt.icon && <span className="text-sm">{opt.icon}</span>}
-                  </div>
-                  <p className="text-xs text-muted-foreground">{opt.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
+          <TabsContent value="single" className="space-y-4 mt-0">
 
-          <TabsContent value="single" className="space-y-5 mt-0">
-            {/* Parent role preview - shows what fields will be available */}
-            {selectedRole === "parent" && (
-              <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20 mb-3">
-                <div className="flex items-start gap-2">
-                  <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-pink-600">Adding a parent with child players</p>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      After adding the parent, you'll be able to add their child's details. 
-                      The child will be registered as a player when the parent accepts the invite.
-                    </p>
-                    <div className="bg-background/50 rounded-lg p-2 border border-pink-500/10">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Example child fields:</p>
-                      <div className="flex flex-wrap gap-2">
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span>Child's Name</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span>Year of Birth</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Selected User Preview */}
-            {selectedUser && (
-              <>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={selectedUser.avatar_url || undefined} />
-                    <AvatarFallback className="bg-primary/20 text-primary">
-                      {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium">{selectedUser.display_name || "Unknown"}</p>
-                    <p className="text-sm text-muted-foreground">Existing app user • Will be added directly</p>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {/* Child fields for existing user with parent role */}
-                {selectedRole === "parent" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-pink-500/5 border border-pink-500/20">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Baby className="h-4 w-4 text-pink-600" />
-                        <Label className="text-pink-600 font-medium">Child Player(s)</Label>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
-                        className="h-7 text-xs border-pink-500/30 text-pink-600 hover:bg-pink-500/10"
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Child
-                      </Button>
-                    </div>
-                    
-                    {singleChildren.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        Add the child player(s) who will be registered to this team.
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {singleChildren.map((child, idx) => {
-                          const matches = !child.existingChildId && !child.confirmedNew && !child.pendingInviteId ? findMatchingChildren(child.name) : [];
-                          return (
-                            <div key={child.id} className="space-y-1">
-                              <div className="flex gap-2 items-start">
-                                <div className="flex-1 space-y-1 relative">
-                                  <Input
-                                    placeholder="Search or type child's name"
-                                    value={child.name}
-                                    onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
-                                    ))}
-                                    className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
-                                  />
-                                  {matches.length > 0 && !child.existingChildId && (
-                                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                                      {matches.map(m => (
-                                        <button
-                                          key={m.id}
-                                          type="button"
-                                          onClick={() => setSingleChildren(singleChildren.map(c => 
-                                            c.id === child.id ? ((m as any).isPending
-                                              ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
-                                              : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
-                                          ))}
-                                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
-                                        >
-                                          <span className="font-medium">{m.name}</span>
-                                          <span className="text-xs text-muted-foreground">{m.parent_name} {m.year_of_birth ? `· ${m.year_of_birth}` : ''}</span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="w-16">
-                                  <Input
-                                    placeholder="#"
-                                    value={child.jerseyNumber}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, "").slice(0, 2);
-                                      setSingleChildren(singleChildren.map(c => 
-                                        c.id === child.id ? { ...c, jerseyNumber: val } : c
-                                      ));
-                                    }}
-                                    className="h-9"
-                                    maxLength={2}
-                                    inputMode="numeric"
-                                  />
-                                </div>
-                                <div className="w-20">
-                                  <Input
-                                    placeholder="Year"
-                                    value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                                      setSingleChildren(singleChildren.map(c => 
-                                        c.id === child.id ? { ...c, yearOfBirth: val } : c
-                                      ));
-                                    }}
-                                    className="h-9"
-                                    maxLength={4}
-                                    disabled={!!child.existingChildId}
-                                  />
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-9 w-9 text-destructive hover:text-destructive"
-                                  onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              {child.existingChildId && (
-                                <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  Linked to existing child ({child.existingChildParentName || 'existing parent'})
-                                </p>
-                              )}
-                              {child.pendingInviteId && !child.existingChildId && (
-                                <p className="text-xs text-blue-600 flex items-center gap-1 pl-1">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  Pending invite (parent: {child.pendingParentName}) — won't create duplicate
-                                </p>
-                              )}
-                              {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
-                                <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                  <div className="flex-1">
-                                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                                      <strong>{matches[0].name}</strong>{' '}
-                                      {(matches[0] as any).isPending 
-                                        ? <>has a pending invite (parent: {matches[0].parent_name}). Same child?</>
-                                        : <>already exists (parent: {matches[0].parent_name}). Link to them?</>
-                                      }
-                                    </p>
-                                    <div className="flex gap-2 mt-1.5">
-                                      {(matches[0] as any).isPending ? (
-                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                          onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name, existingChildId: undefined, existingChildParentName: undefined } : c
-                                          ))}
-                                        >
-                                          Yes, same child
-                                        </Button>
-                                      ) : (
-                                        <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-                                          onClick={() => setSingleChildren(singleChildren.map(c =>
-                                            c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
-                                          ))}
-                                        >
-                                          Link to existing
-                                        </Button>
-                                      )}
-                                      <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
-                                        onClick={() => setSingleChildren(singleChildren.map(c =>
-                                          c.id === child.id ? { ...c, confirmedNew: true } : c
-                                        ))}
-                                      >
-                                        Different child
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Second parent/guardian for existing user */}
-                {selectedRole === "parent" && singleChildren.length > 0 && (
-                  <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-blue-600" />
-                      <Label className="text-blue-600 font-medium">Second Parent / Guardian (Optional)</Label>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Search for an existing user or enter details for a new invite.
-                    </p>
-
-                    {selectedSecondParent ? (
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={selectedSecondParent.avatar_url || undefined} />
-                          <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                            {selectedSecondParent.display_name?.[0]?.toUpperCase() || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{selectedSecondParent.display_name}</p>
-                          <p className="text-xs text-muted-foreground">Existing user • Will be added directly</p>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                          setSelectedSecondParent(null);
-                          setSecondParentSearch("");
-                        }}>
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search existing user or type new name..."
-                            value={secondParentSearch || secondParentName}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setSecondParentSearch(val);
-                              setSecondParentName(val);
-                            }}
-                            className="h-9 pl-10"
-                          />
-                        </div>
-
-                        {/* Search results dropdown */}
-                        {filteredSecondParentResults.length > 0 && secondParentSearch.length >= 2 && (
-                          <div className="border rounded-lg overflow-hidden divide-y">
-                            {filteredSecondParentResults.map((user) => (
-                              <button
-                                key={user.id}
-                                type="button"
-                                className="w-full flex items-center gap-3 p-2.5 hover:bg-accent/50 transition-colors text-left"
-                                onClick={() => {
-                                  setSelectedSecondParent(user);
-                                  setSecondParentName(user.display_name || "");
-                                  setSecondParentSearch("");
-                                  setSecondParentEmail("");
-                                }}
-                              >
-                                <Avatar className="h-7 w-7">
-                                  <AvatarImage src={user.avatar_url || undefined} />
-                                  <AvatarFallback className="bg-muted text-xs">
-                                    {user.display_name?.[0]?.toUpperCase() || "?"}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="text-sm">{user.display_name}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {secondParentName.trim() && !selectedSecondParent && (
-                          <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              type="email"
-                              placeholder="Second parent's email (for invite)"
-                              value={secondParentEmail}
-                              onChange={(e) => setSecondParentEmail(e.target.value)}
-                              className="h-9 pl-10"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-
-            {!selectedUser && (
-              <>
-                <div className="space-y-2">
-                  <Label>Name</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Type a name to search existing users or add a new member
-                  </p>
-                  <div className="relative">
+            {/* 1. NAME INPUT - Primary first action */}
+            {!selectedUser && !nameConfirmed ? (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Name</Label>
+                <div className="relative flex gap-2">
+                  <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="e.g., John Smith"
+                      placeholder="Search or add member name"
                       value={nameInput}
                       onChange={(e) => setNameInput(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 h-12 text-base"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && nameInput.trim()) {
+                          setNameConfirmed(true);
+                        }
+                      }}
                     />
                   </div>
-
-                  {isSearching && (
-                    <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Searching...
-                    </div>
+                  {nameInput.trim() && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      className="h-12 w-12 shrink-0"
+                      onClick={() => setNameConfirmed(true)}
+                    >
+                      <Check className="h-5 w-5" />
+                    </Button>
                   )}
+                </div>
 
-                  {!isSearching && (filteredResults.length > 0 || filteredPendingResults.length > 0) && debouncedNameInput.length >= 2 && (
-                    <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
-                      {filteredResults.map((result) => (
-                        <button
-                          key={result.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedUser(result);
-                            setNameInput("");
-                          }}
-                          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
-                        >
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={result.avatar_url || undefined} />
-                            <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                              {result.display_name?.[0]?.toUpperCase() || "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
-                        </button>
-                      ))}
-                      {filteredPendingResults.map((result) => (
-                        <button
-                          key={result.pendingInviteId}
-                          type="button"
-                          onClick={() => {
-                            if (result.id.startsWith("pending-")) {
-                              // No profile yet — pre-fill name and email
-                              setNameInput(result.display_name || "");
-                              if (result.invited_email) {
-                                setCustomEmail(result.invited_email);
-                              }
-                            } else {
-                              // Has a profile — select them directly
-                              setSelectedUser({
-                                id: result.id,
-                                display_name: result.display_name,
-                                avatar_url: result.avatar_url,
-                              });
-                              setNameInput("");
+                {isSearching && (
+                  <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Searching...
+                  </div>
+                )}
+
+                {!isSearching && (filteredResults.length > 0 || filteredPendingResults.length > 0) && debouncedNameInput.length >= 2 && (
+                  <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg border bg-muted/30 p-2">
+                    {filteredResults.map((result) => (
+                      <button
+                        key={result.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedUser(result);
+                          setNameInput("");
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
+                      >
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={result.avatar_url || undefined} />
+                          <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                            {result.display_name?.[0]?.toUpperCase() || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                      </button>
+                    ))}
+                    {filteredPendingResults.map((result) => (
+                      <button
+                        key={result.pendingInviteId}
+                        type="button"
+                        onClick={() => {
+                          if (result.id.startsWith("pending-")) {
+                            setNameInput(result.display_name || "");
+                            if (result.invited_email) {
+                              setCustomEmail(result.invited_email);
                             }
-                          }}
-                          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
-                        >
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={result.avatar_url || undefined} />
-                            <AvatarFallback className="bg-amber-500/20 text-amber-600 dark:text-amber-400 text-sm">
-                              {result.display_name?.[0]?.toUpperCase() || "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
-                            <span className="text-xs text-muted-foreground">Pending invite (other team)</span>
-                          </div>
-                        </button>
-                      ))}
-                      <p className="text-xs text-muted-foreground px-2 pt-1">
-                        Or continue typing to add as a new member
-                      </p>
-                    </div>
-                  )}
-
-                  {!isSearching && debouncedNameInput.length >= 2 && filteredResults.length === 0 && filteredPendingResults.length === 0 && (
-                    <p className="text-xs text-muted-foreground py-1">
-                      No existing users found — this person will be invited as a new member
+                          } else {
+                            setSelectedUser({
+                              id: result.id,
+                              display_name: result.display_name,
+                              avatar_url: result.avatar_url,
+                            });
+                            setNameInput("");
+                          }
+                        }}
+                        className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
+                      >
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={result.avatar_url || undefined} />
+                          <AvatarFallback className="bg-amber-500/20 text-amber-600 dark:text-amber-400 text-sm">
+                            {result.display_name?.[0]?.toUpperCase() || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                          <span className="text-xs text-muted-foreground">Pending invite (other team)</span>
+                        </div>
+                      </button>
+                    ))}
+                    <p className="text-xs text-muted-foreground px-2 pt-1">
+                      Or continue typing to add as a new member
                     </p>
-                  )}
+                  </div>
+                )}
 
-                  {selectedRole !== "parent" && !selectedUser && memberNameMatchesExisting(nameInput) && (
-                    <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
-                        <strong>{memberNameMatchesExisting(nameInput)?.display_name}</strong> is already a member of this team. Are you sure you want to create a separate invite?
+                {!isSearching && debouncedNameInput.length >= 2 && filteredResults.length === 0 && filteredPendingResults.length === 0 && (
+                  <p className="text-xs text-muted-foreground py-1">
+                    No existing users found — will be invited as new member
+                  </p>
+                )}
+
+                {selectedRole !== "parent" && memberNameMatchesExisting(nameInput) && (
+                  <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      <strong>{memberNameMatchesExisting(nameInput)?.display_name}</strong> is already on this team.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : !selectedUser && nameConfirmed ? (
+              /* Confirmed new member name chip */
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-primary/20 text-primary">
+                    {nameInput.trim()[0]?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-medium">{nameInput.trim()}</p>
+                  <p className="text-sm text-muted-foreground">New member</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setNameConfirmed(false)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              /* Selected user chip */
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={selectedUser!.avatar_url || undefined} />
+                  <AvatarFallback className="bg-primary/20 text-primary">
+                    {selectedUser!.display_name?.[0]?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-medium">{selectedUser!.display_name || "Unknown"}</p>
+                  <p className="text-sm text-muted-foreground">Will be added directly</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {/* 2. ROLE SELECTION - compact cards */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Select role</Label>
+              <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {roleOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSelectedRole(opt.value)}
+                    className={`p-3 rounded-xl text-center transition-all border ${
+                      selectedRole === opt.value
+                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                        : "border-border bg-muted/40 hover:bg-muted text-foreground"
+                    }`}
+                  >
+                    <p className="text-sm font-medium">
+                      {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
+                    </p>
+                    {opt.value === "parent" && (
+                      <p className={`text-[11px] mt-0.5 ${selectedRole === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                        adds child player
                       </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. CONTEXTUAL HINT - only when parent selected */}
+            {selectedRole === "parent" && !(selectedUser || nameInput.trim()) && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Baby className="h-3.5 w-3.5 text-primary" />
+                You'll add child details next
+              </p>
+            )}
+
+            {/* Child fields for existing user with parent role */}
+            {selectedUser && selectedRole === "parent" && (
+              <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 of 2 — Add your child's details</p>
+                <div className="flex items-center gap-2">
+                  <Baby className="h-4 w-4 text-primary" />
+                  <Label className="text-primary font-medium">Child Player(s)</Label>
+                </div>
+                
+                {singleChildren.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : (
+                  <div className="space-y-2">
+                    {singleChildren.map((child, idx) => {
+                      const matches = !child.existingChildId && !child.confirmedNew && !child.pendingInviteId ? findMatchingChildren(child.name) : [];
+                      return (
+                        <div key={child.id} className="space-y-1">
+                          <div className="space-y-2">
+                            <div className="flex gap-2 items-start">
+                              <div className="flex-1 space-y-1 relative">
+                                <Input
+                                  placeholder="Child's name"
+                                  value={child.name}
+                                  autoFocus={idx === 0 && !child.name}
+                                  onChange={(e) => setSingleChildren(singleChildren.map(c => 
+                                    c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
+                                  ))}
+                                  className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                />
+                                {matches.length > 0 && !child.existingChildId && (
+                                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                                    {matches.map(m => (
+                                      <button
+                                        key={m.id}
+                                        type="button"
+                                        onClick={() => setSingleChildren(singleChildren.map(c => 
+                                          c.id === child.id ? ((m as any).isPending
+                                            ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
+                                            : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
+                                        ))}
+                                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
+                                      >
+                                        <span className="font-medium">{m.name}</span>
+                                        <span className="text-xs text-muted-foreground">{m.parent_name} {m.year_of_birth ? `· ${m.year_of_birth}` : ''}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 text-destructive hover:text-destructive"
+                                onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground italic">Optional</p>
+                            <div className="flex gap-2 pl-0">
+                              <div className="flex-1">
+                                <Input
+                                  placeholder="Jersey #"
+                                  value={child.jerseyNumber}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                    setSingleChildren(singleChildren.map(c => 
+                                      c.id === child.id ? { ...c, jerseyNumber: val } : c
+                                    ));
+                                  }}
+                                  className="h-10 text-sm"
+                                  maxLength={2}
+                                  inputMode="numeric"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <select
+                                  value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
+                                  onChange={(e) => {
+                                    setSingleChildren(singleChildren.map(c => 
+                                      c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
+                                    ));
+                                  }}
+                                  disabled={!!child.existingChildId}
+                                  className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                                >
+                                  <option value="">Birth year</option>
+                                  {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
+                                    <option key={year} value={year.toString()}>{year}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                          {child.existingChildId && (
+                            <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Linked to existing child ({child.existingChildParentName || 'existing parent'})
+                            </p>
+                          )}
+                          {child.pendingInviteId && !child.existingChildId && (
+                            <p className="text-xs text-blue-600 flex items-center gap-1 pl-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Pending invite (parent: {child.pendingParentName})
+                            </p>
+                          )}
+                          {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
+                            <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="text-xs text-amber-700 dark:text-amber-300">
+                                  <strong>{matches[0].name}</strong>{' '}
+                                  {(matches[0] as any).isPending 
+                                    ? <>has a pending invite (parent: {matches[0].parent_name}). Same child?</>
+                                    : <>already exists (parent: {matches[0].parent_name}). Link to them?</>
+                                  }
+                                </p>
+                                <div className="flex gap-2 mt-1.5">
+                                  {(matches[0] as any).isPending ? (
+                                    <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                      onClick={() => setSingleChildren(singleChildren.map(c =>
+                                        c.id === child.id ? { ...c, confirmedNew: true, pendingInviteId: (matches[0] as any).inviteId, pendingParentName: matches[0].parent_name, existingChildId: undefined, existingChildParentName: undefined } : c
+                                      ))}
+                                    >
+                                      Yes, same child
+                                    </Button>
+                                  ) : (
+                                    <Button type="button" variant="outline" size="sm" className="h-6 text-[10px] px-2 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                                      onClick={() => setSingleChildren(singleChildren.map(c =>
+                                        c.id === child.id ? { ...c, name: matches[0].name, existingChildId: matches[0].id, existingChildParentName: matches[0].parent_name, yearOfBirth: matches[0].year_of_birth?.toString() || '', confirmedNew: undefined } : c
+                                      ))}
+                                    >
+                                      Link to existing
+                                    </Button>
+                                  )}
+                                  <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] px-2"
+                                    onClick={() => setSingleChildren(singleChildren.map(c =>
+                                      c.id === child.id ? { ...c, confirmedNew: true } : c
+                                    ))}
+                                  >
+                                    Different child
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors mt-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add another child
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Second parent/guardian for existing user */}
+            {selectedUser && selectedRole === "parent" && singleChildren.length > 0 && (
+              <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 3 of 3 — Optional</p>
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-600" />
+                  <Label className="text-blue-600 font-medium">Second Parent / Guardian</Label>
+                </div>
+
+                {selectedSecondParent ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={selectedSecondParent.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                        {selectedSecondParent.display_name?.[0]?.toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{selectedSecondParent.display_name}</p>
+                      <p className="text-xs text-muted-foreground">Will be added directly</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                      setSelectedSecondParent(null);
+                      setSecondParentSearch("");
+                    }}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search or type name..."
+                        value={secondParentSearch || secondParentName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSecondParentSearch(val);
+                          setSecondParentName(val);
+                        }}
+                        className="h-9 pl-10"
+                      />
+                    </div>
+
+                    {filteredSecondParentResults.length > 0 && secondParentSearch.length >= 2 && (
+                      <div className="border rounded-lg overflow-hidden divide-y">
+                        {filteredSecondParentResults.map((user) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            className="w-full flex items-center gap-3 p-2.5 hover:bg-accent/50 transition-colors text-left"
+                            onClick={() => {
+                              setSelectedSecondParent(user);
+                              setSecondParentName(user.display_name || "");
+                              setSecondParentSearch("");
+                              setSecondParentEmail("");
+                            }}
+                          >
+                            <Avatar className="h-7 w-7">
+                              <AvatarImage src={user.avatar_url || undefined} />
+                              <AvatarFallback className="bg-muted text-xs">
+                                {user.display_name?.[0]?.toUpperCase() || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm">{user.display_name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {secondParentName.trim() && !selectedSecondParent && (
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="email"
+                          placeholder="Second parent's email"
+                          value={secondParentEmail}
+                          onChange={(e) => setSecondParentEmail(e.target.value)}
+                          className="h-9 pl-10"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Email / delivery for new members (name entered, not existing user) */}
+            {!selectedUser && nameConfirmed && nameInput.trim() && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">How to deliver invite?</Label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMethod("email"); }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "email"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMethod("share"); setCustomEmail(""); }}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        deliveryMethod === "share"
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Share2 className="h-4 w-4" />
+                      Share Link
+                    </button>
+                  </div>
+                  {deliveryMethod === "email" && (
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        placeholder="e.g., john@example.com"
+                        value={customEmail}
+                        onChange={(e) => setCustomEmail(e.target.value)}
+                        className="pl-10"
+                        autoFocus
+                      />
                     </div>
                   )}
                 </div>
 
-                {nameInput.trim() && (
-                  <div className="space-y-3">
-                    <Label>How should we deliver the invite?</Label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { setDeliveryMethod("email"); }}
-                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                          deliveryMethod === "email"
-                            ? "bg-primary/10 border-primary text-primary"
-                            : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
-                        }`}
-                      >
-                        <Mail className="h-4 w-4" />
-                        Email
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setDeliveryMethod("share"); setCustomEmail(""); }}
-                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                          deliveryMethod === "share"
-                            ? "bg-primary/10 border-primary text-primary"
-                            : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
-                        }`}
-                      >
-                        <Share2 className="h-4 w-4" />
-                        Share Link
-                      </button>
-                    </div>
-                    {deliveryMethod === "email" ? (
-                      <div className="space-y-1.5">
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            type="email"
-                            placeholder="e.g., john@example.com"
-                            value={customEmail}
-                            onChange={(e) => setCustomEmail(e.target.value)}
-                            className="pl-10"
-                            autoFocus
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">An invite email will be sent automatically</p>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">You'll be able to share via WhatsApp, Messenger, SMS, or copy the link after adding</p>
-                    )}
+                {/* Custom message toggle */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-1.5 text-sm">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Custom Message
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setShowMessageEditor(!showMessageEditor);
+                        if (!showMessageEditor && !customMessage) {
+                          setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
+                        }
+                      }}
+                    >
+                      {showMessageEditor ? "Hide" : "Add message"}
+                    </Button>
                   </div>
-                )}
+                  {showMessageEditor && (
+                    <Textarea
+                      placeholder="Write a personal welcome message..."
+                      value={customMessage}
+                      onChange={(e) => setCustomMessage(e.target.value)}
+                      rows={3}
+                      className="text-sm resize-none"
+                    />
+                  )}
+                </div>
 
-                {nameInput.trim() && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="flex items-center gap-1.5">
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        Custom Message
-                      </Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          setShowMessageEditor(!showMessageEditor);
-                          if (!showMessageEditor && !customMessage) {
-                            setCustomMessage(`We're using a new app to bring everything together for the club — it's called Ignite Club HQ.\n\nIt's been built by one of our own club members to keep things simple, organised, and completely ad-free.\n\n👀 Jump in to see:\n• What team they're in\n• Who their teammates are\n• Your club space for updates as the season gets underway\n\n(Fixtures and games will be added soon by the team admin or coach)`);
-                          }
-                        }}
-                      >
-                        {showMessageEditor ? "Hide" : "Add message"}
-                      </Button>
-                    </div>
-                    {showMessageEditor && (
-                      <div className="space-y-1.5">
-                        <Textarea
-                          placeholder="Write a personal welcome message..."
-                          value={customMessage}
-                          onChange={(e) => setCustomMessage(e.target.value)}
-                          rows={3}
-                          className="text-sm resize-none"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          This message will appear in the invite email
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Child fields for parent role in single mode */}
-                {nameInput.trim() && selectedRole === "parent" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-pink-500/5 border border-pink-500/20">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Baby className="h-4 w-4 text-pink-600" />
-                        <Label className="text-pink-600 font-medium">Child Player(s)</Label>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
-                        className="h-7 text-xs border-pink-500/30 text-pink-600 hover:bg-pink-500/10"
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Child
-                      </Button>
+                {/* Child fields for parent role (new member) */}
+                {selectedRole === "parent" && nameConfirmed && nameInput.trim() && (
+                  <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 of 2 — Add your child's details</p>
+                    <div className="flex items-center gap-2">
+                      <Baby className="h-4 w-4 text-primary" />
+                      <Label className="text-primary font-medium">Child Player(s)</Label>
                     </div>
                     
                     {singleChildren.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        Add the child player(s) who will be registered to this team when the parent accepts the invite.
-                      </p>
+                      <p className="text-sm text-muted-foreground">Loading...</p>
                     ) : (
                       <div className="space-y-2">
                         {singleChildren.map((child, idx) => {
                           const matches = !child.existingChildId && !child.confirmedNew && !child.pendingInviteId ? findMatchingChildren(child.name) : [];
                           return (
                             <div key={child.id} className="space-y-1">
-                              <div className="flex gap-2 items-start">
-                                <div className="flex-1 space-y-1 relative">
-                                  <Input
-                                    placeholder="Search or type child's name"
-                                    value={child.name}
-                                    onChange={(e) => setSingleChildren(singleChildren.map(c => 
-                                      c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
-                                    ))}
-                                    className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
-                                  />
-                                  {matches.length > 0 && !child.existingChildId && (
-                                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                                      {matches.map(m => (
-                                        <button
-                                          key={m.id}
-                                          type="button"
-                                          onClick={() => setSingleChildren(singleChildren.map(c => 
-                                            c.id === child.id ? ((m as any).isPending
-                                              ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
-                                              : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
-                                          ))}
-                                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
-                                        >
-                                          <span className="font-medium">{m.name}</span>
-                                          <span className="text-xs text-muted-foreground">{m.parent_name} {m.year_of_birth ? `· ${m.year_of_birth}` : ''}</span>
-                                        </button>
+                              <div className="space-y-2">
+                                <div className="flex gap-2 items-start">
+                                  <div className="flex-1 space-y-1 relative">
+                                    <Input
+                                      placeholder="Child's name"
+                                      value={child.name}
+                                      autoFocus={idx === 0 && !child.name}
+                                      onChange={(e) => setSingleChildren(singleChildren.map(c => 
+                                        c.id === child.id ? { ...c, name: e.target.value, existingChildId: undefined, existingChildParentName: undefined, pendingInviteId: undefined, pendingParentName: undefined, confirmedNew: undefined } : c
                                       ))}
-                                    </div>
-                                  )}
+                                      className={`h-9 ${child.existingChildId || child.pendingInviteId ? 'border-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                    />
+                                    {matches.length > 0 && !child.existingChildId && (
+                                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                                        {matches.map(m => (
+                                          <button
+                                            key={m.id}
+                                            type="button"
+                                            onClick={() => setSingleChildren(singleChildren.map(c => 
+                                              c.id === child.id ? ((m as any).isPending
+                                                ? { ...c, name: m.name, pendingInviteId: (m as any).inviteId, pendingParentName: m.parent_name, existingChildId: undefined, existingChildParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: true }
+                                                : { ...c, name: m.name, existingChildId: m.id, existingChildParentName: m.parent_name, pendingInviteId: undefined, pendingParentName: undefined, yearOfBirth: m.year_of_birth?.toString() || '', confirmedNew: undefined }) : c
+                                            ))}
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex justify-between items-center"
+                                          >
+                                            <span className="font-medium">{m.name}</span>
+                                            <span className="text-xs text-muted-foreground">{m.parent_name} {m.year_of_birth ? `· ${m.year_of_birth}` : ''}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-9 w-9 text-destructive hover:text-destructive"
+                                    onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </div>
-                                <div className="w-16">
-                                  <Input
-                                    placeholder="#"
-                                    value={child.jerseyNumber}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, "").slice(0, 2);
-                                      setSingleChildren(singleChildren.map(c => 
-                                        c.id === child.id ? { ...c, jerseyNumber: val } : c
-                                      ));
-                                    }}
-                                    className="h-9"
-                                    maxLength={2}
-                                    inputMode="numeric"
-                                  />
+                                <p className="text-[10px] text-muted-foreground italic">Optional</p>
+                                <div className="flex gap-2 pl-0">
+                                  <div className="flex-1">
+                                    <Input
+                                      placeholder="Jersey #"
+                                      value={child.jerseyNumber}
+                                      onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                        setSingleChildren(singleChildren.map(c => 
+                                          c.id === child.id ? { ...c, jerseyNumber: val } : c
+                                        ));
+                                      }}
+                                      className="h-10 text-sm"
+                                      maxLength={2}
+                                      inputMode="numeric"
+                                    />
+                                  </div>
+                                  <div className="flex-1">
+                                    <select
+                                      value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
+                                      onChange={(e) => {
+                                        setSingleChildren(singleChildren.map(c => 
+                                          c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
+                                        ));
+                                      }}
+                                      disabled={!!child.existingChildId}
+                                      className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                                    >
+                                      <option value="">Birth year</option>
+                                      {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
+                                        <option key={year} value={year.toString()}>{year}</option>
+                                      ))}
+                                    </select>
+                                  </div>
                                 </div>
-                                <div className="w-20">
-                                  <Input
-                                    placeholder="Year"
-                                    value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                                      setSingleChildren(singleChildren.map(c => 
-                                        c.id === child.id ? { ...c, yearOfBirth: val } : c
-                                      ));
-                                    }}
-                                    className="h-9"
-                                    maxLength={4}
-                                    disabled={!!child.existingChildId}
-                                  />
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-9 w-9 text-destructive hover:text-destructive"
-                                  onClick={() => setSingleChildren(singleChildren.filter(c => c.id !== child.id))}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
                               </div>
                               {child.existingChildId && (
                                 <p className="text-xs text-emerald-600 flex items-center gap-1 pl-1">
@@ -2489,7 +2533,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               {child.pendingInviteId && !child.existingChildId && (
                                 <p className="text-xs text-blue-600 flex items-center gap-1 pl-1">
                                   <CheckCircle2 className="h-3 w-3" />
-                                  Pending invite (parent: {child.pendingParentName}) — won't create duplicate
+                                  Pending invite (parent: {child.pendingParentName})
                                 </p>
                               )}
                               {!child.existingChildId && !child.confirmedNew && matches.length > 0 && child.name.trim().length >= 3 && (
@@ -2535,21 +2579,27 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             </div>
                           );
                         })}
+                        <button
+                          type="button"
+                          onClick={() => setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }])}
+                          className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors mt-1"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Add another child
+                        </button>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Second parent/guardian fields */}
-                {nameInput.trim() && selectedRole === "parent" && singleChildren.length > 0 && (
+                {/* Second parent/guardian fields (new member) */}
+                {selectedRole === "parent" && singleChildren.length > 0 && (
                   <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
+                    <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 3 of 3 — Optional</p>
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-blue-600" />
-                      <Label className="text-blue-600 font-medium">Second Parent / Guardian (Optional)</Label>
+                      <Label className="text-blue-600 font-medium">Second Parent / Guardian</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Search for an existing user or enter details for a new invite.
-                    </p>
 
                     {selectedSecondParent ? (
                       <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
@@ -2561,7 +2611,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         </Avatar>
                         <div className="flex-1">
                           <p className="text-sm font-medium">{selectedSecondParent.display_name}</p>
-                          <p className="text-xs text-muted-foreground">Existing user • Will be added directly</p>
+                          <p className="text-xs text-muted-foreground">Joins team immediately</p>
                         </div>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                           setSelectedSecondParent(null);
@@ -2575,7 +2625,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
-                            placeholder="Search existing user or type new name..."
+                            placeholder="Search or type name..."
                             value={secondParentSearch || secondParentName}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -2617,7 +2667,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
                               type="email"
-                              placeholder="Second parent's email (for invite)"
+                              placeholder="Second parent's email"
                               value={secondParentEmail}
                               onChange={(e) => setSecondParentEmail(e.target.value)}
                               className="h-9 pl-10"
@@ -2629,78 +2679,43 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   </div>
                 )}
               </>
-            )}
-
-            {selectedUser ? (
-              <Button
-                className="w-full h-12 text-base font-semibold"
-                onClick={() => addExistingUserMutation.mutate()}
-                disabled={addExistingUserMutation.isPending}
-              >
-                {addExistingUserMutation.isPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                ) : (
-                  <UserPlus className="h-5 w-5 mr-2" />
-                )}
-                {selectedRole === "parent" && (selectedSecondParent || (secondParentName.trim() && secondParentEmail.trim()))
-                  ? `Add Parents to Team`
-                  : `Add ${selectedUser.display_name} as ${selectedRoleOption?.label}`}
-              </Button>
-            ) : (
-              /* Unified submit button — delivery method shown on success screen */
-              <Button
-                className="w-full h-12 text-base font-semibold"
-                onClick={() => addPendingMemberMutation.mutate()}
-                disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
-              >
-                {addPendingMemberMutation.isPending ? (
-                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                ) : (
-                  <UserPlus className="h-5 w-5 mr-2" />
-                )}
-                {nameInput.trim()
-                  ? (selectedSecondParent
-                    ? `Add ${nameInput.trim()} & ${selectedSecondParent.display_name}`
-                    : secondParentName.trim() && secondParentEmail.trim()
-                      ? `Add ${nameInput.trim()} & ${secondParentName.trim()}`
-                      : `Add ${nameInput.trim()} to Team`)
-                  : "Enter name to continue"}
-              </Button>
             )}
           </TabsContent>
 
           <TabsContent value="bulk" className="space-y-4 mt-0">
+            {/* Role Selection for bulk mode */}
+            <div className="space-y-2 mb-2">
+              <Label className="text-sm font-medium">Default role</Label>
+              <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {roleOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSelectedRole(opt.value)}
+                    className={`p-2.5 rounded-xl text-center transition-all border ${
+                      selectedRole === opt.value
+                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                        : "border-border bg-muted/40 hover:bg-muted text-foreground"
+                    }`}
+                  >
+                    <p className="text-sm font-medium">
+                      {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Add multiple members at once. Email addresses are optional — members without emails will get a shareable link.
+                Add multiple members at once. Email addresses are optional.
               </p>
               
-              {/* Parent role preview hint for bulk tab */}
+              {/* Contextual hint for parent role */}
               {(selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")) && (
-                <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20">
-                  <div className="flex items-start gap-2">
-                    <Baby className="h-4 w-4 text-pink-600 mt-0.5 shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-pink-600">Adding parents with child players</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        For each parent row, you can add their children's details below.
-                      </p>
-                      <div className="bg-background/50 rounded-lg p-2 border border-pink-500/10">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Child fields per parent:</p>
-                        <div className="flex flex-wrap gap-2">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <User className="h-3 w-3" />
-                            <span>Child's Name</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            <span>Year of Birth</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Baby className="h-3.5 w-3.5 text-primary" />
+                  Add child details under each parent row
+                </p>
               )}
               
               {/* CSV Import */}
@@ -2766,7 +2781,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             </Avatar>
                             <div className="flex-1">
                               <p className="text-sm font-medium">{member.selectedUser.display_name || member.name}</p>
-                              <p className="text-xs text-muted-foreground">Existing user • Will be added directly</p>
+                              <p className="text-xs text-muted-foreground">Existing user • Joins team immediately</p>
                             </div>
                             <Button
                               variant="ghost"
@@ -2886,9 +2901,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   
                   {/* Children inputs for parent role */}
                   {member.role === "parent" && (
-                    <div className="space-y-2 pl-3 border-l-2 border-pink-500/30">
+                    <div className="space-y-2 pl-3 border-l-2 border-primary/30">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-pink-600 flex items-center gap-1">
+                        <span className="text-xs font-medium text-primary flex items-center gap-1">
                           <Baby className="h-3 w-3" />
                           Children
                         </span>
@@ -2918,21 +2933,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                               onChange={(e) => updateChild(member.id, child.id, "name", e.target.value)}
                               className={`h-8 text-sm flex-1 ${child.existingChildId ? 'border-amber-500/50' : ''}`}
                             />
-                            <Input
-                              placeholder="#"
-                              value={child.jerseyNumber}
-                              onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
-                              className="h-8 text-sm w-12"
-                              maxLength={2}
-                              inputMode="numeric"
-                            />
-                            <Input
-                              placeholder="Year"
-                              value={child.yearOfBirth}
-                              onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
-                              className="h-8 text-sm w-16"
-                              maxLength={4}
-                            />
                             <Button
                               variant="ghost"
                               size="icon"
@@ -2941,6 +2941,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             >
                               <X className="h-3 w-3" />
                             </Button>
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Jersey #"
+                              value={child.jerseyNumber}
+                              onChange={(e) => updateChild(member.id, child.id, "jerseyNumber", e.target.value.replace(/\D/g, "").slice(0, 2))}
+                              className="h-9 text-sm w-24"
+                              maxLength={2}
+                              inputMode="numeric"
+                            />
+                            <Input
+                              placeholder="Birth year"
+                              value={child.yearOfBirth}
+                              onChange={(e) => updateChild(member.id, child.id, "yearOfBirth", e.target.value)}
+                              className="h-9 text-sm w-28"
+                              maxLength={4}
+                            />
                           </div>
                           {child.existingChildId && (
                             <p className="text-[10px] text-emerald-600 pl-1 flex items-center gap-1">
@@ -3136,6 +3153,63 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               )}
             </div>
 
+          </TabsContent>
+        </Tabs>
+        </div>
+
+        {/* Sticky CTA footer */}
+        <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6" style={{ touchAction: 'pan-y' }}>
+          {mode === "single" ? (
+            selectedUser ? (
+              <Button
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => {
+                  if (selectedRole === "parent" && singleChildren.length === 0) {
+                    setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
+                    return;
+                  }
+                  addExistingUserMutation.mutate();
+                }}
+                disabled={addExistingUserMutation.isPending}
+                variant={selectedRole === "parent" && singleChildren.length === 0 ? "outline" : "default"}
+              >
+                {addExistingUserMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : selectedRole === "parent" && singleChildren.length === 0 ? (
+                  <Baby className="h-5 w-5 mr-2" />
+                ) : (
+                  <UserPlus className="h-5 w-5 mr-2" />
+                )}
+                {selectedRole === "parent" && singleChildren.length === 0 
+                  ? "Add child to continue" 
+                  : "Continue"}
+              </Button>
+            ) : (
+              <Button
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => {
+                  if (selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()) {
+                    setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
+                    return;
+                  }
+                  addPendingMemberMutation.mutate();
+                }}
+                disabled={!nameInput.trim() || addPendingMemberMutation.isPending || (selectedRole === "parent" && singleChildren.length === 0 && !nameInput.trim())}
+                variant={selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim() ? "outline" : "default"}
+              >
+                {addPendingMemberMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim() ? (
+                  <Baby className="h-5 w-5 mr-2" />
+                ) : (
+                  <UserPlus className="h-5 w-5 mr-2" />
+                )}
+                {selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()
+                  ? "Add child to continue"
+                  : "Continue"}
+              </Button>
+            )
+          ) : (
             <Button
               className="w-full h-12 text-base font-semibold"
               onClick={() => addBulkMembersMutation.mutate(undefined)}
@@ -3147,16 +3221,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 <Send className="h-5 w-5 mr-2" />
               )}
               {validBulkCount > 0 
-                ? (() => {
-                    const emailCount = bulkMembers.filter(m => m.name.trim() && m.email.trim()).length;
-                    return emailCount > 0
-                      ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""} & Send ${emailCount} Invite${emailCount > 1 ? "s" : ""}`
-                      : `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""}`;
-                  })()
+                ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""}`
                 : "Enter names to continue"}
             </Button>
-          </TabsContent>
-        </Tabs>
+          )}
         </div>
       </SheetContent>
     </Sheet>

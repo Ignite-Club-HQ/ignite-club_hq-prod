@@ -762,7 +762,7 @@ export default function EventDetailPage() {
         .from("child_team_assignments")
         .select(`
           child_id,
-          children (id, name)
+          children (id, name, parent_id)
         `)
         .eq("team_id", event.team_id);
 

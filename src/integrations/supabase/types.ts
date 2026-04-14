@@ -6187,6 +6187,7 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: undefined
       }
+      can_access_chat_attachment: { Args: { _name: string }; Returns: boolean }
       can_access_chat_group: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
@@ -6206,6 +6207,18 @@ export type Database = {
       }
       can_view_full_profile: {
         Args: { _profile_id: string; _viewer_id: string }
+        Returns: boolean
+      }
+      can_view_message_read: {
+        Args: {
+          _broadcast_message_id: string
+          _club_admin_message_id: string
+          _club_message_id: string
+          _direct_message_id: string
+          _group_message_id: string
+          _team_message_id: string
+          _user_id: string
+        }
         Returns: boolean
       }
       can_view_mini_league: {

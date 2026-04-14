@@ -8,7 +8,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Search, UserPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
@@ -17,6 +17,7 @@ import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
+import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -127,6 +128,7 @@ export default function TeamChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -1224,8 +1226,26 @@ export default function TeamChatPage() {
             externalOpen={membersOpen}
             onExternalOpenChange={setMembersOpen}
           />
+          <AddTeamMemberSheet
+            teamId={teamId!}
+            teamName={team.name}
+            clubId={team.club_id}
+            teamType={(team as any).team_type || "mixed"}
+            canBulkInvite={!!isAdmin}
+            triggerVariant="none"
+            externalOpen={inviteSheetOpen}
+            onExternalOpenChange={setInviteSheetOpen}
+          />
         </div>
       </div>
+      {/* Inline invite banner below header */}
+      <button
+        onClick={() => setInviteSheetOpen(true)}
+        className="flex items-center gap-2 mx-3 mt-2 mb-1 px-3 py-1.5 rounded-full border border-dashed border-primary/30 bg-primary/5 text-primary text-xs font-medium touch-manipulation active:bg-primary/15 transition-colors w-fit"
+      >
+        <UserPlus className="h-3.5 w-3.5" />
+        + Invite to Team
+      </button>
 
 
       {/* Notification Nudge */}
@@ -1322,11 +1342,11 @@ export default function TeamChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-hidden border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-hidden border-t bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden">
+        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden pt-1 pb-2 px-2">
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
