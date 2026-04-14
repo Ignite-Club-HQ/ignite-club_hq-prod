@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2 } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { MemberCSVImportDialog } from "@/components/MemberCSVImportDialog";
@@ -158,17 +158,19 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   const debouncedNameInput = useDebounce(nameInput, 300);
   const autoChildTriggered = useRef(false);
+  const [nameConfirmed, setNameConfirmed] = useState(false);
 
-  // Auto-open first child input when Parent role is selected and an existing user is picked
+  // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
   useEffect(() => {
-    if (selectedRole === "parent" && selectedUser && singleChildren.length === 0 && !autoChildTriggered.current) {
+    const nameReady = selectedUser || nameConfirmed;
+    if (selectedRole === "parent" && nameReady && singleChildren.length === 0 && !autoChildTriggered.current) {
       autoChildTriggered.current = true;
       setSingleChildren([{ id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
     }
     if (selectedRole !== "parent") {
       autoChildTriggered.current = false;
     }
-  }, [selectedRole, selectedUser, singleChildren.length]);
+  }, [selectedRole, selectedUser, nameConfirmed, singleChildren.length]);
 
   // Fetch existing members (separate key from TeamDetail members query to avoid cache shape collisions)
   const { data: existingMembers } = useQuery({
@@ -1556,6 +1558,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const handleClose = () => {
     setOpen(false);
     setNameInput("");
+    setNameConfirmed(false);
     setSelectedUser(null);
     setCustomEmail("");
     setDeliveryMethod("share");
@@ -1841,6 +1844,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 setInviteLink(null);
                 setInviteShareLink(null);
                 setNameInput("");
+                setNameConfirmed(false);
                 setCustomEmail("");
                 setDeliveryMethod("share");
                 setSingleChildren([]);
@@ -1912,23 +1916,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           <TabsContent value="single" className="space-y-4 mt-0">
 
             {/* 1. NAME INPUT - Primary first action */}
-            {!selectedUser ? (
+            {!selectedUser && !nameConfirmed ? (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Name</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search or add member name"
-                    value={nameInput}
-                    onChange={(e) => setNameInput(e.target.value)}
-                    className="pl-10 h-12 text-base"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && nameInput.trim() && !addPendingMemberMutation.isPending) {
-                        addPendingMemberMutation.mutate();
-                      }
-                    }}
-                  />
+                <div className="relative flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search or add member name"
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      className="pl-10 h-12 text-base"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && nameInput.trim()) {
+                          setNameConfirmed(true);
+                        }
+                      }}
+                    />
+                  </div>
+                  {nameInput.trim() && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      className="h-12 w-12 shrink-0"
+                      onClick={() => setNameConfirmed(true)}
+                    >
+                      <Check className="h-5 w-5" />
+                    </Button>
+                  )}
                 </div>
 
                 {isSearching && (
@@ -2013,17 +2029,33 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   </div>
                 )}
               </div>
+            ) : !selectedUser && nameConfirmed ? (
+              /* Confirmed new member name chip */
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-primary/20 text-primary">
+                    {nameInput.trim()[0]?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-medium">{nameInput.trim()}</p>
+                  <p className="text-sm text-muted-foreground">New member</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setNameConfirmed(false)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </div>
             ) : (
               /* Selected user chip */
               <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={selectedUser.avatar_url || undefined} />
+                  <AvatarImage src={selectedUser!.avatar_url || undefined} />
                   <AvatarFallback className="bg-primary/20 text-primary">
-                    {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
+                    {selectedUser!.display_name?.[0]?.toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <p className="font-medium">{selectedUser.display_name || "Unknown"}</p>
+                  <p className="font-medium">{selectedUser!.display_name || "Unknown"}</p>
                   <p className="text-sm text-muted-foreground">Will be added directly</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)}>
@@ -2315,7 +2347,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             )}
 
             {/* Email / delivery for new members (name entered, not existing user) */}
-            {!selectedUser && nameInput.trim() && (
+            {!selectedUser && nameConfirmed && nameInput.trim() && (
               <>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">How to deliver invite?</Label>
@@ -2394,7 +2426,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </div>
 
                 {/* Child fields for parent role (new member) */}
-                {selectedRole === "parent" && nameInput.trim() && (
+                {selectedRole === "parent" && nameConfirmed && nameInput.trim() && (
                   <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
                     <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Step 2 of 2 — Add your child's details</p>
                     <div className="flex items-center gap-2">
