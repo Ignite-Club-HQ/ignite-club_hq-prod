@@ -79,6 +79,8 @@ interface AddTeamMemberSheetProps {
   teamType?: TeamType;
   /** True when the user is a club admin but NOT a direct member of this team */
   isClubAdminOnly?: boolean;
+  /** Whether the user can use bulk/multiple invite mode (admin/coach only) */
+  canBulkInvite?: boolean;
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
@@ -88,7 +90,7 @@ const allRoleOptions: { value: TeamRole; label: string; description: string; col
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true }: AddTeamMemberSheetProps) {
   // Filter role options based on team type
   const roleOptions = allRoleOptions.filter(opt => {
     if (teamType === "junior") {
@@ -1853,7 +1855,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               <UserPlus className="h-4 w-4" />
               Single
             </TabsTrigger>
-            <TabsTrigger value="bulk" className="flex items-center gap-2">
+            <TabsTrigger value="bulk" className="flex items-center gap-2" disabled={!canBulkInvite} title={!canBulkInvite ? "Only team admins and coaches can bulk invite" : undefined}>
               <Users className="h-4 w-4" />
               Multiple
             </TabsTrigger>
