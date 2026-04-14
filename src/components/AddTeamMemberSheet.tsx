@@ -81,6 +81,8 @@ interface AddTeamMemberSheetProps {
   isClubAdminOnly?: boolean;
   /** Whether the user can use bulk/multiple invite mode (admin/coach only) */
   canBulkInvite?: boolean;
+  /** Trigger button style: "default" shows full button, "icon" shows icon-only */
+  triggerVariant?: "default" | "icon";
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
@@ -90,7 +92,7 @@ const allRoleOptions: { value: TeamRole; label: string; description: string; col
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default" }: AddTeamMemberSheetProps) {
   // Filter role options based on team type
   const roleOptions = allRoleOptions.filter(opt => {
     if (teamType === "junior") {
@@ -1630,10 +1632,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     return (
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetTrigger asChild>
-          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Invite to Team
-          </Button>
+          {triggerVariant === "icon" ? (
+            <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Invite to Team
+            </Button>
+          )}
         </SheetTrigger>
         <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl overflow-y-auto">
           <SheetHeader className="mb-6">
@@ -1715,10 +1723,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     return (
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetTrigger asChild>
-          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Invite to Team
-          </Button>
+          {triggerVariant === "icon" ? (
+            <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
+              <UserPlus className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Invite to Team
+            </Button>
+          )}
         </SheetTrigger>
         <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl">
           <SheetHeader className="mb-6">
@@ -1825,10 +1839,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Invite to Team
-        </Button>
+        {triggerVariant === "icon" ? (
+          <Button variant="ghost" size="icon" className="h-9 w-9" data-invite-trigger onClick={() => setOpen(true)}>
+            <UserPlus className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button size="sm" data-invite-trigger onClick={() => setOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Invite to Team
+          </Button>
+        )}
       </SheetTrigger>
       <SheetContent side="bottom" enableDragToClose className="h-[90vh] rounded-t-2xl flex flex-col overflow-hidden">
         <SheetHeader className="mb-4 shrink-0">

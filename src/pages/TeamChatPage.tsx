@@ -8,7 +8,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Search, UserPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
@@ -17,6 +17,7 @@ import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
+import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -1209,6 +1210,14 @@ export default function TeamChatPage() {
           </div>
         </button>
         <div className="flex items-center shrink-0">
+          <AddTeamMemberSheet
+            teamId={teamId!}
+            teamName={team.name}
+            clubId={team.club_id}
+            teamType={(team as any).team_type || "mixed"}
+            canBulkInvite={!!isAdmin}
+            triggerVariant="icon"
+          />
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
             <Search className="h-4 w-4" />
           </Button>
