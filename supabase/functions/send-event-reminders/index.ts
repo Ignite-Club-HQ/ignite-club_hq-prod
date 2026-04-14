@@ -159,7 +159,20 @@ serve(async (req) => {
             year: 'numeric'
           });
 
-          const eventTime = event.start_time || "TBD";
+          let eventTime = "TBD";
+          if (event.start_time) {
+            const timeStr = String(event.start_time);
+            const parsed = timeStr.includes("T") || timeStr.includes(" ")
+              ? new Date(timeStr)
+              : new Date(`2000-01-01T${timeStr}`);
+            if (!isNaN(parsed.getTime())) {
+              eventTime = parsed.toLocaleTimeString("en-AU", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              });
+            }
+          }
           const eventLocation = event.location_name || event.address || event.location || undefined;
           const teamName = event.teams?.name || "Your Team";
           const clubName = event.teams?.clubs?.name || "Your Club";
