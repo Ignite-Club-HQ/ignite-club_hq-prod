@@ -8,7 +8,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Search, UserPlus } from "lucide-react";
+import { ArrowLeft, Send, Loader2, UserPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
@@ -128,6 +128,7 @@ export default function TeamChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -1210,21 +1211,11 @@ export default function TeamChatPage() {
           </div>
         </button>
         <div className="flex items-center shrink-0">
-          <AddTeamMemberSheet
-            teamId={teamId!}
-            teamName={team.name}
-            clubId={team.club_id}
-            teamType={(team as any).team_type || "mixed"}
-            canBulkInvite={!!isAdmin}
-            triggerVariant="icon"
-          />
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
           <ChatMuteButton chatType="team" chatId={teamId!} />
           <ChatHeaderMenu
             onRefresh={handleManualRefresh}
             isRefreshing={isAnyRefreshing}
+            onSearch={() => setSearchOpen(true)}
           />
           <ChatMembersSheet
             chatType="team"
@@ -1232,6 +1223,16 @@ export default function TeamChatPage() {
             chatName={team.name}
             externalOpen={membersOpen}
             onExternalOpenChange={setMembersOpen}
+          />
+          <AddTeamMemberSheet
+            teamId={teamId!}
+            teamName={team.name}
+            clubId={team.club_id}
+            teamType={(team as any).team_type || "mixed"}
+            canBulkInvite={!!isAdmin}
+            triggerVariant="none"
+            externalOpen={inviteSheetOpen}
+            onExternalOpenChange={setInviteSheetOpen}
           />
         </div>
       </div>
@@ -1331,11 +1332,19 @@ export default function TeamChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-      <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-hidden border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+      <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-hidden border-t bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        {/* Inline invite pill */}
+        <button
+          onClick={() => setInviteSheetOpen(true)}
+          className="flex items-center gap-1.5 mx-2 mt-1.5 mb-0.5 px-3 py-1.5 rounded-full border border-dashed border-primary/30 bg-primary/5 text-primary text-xs font-medium touch-manipulation active:bg-primary/10 transition-colors w-fit"
+        >
+          <UserPlus className="h-3.5 w-3.5" />
+          Invite to Team
+        </button>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden">
+        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden pt-1 pb-2 px-2">
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
