@@ -81,8 +81,12 @@ interface AddTeamMemberSheetProps {
   isClubAdminOnly?: boolean;
   /** Whether the user can use bulk/multiple invite mode (admin/coach only) */
   canBulkInvite?: boolean;
-  /** Trigger button style: "default" shows full button, "icon" shows icon-only */
-  triggerVariant?: "default" | "icon";
+  /** Trigger button style: "default" shows full button, "icon" shows icon-only, "none" hides trigger (use externalOpen) */
+  triggerVariant?: "default" | "icon" | "none";
+  /** Externally controlled open state */
+  externalOpen?: boolean;
+  /** Callback when open state changes externally */
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
@@ -92,7 +96,7 @@ const allRoleOptions: { value: TeamRole; label: string; description: string; col
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default" }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default", externalOpen, onExternalOpenChange }: AddTeamMemberSheetProps) {
   // Filter role options based on team type
   const roleOptions = allRoleOptions.filter(opt => {
     if (teamType === "junior") {
@@ -115,7 +119,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = externalOpen !== undefined;
+  const open = isControlled ? externalOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (isControlled) onExternalOpenChange?.(v);
+    else setInternalOpen(v);
+  };
   const [nameInput, setNameInput] = useState("");
   const [selectedUser, setSelectedUser] = useState<{
     id: string;
