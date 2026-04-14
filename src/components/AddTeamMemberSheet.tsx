@@ -2050,7 +2050,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             {/* 3. CONTEXTUAL HINT - only when parent selected */}
             {selectedRole === "parent" && !(selectedUser || nameInput.trim()) && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Baby className="h-3.5 w-3.5 text-pink-500" />
+                <Baby className="h-3.5 w-3.5 text-primary" />
                 You'll add child details next
               </p>
             )}
