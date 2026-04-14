@@ -26,7 +26,7 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
   if (invites.length === 0) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <div className="px-1 py-1.5">
         <span className="text-sm text-muted-foreground">
           {invites.length} pending invite{invites.length !== 1 ? "s" : ""}

@@ -456,14 +456,13 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   return (
     <>
       <Card
-        className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5 select-none"
+        className="border bg-card select-none"
         onPointerDown={(e) => {
           if (!isAdmin) return;
           longPressTriggered.current = false;
           longPressTimer.current = setTimeout(() => {
             longPressTriggered.current = true;
             setShowContextMenu(true);
-            // Haptic feedback on native
             if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
               navigator.vibrate(10);
             }
@@ -481,8 +480,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             longPressTimer.current = null;
           }
         }}
-        onPointerMove={(e) => {
-          // Cancel long press if finger moves (scrolling)
+        onPointerMove={() => {
           if (longPressTimer.current) {
             clearTimeout(longPressTimer.current);
             longPressTimer.current = null;
@@ -495,78 +493,54 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           }
         }}
       >
-        <CardContent className="p-3 flex items-center gap-3">
-          <div className="relative">
-            <Avatar className="h-10 w-10 ring-2 ring-orange-500/30 ring-offset-2 ring-offset-background">
+        <CardContent className="p-2.5 flex items-center gap-2.5">
+          <div className="relative shrink-0">
+            <Avatar className="h-9 w-9">
               <AvatarImage src={avatarUrl || undefined} />
-              <AvatarFallback className="bg-orange-500/20 text-orange-600 dark:text-orange-400">
+              <AvatarFallback className="bg-muted text-muted-foreground text-sm">
                 {displayName[0]?.toUpperCase() || "?"}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-orange-500 shadow-lg">
-              <Clock className="h-2.5 w-2.5 text-white" />
+            <div className="absolute -bottom-0.5 -right-0.5 p-0.5 rounded-full bg-amber-500">
+              <Clock className="h-2 w-2 text-white" />
             </div>
           </div>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium truncate">{displayName}</span>
+            <p className="text-sm font-semibold truncate leading-tight">{displayName}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <Badge variant="outline" className={`${roleColor} text-[10px] px-1.5 py-0 h-[18px] leading-none`}>
+                {roleLabel}
+              </Badge>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-[18px] leading-none bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                Pending
+              </Badge>
               {isExistingUser && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-[18px] leading-none bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
                   <UserCheck className="h-2.5 w-2.5 mr-0.5" />
-                  Existing
+                  Linked
                 </Badge>
               )}
             </div>
-            {isAdmin && invite.invited_email && (
-              <button
-                type="button"
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5 group"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigator.clipboard.writeText(invite.invited_email!);
-                  toast({ title: "Email copied", description: invite.invited_email });
-                }}
-              >
-                <span className="truncate max-w-[180px]">{invite.invited_email}</span>
-                <Copy className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-              </button>
-            )}
-            <div className="flex items-center gap-1.5 flex-wrap mt-1">
-              <Badge variant="outline" className={`${roleColor} text-xs`}>
-                {roleLabel}
-              </Badge>
-              <Badge className="bg-orange-500/90 hover:bg-orange-500 text-white text-xs font-medium px-2">
-                Pending
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                Sent {timeAgo}
-              </span>
-            </div>
-            {isAdmin && (
-              <p className="text-[10px] text-muted-foreground/60 mt-1 italic">Hold to edit or revoke</p>
-            )}
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">Sent {timeAgo}</p>
           </div>
 
-          {/* Send Reminder CTA only */}
           {isAdmin && (
-            <div className="shrink-0">
-              <Button
-                size="sm"
-                variant="default"
-                className="h-8 text-xs font-semibold gap-1.5 px-3"
-                onClick={(e) => {
-                  if (longPressTriggered.current) {
-                    e.preventDefault();
-                    return;
-                  }
-                  setShowReminderSheet(true);
-                }}
-              >
-                <Send className="h-3.5 w-3.5" />
-                <span className="hidden xs:inline">Remind</span>
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shrink-0 h-7 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-2"
+              onClick={(e) => {
+                if (longPressTriggered.current) {
+                  e.preventDefault();
+                  return;
+                }
+                setShowReminderSheet(true);
+              }}
+            >
+              <Send className="h-3 w-3" />
+              Remind
+            </Button>
           )}
         </CardContent>
       </Card>
