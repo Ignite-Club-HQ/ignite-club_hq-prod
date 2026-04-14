@@ -1432,6 +1432,7 @@ export default function TeamDetailPage() {
                         clubId={team.club_id}
                         teamType={(team as any).team_type || "mixed"}
                         isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
+                        canBulkInvite={isCoachOrAdmin || isClubAdmin}
                       />
                   </div>
                 </div>
@@ -1450,6 +1451,7 @@ export default function TeamDetailPage() {
                         clubId={team.club_id}
                         teamType={(team as any).team_type || "mixed"}
                         isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
+                        canBulkInvite={isCoachOrAdmin || isClubAdmin}
                       />
                   </div>
                 ) : (
