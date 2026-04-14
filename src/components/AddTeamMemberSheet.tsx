@@ -3082,33 +3082,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               )}
             </div>
 
-            <Button
-              className="w-full h-12 text-base font-semibold"
-              onClick={() => addBulkMembersMutation.mutate(undefined)}
-              disabled={validBulkCount === 0 || addBulkMembersMutation.isPending}
-            >
-              {addBulkMembersMutation.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              ) : (
-                <Send className="h-5 w-5 mr-2" />
-              )}
-              {validBulkCount > 0 
-                ? (() => {
-                    const emailCount = bulkMembers.filter(m => m.name.trim() && m.email.trim()).length;
-                    return emailCount > 0
-                      ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""} & Send ${emailCount} Invite${emailCount > 1 ? "s" : ""}`
-                      : `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""}`;
-                  })()
-                : "Enter names to continue"}
-            </Button>
           </TabsContent>
         </Tabs>
         </div>
 
         {/* Sticky CTA footer */}
-        {mode === "single" && (
-          <div className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6">
-            {selectedUser ? (
+        <div className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6">
+          {mode === "single" ? (
+            selectedUser ? (
               <Button
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => addExistingUserMutation.mutate()}
@@ -3119,9 +3100,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 ) : (
                   <UserPlus className="h-5 w-5 mr-2" />
                 )}
-                {selectedRole === "parent" && (selectedSecondParent || (secondParentName.trim() && secondParentEmail.trim()))
-                  ? `Continue`
-                  : `Continue`}
+                Continue
               </Button>
             ) : (
               <Button
@@ -3136,9 +3115,24 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 )}
                 Continue
               </Button>
-            )}
-          </div>
-        )}
+            )
+          ) : (
+            <Button
+              className="w-full h-12 text-base font-semibold"
+              onClick={() => addBulkMembersMutation.mutate(undefined)}
+              disabled={validBulkCount === 0 || addBulkMembersMutation.isPending}
+            >
+              {addBulkMembersMutation.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              ) : (
+                <Send className="h-5 w-5 mr-2" />
+              )}
+              {validBulkCount > 0 
+                ? `Add ${validBulkCount} Member${validBulkCount > 1 ? "s" : ""}`
+                : "Enter names to continue"}
+            </Button>
+          )}
+        </div>
       </SheetContent>
     </Sheet>
   );
