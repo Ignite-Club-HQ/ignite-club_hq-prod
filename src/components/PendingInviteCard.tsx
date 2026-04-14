@@ -783,6 +783,61 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Move to Team Sheet */}
+      <Sheet open={showMoveSheet} onOpenChange={setShowMoveSheet}>
+        <SheetContent side="bottom" className="max-h-[80vh] rounded-t-2xl">
+          <SheetHeader className="text-left pb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-primary" />
+              Move Pending Invite
+            </SheetTitle>
+            <SheetDescription>
+              Move <span className="font-medium text-foreground">{invite.invited_label || "this invite"}</span> to another team
+            </SheetDescription>
+          </SheetHeader>
+
+          {clubTeams.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No other teams available</p>
+          ) : (
+            <RadioGroup
+              value={selectedMoveTeamId || ""}
+              onValueChange={setSelectedMoveTeamId}
+              className="space-y-2 max-h-[40vh] overflow-y-auto pr-1"
+            >
+              {clubTeams.map((team) => (
+                <Label
+                  key={team.id}
+                  htmlFor={`move-pending-${team.id}`}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                    selectedMoveTeamId === team.id
+                      ? "bg-primary/10 border-primary"
+                      : "bg-muted/30 border-border hover:bg-muted/50"
+                  }`}
+                >
+                  <RadioGroupItem value={team.id} id={`move-pending-${team.id}`} />
+                  <span className="text-sm font-medium">{team.name}</span>
+                </Label>
+              ))}
+            </RadioGroup>
+          )}
+
+          <div className="pt-4">
+            <Button
+              className="w-full h-12 text-base font-semibold"
+              disabled={!selectedMoveTeamId || movePendingInviteMutation.isPending}
+              onClick={() => movePendingInviteMutation.mutate()}
+            >
+              {movePendingInviteMutation.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              ) : (
+                <ArrowRightLeft className="h-5 w-5 mr-2" />
+              )}
+              Move to Team
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
