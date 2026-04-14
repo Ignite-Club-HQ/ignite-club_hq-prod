@@ -2028,17 +2028,33 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   </div>
                 )}
               </div>
+            ) : !selectedUser && nameConfirmed ? (
+              /* Confirmed new member name chip */
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-primary/20 text-primary">
+                    {nameInput.trim()[0]?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <p className="font-medium">{nameInput.trim()}</p>
+                  <p className="text-sm text-muted-foreground">New member</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setNameConfirmed(false)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </div>
             ) : (
               /* Selected user chip */
               <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={selectedUser.avatar_url || undefined} />
+                  <AvatarImage src={selectedUser!.avatar_url || undefined} />
                   <AvatarFallback className="bg-primary/20 text-primary">
-                    {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
+                    {selectedUser!.display_name?.[0]?.toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <p className="font-medium">{selectedUser.display_name || "Unknown"}</p>
+                  <p className="font-medium">{selectedUser!.display_name || "Unknown"}</p>
                   <p className="text-sm text-muted-foreground">Will be added directly</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setSelectedUser(null)}>
