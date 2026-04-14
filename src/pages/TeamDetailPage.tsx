@@ -2387,13 +2387,18 @@ export default function TeamDetailPage() {
           playerType={positionSheetPlayer.type}
         />
       )}
-      {inviteParentChild && id && (
-        <InviteOtherParentSheet
-          open={!!inviteParentChild}
-          onOpenChange={(open) => { if (!open) setInviteParentChild(null); }}
-          childId={inviteParentChild.childId}
-          childName={inviteParentChild.childName}
-          teamIds={[id]}
+      {inviteParentChild && id && team && (
+        <AddTeamMemberSheet
+          teamId={id}
+          teamName={team.name}
+          clubId={team.club_id}
+          teamType={(team as any).team_type || "mixed"}
+          isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
+          canBulkInvite={false}
+          triggerVariant="none"
+          externalOpen={!!inviteParentChild}
+          onExternalOpenChange={(open) => { if (!open) setInviteParentChild(null); }}
+          prefillGuardianChild={inviteParentChild}
         />
       )}
       {linkChildToParent && id && team && (
