@@ -1655,6 +1655,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             )}
           </SheetTrigger>
         )}
+        <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl overflow-y-auto">
           <SheetHeader className="mb-6">
             <SheetTitle className="flex items-center gap-2 text-green-600">
               <CheckCircle2 className="h-5 w-5" />
@@ -1747,6 +1748,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             )}
           </SheetTrigger>
         )}
+        <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl">
           <SheetHeader className="mb-6">
             <SheetTitle className="flex items-center gap-2 text-green-600">
               <CheckCircle2 className="h-5 w-5" />
