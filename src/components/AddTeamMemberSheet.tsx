@@ -2159,6 +2159,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
+                            <p className="text-[10px] text-muted-foreground italic">Optional</p>
                             <div className="flex gap-2 pl-0">
                               <div className="flex-1">
                                 <Input
@@ -2176,19 +2177,21 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                 />
                               </div>
                               <div className="flex-1">
-                                <Input
-                                  placeholder="Birth year"
+                                <select
                                   value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
                                   onChange={(e) => {
-                                    const val = e.target.value.replace(/\D/g, "").slice(0, 4);
                                     setSingleChildren(singleChildren.map(c => 
-                                      c.id === child.id ? { ...c, yearOfBirth: val } : c
+                                      c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
                                     ));
                                   }}
-                                  className="h-10 text-sm"
-                                  maxLength={4}
                                   disabled={!!child.existingChildId}
-                                />
+                                  className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                                >
+                                  <option value="">Birth year</option>
+                                  {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
+                                    <option key={year} value={year.toString()}>{year}</option>
+                                  ))}
+                                </select>
                               </div>
                             </div>
                           </div>
@@ -2484,6 +2487,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </div>
+                                <p className="text-[10px] text-muted-foreground italic">Optional</p>
                                 <div className="flex gap-2 pl-0">
                                   <div className="flex-1">
                                     <Input
@@ -2501,19 +2505,21 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                                     />
                                   </div>
                                   <div className="flex-1">
-                                    <Input
-                                      placeholder="Birth year"
+                                    <select
                                       value={child.existingChildId ? (clubChildren.find(c => c.id === child.existingChildId)?.year_of_birth?.toString() || '') : child.yearOfBirth}
                                       onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, "").slice(0, 4);
                                         setSingleChildren(singleChildren.map(c => 
-                                          c.id === child.id ? { ...c, yearOfBirth: val } : c
+                                          c.id === child.id ? { ...c, yearOfBirth: e.target.value } : c
                                         ));
                                       }}
-                                      className="h-10 text-sm"
-                                      maxLength={4}
                                       disabled={!!child.existingChildId}
-                                    />
+                                      className="h-10 w-full text-sm rounded-md border border-input bg-background px-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                                    >
+                                      <option value="">Birth year</option>
+                                      {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - 3 - i).map(year => (
+                                        <option key={year} value={year.toString()}>{year}</option>
+                                      ))}
+                                    </select>
                                   </div>
                                 </div>
                               </div>
