@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, MailX, AlertCircle, Loader2, Copy, Share2, ArrowRightLeft } from "lucide-react";
+import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, Loader2, Copy, Share2, ArrowRightLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Capacitor } from "@capacitor/core";
-
 import { Share } from "@capacitor/share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,12 +33,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   Sheet,
   SheetContent,
@@ -101,6 +94,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [showReminderSheet, setShowReminderSheet] = useState(false);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
   const [selectedMoveTeamId, setSelectedMoveTeamId] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState("");
@@ -209,19 +203,6 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     },
   });
 
-  const handleCopyLink = async () => {
-    if (!inviteLink) {
-      toast({ title: "No invite link available", variant: "destructive" });
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      toast({ title: "Invite link copied!" });
-    } catch {
-      toast({ title: "Failed to copy link", variant: "destructive" });
-    }
-  };
-
   const buildShareMessage = () => {
     const clubName = teamData?.clubs?.name || clubData?.name || "";
     const teamName = teamData?.name || "";
@@ -233,42 +214,29 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     const emailNote = email
       ? `\n\nSign up with ${email} so your account links automatically.`
       : "";
-
     const link = shareLink;
 
-    // Admin/Coach invite to a team
     if (isAdminRole && teamName) {
       return `You've been invited to join ${teamName}${clubName ? ` at ${clubName}` : ""} as ${roleName}. Tap here to get started: ${link}${appDownload}${emailNote}`;
     }
-
-    // Admin invite to a club (no team)
     if (isAdminRole && clubName) {
       return `You've been invited to help run ${clubName} as ${roleName}. Tap here to get started: ${link}${appDownload}${emailNote}`;
     }
-
-    // Parent invite with children
     if (invite.role === "parent" && childrenNames.length === 1) {
       return `${childrenNames[0]} has been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
     }
     if (invite.role === "parent" && childrenNames.length > 1) {
       return `Your kids (${childrenNames.join(", ")}) have been added to ${teamName || clubName || "the team"}${clubName && teamName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
     }
-
-    // Parent invite without children names
     if (invite.role === "parent" && teamName) {
       return `Your child has been added to ${teamName}${clubName ? ` at ${clubName}` : ""}!${appDownload}${emailNote}${link ? `\n\nJoin here: ${link}` : ""}`;
     }
-
-    // Generic team invite
     if (teamName) {
       return `You've been added to ${teamName}${clubName ? ` at ${clubName}` : ""}! Tap here to join: ${link}${appDownload}${emailNote}`;
     }
-
-    // Generic club invite
     if (clubName) {
       return `You've been invited to join ${clubName}! Tap here to get started: ${link}${appDownload}${emailNote}`;
     }
-
     return `You've been invited to join the team! Tap here to get started: ${link}${appDownload}${emailNote}`;
   };
 
@@ -287,15 +255,16 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           text: message,
           dialogTitle: `Join ${clubName}`,
         });
+        setShowReminderSheet(false);
         return;
       } catch {
         // User cancelled or share failed, fall through to WhatsApp
       }
     }
 
-    // Fallback: open WhatsApp
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, "_blank");
+    setShowReminderSheet(false);
   };
 
   const deleteMutation = useMutation({
@@ -307,24 +276,17 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
       if (error) throw error;
     },
     onMutate: async () => {
-      // Cancel any outgoing refetches - use broad pattern to match all pending-invites queries
       await queryClient.cancelQueries({ queryKey: ["pending-invites"] });
-      
-      // Snapshot and optimistically update all matching queries
       const queryCache = queryClient.getQueryCache();
       const pendingInviteQueries = queryCache.findAll({ queryKey: ["pending-invites"] });
-      
       const previousData: { queryKey: any; data: any }[] = [];
       pendingInviteQueries.forEach((query) => {
         const data = query.state.data;
         previousData.push({ queryKey: query.queryKey, data });
-        
-        // Optimistically remove the invite from this query
         if (Array.isArray(data)) {
           queryClient.setQueryData(query.queryKey, data.filter((inv: any) => inv.id !== invite.id));
         }
       });
-      
       return { previousData };
     },
     onSuccess: () => {
@@ -332,7 +294,6 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
       setShowDeleteDialog(false);
     },
     onError: (error, _, context) => {
-      // Rollback all queries to their previous values on error
       if (context?.previousData) {
         context.previousData.forEach(({ queryKey, data }) => {
           queryClient.setQueryData(queryKey, data);
@@ -341,7 +302,6 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
       toast({ title: "Failed to revoke invite", variant: "destructive" });
     },
     onSettled: () => {
-      // Refetch all pending-invites queries to ensure consistency
       queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
     },
   });
@@ -371,7 +331,6 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const handleResendEmail = async (overrideEmail?: string) => {
     let targetEmail = overrideEmail || invite.invited_email;
     
-    // Always refetch the latest stored email if it's missing from props
     if (!targetEmail) {
       const { data: freshInvite } = await supabase
         .from("pending_invites")
@@ -384,8 +343,8 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     }
     
     if (!targetEmail) {
-      // No email — open the email input dialog
       setEmailInput("");
+      setShowReminderSheet(false);
       setShowEmailDialog(true);
       return;
     }
@@ -402,7 +361,6 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     setIsResending(true);
     
     try {
-      // If we're adding an email for the first time, save it to the invite
       if (overrideEmail && !invite.invited_email) {
         await supabase
           .from("pending_invites")
@@ -412,14 +370,10 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
 
       const inviteLinkForEmail = `${window.location.origin}/join/p/${pendingInviteToken}`;
       const recipientName = invite.invited_label || invite.profiles?.display_name || "Member";
-      
-      // Determine team/club names for email
       const teamName = teamData?.name || clubData?.name || "the team";
       const clubName = teamData?.clubs?.name || clubData?.name || "The Club";
       const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url || undefined;
       const clubContactEmail = (teamData?.clubs as any)?.contact_email || (clubData as any)?.contact_email || undefined;
-      
-      // Extract children names from invite metadata for parent invites
       const childrenNames = invite.role === "parent" && inviteMetadata?.children
         ? inviteMetadata.children.map(c => c.name)
         : undefined;
@@ -427,11 +381,11 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
       const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
         body: {
           to: targetEmail.trim().toLowerCase(),
-           subject: childrenNames && childrenNames.length === 1
-             ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
-             : childrenNames && childrenNames.length > 1
-               ? `Reminder: ${clubName} — see which team your kids are in ⚽`
-               : `Reminder: ${clubName} — you've been added to the team ⚽`,
+          subject: childrenNames && childrenNames.length === 1
+            ? `Reminder: ${clubName} — see which team ${childrenNames[0]} is in ⚽`
+            : childrenNames && childrenNames.length > 1
+              ? `Reminder: ${clubName} — see which team your kids are in ⚽`
+              : `Reminder: ${clubName} — you've been added to the team ⚽`,
           template: "team-invite",
           senderName: clubName !== "The Club" ? clubName : undefined,
           replyTo: clubContactEmail,
@@ -449,12 +403,9 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
         },
       });
 
-      if (funcError) {
-        throw new Error(funcError.message || "Failed to send email");
-      }
+      if (funcError) throw new Error(funcError.message || "Failed to send email");
 
       if (emailResult?.verified && emailResult?.success) {
-        // Update pending invite with email status
         await supabase
           .from("pending_invites")
           .update({
@@ -465,33 +416,20 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           .eq("id", invite.id);
 
         queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
-        
-        toast({ 
-          title: "Email sent!", 
-          description: `Invite email sent to ${targetEmail}` 
-        });
+        toast({ title: "Email sent!", description: `Invite email sent to ${targetEmail}` });
         setShowEmailDialog(false);
+        setShowReminderSheet(false);
       } else {
         throw new Error(emailResult?.error || "Email not verified");
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      
-      // Update pending invite with error
       await supabase
         .from("pending_invites")
-        .update({
-          email_error: errorMessage,
-        } as any)
+        .update({ email_error: errorMessage } as any)
         .eq("id", invite.id);
-
       queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
-      
-      toast({ 
-        title: "Failed to send email", 
-        description: errorMessage,
-        variant: "destructive" 
-      });
+      toast({ title: "Failed to send email", description: errorMessage, variant: "destructive" });
     } finally {
       setIsResending(false);
     }
@@ -503,21 +441,19 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
     setShowEditDialog(true);
   };
 
-  // Prioritize invited_label (manual entry) over profile name to avoid showing the inviter's name
-  // Only use profile display_name if there's no label AND profiles match indicates a real user match
   const displayName = invite.invited_label || invite.profiles?.display_name || "Unknown";
   const avatarUrl = invite.invited_label ? undefined : invite.profiles?.avatar_url;
-  // Only show "Existing" badge if there's no manual label (indicating profile was auto-matched, not placeholder)
   const isExistingUser = !invite.invited_label && !!invite.profiles?.id;
   const roleColor = roleColors[invite.role] || "bg-muted text-muted-foreground";
   const roleLabel = roleLabels[invite.role] || invite.role.replace("_", " ");
   const timeAgo = formatDistanceToNow(new Date(invite.created_at), { addSuffix: true });
 
+  // Determine if email was the original invite method
+  const hasEmail = !!invite.invited_email;
+
   return (
     <>
-      <Card
-        className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5"
-      >
+      <Card className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5">
         <CardContent className="p-3 flex items-center gap-3">
           <div className="relative">
             <Avatar className="h-10 w-10 ring-2 ring-orange-500/30 ring-offset-2 ring-offset-background">
@@ -560,77 +496,26 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 {roleLabel}
               </Badge>
               <Badge className="bg-orange-500/90 hover:bg-orange-500 text-white text-xs font-medium px-2">
-                <Clock className="h-3 w-3 mr-1" />
                 Pending
               </Badge>
-              {/* Email status indicator - only for admins */}
-              {isAdmin && invite.invited_email && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      {invite.email_sent_at ? (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/30">
-                          <Mail className="h-2.5 w-2.5 mr-0.5" />
-                          Sent
-                        </Badge>
-                      ) : invite.email_error ? (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">
-                          <MailX className="h-2.5 w-2.5 mr-0.5" />
-                          Failed
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-muted text-muted-foreground">
-                          <AlertCircle className="h-2.5 w-2.5 mr-0.5" />
-                          Not sent
-                        </Badge>
-                      )}
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">
-                        {invite.email_sent_at 
-                          ? `Email sent to ${invite.invited_email}` 
-                          : invite.email_error 
-                            ? `Failed: ${invite.email_error}`
-                            : `No email sent to ${invite.invited_email}`
-                        }
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-              <span className="text-xs text-muted-foreground hidden sm:inline">
-                • {timeAgo}
+              <span className="text-xs text-muted-foreground">
+                Sent {timeAgo}
               </span>
             </div>
           </div>
 
-          {/* Action buttons - always visible for admins */}
+          {/* Action buttons - Send Reminder CTA + 3-dot menu */}
           {isAdmin && (
-            <div className="flex items-center gap-0.5 shrink-0">
-              {inviteLink && (
-                <>
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCopyLink}>
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p className="text-xs">Copy invite link</p></TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleShareInvite}>
-                          <Share2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent><p className="text-xs">Share via SMS / WhatsApp</p></TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </>
-              )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                size="sm"
+                variant="default"
+                className="h-8 text-xs font-semibold gap-1.5 px-3"
+                onClick={() => setShowReminderSheet(true)}
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span className="hidden xs:inline">Remind</span>
+              </Button>
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -638,33 +523,9 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {inviteLink && (
-                    <>
-                      <DropdownMenuItem onClick={handleCopyLink}>
-                        <Copy className="h-4 w-4 mr-2" />
-                        Copy invite link
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleShareInvite}>
-                        <Share2 className="h-4 w-4 mr-2" />
-                        Share invite link
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
                   <DropdownMenuItem onClick={handleOpenEdit}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit name/role
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => handleResendEmail()} 
-                    disabled={isResending}
-                  >
-                    {isResending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Mail className="h-4 w-4 mr-2" />
-                    )}
-                    {!invite.invited_email ? "Send email" : invite.email_sent_at && !invite.email_error ? "Resend email" : "Send email"}
                   </DropdownMenuItem>
                   {teamId && clubId && (
                     <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
@@ -686,6 +547,78 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           )}
         </CardContent>
       </Card>
+
+      {/* Send Reminder Bottom Sheet */}
+      <Sheet open={showReminderSheet} onOpenChange={setShowReminderSheet}>
+        <SheetContent side="bottom" className="max-h-[50vh] rounded-t-2xl" data-allow-scroll>
+          <SheetHeader className="text-left pb-4">
+            <SheetTitle>Send Reminder</SheetTitle>
+            <SheetDescription>
+              Choose how to remind <span className="font-medium text-foreground">{displayName}</span> to join
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-2 pb-6">
+            {/* Send via Email option */}
+            <button
+              type="button"
+              className="w-full flex items-center gap-3 p-4 rounded-xl border bg-card hover:bg-accent/50 transition-colors text-left"
+              onClick={() => handleResendEmail()}
+              disabled={isResending}
+            >
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                {isResending ? (
+                  <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                ) : (
+                  <Mail className="h-5 w-5 text-primary" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm">Send via Email</span>
+                  {hasEmail && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/30">
+                      Recommended
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {invite.invited_email 
+                    ? `Send to ${invite.invited_email}` 
+                    : "Enter email address to send invite"
+                  }
+                </p>
+              </div>
+            </button>
+
+            {/* Share invite link option */}
+            {inviteLink && (
+              <button
+                type="button"
+                className="w-full flex items-center gap-3 p-4 rounded-xl border bg-card hover:bg-accent/50 transition-colors text-left"
+                onClick={handleShareInvite}
+              >
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <Share2 className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">Share invite link</span>
+                    {!hasEmail && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/30">
+                        Recommended
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Share via WhatsApp, SMS, or other apps
+                  </p>
+                </div>
+              </button>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
