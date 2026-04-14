@@ -2686,7 +2686,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               {/* Contextual hint for parent role */}
               {(selectedRole === "parent" || bulkMembers.some(m => m.role === "parent")) && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Baby className="h-3.5 w-3.5 text-pink-500" />
+                  <Baby className="h-3.5 w-3.5 text-primary" />
                   Add child details under each parent row
                 </p>
               )}
@@ -2754,7 +2754,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                             </Avatar>
                             <div className="flex-1">
                               <p className="text-sm font-medium">{member.selectedUser.display_name || member.name}</p>
-                              <p className="text-xs text-muted-foreground">Existing user • Will be added directly</p>
+                              <p className="text-xs text-muted-foreground">Existing user • Joins team immediately</p>
                             </div>
                             <Button
                               variant="ghost"
