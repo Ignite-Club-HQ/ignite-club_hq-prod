@@ -214,8 +214,6 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
       toast({ title: "No invite link available", variant: "destructive" });
       return;
     }
-      return;
-    }
     try {
       await navigator.clipboard.writeText(inviteLink);
       toast({ title: "Invite link copied!" });
