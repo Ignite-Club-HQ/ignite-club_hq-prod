@@ -43,7 +43,7 @@ export const ReplyIndicator = memo(function ReplyIndicator({ replyToMessage, isO
   if (!replyToMessage) return null;
 
   return (
-    <div className={`text-xs p-2 mb-1 rounded-lg bg-background/50 border-l-2 border-primary/50 ${isOwn ? 'ml-auto' : ''}`}>
+    <div className={`text-xs p-2 mb-1 rounded-lg bg-background/50 border-l-2 border-primary/50 max-w-full min-w-0 overflow-hidden ${isOwn ? 'ml-auto' : ''}`}>
       <p className="text-muted-foreground font-medium truncate">
         {replyToMessage.authorName || ""}
       </p>
