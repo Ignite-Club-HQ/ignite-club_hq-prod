@@ -81,6 +81,8 @@ interface AddTeamMemberSheetProps {
   isClubAdminOnly?: boolean;
   /** Whether the user can use bulk/multiple invite mode (admin/coach only) */
   canBulkInvite?: boolean;
+  /** Trigger button style: "default" shows full button, "icon" shows icon-only */
+  triggerVariant?: "default" | "icon";
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
@@ -90,7 +92,7 @@ const allRoleOptions: { value: TeamRole; label: string; description: string; col
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default" }: AddTeamMemberSheetProps) {
   // Filter role options based on team type
   const roleOptions = allRoleOptions.filter(opt => {
     if (teamType === "junior") {
