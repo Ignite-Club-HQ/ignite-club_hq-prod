@@ -659,8 +659,13 @@ export default function GroupChatPage() {
     if (!localMessages?.length || isLoadingOlder || !hasOlderMessages) return;
 
     setIsLoadingOlder(true);
-    const firstVisibleMessageId = localMessages[0].id;
-    
+
+    // Preserve scroll position using container metrics only.
+    // Avoid element.scrollIntoView which can scroll ancestor containers and hide the chat header.
+    const scrollContainer = scrollAreaRef.current;
+    const previousScrollHeight = scrollContainer?.scrollHeight ?? 0;
+    const previousScrollTop = scrollContainer?.scrollTop ?? 0;
+
     // Create abort controller for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -748,13 +753,15 @@ export default function GroupChatPage() {
         };
       });
 
-      // Scroll to the first previously visible message after DOM updates
-      setTimeout(() => {
-        const element = document.getElementById(`message-${firstVisibleMessageId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'instant', block: 'start' });
-        }
-      }, 50);
+      // Restore the previous viewport anchor inside the chat scroller only.
+      requestAnimationFrame(() => {
+        const container = scrollAreaRef.current;
+        if (!container) return;
+
+        const nextScrollHeight = container.scrollHeight;
+        const scrollHeightDelta = nextScrollHeight - previousScrollHeight;
+        container.scrollTop = previousScrollTop + scrollHeightDelta;
+      });
     } catch (err) {
       clearTimeout(timeoutId);
       console.error('Failed to load older messages:', err);
