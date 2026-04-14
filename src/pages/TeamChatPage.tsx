@@ -1338,10 +1338,10 @@ export default function TeamChatPage() {
         {/* Inline invite pill */}
         <button
           onClick={() => setInviteSheetOpen(true)}
-          className="flex items-center gap-1.5 mx-2 mt-1.5 mb-0.5 px-3 py-1.5 rounded-full border border-dashed border-primary/30 bg-primary/5 text-primary text-xs font-medium touch-manipulation active:bg-primary/10 transition-colors w-fit"
+          className="flex items-center gap-2 mx-2 mt-2 mb-1 px-4 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium touch-manipulation active:bg-primary/20 transition-colors w-fit"
         >
-          <UserPlus className="h-3.5 w-3.5" />
-          Invite to Team
+          <UserPlus className="h-4 w-4" />
+          + Invite to Team
         </button>
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
