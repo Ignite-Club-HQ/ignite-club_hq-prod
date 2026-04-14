@@ -87,6 +87,8 @@ interface AddTeamMemberSheetProps {
   externalOpen?: boolean;
   /** Callback when open state changes externally */
   onExternalOpenChange?: (open: boolean) => void;
+  /** Pre-fill as a guardian invite for an existing child */
+  prefillGuardianChild?: { childId: string; childName: string } | null;
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
