@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, X, UserCheck, Send, MoreHorizontal, Trash2, Check, Pencil, Mail, Loader2, Copy, Share2, ArrowRightLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -518,7 +518,28 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
               </Button>
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 touch-none"
+                    onPointerDown={(e) => {
+                      // Track touch start position to distinguish taps from scrolls
+                      (e.currentTarget as any)._touchStart = { x: e.clientX, y: e.clientY };
+                    }}
+                    onClick={(e) => {
+                      const start = (e.currentTarget as any)._touchStart;
+                      if (start) {
+                        const dx = Math.abs(e.clientX - start.x);
+                        const dy = Math.abs(e.clientY - start.y);
+                        // If finger moved more than 8px, it was a scroll — suppress
+                        if (dx > 8 || dy > 8) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return;
+                        }
+                      }
+                    }}
+                  >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
