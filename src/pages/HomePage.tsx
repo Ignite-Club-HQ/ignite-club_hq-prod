@@ -1595,6 +1595,7 @@ export default function HomePage() {
         onInvite={() => setMemberInviteOpen(true)}
         onJoinTeam={() => setTeamDialogOpen(true)}
         hasTeams={!!userRoles?.some(r => r.team_id)}
+        isAdmin={!!userRoles?.some(r => ['club_admin', 'team_admin', 'coach', 'app_admin'].includes(r.role))}
       />
 
       {/* Mini League Live Matches Widget */}
