@@ -530,6 +530,7 @@ export default function NotificationsPage() {
       case "event_cancelled":
       case "event_updated":
       case "event_reminder":
+      case "event_view_reminder":
       case "duty_assigned":
       case "rsvp":
       case "rsvp_update":
@@ -793,7 +794,7 @@ export default function NotificationsPage() {
                   <p className={`text-sm ${notification.read ? "text-muted-foreground" : ""}`}>
                     {notification.message}
                     {/* Show "View event" link for event-related notifications */}
-                    {["event_invite", "event_cancelled", "event_updated", "event_reminder", "duty_assigned"].includes(notification.type) && notification.related_id && (
+                    {["event_invite", "event_cancelled", "event_updated", "event_reminder", "event_view_reminder", "duty_assigned"].includes(notification.type) && notification.related_id && (
                       <Button
                         variant="link"
                         size="sm"
