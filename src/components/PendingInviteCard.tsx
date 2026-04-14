@@ -95,6 +95,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showReminderSheet, setShowReminderSheet] = useState(false);
+  const [showContextMenu, setShowContextMenu] = useState(false);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
   const [selectedMoveTeamId, setSelectedMoveTeamId] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState("");
