@@ -6187,6 +6187,7 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: undefined
       }
+      can_access_chat_attachment: { Args: { _name: string }; Returns: boolean }
       can_access_chat_group: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
