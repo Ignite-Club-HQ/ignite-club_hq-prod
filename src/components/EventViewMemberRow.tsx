@@ -137,6 +137,12 @@ export function EventViewMemberRow({
                 <Bell className="h-4 w-4 mr-2" />
                 Send Both
               </DropdownMenuItem>
+              {onShareLink && (
+                <DropdownMenuItem onClick={onShareLink}>
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share via Link
+                </DropdownMenuItem>
+              )}
               {noPushSetup && (
                 <DropdownMenuItem onClick={() => onNudge(member.id, member.display_name || "Member")}>
                   <BellRing className="h-4 w-4 mr-2" />
