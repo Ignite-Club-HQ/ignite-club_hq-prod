@@ -244,6 +244,67 @@ export default function TeamChatPage() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
+  const handleMemberProfileTap = useCallback(async (memberUserId: string, displayName: string, avatarUrl?: string | null) => {
+    if (!teamId || !isAdmin || memberUserId === user?.id) return;
+
+    const { data: roles, error } = await supabase
+      .from("user_roles")
+      .select("id, role")
+      .eq("user_id", memberUserId)
+      .eq("team_id", teamId);
+
+    if (error) {
+      toast.error("Failed to load member roles");
+      return;
+    }
+
+    setSelectedMember({
+      userId: memberUserId,
+      displayName,
+      avatarUrl,
+      roles: roles || [],
+    });
+  }, [teamId, isAdmin, user?.id]);
+
+  const handleRemoveRoleFromSelectedMember = useCallback(async (roleItem: { id: string; role: string }) => {
+    if (!teamId) return;
+
+    const { error } = await supabase
+      .from("user_roles")
+      .delete()
+      .eq("id", roleItem.id);
+
+    if (error) {
+      toast.error("Failed to remove role");
+      return;
+    }
+
+    toast.success("Role removed");
+    queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
+    setSelectedMember(null);
+  }, [teamId, queryClient]);
+
+  const handleRemoveSelectedMemberFromTeam = useCallback(async () => {
+    if (!teamId || !selectedMember) return;
+
+    const { error } = await supabase
+      .from("user_roles")
+      .delete()
+      .eq("user_id", selectedMember.userId)
+      .eq("team_id", teamId);
+
+    if (error) {
+      toast.error("Failed to remove member");
+      return;
+    }
+
+    toast.success("Member removed from team");
+    queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
+    setSelectedMember(null);
+  }, [teamId, selectedMember, queryClient]);
+
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({
     queryKey: ["team-messages", teamId],
     queryFn: async () => {
@@ -1338,6 +1399,15 @@ export default function TeamChatPage() {
                         }
                         onReply={handleReply}
                         onEdit={handleEdit}
+                        onAuthorClick={
+                          !msg.is_club_announcement && isAdmin && msg.author_id !== user?.id
+                            ? () => handleMemberProfileTap(
+                                msg.author_id,
+                                getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || "Unknown User",
+                                getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null,
+                              )
+                            : undefined
+                        }
                         searchQuery={searchQuery}
                         readFrontierReaders={readFrontier[msg.id] || []}
                         readCount={readCounts[msg.id] || 0}
@@ -1399,6 +1469,49 @@ export default function TeamChatPage() {
           </button>
         </div>
       </div>
+
+      {selectedMember && teamId && team && (
+        <MemberDetailSheet
+          open={!!selectedMember}
+          onOpenChange={(open) => { if (!open) setSelectedMember(null); }}
+          userId={selectedMember.userId}
+          displayName={selectedMember.displayName}
+          avatarUrl={selectedMember.avatarUrl}
+          roles={selectedMember.roles}
+          canManage={true}
+          canMove={false}
+          isSelf={selectedMember.userId === user?.id}
+          showMoveAction={false}
+          showRemoveAction={false}
+          onAddRole={() => setAddRoleMember({
+            userId: selectedMember.userId,
+            userName: selectedMember.displayName,
+            existingRoles: selectedMember.roles.map((r) => r.role),
+          })}
+          onMove={() => {}}
+          onRemove={handleRemoveSelectedMemberFromTeam}
+          onRemoveRole={handleRemoveRoleFromSelectedMember}
+        />
+      )}
+
+      {addRoleMember && teamId && team && (
+        <AddRoleToMemberDialog
+          userId={addRoleMember.userId}
+          userName={addRoleMember.userName}
+          teamId={teamId}
+          teamName={team.name}
+          clubId={team.club_id}
+          existingRoles={addRoleMember.existingRoles}
+          open={!!addRoleMember}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAddRoleMember(null);
+              queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+              queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
