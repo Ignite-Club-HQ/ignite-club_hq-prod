@@ -1390,20 +1390,20 @@ export default function TeamDetailPage() {
                                   onTouchEnd={() => clearTimeout((window as any).__longPressTimer)}
                                   onTouchMove={() => clearTimeout((window as any).__longPressTimer)}
                                 >
-                                  <CardContent className="p-3 flex items-center gap-3">
-                                    <Avatar className="h-8 w-8">
+                                  <CardContent className="p-3 flex items-center gap-2">
+                                    <Avatar className="h-8 w-8 shrink-0">
                                       <AvatarFallback className={isPending ? "bg-orange-500/20 text-orange-500 text-sm" : "bg-pink-500/20 text-pink-500 text-sm"}>
                                         {child.name?.charAt(0)?.toUpperCase() || "?"}
                                       </AvatarFallback>
                                     </Avatar>
-                                    <div className="flex-1">
-                                      <p className="font-medium text-sm">{child.name}</p>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium text-sm truncate">{child.name}</p>
                                       {isPending && parentLabel ? (
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-xs text-muted-foreground truncate">
                                           Parent: {parentLabel}
                                         </p>
                                       ) : child.allParentNames && child.allParentNames.length > 0 ? (
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-xs text-muted-foreground truncate">
                                           {child.allParentNames.length === 1 ? "Parent" : "Parents"}: {child.allParentNames.join(" & ")}
                                         </p>
                                       ) : null}
@@ -1649,15 +1649,15 @@ export default function TeamDetailPage() {
                             <div className="space-y-2">
                               {roleMembers.map(([userId, member]) => (
                               <Card key={userId}>
-                                <CardContent className="p-3 flex items-center gap-3">
-                                  <Avatar className="h-8 w-8">
+                                <CardContent className="p-3 flex items-center gap-2">
+                                  <Avatar className="h-8 w-8 shrink-0">
                                     <AvatarImage src={member.profile?.avatar_url || undefined} />
                                     <AvatarFallback className="bg-primary/20 text-primary text-sm">
                                       {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <div className="flex-1">
-                                    <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm truncate">{member.profile?.display_name || "Unknown User"}</p>
                                   </div>
                                   <div className="flex flex-wrap gap-1">
                                     {member.roles?.map((roleItem) => {
