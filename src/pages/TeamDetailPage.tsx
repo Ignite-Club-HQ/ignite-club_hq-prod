@@ -71,6 +71,7 @@ import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import PlayerPositionSheet from "@/components/PlayerPositionSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
+import ChildDetailSheet from "@/components/ChildDetailSheet";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -121,6 +122,7 @@ export default function TeamDetailPage() {
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [removeMember, setRemoveMember] = useState<{ userId: string; name: string } | null>(null);
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
+  const [selectedChild, setSelectedChild] = useState<{ childId: string; childName: string; parentDisplay: string | null; isPending: boolean; linkInviteIds?: string[] } | null>(null);
   
   // Handle admin invite dialog from team creation flow
   const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string } | null;
@@ -1463,7 +1465,21 @@ export default function TeamDetailPage() {
                                     isPending ? "opacity-70" : ""
                                   )}
                                 >
-                                  <CardContent className="p-3.5 flex items-center gap-3">
+                                  <CardContent
+                                    className="p-3.5 flex items-center gap-3 cursor-pointer"
+                                    onClick={() => setSelectedChild({
+                                      childId: child.id,
+                                      childName: child.name,
+                                      parentDisplay,
+                                      isPending: !!isPending,
+                                      linkInviteIds: isPending ? pendingInvites
+                                        .filter(inv => {
+                                          const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
+                                          return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
+                                        })
+                                        .map(inv => inv.id) : undefined,
+                                    })}
+                                  >
                                     <Avatar className="h-9 w-9 shrink-0">
                                       <AvatarFallback className={cn(
                                         "text-sm font-semibold",
@@ -2415,6 +2431,22 @@ export default function TeamDetailPage() {
               setSelectedMember(null);
             }
           }}
+        />
+      )}
+      {selectedChild && (
+        <ChildDetailSheet
+          open={!!selectedChild}
+          onOpenChange={(open) => { if (!open) setSelectedChild(null); }}
+          childName={selectedChild.childName}
+          parentDisplay={selectedChild.parentDisplay}
+          isPending={selectedChild.isPending}
+          canManage={isAdmin || isClubAdmin}
+          showPosition={!!isSoccerClub}
+          canMove={isClubAdmin}
+          onInviteParent={() => setInviteParentChild({ childId: selectedChild.childId, childName: selectedChild.childName })}
+          onEditPosition={() => setPositionSheetPlayer({ id: selectedChild.childId, name: selectedChild.childName, type: "child" })}
+          onSwapTeam={() => setMoveToTeam({ type: "child", id: selectedChild.childId, name: selectedChild.childName })}
+          onLink={selectedChild.isPending && selectedChild.linkInviteIds ? () => setLinkChildToParent({ childName: selectedChild.childName, existingChildId: selectedChild.childId, pendingInviteIds: selectedChild.linkInviteIds || [] }) : undefined}
         />
       )}
     </div>
