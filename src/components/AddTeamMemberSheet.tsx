@@ -3258,6 +3258,48 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   ? "Add child to continue"
                   : "Continue"}
               </Button>
+              ) : (
+              <Button
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => {
+                  if (!nameConfirmed && nameInput.trim()) {
+                    setNameConfirmed(true);
+                    return;
+                  }
+                  if (selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()) {
+                    setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
+                    return;
+                  }
+                  if (deliveryMethod === "email" && !customEmail.trim()) {
+                    return;
+                  }
+                  addPendingMemberMutation.mutate();
+                }}
+                disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
+                variant={
+                  !nameConfirmed ? "outline" 
+                  : (selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()) ? "outline" 
+                  : (deliveryMethod === "email" && !customEmail.trim()) ? "outline"
+                  : "default"
+                }
+              >
+                {addPendingMemberMutation.isPending ? (
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : !nameConfirmed ? (
+                  <Check className="h-5 w-5 mr-2" />
+                ) : selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim() ? (
+                  <Baby className="h-5 w-5 mr-2" />
+                ) : (
+                  <UserPlus className="h-5 w-5 mr-2" />
+                )}
+                {!nameConfirmed
+                  ? "Confirm name to continue"
+                  : selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()
+                    ? "Add child to continue"
+                    : deliveryMethod === "email" && !customEmail.trim()
+                      ? "Enter email to continue"
+                      : "Create Invite"}
+              </Button>
             )
           ) : (
             <Button
