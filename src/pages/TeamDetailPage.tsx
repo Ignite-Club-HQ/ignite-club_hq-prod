@@ -2362,6 +2362,57 @@ export default function TeamDetailPage() {
           memberRoles={moveToTeam.roles}
         />
       )}
+      {addRoleMember && id && team && (
+        <AddRoleToMemberDialog
+          userId={addRoleMember.userId}
+          userName={addRoleMember.userName}
+          teamId={id}
+          teamName={team.name}
+          clubId={team.club_id}
+          existingRoles={addRoleMember.existingRoles}
+          open={!!addRoleMember}
+          onOpenChange={(open) => { if (!open) setAddRoleMember(null); }}
+        />
+      )}
+      <AlertDialog open={!!removeMember} onOpenChange={(open) => { if (!open) setRemoveMember(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {removeMember?.name} from the team. They can request to join again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!removeMember || !id) return;
+                const { error } = await supabase
+                  .from("user_roles")
+                  .delete()
+                  .eq("user_id", removeMember.userId)
+                  .eq("team_id", id);
+                if (error) {
+                  toast({ title: "Failed to remove member", variant: "destructive" });
+                } else {
+                  await supabase.from("notifications").insert({
+                    user_id: removeMember.userId,
+                    type: "membership",
+                    message: `You have been removed from ${team?.name || "the team"}`,
+                    related_id: id,
+                  });
+                  queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                  toast({ title: "Member removed" });
+                }
+                setRemoveMember(null);
+              }}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
