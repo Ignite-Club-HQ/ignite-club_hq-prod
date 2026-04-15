@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useMemo } from "react";
+import { useState, useEffect, lazy, Suspense, useMemo, type ReactNode } from "react";
 import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import InviteOtherParentSheet from "@/components/InviteOtherParentSheet";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SwipeableCard } from "@/components/ui/swipeable-card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -1403,22 +1404,59 @@ export default function TeamDetailPage() {
                                   ? `${child.allParentNames.length === 1 ? "Parent" : "Parents"}: ${child.allParentNames.join(" & ")}`
                                   : null;
 
+                              const swipeActions = (() => {
+                                if (!(isAdmin || isClubAdmin)) return [];
+                                if (isPending) {
+                                  return [{
+                                    label: "Link",
+                                    icon: <UserPlus className="h-4 w-4" />,
+                                    onClick: () => {
+                                      const inviteIds = pendingInvites
+                                        .filter(inv => {
+                                          const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
+                                          return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
+                                        })
+                                        .map(inv => inv.id);
+                                      setLinkChildToParent({ childName: child.name, existingChildId: child.id, pendingInviteIds: inviteIds });
+                                    },
+                                    className: "bg-orange-500",
+                                  }];
+                                }
+                                const actions: { label: string; icon: ReactNode; onClick: () => void; className?: string }[] = [
+                                  {
+                                    label: "Parent",
+                                    icon: <UserPlus className="h-4 w-4" />,
+                                    onClick: () => setInviteParentChild({ childId: child.id, childName: child.name }),
+                                  },
+                                ];
+                                if (isSoccerClub) {
+                                  actions.push({
+                                    label: "Position",
+                                    icon: <Pencil className="h-4 w-4" />,
+                                    onClick: () => setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" }),
+                                    className: "bg-blue-500",
+                                  });
+                                }
+                                if (isClubAdmin) {
+                                  actions.push({
+                                    label: "Swap",
+                                    icon: <ArrowRightLeft className="h-4 w-4" />,
+                                    onClick: () => setMoveToTeam({ type: "child", id: child.id, name: child.name }),
+                                    className: "bg-amber-500",
+                                  });
+                                }
+                                return actions;
+                              })();
+
                               return (
-                                <Card 
-                                  key={assignment.id} 
+                                <SwipeableCard
+                                  key={assignment.id}
+                                  actions={swipeActions}
+                                  enabled={(isAdmin || isClubAdmin)}
                                   className={cn(
                                     "border shadow-sm",
-                                    isPending ? "opacity-70" : "",
-                                    (isAdmin || isClubAdmin) && isSoccerClub && "cursor-pointer select-none"
+                                    isPending ? "opacity-70" : ""
                                   )}
-                                  onTouchStart={(isAdmin || isClubAdmin) && isSoccerClub ? (() => {
-                                    const timer = setTimeout(() => {
-                                      setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
-                                    }, 500);
-                                    (window as any).__longPressTimer = timer;
-                                  }) : undefined}
-                                  onTouchEnd={() => clearTimeout((window as any).__longPressTimer)}
-                                  onTouchMove={() => clearTimeout((window as any).__longPressTimer)}
                                 >
                                   <CardContent className="p-3.5 flex items-center gap-3">
                                     <Avatar className="h-9 w-9 shrink-0">
@@ -1435,62 +1473,16 @@ export default function TeamDetailPage() {
                                         <p className="text-xs text-muted-foreground truncate mt-0.5">{parentDisplay}</p>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                      <Badge variant="outline" className={cn(
-                                        "text-[10px] border px-1.5 py-0 h-4",
-                                        isPending 
-                                          ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
-                                          : "bg-pink-500/20 text-pink-400 border-pink-500/30"
-                                      )}>
-                                        {isPending ? "Pending" : "Child"}
-                                      </Badge>
-                                      {(isAdmin || isClubAdmin) && (
-                                        <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
-                                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                            </Button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent align="end" className="z-[100]">
-                                            {isPending ? (
-                                              <DropdownMenuItem onClick={() => {
-                                                const inviteIds = pendingInvites
-                                                  .filter(inv => {
-                                                    const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
-                                                    return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
-                                                  })
-                                                  .map(inv => inv.id);
-                                                setLinkChildToParent({ childName: child.name, existingChildId: child.id, pendingInviteIds: inviteIds });
-                                              }}>
-                                                <UserPlus className="h-4 w-4 mr-2" />
-                                                Link to parent
-                                              </DropdownMenuItem>
-                                            ) : (
-                                              <>
-                                                <DropdownMenuItem onClick={() => setInviteParentChild({ childId: child.id, childName: child.name })}>
-                                                  <UserPlus className="h-4 w-4 mr-2" />
-                                                  Invite parent
-                                                </DropdownMenuItem>
-                                                {isSoccerClub && (
-                                                  <DropdownMenuItem onClick={() => setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" })}>
-                                                    <Pencil className="h-4 w-4 mr-2" />
-                                                    Edit position
-                                                  </DropdownMenuItem>
-                                                )}
-                                                {isClubAdmin && (
-                                                  <DropdownMenuItem onClick={() => setMoveToTeam({ type: "child", id: child.id, name: child.name })}>
-                                                    <ArrowRightLeft className="h-4 w-4 mr-2" />
-                                                    Swap team
-                                                  </DropdownMenuItem>
-                                                )}
-                                              </>
-                                            )}
-                                          </DropdownMenuContent>
-                                        </DropdownMenu>
-                                      )}
-                                    </div>
+                                    <Badge variant="outline" className={cn(
+                                      "text-[10px] border px-1.5 py-0 h-4 shrink-0",
+                                      isPending 
+                                        ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                                        : "bg-pink-500/20 text-pink-400 border-pink-500/30"
+                                    )}>
+                                      {isPending ? "Pending" : "Child"}
+                                    </Badge>
                                   </CardContent>
-                                </Card>
+                                </SwipeableCard>
                               );
                             });
                           })()}
@@ -1548,7 +1540,17 @@ export default function TeamDetailPage() {
                             }
                             
                             return Array.from(seenPendingNames.entries()).map(([key, { name, parentLabels, inviteIds }]) => (
-                              <Card key={`pending-child-${key}`} className="opacity-70 border shadow-sm">
+                              <SwipeableCard
+                                key={`pending-child-${key}`}
+                                enabled={isAdmin || isClubAdmin}
+                                actions={(isAdmin || isClubAdmin) ? [{
+                                  label: "Link",
+                                  icon: <UserPlus className="h-4 w-4" />,
+                                  onClick: () => setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds }),
+                                  className: "bg-orange-500",
+                                }] : []}
+                                className="opacity-70 border shadow-sm"
+                              >
                                 <CardContent className="p-3.5 flex items-center gap-3">
                                   <Avatar className="h-9 w-9 shrink-0">
                                     <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm font-semibold">
@@ -1561,28 +1563,11 @@ export default function TeamDetailPage() {
                                       {parentLabels.length > 1 ? `Parents: ${parentLabels.join(" & ")}` : `Parent: ${parentLabels[0]}`}
                                     </p>
                                   </div>
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <Badge variant="outline" className="text-[10px] border px-1.5 py-0 h-4 bg-orange-500/20 text-orange-400 border-orange-500/30">
-                                      Pending
-                                    </Badge>
-                                    {(isAdmin || isClubAdmin) && (
-                                      <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
-                                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                          </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="z-[100]">
-                                          <DropdownMenuItem onClick={() => setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds })}>
-                                            <UserPlus className="h-4 w-4 mr-2" />
-                                            Link to parent
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
-                                    )}
-                                  </div>
+                                  <Badge variant="outline" className="text-[10px] border px-1.5 py-0 h-4 shrink-0 bg-orange-500/20 text-orange-400 border-orange-500/30">
+                                    Pending
+                                  </Badge>
                                 </CardContent>
-                              </Card>
+                              </SwipeableCard>
                             ));
                           })()}
                         </div>
