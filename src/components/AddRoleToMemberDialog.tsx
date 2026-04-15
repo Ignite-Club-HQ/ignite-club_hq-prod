@@ -41,8 +41,12 @@ export default function AddRoleToMemberDialog({
   teamName,
   clubId,
   existingRoles,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: AddRoleToMemberDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [selectedRoles, setSelectedRoles] = useState<TeamRole[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
