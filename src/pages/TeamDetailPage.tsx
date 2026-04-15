@@ -1430,6 +1430,7 @@ export default function TeamDetailPage() {
                                     icon: <UserPlus className="h-4 w-4" />,
                                     onClick: () => setInviteParentChild({ childId: child.id, childName: child.name }),
                                     className: "bg-emerald-600 text-white",
+                                  },
                                 ];
                                 if (isSoccerClub) {
                                   actions.push({
