@@ -1651,7 +1651,7 @@ export default function TeamDetailPage() {
                                     label: "Role",
                                     icon: <Plus className="h-4 w-4" />,
                                     onClick: () => setAddRoleMember({ userId, userName: member.profile?.display_name || "User", existingRoles: member.roles?.map(r => r.role) || [] }),
-                                    className: "bg-primary",
+                                    className: "bg-blue-600 text-white",
                                   });
                                 }
                                 if (isClubAdmin && userId !== user?.id) {
