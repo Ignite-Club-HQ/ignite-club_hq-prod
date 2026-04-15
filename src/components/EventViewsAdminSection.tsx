@@ -411,6 +411,7 @@ export function EventViewsAdminSection({
         isBusy={sendingForUser === member.id || nudgingUser === member.id}
         onSendReminder={handleSendReminders}
         onNudge={handleSendNudgeToUser}
+        onShareLink={handleShareEventLink}
       />
     );
   };
