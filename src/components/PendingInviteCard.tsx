@@ -95,15 +95,12 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showReminderSheet, setShowReminderSheet] = useState(false);
-  const [showContextMenu, setShowContextMenu] = useState(false);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
   const [selectedMoveTeamId, setSelectedMoveTeamId] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState("");
   const [editName, setEditName] = useState(invite.invited_label || "");
   const [editRole, setEditRole] = useState<AppRole>(invite.role as AppRole);
   const [isResending, setIsResending] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressTriggered = useRef(false);
 
   // Fetch team name and club branding for resend email
   const { data: teamData } = useQuery({
