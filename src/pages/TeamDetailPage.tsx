@@ -1437,7 +1437,7 @@ export default function TeamDetailPage() {
                                     label: "Position",
                                     icon: <Pencil className="h-4 w-4" />,
                                     onClick: () => setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" }),
-                                    className: "bg-blue-500",
+                                    className: "bg-blue-500 text-white",
                                   });
                                 }
                                 if (isClubAdmin) {
@@ -1445,7 +1445,7 @@ export default function TeamDetailPage() {
                                     label: "Swap",
                                     icon: <ArrowRightLeft className="h-4 w-4" />,
                                     onClick: () => setMoveToTeam({ type: "child", id: child.id, name: child.name }),
-                                    className: "bg-amber-500",
+                                    className: "bg-amber-500 text-white",
                                   });
                                 }
                                 return actions;
@@ -1665,7 +1665,7 @@ export default function TeamDetailPage() {
                                       name: member.profile?.display_name || "User",
                                       roles: member.roles?.map(r => r.role) || [],
                                     }),
-                                    className: "bg-amber-500",
+                                    className: "bg-amber-500 text-white",
                                   });
                                 }
                                 if (canManage) {
