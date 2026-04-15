@@ -1644,8 +1644,8 @@ export default function TeamDetailPage() {
                         if (roleMembers.length === 0 && rolePending.length === 0) return null;
 
                         return (
-                          <div key={role} className="mb-4 pb-4 border-b last:border-b-0 last:mb-0 last:pb-0">
-                            <p className="text-sm font-medium text-muted-foreground mb-2">{roleGroupLabels[role] || role}</p>
+                          <div key={role} className="mb-3 pb-3 border-b last:border-b-0 last:mb-0 last:pb-0">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{roleGroupLabels[role] || role}</p>
                             <div className="space-y-2">
                               {roleMembers.map(([userId, member]) => (
                               <Card key={userId}>
