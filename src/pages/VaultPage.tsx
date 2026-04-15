@@ -603,8 +603,7 @@ export default function VaultPage() {
       let nullFilters: string[] = [];
       
       if (currentView.type === "club") {
-        // Club-level folders only accessible to club admins
-        if (!isClubAdmin) return [];
+        if (!isClubAdmin && !isCoachOrTeamAdmin) return [];
         filters.club_id = clubId;
         nullFilters = ["team_id", "mini_league_id"];
       } else if (currentView.type === "team") {
@@ -648,8 +647,7 @@ export default function VaultPage() {
       let query = supabase.from("vault_files").select("*").is("deleted_at", null);
       
       if (currentView.type === "club") {
-        // Club-level content only accessible to club admins
-        if (!isClubAdmin) return [];
+        if (!isClubAdmin && !isCoachOrTeamAdmin) return [];
         query = query.eq("club_id", currentView.clubId).is("team_id", null).is("mini_league_id", null);
       } else if (currentView.type === "team") {
         query = query.eq("team_id", currentView.teamId);
