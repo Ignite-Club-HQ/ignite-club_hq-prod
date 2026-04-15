@@ -77,21 +77,39 @@ export async function awardEarlyRsvpPoints({
       return false; // Another request already marked it
     }
 
-    // Atomic points increment
-    const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
-      _user_id: userId,
-      _amount: EARLY_RSVP_POINTS,
-    });
+    // Atomic points increment — child or user
+    let balanceAfter: number;
+    let previousPoints: number;
 
-    if (updateError) {
-      console.error("Failed to award early RSVP points:", updateError);
-      // Revert the flag since points weren't actually awarded
-      await supabase.from("rsvps").update({ early_rsvp_points_awarded: false }).eq("id", rsvpId);
-      return false;
+    if (childId) {
+      const { data: newPoints, error: updateError } = await supabase.rpc('increment_child_ignite_points', {
+        _child_id: childId,
+        _amount: EARLY_RSVP_POINTS,
+      });
+
+      if (updateError) {
+        console.error("Failed to award early RSVP points to child:", updateError);
+        await supabase.from("rsvps").update({ early_rsvp_points_awarded: false }).eq("id", rsvpId);
+        return false;
+      }
+
+      balanceAfter = newPoints || 0;
+      previousPoints = balanceAfter - EARLY_RSVP_POINTS;
+    } else {
+      const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
+        _user_id: userId,
+        _amount: EARLY_RSVP_POINTS,
+      });
+
+      if (updateError) {
+        console.error("Failed to award early RSVP points:", updateError);
+        await supabase.from("rsvps").update({ early_rsvp_points_awarded: false }).eq("id", rsvpId);
+        return false;
+      }
+
+      balanceAfter = newPoints || 0;
+      previousPoints = balanceAfter - EARLY_RSVP_POINTS;
     }
-
-    const balanceAfter = newPoints || 0;
-    const previousPoints = balanceAfter - EARLY_RSVP_POINTS;
 
     // Record in points history
     await recordPointsHistory({
