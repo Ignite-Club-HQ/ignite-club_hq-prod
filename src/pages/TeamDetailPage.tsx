@@ -1287,9 +1287,9 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-                <div className="flex flex-wrap gap-2 justify-between items-center pl-1">
+                <div className="flex flex-wrap gap-2 justify-between items-center">
                   <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
-                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                    <SelectTrigger className="w-[120px] h-7 text-xs">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1301,16 +1301,12 @@ export default function TeamDetailPage() {
                       <SelectItem value="child">Children</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex gap-2">
-                    <AddTeamMemberSheet 
-                        teamId={id!} 
-                        teamName={team.name} 
-                        clubId={team.club_id}
-                        teamType={(team as any).team_type || "mixed"}
-                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                        canBulkInvite={isCoachOrAdmin || isClubAdmin}
-                      />
-                  </div>
+                  {(isAdmin || isClubAdmin) && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-primary" onClick={() => setHeaderInviteOpen(true)}>
+                      <UserPlus className="h-3.5 w-3.5 mr-1" />
+                      Add members
+                    </Button>
+                  )}
                 </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <div className="flex flex-col items-center py-6 text-center gap-3">
@@ -1321,14 +1317,10 @@ export default function TeamDetailPage() {
                       <p className="font-medium text-foreground">No members yet</p>
                       <p className="text-sm text-muted-foreground mt-1">Invite players, parents or coaches to get started</p>
                     </div>
-                    <AddTeamMemberSheet
-                        teamId={id!}
-                        teamName={team.name}
-                        clubId={team.club_id}
-                        teamType={(team as any).team_type || "mixed"}
-                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                        canBulkInvite={isCoachOrAdmin || isClubAdmin}
-                      />
+                    <Button size="sm" onClick={() => setHeaderInviteOpen(true)}>
+                      <UserPlus className="h-4 w-4 mr-1.5" />
+                      Invite Members
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-2">
