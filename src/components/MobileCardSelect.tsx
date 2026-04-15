@@ -21,6 +21,8 @@ interface Option {
   value: string;
   label: string;
   icon?: React.ReactNode;
+  description?: string;
+  disabled?: boolean;
 }
 
 interface MobileCardSelectProps {
