@@ -193,11 +193,15 @@ export function MobileCardSelect({
               <SelectItem
                 key={option.value}
                 value={option.value}
+                disabled={option.disabled}
                 className="py-3 text-base cursor-pointer"
               >
                 <span className="flex items-center gap-2">
                   {option.icon}
                   {option.label}
+                  {option.description && (
+                    <span className="text-xs text-muted-foreground">({option.description})</span>
+                  )}
                 </span>
               </SelectItem>
             ))
