@@ -134,7 +134,7 @@ export default function MemberDetailSheet({
                   <Plus className="h-4 w-4 text-blue-500" />
                   Add Role
                 </Button>
-                {canMove && (
+                {showMoveAction && canMove && (
                   <Button
                     variant="outline"
                     className="justify-start gap-2 h-11"
@@ -147,7 +147,7 @@ export default function MemberDetailSheet({
                     Move to Another Team
                   </Button>
                 )}
-                {!isSelf && (
+                {showRemoveAction && !isSelf && (
                   <Button
                     variant="outline"
                     className="justify-start gap-2 h-11 text-destructive hover:text-destructive"
