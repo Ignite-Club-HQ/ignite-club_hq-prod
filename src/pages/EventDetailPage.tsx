@@ -985,6 +985,7 @@ export default function EventDetailPage() {
   const childRsvpMutation = useMutation({
     mutationFn: async ({ childId, status, childName }: { childId: string; status: RsvpStatus; childName?: string }) => {
       const existingRsvp = childRsvps.find((r) => r.child_id === childId);
+      let rsvpId: string | null = null;
       
       if (existingRsvp) {
         const { error } = await supabase
@@ -992,14 +993,28 @@ export default function EventDetailPage() {
           .update({ status })
           .eq("id", existingRsvp.id);
         if (error) throw error;
+        rsvpId = existingRsvp.id;
       } else {
-        const { error } = await supabase.from("rsvps").insert({
+        const { data: newRsvp, error } = await supabase.from("rsvps").insert({
           event_id: id!,
           user_id: user!.id,
           child_id: childId,
           status,
-        });
+        }).select("id").single();
         if (error) throw error;
+        rsvpId = newRsvp?.id || null;
+      }
+
+      // Fire-and-forget: award early RSVP points for child
+      if (status === "going" && rsvpId && event) {
+        awardEarlyRsvpPoints({
+          userId: user!.id,
+          childId,
+          eventDate: event.event_date,
+          rsvpId,
+          clubId: event.club_id,
+          clubName: event.clubs?.name || "Your club",
+        }).catch(console.error);
       }
 
       // RSVP notifications are handled by the on_rsvp_notify_admins database trigger

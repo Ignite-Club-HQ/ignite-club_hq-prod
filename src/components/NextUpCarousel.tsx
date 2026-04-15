@@ -376,6 +376,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const childRsvpMutation = useMutation({
     mutationFn: async ({ childId, status }: { childId: string; status: RsvpStatus }) => {
       const existingChildRsvp = childRsvps?.find((rsvp) => rsvp.child_id === childId);
+      let rsvpId: string | null = null;
 
       if (existingChildRsvp) {
         const { error } = await supabase
@@ -384,19 +385,34 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
           .eq("id", existingChildRsvp.id);
 
         if (error) throw error;
-        return;
+        rsvpId = existingChildRsvp.id;
+      } else {
+        const { data: newRsvp, error } = await supabase
+          .from("rsvps")
+          .insert({
+            event_id: event.id,
+            child_id: childId,
+            user_id: user!.id,
+            status,
+          })
+          .select("id")
+          .single();
+
+        if (error) throw error;
+        rsvpId = newRsvp?.id || null;
       }
 
-      const { error } = await supabase
-        .from("rsvps")
-        .insert({
-          event_id: event.id,
-          child_id: childId,
-          user_id: user!.id,
-          status,
-        });
-
-      if (error) throw error;
+      // Fire-and-forget: award early RSVP points for child
+      if (status === "going" && rsvpId) {
+        awardEarlyRsvpPoints({
+          userId: user!.id,
+          childId,
+          eventDate: event.event_date,
+          rsvpId,
+          clubId: event.club_id,
+          clubName: event.clubs?.name || "Your club",
+        }).catch(console.error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["child-rsvps-card", event.id] });
