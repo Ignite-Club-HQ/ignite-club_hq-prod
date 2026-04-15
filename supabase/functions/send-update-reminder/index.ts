@@ -58,10 +58,11 @@ serve(async (req) => {
     if (action === 'list-users') {
       const { clubId } = body;
 
-      // Get all FCM tokens using service role (bypasses RLS)
+      // Get all FCM tokens using service role (bypasses RLS), ordered so newest comes last
       const { data: fcmTokens, error: fcmError } = await adminClient
         .from('fcm_tokens')
-        .select('user_id, platform, app_version, build_number');
+        .select('user_id, platform, app_version, build_number, updated_at')
+        .order('updated_at', { ascending: true });
 
       if (fcmError) {
         console.error('FCM tokens fetch error:', fcmError);
