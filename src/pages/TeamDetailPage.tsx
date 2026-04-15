@@ -1702,13 +1702,8 @@ export default function TeamDetailPage() {
                                       <div className="flex flex-wrap gap-1">
                                         {member.roles?.map((roleItem) => {
                                           const roleLabels: Record<string, string> = {
-                                            app_admin: "App Admin",
-                                            club_admin: "Club Admin",
-                                            team_admin: "Team Admin",
-                                            coach: "Coach",
-                                            player: "Player",
-                                            parent: "Parent",
-                                            basic_user: "Member",
+                                            app_admin: "App Admin", club_admin: "Club Admin", team_admin: "Team Admin",
+                                            coach: "Coach", player: "Player", parent: "Parent", basic_user: "Member",
                                           };
                                           const roleColors: Record<string, string> = {
                                             app_admin: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -1719,53 +1714,10 @@ export default function TeamDetailPage() {
                                             parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
                                             basic_user: "bg-muted text-muted-foreground border-border",
                                           };
-                                          const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
-                                          const label = roleLabels[roleItem.role] || "Member";
-                                          const canRemoveRole = canManage && (member.roles?.length || 0) > 1;
                                           return (
-                                            <AlertDialog key={roleItem.id}>
-                                              <Badge variant="outline" className={`text-[10px] border px-1.5 py-0 h-4 ${colorClass} flex items-center gap-0.5`}>
-                                                {label}
-                                                {canRemoveRole && (
-                                                  <AlertDialogTrigger asChild>
-                                                    <button
-                                                      onClick={(e) => e.stopPropagation()}
-                                                      aria-label={`Remove ${label} role`}
-                                                      className="ml-0.5 hover:bg-destructive/20 rounded-full p-1.5 -mr-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
-                                                    >
-                                                      <X className="h-3 w-3" aria-hidden="true" />
-                                                    </button>
-                                                  </AlertDialogTrigger>
-                                                )}
-                                              </Badge>
-                                              <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                  <AlertDialogTitle>Remove {label} Role?</AlertDialogTitle>
-                                                  <AlertDialogDescription>
-                                                    This will remove the {label} role from {member.profile?.display_name || "this user"}.
-                                                  </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                  <AlertDialogAction
-                                                    onClick={async () => {
-                                                      const { error } = await supabase
-                                                        .from("user_roles")
-                                                        .delete()
-                                                        .eq("id", roleItem.id);
-                                                      if (error) {
-                                                        toast({ title: "Failed to remove role", variant: "destructive" });
-                                                      } else {
-                                                        toast({ title: `Removed ${label} role` });
-                                                        queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                                                      }
-                                                    }}
-                                                  >
-                                                    Remove
-                                                  </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                              </AlertDialogContent>
-                                            </AlertDialog>
+                                            <Badge key={roleItem.id} variant="outline" className={`text-[10px] border px-1.5 py-0 h-4 ${roleColors[roleItem.role] || roleColors.basic_user}`}>
+                                              {roleLabels[roleItem.role] || "Member"}
+                                            </Badge>
                                           );
                                         })}
                                       </div>
