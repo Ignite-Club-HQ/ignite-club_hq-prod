@@ -23,6 +23,8 @@ interface AddRoleToMemberDialogProps {
   teamName: string;
   clubId: string;
   existingRoles: string[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const availableRoles: { value: TeamRole; label: string; description: string; color: string }[] = [
