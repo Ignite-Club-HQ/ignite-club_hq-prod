@@ -3259,6 +3259,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   : "Continue"}
               </Button>
             )
+            )
           ) : (
               <Button
                 className="w-full h-12 text-base font-semibold"
