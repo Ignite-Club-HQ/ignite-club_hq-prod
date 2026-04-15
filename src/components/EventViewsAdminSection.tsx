@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone, MessageSquareOff } from "lucide-react";
+import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone, MessageSquareOff, Share2 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
+import { getShareUrl } from "@/lib/shareUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
