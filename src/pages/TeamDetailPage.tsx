@@ -9,7 +9,7 @@ import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
-
+import InviteOtherParentSheet from "@/components/InviteOtherParentSheet";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -2387,18 +2387,13 @@ export default function TeamDetailPage() {
           playerType={positionSheetPlayer.type}
         />
       )}
-      {inviteParentChild && id && team && (
-        <AddTeamMemberSheet
-          teamId={id}
-          teamName={team.name}
-          clubId={team.club_id}
-          teamType={(team as any).team_type || "mixed"}
-          isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-          canBulkInvite={false}
-          triggerVariant="none"
-          externalOpen={!!inviteParentChild}
-          onExternalOpenChange={(open) => { if (!open) setInviteParentChild(null); }}
-          prefillGuardianChild={inviteParentChild}
+      {inviteParentChild && id && (
+        <InviteOtherParentSheet
+          open={!!inviteParentChild}
+          onOpenChange={(open) => { if (!open) setInviteParentChild(null); }}
+          childId={inviteParentChild.childId}
+          childName={inviteParentChild.childName}
+          teamIds={[id]}
         />
       )}
       {linkChildToParent && id && team && (

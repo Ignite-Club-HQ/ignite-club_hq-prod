@@ -146,7 +146,7 @@ export default function MemberInviteSheet({ open, onOpenChange }: MemberInviteSh
 
     if (Capacitor.isNativePlatform()) {
       try {
-        await Share.share({ text: `${textBody}\n\nJoin here: ${generatedLink}`, dialogTitle: "Share invite" });
+        await Share.share({ title: `Join ${clubName || teamName}`, text: textBody, url: generatedLink, dialogTitle: "Share invite" });
         return;
       } catch { /* cancelled */ }
     }
