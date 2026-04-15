@@ -812,7 +812,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
-      // Send team-invite email to second parent (existing user added directly)
+      // Send team-invite email to existing user added as coach/admin/player (non-parent)
+      if (selectedRole !== "parent" && selectedUser && !result?.roleWasDuplicate) {
+        const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
+        // Use email from customEmail field, or fall back to sending via toUserId
+        const emailTarget = customEmail.trim().toLowerCase();
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              ...(emailTarget ? { to: emailTarget } : { toUserId: selectedUser.id }),
+              subject: `${clubBranding?.name || 'Your club'}: You've been added to ${teamName} as ${roleName}`,
+              template: "team-invite",
+              senderName: clubBranding?.name || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
+              templateData: {
+                recipientName: selectedUser.display_name || roleName,
+                teamName,
+                clubName: clubBranding?.name || "The Club",
+                roleName,
+                clubLogoUrl: clubBranding?.logo_url || undefined,
+                customMessage: customMessage?.trim() || undefined,
+                inviteLink: `${window.location.origin}/teams/${teamId}`,
+              },
+            },
+          });
+        } catch (err) {
+          console.error(`[AddMember] Failed to send team-invite email to ${roleName}:`, err);
+        }
+      }
+
       if (result?.secondParentAddedDirectly && selectedSecondParent) {
         const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
         if (childrenNames.length > 0) {
