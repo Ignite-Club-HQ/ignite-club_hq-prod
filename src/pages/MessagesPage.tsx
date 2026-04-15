@@ -295,6 +295,7 @@ export default function MessagesPage() {
             .from("club_messages")
             .select("text, created_at, image_url, author_id")
             .eq("club_id", club.id)
+            .is("deleted_at", null)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -410,6 +411,7 @@ export default function MessagesPage() {
             .from("team_messages")
             .select("text, created_at, image_url, author_id, is_club_announcement, club_announcement_name")
             .eq("team_id", team.id)
+            .is("deleted_at", null)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -668,6 +670,7 @@ export default function MessagesPage() {
             .from("group_messages")
             .select("text, created_at, image_url, author_id")
             .eq("group_id", group.id)
+            .is("deleted_at", null)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
