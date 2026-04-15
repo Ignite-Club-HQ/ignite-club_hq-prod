@@ -64,43 +64,6 @@ export function ChatMembersSheet({
   // Resolve the effective team ID for role management
   const effectiveTeamId = chatType === "team" ? chatId : teamId;
 
-  // Check if current user is admin (for team chats or group chats with teamId)
-  const { data: isCurrentUserAdmin } = useQuery({
-    queryKey: ["chat-members-admin-check", effectiveTeamId, clubId, user?.id],
-    queryFn: async () => {
-      if (!user || !effectiveTeamId) return false;
-      
-      const [teamRoleResult, clubRoleResult, appAdminResult] = await Promise.all([
-        supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .eq("team_id", effectiveTeamId)
-          .in("role", ["team_admin", "coach"])
-          .maybeSingle(),
-        clubId
-          ? supabase
-              .from("user_roles")
-              .select("role")
-              .eq("user_id", user.id)
-              .eq("club_id", clubId)
-              .eq("role", "club_admin")
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-        supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .eq("role", "app_admin")
-          .maybeSingle(),
-      ]);
-      
-      return !!teamRoleResult.data || !!clubRoleResult.data || !!appAdminResult.data;
-    },
-    enabled: open && !!user && !!effectiveTeamId,
-    staleTime: 1000 * 60 * 5,
-  });
-
   // Resolve clubId for the team if not provided
   const { data: resolvedClubId } = useQuery({
     queryKey: ["chat-members-team-club", effectiveTeamId],
@@ -117,6 +80,43 @@ export function ChatMembersSheet({
     },
     enabled: open && !!effectiveTeamId,
     staleTime: 1000 * 60 * 30,
+  });
+
+  // Check if current user is admin (for team chats or group chats with teamId)
+  const { data: isCurrentUserAdmin } = useQuery({
+    queryKey: ["chat-members-admin-check", effectiveTeamId, resolvedClubId, user?.id],
+    queryFn: async () => {
+      if (!user || !effectiveTeamId) return false;
+      
+      const [teamRoleResult, clubRoleResult, appAdminResult] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("team_id", effectiveTeamId)
+          .in("role", ["team_admin", "coach"])
+          .maybeSingle(),
+        resolvedClubId
+          ? supabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", user.id)
+              .eq("club_id", resolvedClubId)
+              .eq("role", "club_admin")
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "app_admin")
+          .maybeSingle(),
+      ]);
+      
+      return !!teamRoleResult.data || !!clubRoleResult.data || !!appAdminResult.data;
+    },
+    enabled: open && !!user && !!effectiveTeamId && resolvedClubId !== undefined,
+    staleTime: 1000 * 60 * 5,
   });
 
   // Check if this is a personal group (no team_id or club_id)
