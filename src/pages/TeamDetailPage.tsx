@@ -1681,7 +1681,15 @@ export default function TeamDetailPage() {
 
                                 return (
                                   <SwipeableCard key={userId} actions={memberSwipeActions} enabled={memberSwipeActions.length > 0} className="border shadow-sm">
-                                    <CardContent className="p-3.5 flex items-center gap-3">
+                                    <CardContent
+                                      className="p-3.5 flex items-center gap-3 cursor-pointer"
+                                      onClick={() => setSelectedMember({
+                                        userId,
+                                        displayName: member.profile?.display_name || "Unknown User",
+                                        avatarUrl: member.profile?.avatar_url,
+                                        roles: member.roles || [],
+                                      })}
+                                    >
                                       <Avatar className="h-8 w-8 shrink-0">
                                         <AvatarImage src={member.profile?.avatar_url || undefined} />
                                         <AvatarFallback className="bg-primary/20 text-primary text-sm">
