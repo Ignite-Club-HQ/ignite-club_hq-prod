@@ -67,10 +67,10 @@ export async function syncChatAttachmentToVault({
 
     const existingUrls = new Set((existing || []).map((e) => e.file_url));
 
-    // Insert images into "Chat Images" folder
+    // Insert images into "Chat Images" folder (team-level if teamId, club-level otherwise)
     const newImages = imageEntries.filter((e) => !existingUrls.has(e.file_url));
     if (newImages.length > 0) {
-      const folderId = await getOrCreateFolder(clubId, "Chat Images", userId);
+      const folderId = await getOrCreateFolder(clubId, "Chat Images", userId, teamId || null);
       const rows = newImages.map((e) => ({
         ...e,
         club_id: clubId,
@@ -82,10 +82,10 @@ export async function syncChatAttachmentToVault({
       if (error) console.warn("Failed to sync chat images to vault:", error);
     }
 
-    // Insert links into "Chat Links" folder
+    // Insert links into "Chat Links" folder (team-level if teamId, club-level otherwise)
     const newLinks = linkEntries.filter((e) => !existingUrls.has(e.file_url));
     if (newLinks.length > 0) {
-      const folderId = await getOrCreateFolder(clubId, "Chat Links", userId);
+      const folderId = await getOrCreateFolder(clubId, "Chat Links", userId, teamId || null);
       const rows = newLinks.map((e) => ({
         ...e,
         club_id: clubId,
@@ -104,27 +104,35 @@ export async function syncChatAttachmentToVault({
 // Cache folder IDs per club to avoid repeated lookups within a session
 const folderCache = new Map<string, string>();
 
-async function getOrCreateFolder(clubId: string, folderName: string, userId: string): Promise<string | null> {
-  const cacheKey = `${clubId}:${folderName}`;
+async function getOrCreateFolder(clubId: string, folderName: string, userId: string, teamId?: string | null): Promise<string | null> {
+  const cacheKey = `${clubId}:${teamId || "club"}:${folderName}`;
   if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
 
-  const { data } = await supabase
+  let query = supabase
     .from("vault_folders")
     .select("id")
     .eq("club_id", clubId)
     .eq("name", folderName)
-    .is("parent_id", null)
-    .is("team_id", null)
-    .maybeSingle();
+    .is("parent_id", null);
+
+  if (teamId) {
+    query = query.eq("team_id", teamId);
+  } else {
+    query = query.is("team_id", null);
+  }
+
+  const { data } = await query.maybeSingle();
 
   if (data) {
     folderCache.set(cacheKey, data.id);
     return data.id;
   }
 
+  const insertData = { club_id: clubId, name: folderName, created_by: userId, team_id: teamId || null };
+
   const { data: newFolder, error } = await supabase
     .from("vault_folders")
-    .insert({ club_id: clubId, name: folderName, created_by: userId })
+    .insert(insertData as any)
     .select("id")
     .single();
 
