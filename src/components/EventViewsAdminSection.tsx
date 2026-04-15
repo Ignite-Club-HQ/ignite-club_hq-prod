@@ -185,19 +185,21 @@ export function EventViewsAdminSection({
   );
 
   // For each member, check if they have fully responded:
-  // - They must have an RSVP for themselves
-  // - AND all their children on this team must also have RSVPs
+  // - If they have children/guardian-linked children on this team, all of those children must have RSVPs
+  // - Otherwise they must have an RSVP for themselves
   const membersWithStatus: MemberWithViewStatus[] = (members || []).map(m => {
     const selfResponded = rsvpUserIds.has(m.id);
-    const memberChildren = (teamChildren || []).filter((c: any) => c.parent_id === m.id);
+    const primaryChildren = (teamChildren || []).filter((c: any) => c.parent_id === m.id);
+    const guardianChildIds = new Set(
+      (teamChildGuardians || [])
+        .filter((link: any) => link.guardian_id === m.id)
+        .map((link: any) => link.child_id)
+    );
+    const guardianChildren = (teamChildren || []).filter((c: any) => guardianChildIds.has(c.id));
+    const memberChildren = [...new Map([...primaryChildren, ...guardianChildren].map((child: any) => [child.id, child])).values()];
     const allChildrenResponded = memberChildren.length === 0 || memberChildren.every((c: any) => rsvpdChildIds.has(c.id));
-    // Count how many children still need RSVPs
     const unrespondedChildCount = memberChildren.filter((c: any) => !rsvpdChildIds.has(c.id)).length;
 
-    // For parents with children on the team (junior teams):
-    // They are "fully responded" if all their children have RSVP'd,
-    // regardless of whether the parent RSVP'd for themselves.
-    // For members without children on the team: require their own RSVP.
     const isParentOnTeam = memberChildren.length > 0;
     const fullyResponded = isParentOnTeam
       ? allChildrenResponded
