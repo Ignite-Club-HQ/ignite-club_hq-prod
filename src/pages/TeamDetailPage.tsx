@@ -102,6 +102,7 @@ export default function TeamDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [memberRoleFilter, setMemberRoleFilter] = useState<string>("all");
+  const [headerInviteOpen, setHeaderInviteOpen] = useState(false);
   const [hasSetInitialFilter, setHasSetInitialFilter] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
