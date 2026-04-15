@@ -1642,10 +1642,10 @@ export default function VaultPage() {
       await queryClient.cancelQueries({ queryKey: ["vault-files"] });
       
       // Snapshot the previous value
-      const previousItems = queryClient.getQueryData(["vault-files", currentView, isClubAdmin]);
+      const previousItems = queryClient.getQueryData(["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin]);
       
       // Optimistically remove the photo from the cache
-      queryClient.setQueryData(["vault-files", currentView, isClubAdmin], (old: any[] | undefined) => {
+      queryClient.setQueryData(["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin], (old: any[] | undefined) => {
         if (!old) return old;
         return old.filter((item: any) => item.id !== photoId);
       });
@@ -1660,7 +1660,7 @@ export default function VaultPage() {
     onError: (error: any, _, context) => {
       // Rollback on error
       if (context?.previousItems) {
-        queryClient.setQueryData(["vault-files", currentView, isClubAdmin], context.previousItems);
+        queryClient.setQueryData(["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin], context.previousItems);
       }
       toast.error(error.message || "Failed to delete photo");
     },
