@@ -349,7 +349,7 @@ export function MentionInput({
   }, [value, onChange, isNativeIOS]);
 
   return (
-    <div className="relative flex-1 min-w-0 max-w-full self-end overflow-hidden space-y-2">
+    <div className="relative flex-1 min-w-0 max-w-full self-end space-y-2">
       {/* URL Previews */}
       {detectedUrls.length > 0 && (
         <div className="w-full min-w-0 max-w-full max-h-28 space-y-2 overflow-x-hidden overflow-y-auto overscroll-contain pr-1">
