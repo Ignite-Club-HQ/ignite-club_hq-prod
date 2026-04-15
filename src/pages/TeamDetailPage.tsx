@@ -1649,15 +1649,15 @@ export default function TeamDetailPage() {
                             <div className="space-y-2">
                               {roleMembers.map(([userId, member]) => (
                               <Card key={userId}>
-                                <CardContent className="p-3 flex items-center gap-3">
-                                  <Avatar className="h-8 w-8">
+                                <CardContent className="p-3 flex items-center gap-2">
+                                  <Avatar className="h-8 w-8 shrink-0">
                                     <AvatarImage src={member.profile?.avatar_url || undefined} />
                                     <AvatarFallback className="bg-primary/20 text-primary text-sm">
                                       {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <div className="flex-1">
-                                    <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm truncate">{member.profile?.display_name || "Unknown User"}</p>
                                   </div>
                                   <div className="flex flex-wrap gap-1">
                                     {member.roles?.map((roleItem) => {
