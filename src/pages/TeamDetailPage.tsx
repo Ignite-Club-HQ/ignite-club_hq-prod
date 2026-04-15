@@ -1540,7 +1540,17 @@ export default function TeamDetailPage() {
                             }
                             
                             return Array.from(seenPendingNames.entries()).map(([key, { name, parentLabels, inviteIds }]) => (
-                              <Card key={`pending-child-${key}`} className="opacity-70 border shadow-sm">
+                              <SwipeableCard
+                                key={`pending-child-${key}`}
+                                enabled={isAdmin || isClubAdmin}
+                                actions={(isAdmin || isClubAdmin) ? [{
+                                  label: "Link",
+                                  icon: <UserPlus className="h-4 w-4" />,
+                                  onClick: () => setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds }),
+                                  className: "bg-orange-500",
+                                }] : []}
+                                className="opacity-70 border shadow-sm"
+                              >
                                 <CardContent className="p-3.5 flex items-center gap-3">
                                   <Avatar className="h-9 w-9 shrink-0">
                                     <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm font-semibold">
@@ -1553,28 +1563,11 @@ export default function TeamDetailPage() {
                                       {parentLabels.length > 1 ? `Parents: ${parentLabels.join(" & ")}` : `Parent: ${parentLabels[0]}`}
                                     </p>
                                   </div>
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <Badge variant="outline" className="text-[10px] border px-1.5 py-0 h-4 bg-orange-500/20 text-orange-400 border-orange-500/30">
-                                      Pending
-                                    </Badge>
-                                    {(isAdmin || isClubAdmin) && (
-                                      <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
-                                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                                          </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="z-[100]">
-                                          <DropdownMenuItem onClick={() => setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds })}>
-                                            <UserPlus className="h-4 w-4 mr-2" />
-                                            Link to parent
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
-                                    )}
-                                  </div>
+                                  <Badge variant="outline" className="text-[10px] border px-1.5 py-0 h-4 shrink-0 bg-orange-500/20 text-orange-400 border-orange-500/30">
+                                    Pending
+                                  </Badge>
                                 </CardContent>
-                              </Card>
+                              </SwipeableCard>
                             ));
                           })()}
                         </div>
