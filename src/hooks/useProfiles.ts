@@ -3,7 +3,9 @@ import {
   fetchProfilesWithCache, 
   getProfilesFromCache, 
   CachedProfile,
-  cacheProfiles 
+  cacheProfiles,
+  onProfileCacheUpdate,
+  getProfileFromCache,
 } from "@/lib/profileCache";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -65,7 +67,23 @@ export function useProfiles(ids: string[]) {
     fetchProfiles(false);
   }, [ids.join(","), fetchProfiles]);
 
-  // Visibility change handler - refresh profiles when app becomes visible
+  // Listen for profile cache updates (e.g., when user edits their own profile)
+  useEffect(() => {
+    const unsubscribe = onProfileCacheUpdate((updatedId) => {
+      if (idsRef.current.includes(updatedId)) {
+        // Update state immediately from cache
+        setProfiles(prev => {
+          const updated = new Map(prev);
+          const cached = getProfileFromCache(updatedId);
+          if (cached) updated.set(updatedId, cached);
+          return updated;
+        });
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {

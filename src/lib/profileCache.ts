@@ -131,6 +131,14 @@ export function cacheProfiles(profiles: Array<{ id: string; display_name: string
   saveCache(cache);
 }
 
+// Event emitter for cache updates - allows hooks to react to changes
+const cacheUpdateListeners = new Set<(id: string) => void>();
+
+export function onProfileCacheUpdate(listener: (id: string) => void): () => void {
+  cacheUpdateListeners.add(listener);
+  return () => cacheUpdateListeners.delete(listener);
+}
+
 // Update a single profile in cache (e.g., after edit)
 export function updateProfileCache(profile: { id: string; display_name: string | null; avatar_url: string | null }) {
   const cache = getCache();
@@ -141,6 +149,8 @@ export function updateProfileCache(profile: { id: string; display_name: string |
     cached_at: Date.now(),
   });
   saveCache(cache);
+  // Notify listeners so hooks re-render with updated data
+  cacheUpdateListeners.forEach(fn => fn(profile.id));
 }
 
 // Clear the profile cache
