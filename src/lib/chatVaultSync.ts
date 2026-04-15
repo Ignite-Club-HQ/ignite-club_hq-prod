@@ -67,10 +67,10 @@ export async function syncChatAttachmentToVault({
 
     const existingUrls = new Set((existing || []).map((e) => e.file_url));
 
-    // Insert images into "Chat Images" folder
+    // Insert images into "Chat Images" folder (team-level if teamId, club-level otherwise)
     const newImages = imageEntries.filter((e) => !existingUrls.has(e.file_url));
     if (newImages.length > 0) {
-      const folderId = await getOrCreateFolder(clubId, "Chat Images", userId);
+      const folderId = await getOrCreateFolder(clubId, "Chat Images", userId, teamId || null);
       const rows = newImages.map((e) => ({
         ...e,
         club_id: clubId,
@@ -82,10 +82,10 @@ export async function syncChatAttachmentToVault({
       if (error) console.warn("Failed to sync chat images to vault:", error);
     }
 
-    // Insert links into "Chat Links" folder
+    // Insert links into "Chat Links" folder (team-level if teamId, club-level otherwise)
     const newLinks = linkEntries.filter((e) => !existingUrls.has(e.file_url));
     if (newLinks.length > 0) {
-      const folderId = await getOrCreateFolder(clubId, "Chat Links", userId);
+      const folderId = await getOrCreateFolder(clubId, "Chat Links", userId, teamId || null);
       const rows = newLinks.map((e) => ({
         ...e,
         club_id: clubId,
