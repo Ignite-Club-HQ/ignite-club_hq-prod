@@ -2094,6 +2094,26 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </div>
             </div>
 
+            {/* Email field for existing user with non-parent role (coach/admin/player) */}
+            {selectedUser && selectedRole !== "parent" && (
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5" />
+                  Email address (optional — to send invite email)
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="e.g., coach@example.com"
+                    value={customEmail}
+                    onChange={(e) => setCustomEmail(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* 3. CONTEXTUAL HINT - only when parent selected */}
             {selectedRole === "parent" && !(selectedUser || nameInput.trim()) && (
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
