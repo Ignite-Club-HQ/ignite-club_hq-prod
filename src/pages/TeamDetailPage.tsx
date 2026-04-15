@@ -1334,13 +1334,33 @@ export default function TeamDetailPage() {
                       const meta = inv.metadata as { children?: { name: string }[] } | null;
                       return meta?.children && meta.children.length > 0;
                     })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
-                      <div className="mb-4 pb-4 border-b">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Players (Children)</p>
+                      <div className="mb-6 pb-4 border-b">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Players ({(() => {
+                              const pendingOnlyCount = (() => {
+                                const confirmedIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
+                                const confirmedNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()?.trim()).filter(Boolean));
+                                const seen = new Set<string>();
+                                for (const inv of pendingInvites) {
+                                  const meta = inv.metadata as { children?: { name: string; child_id?: string; existingChildId?: string }[] } | null;
+                                  if (!meta?.children) continue;
+                                  for (const c of meta.children) {
+                                    if (!c.name) continue;
+                                    if (c.child_id && confirmedIds.has(c.child_id)) continue;
+                                    if (confirmedNames.has(c.name.toLowerCase().trim())) continue;
+                                    if (typeof c.existingChildId === 'string' && c.existingChildId.startsWith('pending-')) continue;
+                                    seen.add(c.name.toLowerCase().trim());
+                                  }
+                                }
+                                return seen.size;
+                              })();
+                              return teamChildren.length + pendingOnlyCount;
+                            })()})
+                          </p>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           {(() => {
-                            // Build set of child IDs from pending invites to mark as pending
                             const pendingChildIds = new Set<string>();
                             const pendingChildNames = new Set<string>();
                             const pendingParentLabels = new Map<string, string>();
@@ -1360,7 +1380,6 @@ export default function TeamDetailPage() {
                               }
                             }
 
-                             // Sort confirmed children first, pending children last
                              const sorted = [...teamChildren].sort((a: any, b: any) => {
                                const aChild = a.children;
                                const bChild = b.children;
@@ -1377,10 +1396,21 @@ export default function TeamDetailPage() {
                               const isPending = pendingChildIds.has(child.id) || 
                                 (child.name && pendingChildNames.has(child.name.toLowerCase()) && (!child.allParentNames || child.allParentNames.length === 0));
                               const parentLabel = pendingParentLabels.get(child.id) || pendingParentLabels.get(child.name?.toLowerCase());
+
+                              const parentDisplay = isPending && parentLabel
+                                ? `Parent: ${parentLabel}`
+                                : child.allParentNames && child.allParentNames.length > 0
+                                  ? `${child.allParentNames.length === 1 ? "Parent" : "Parents"}: ${child.allParentNames.join(" & ")}`
+                                  : null;
+
                               return (
                                 <Card 
                                   key={assignment.id} 
-                                  className={cn(isPending ? "opacity-70" : "", (isAdmin || isClubAdmin) && isSoccerClub && "cursor-pointer select-none")}
+                                  className={cn(
+                                    "border shadow-sm",
+                                    isPending ? "opacity-70" : "",
+                                    (isAdmin || isClubAdmin) && isSoccerClub && "cursor-pointer select-none"
+                                  )}
                                   onTouchStart={(isAdmin || isClubAdmin) && isSoccerClub ? (() => {
                                     const timer = setTimeout(() => {
                                       setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
@@ -1390,95 +1420,75 @@ export default function TeamDetailPage() {
                                   onTouchEnd={() => clearTimeout((window as any).__longPressTimer)}
                                   onTouchMove={() => clearTimeout((window as any).__longPressTimer)}
                                 >
-                                  <CardContent className="p-3 flex items-center gap-2">
-                                    <Avatar className="h-8 w-8 shrink-0">
-                                      <AvatarFallback className={isPending ? "bg-orange-500/20 text-orange-500 text-sm" : "bg-pink-500/20 text-pink-500 text-sm"}>
+                                  <CardContent className="p-3.5 flex items-center gap-3">
+                                    <Avatar className="h-9 w-9 shrink-0">
+                                      <AvatarFallback className={cn(
+                                        "text-sm font-semibold",
+                                        isPending ? "bg-orange-500/20 text-orange-500" : "bg-pink-500/20 text-pink-500"
+                                      )}>
                                         {child.name?.charAt(0)?.toUpperCase() || "?"}
                                       </AvatarFallback>
                                     </Avatar>
                                     <div className="flex-1 min-w-0">
-                                      <p className="font-medium text-sm truncate">{child.name}</p>
-                                      {isPending && parentLabel ? (
-                                        <p className="text-xs text-muted-foreground truncate">
-                                          Parent: {parentLabel}
-                                        </p>
-                                      ) : child.allParentNames && child.allParentNames.length > 0 ? (
-                                        <p className="text-xs text-muted-foreground truncate">
-                                          {child.allParentNames.length === 1 ? "Parent" : "Parents"}: {child.allParentNames.join(" & ")}
-                                        </p>
-                                      ) : null}
+                                      <p className="font-semibold text-sm truncate">{child.name}</p>
+                                      {parentDisplay && (
+                                        <p className="text-xs text-muted-foreground truncate mt-0.5">{parentDisplay}</p>
+                                      )}
                                     </div>
-                                    {(isAdmin || isClubAdmin) && isPending && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        aria-label={`Link ${child.name} to a parent`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          // Find pending invite IDs for this child
-                                          const inviteIds = pendingInvites
-                                            .filter(inv => {
-                                              const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
-                                              return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
-                                            })
-                                            .map(inv => inv.id);
-                                          setLinkChildToParent({ childName: child.name, existingChildId: child.id, pendingInviteIds: inviteIds });
-                                        }}
-                                      >
-                                        <UserPlus className="h-4 w-4 text-orange-400" />
-                                      </Button>
-                                    )}
-                                    {isClubAdmin && !isPending && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        aria-label={`Move ${child.name} to another team`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setMoveToTeam({ type: "child", id: child.id, name: child.name });
-                                        }}
-                                      >
-                                        <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                                      </Button>
-                                    )}
-                                    {(isAdmin || isClubAdmin) && !isPending && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 shrink-0"
-                                        aria-label={`Invite parent for ${child.name}`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setInviteParentChild({ childId: child.id, childName: child.name });
-                                        }}
-                                      >
-                                        <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
-                                      </Button>
-                                    )}
-                                    {(isAdmin || isClubAdmin) && isSoccerClub && !isPending && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 shrink-0"
-                                        aria-label={`Edit position for ${child.name}`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
-                                        }}
-                                      >
-                                        <Pencil className="h-3 w-3 text-muted-foreground" />
-                                      </Button>
-                                    )}
-                                    <Badge variant="outline" className={cn(
-                                      "text-[10px] border px-1.5 py-0 h-4",
-                                      isPending 
-                                        ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
-                                        : "bg-pink-500/20 text-pink-400 border-pink-500/30"
-                                    )}>
-                                      {isPending ? "Pending" : "Child"}
-                                    </Badge>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <Badge variant="outline" className={cn(
+                                        "text-[10px] border px-1.5 py-0 h-4",
+                                        isPending 
+                                          ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                                          : "bg-pink-500/20 text-pink-400 border-pink-500/30"
+                                      )}>
+                                        {isPending ? "Pending" : "Child"}
+                                      </Badge>
+                                      {(isAdmin || isClubAdmin) && (
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
+                                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end" className="z-[100]">
+                                            {isPending ? (
+                                              <DropdownMenuItem onClick={() => {
+                                                const inviteIds = pendingInvites
+                                                  .filter(inv => {
+                                                    const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
+                                                    return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
+                                                  })
+                                                  .map(inv => inv.id);
+                                                setLinkChildToParent({ childName: child.name, existingChildId: child.id, pendingInviteIds: inviteIds });
+                                              }}>
+                                                <UserPlus className="h-4 w-4 mr-2" />
+                                                Link to parent
+                                              </DropdownMenuItem>
+                                            ) : (
+                                              <>
+                                                <DropdownMenuItem onClick={() => setInviteParentChild({ childId: child.id, childName: child.name })}>
+                                                  <UserPlus className="h-4 w-4 mr-2" />
+                                                  Invite parent
+                                                </DropdownMenuItem>
+                                                {isSoccerClub && (
+                                                  <DropdownMenuItem onClick={() => setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" })}>
+                                                    <Pencil className="h-4 w-4 mr-2" />
+                                                    Edit position
+                                                  </DropdownMenuItem>
+                                                )}
+                                                {isClubAdmin && (
+                                                  <DropdownMenuItem onClick={() => setMoveToTeam({ type: "child", id: child.id, name: child.name })}>
+                                                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                                                    Swap team
+                                                  </DropdownMenuItem>
+                                                )}
+                                              </>
+                                            )}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      )}
+                                    </div>
                                   </CardContent>
                                 </Card>
                               );
@@ -1488,13 +1498,11 @@ export default function TeamDetailPage() {
                             const confirmedChildIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
                             const confirmedChildNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()?.trim()).filter(Boolean));
                             
-                            // Helper: check if a pending child name fuzzy-matches any confirmed child
                             const isConfirmedChild = (name: string) => {
                               const norm = name.toLowerCase().trim();
                               if (confirmedChildNames.has(norm)) return true;
                               for (const confirmed of confirmedChildNames) {
                                 if (Math.abs(norm.length - confirmed.length) > 2) continue;
-                                // Levenshtein distance check (max 2)
                                 const len1 = norm.length, len2 = confirmed.length;
                                 const dp: number[][] = Array.from({ length: len1 + 1 }, (_, i) => 
                                   Array.from({ length: len2 + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
@@ -1511,7 +1519,6 @@ export default function TeamDetailPage() {
                               return false;
                             };
                             
-                            // Deduplicate pending children across invites by normalized name
                             const seenPendingNames = new Map<string, { name: string; parentLabels: string[]; inviteIds: string[] }>();
                             
                             for (const inv of pendingInvites) {
@@ -1521,10 +1528,8 @@ export default function TeamDetailPage() {
                               
                               for (const child of meta.children) {
                                 if (!child.name) continue;
-                                // Skip if already confirmed (exact or fuzzy match)
                                 if (child.child_id && confirmedChildIds.has(child.child_id)) continue;
                                 if (isConfirmedChild(child.name)) continue;
-                                // Skip if this child references another pending invite's child (linked duplicate)
                                 if (typeof child.existingChildId === 'string' && child.existingChildId.startsWith('pending-')) continue;
                                 
                                 const key = child.name.toLowerCase().trim();
@@ -1543,36 +1548,39 @@ export default function TeamDetailPage() {
                             }
                             
                             return Array.from(seenPendingNames.entries()).map(([key, { name, parentLabels, inviteIds }]) => (
-                              <Card key={`pending-child-${key}`} className="opacity-70">
-                                <CardContent className="p-3 flex items-center gap-3">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm">
+                              <Card key={`pending-child-${key}`} className="opacity-70 border shadow-sm">
+                                <CardContent className="p-3.5 flex items-center gap-3">
+                                  <Avatar className="h-9 w-9 shrink-0">
+                                    <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm font-semibold">
                                       {name?.charAt(0)?.toUpperCase() || "?"}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <div className="flex-1">
-                                    <p className="font-medium text-sm">{name}</p>
-                                    <p className="text-xs text-muted-foreground">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-sm truncate">{name}</p>
+                                    <p className="text-xs text-muted-foreground truncate mt-0.5">
                                       {parentLabels.length > 1 ? `Parents: ${parentLabels.join(" & ")}` : `Parent: ${parentLabels[0]}`}
                                     </p>
                                   </div>
-                                  {(isAdmin || isClubAdmin) && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 shrink-0"
-                                      aria-label={`Link ${name} to a parent`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds });
-                                      }}
-                                    >
-                                      <UserPlus className="h-4 w-4 text-orange-400" />
-                                    </Button>
-                                  )}
-                                  <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
-                                    Pending
-                                  </Badge>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <Badge variant="outline" className="text-[10px] border px-1.5 py-0 h-4 bg-orange-500/20 text-orange-400 border-orange-500/30">
+                                      Pending
+                                    </Badge>
+                                    {(isAdmin || isClubAdmin) && (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
+                                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="z-[100]">
+                                          <DropdownMenuItem onClick={() => setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds })}>
+                                            <UserPlus className="h-4 w-4 mr-2" />
+                                            Link to parent
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    )}
+                                  </div>
                                 </CardContent>
                               </Card>
                             ));
