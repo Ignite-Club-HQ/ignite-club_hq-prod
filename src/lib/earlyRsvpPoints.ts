@@ -114,6 +114,7 @@ export async function awardEarlyRsvpPoints({
     // Record in points history
     await recordPointsHistory({
       userId,
+      childId: childId || undefined,
       clubId,
       amount: EARLY_RSVP_POINTS,
       balanceAfter,
@@ -130,17 +131,18 @@ export async function awardEarlyRsvpPoints({
       .single();
     const pointsName = (clubData as any)?.points_display_name || 'reward points';
 
-    // Create notification
+    // Create notification (always notify the parent user)
     await supabase.from("notifications").insert({
       user_id: userId,
       type: "early_rsvp_points",
-      message: `🎯 Early bird bonus! You earned +${EARLY_RSVP_POINTS} ${pointsName} for RSVPing ${daysUntilEvent} days before the event. Keep it up!`,
+      message: `🎯 Early bird bonus! ${childId ? 'Your child' : 'You'} earned +${EARLY_RSVP_POINTS} ${pointsName} for RSVPing ${daysUntilEvent} days before the event. Keep it up!`,
       related_id: clubId,
     });
 
     // Check reward threshold
     const rewardName = await checkRewardThreshold({
-      userId,
+      userId: childId ? undefined : userId,
+      childId: childId || undefined,
       clubId,
       previousPoints,
       newPoints: balanceAfter,
