@@ -1685,7 +1685,7 @@ export default function TeamDetailPage() {
                                       const canRemoveRole = canManage && userId !== user?.id && (member.roles?.length || 0) > 1;
                                       return (
                                         <AlertDialog key={roleItem.id}>
-                                          <Badge variant="outline" className={`text-xs border ${colorClass} flex items-center gap-1`}>
+                                          <Badge variant="outline" className={`text-[10px] border px-1.5 py-0 h-4 ${colorClass} flex items-center gap-0.5`}>
                                             {label}
                                             {canRemoveRole && (
                                               <AlertDialogTrigger asChild>
