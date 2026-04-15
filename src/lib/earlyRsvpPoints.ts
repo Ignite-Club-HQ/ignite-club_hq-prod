@@ -8,6 +8,7 @@ const EARLY_RSVP_POINTS = 3;
 
 interface AwardEarlyRsvpPointsParams {
   userId: string;
+  childId?: string | null;
   eventDate: string;
   rsvpId: string;
   clubId: string;
