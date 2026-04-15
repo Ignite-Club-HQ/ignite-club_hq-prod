@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, BellOff, BellRing, Loader2, Mail, Smartphone, Share2 } from "lucide-react";
+import { Bell, BellOff, BellRing, Check, Loader2, Mail, Smartphone, Share2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -23,6 +23,8 @@ interface EventViewMemberRowProps {
   onSendReminder: (channels: "push" | "email" | "both", userIds: string[]) => void;
   onNudge: (userId: string, displayName: string) => void;
   onShareLink?: () => void;
+  /** When true, the member has already responded – disable reminder actions */
+  hasResponded?: boolean;
 }
 
 export function EventViewMemberRow({
@@ -34,6 +36,7 @@ export function EventViewMemberRow({
   onSendReminder,
   onNudge,
   onShareLink,
+  hasResponded = false,
 }: EventViewMemberRowProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -49,7 +52,7 @@ export function EventViewMemberRow({
           variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
         }`}
         onClick={() => {
-          if (variant === "not-viewed") setSheetOpen(true);
+          if (!hasResponded) setSheetOpen(true);
         }}
       >
         <Avatar className="h-7 w-7">
@@ -72,6 +75,18 @@ export function EventViewMemberRow({
               </TooltipContent>
             </Tooltip>
           )}
+          {hasResponded && variant === "not-viewed" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="p-0.5 rounded text-primary/70">
+                  <Check className="h-3.5 w-3.5" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>Has responded</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
           {variant === "viewed" && member.viewedAt && (
             <span className="text-xs text-muted-foreground">
               {new Date(member.viewedAt).toLocaleDateString()}
@@ -80,7 +95,7 @@ export function EventViewMemberRow({
         </div>
       </div>
 
-      {variant === "not-viewed" && (
+      {!hasResponded && (
         <Drawer open={sheetOpen} onOpenChange={setSheetOpen}>
           <DrawerContent className="max-h-[85vh]">
             <DrawerHeader className="pb-2">
