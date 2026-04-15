@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, BellOff, BellRing, Loader2, Mail, Smartphone, Share2 } from "lucide-react";
+import { Bell, BellOff, BellRing, Check, Loader2, Mail, Smartphone, Share2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -72,6 +72,18 @@ export function EventViewMemberRow({
               </TooltipTrigger>
               <TooltipContent side="left">
                 <p>{noPushSetup ? "No push notifications set up" : "Event push notifications disabled"}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {hasResponded && variant === "not-viewed" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="p-0.5 rounded text-primary/70">
+                  <Check className="h-3.5 w-3.5" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>Has responded</p>
               </TooltipContent>
             </Tooltip>
           )}
