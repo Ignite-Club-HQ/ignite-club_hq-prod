@@ -70,6 +70,7 @@ import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import PlayerPositionSheet from "@/components/PlayerPositionSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
+import MemberDetailSheet from "@/components/MemberDetailSheet";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -119,6 +120,7 @@ export default function TeamDetailPage() {
   const [moveToTeam, setMoveToTeam] = useState<{ type: "adult" | "child"; id: string; name: string; roles?: string[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [removeMember, setRemoveMember] = useState<{ userId: string; name: string } | null>(null);
+  const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   
   // Handle admin invite dialog from team creation flow
   const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string } | null;
@@ -1679,7 +1681,15 @@ export default function TeamDetailPage() {
 
                                 return (
                                   <SwipeableCard key={userId} actions={memberSwipeActions} enabled={memberSwipeActions.length > 0} className="border shadow-sm">
-                                    <CardContent className="p-3.5 flex items-center gap-3">
+                                    <CardContent
+                                      className="p-3.5 flex items-center gap-3 cursor-pointer"
+                                      onClick={() => setSelectedMember({
+                                        userId,
+                                        displayName: member.profile?.display_name || "Unknown User",
+                                        avatarUrl: member.profile?.avatar_url,
+                                        roles: member.roles || [],
+                                      })}
+                                    >
                                       <Avatar className="h-8 w-8 shrink-0">
                                         <AvatarImage src={member.profile?.avatar_url || undefined} />
                                         <AvatarFallback className="bg-primary/20 text-primary text-sm">
@@ -1692,13 +1702,8 @@ export default function TeamDetailPage() {
                                       <div className="flex flex-wrap gap-1">
                                         {member.roles?.map((roleItem) => {
                                           const roleLabels: Record<string, string> = {
-                                            app_admin: "App Admin",
-                                            club_admin: "Club Admin",
-                                            team_admin: "Team Admin",
-                                            coach: "Coach",
-                                            player: "Player",
-                                            parent: "Parent",
-                                            basic_user: "Member",
+                                            app_admin: "App Admin", club_admin: "Club Admin", team_admin: "Team Admin",
+                                            coach: "Coach", player: "Player", parent: "Parent", basic_user: "Member",
                                           };
                                           const roleColors: Record<string, string> = {
                                             app_admin: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -1709,53 +1714,10 @@ export default function TeamDetailPage() {
                                             parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
                                             basic_user: "bg-muted text-muted-foreground border-border",
                                           };
-                                          const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
-                                          const label = roleLabels[roleItem.role] || "Member";
-                                          const canRemoveRole = canManage && (member.roles?.length || 0) > 1;
                                           return (
-                                            <AlertDialog key={roleItem.id}>
-                                              <Badge variant="outline" className={`text-[10px] border px-1.5 py-0 h-4 ${colorClass} flex items-center gap-0.5`}>
-                                                {label}
-                                                {canRemoveRole && (
-                                                  <AlertDialogTrigger asChild>
-                                                    <button
-                                                      onClick={(e) => e.stopPropagation()}
-                                                      aria-label={`Remove ${label} role`}
-                                                      className="ml-0.5 hover:bg-destructive/20 rounded-full p-1.5 -mr-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
-                                                    >
-                                                      <X className="h-3 w-3" aria-hidden="true" />
-                                                    </button>
-                                                  </AlertDialogTrigger>
-                                                )}
-                                              </Badge>
-                                              <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                  <AlertDialogTitle>Remove {label} Role?</AlertDialogTitle>
-                                                  <AlertDialogDescription>
-                                                    This will remove the {label} role from {member.profile?.display_name || "this user"}.
-                                                  </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                  <AlertDialogAction
-                                                    onClick={async () => {
-                                                      const { error } = await supabase
-                                                        .from("user_roles")
-                                                        .delete()
-                                                        .eq("id", roleItem.id);
-                                                      if (error) {
-                                                        toast({ title: "Failed to remove role", variant: "destructive" });
-                                                      } else {
-                                                        toast({ title: `Removed ${label} role` });
-                                                        queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                                                      }
-                                                    }}
-                                                  >
-                                                    Remove
-                                                  </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                              </AlertDialogContent>
-                                            </AlertDialog>
+                                            <Badge key={roleItem.id} variant="outline" className={`text-[10px] border px-1.5 py-0 h-4 ${roleColors[roleItem.role] || roleColors.basic_user}`}>
+                                              {roleLabels[roleItem.role] || "Member"}
+                                            </Badge>
                                           );
                                         })}
                                       </div>
@@ -2414,6 +2376,47 @@ export default function TeamDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {selectedMember && (
+        <MemberDetailSheet
+          open={!!selectedMember}
+          onOpenChange={(open) => { if (!open) setSelectedMember(null); }}
+          userId={selectedMember.userId}
+          displayName={selectedMember.displayName}
+          avatarUrl={selectedMember.avatarUrl}
+          roles={selectedMember.roles}
+          canManage={isAdmin || isClubAdmin}
+          canMove={isClubAdmin && selectedMember.userId !== user?.id}
+          isSelf={selectedMember.userId === user?.id}
+          onAddRole={() => setAddRoleMember({
+            userId: selectedMember.userId,
+            userName: selectedMember.displayName,
+            existingRoles: selectedMember.roles.map(r => r.role),
+          })}
+          onMove={() => setMoveToTeam({
+            type: "adult",
+            id: selectedMember.userId,
+            name: selectedMember.displayName,
+            roles: selectedMember.roles.map(r => r.role),
+          })}
+          onRemove={() => setRemoveMember({
+            userId: selectedMember.userId,
+            name: selectedMember.displayName,
+          })}
+          onRemoveRole={async (roleItem) => {
+            const { error } = await supabase
+              .from("user_roles")
+              .delete()
+              .eq("id", roleItem.id);
+            if (error) {
+              toast({ title: "Failed to remove role", variant: "destructive" });
+            } else {
+              toast({ title: "Role removed" });
+              queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+              setSelectedMember(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
