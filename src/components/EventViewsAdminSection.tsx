@@ -319,8 +319,31 @@ export function EventViewsAdminSection({
       setNudgingUser(null);
     }
   };
+  const handleShareEventLink = async () => {
+    const shareUrl = getShareUrl("event", eventId);
+    const shareText = eventTitle ? `Reminder: Please RSVP for "${eventTitle}"` : "Please RSVP for this event";
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({
+          title: shareText,
+          text: shareText,
+          url: shareUrl,
+          dialogTitle: "Share Event Reminder",
+        });
+      } else if (navigator.share) {
+        await navigator.share({ title: shareText, text: shareText, url: shareUrl });
+      } else {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Reminder link copied to clipboard!" });
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Reminder link copied to clipboard!" });
+      }
+    }
+  };
 
-  // Compute unreachable members (no push setup)
   const unreachableMembers = useMemo(() => {
     if (!pushReachable) return [];
     return (members || []).filter(m => pushReachable[m.id] === false);
