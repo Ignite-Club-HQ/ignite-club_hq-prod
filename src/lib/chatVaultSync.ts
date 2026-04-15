@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Auto-sync chat attachments (images and external links) to the relevant file vault.
+ * Auto-sync chat attachments (images and external links) to the relevant file vault,
+ * organized into "Chat Images" and "Chat Links" subfolders.
  * Called fire-and-forget after a chat message is successfully sent.
  */
 export async function syncChatAttachmentToVault({
@@ -18,7 +19,7 @@ export async function syncChatAttachmentToVault({
   teamId?: string | null;
 }) {
   try {
-    const entries: {
+    const imageEntries: {
       file_url: string;
       name: string;
       file_type: string | null;
@@ -26,11 +27,13 @@ export async function syncChatAttachmentToVault({
       file_size: number | null;
     }[] = [];
 
+    const linkEntries: typeof imageEntries = [];
+
     // 1. If there's an image attachment, add it
     if (imageUrl) {
       const fileName = extractFileName(imageUrl) || `chat-attachment-${Date.now()}`;
       const fileType = guessFileType(imageUrl);
-      entries.push({
+      imageEntries.push({
         file_url: imageUrl,
         name: fileName,
         file_type: fileType,
@@ -43,7 +46,7 @@ export async function syncChatAttachmentToVault({
     const fileUrls = extractFileUrls(text);
     for (const url of fileUrls) {
       const fileName = extractFileName(url) || url;
-      entries.push({
+      linkEntries.push({
         file_url: url,
         name: fileName,
         file_type: guessFileType(url),
@@ -52,36 +55,86 @@ export async function syncChatAttachmentToVault({
       });
     }
 
-    if (entries.length === 0) return;
+    if (imageEntries.length === 0 && linkEntries.length === 0) return;
 
-    // Check for duplicates (same file_url in same club vault)
-    const urls = entries.map((e) => e.file_url);
+    // Check for duplicates
+    const allUrls = [...imageEntries, ...linkEntries].map((e) => e.file_url);
     const { data: existing } = await supabase
       .from("vault_files")
       .select("file_url")
       .eq("club_id", clubId)
-      .in("file_url", urls);
+      .in("file_url", allUrls);
 
     const existingUrls = new Set((existing || []).map((e) => e.file_url));
 
-    const newEntries = entries
-      .filter((e) => !existingUrls.has(e.file_url))
-      .map((e) => ({
+    // Insert images into "Chat Images" folder
+    const newImages = imageEntries.filter((e) => !existingUrls.has(e.file_url));
+    if (newImages.length > 0) {
+      const folderId = await getOrCreateFolder(clubId, "Chat Images", userId);
+      const rows = newImages.map((e) => ({
         ...e,
         club_id: clubId,
         team_id: teamId || null,
         uploaded_by: userId,
+        folder_id: folderId,
       }));
+      const { error } = await supabase.from("vault_files").insert(rows);
+      if (error) console.warn("Failed to sync chat images to vault:", error);
+    }
 
-    if (newEntries.length === 0) return;
-
-    const { error } = await supabase.from("vault_files").insert(newEntries);
-    if (error) {
-      console.warn("Failed to sync chat attachment to vault:", error);
+    // Insert links into "Chat Links" folder
+    const newLinks = linkEntries.filter((e) => !existingUrls.has(e.file_url));
+    if (newLinks.length > 0) {
+      const folderId = await getOrCreateFolder(clubId, "Chat Links", userId);
+      const rows = newLinks.map((e) => ({
+        ...e,
+        club_id: clubId,
+        team_id: teamId || null,
+        uploaded_by: userId,
+        folder_id: folderId,
+      }));
+      const { error } = await supabase.from("vault_files").insert(rows);
+      if (error) console.warn("Failed to sync chat links to vault:", error);
     }
   } catch (err) {
     console.warn("chatVaultSync error:", err);
   }
+}
+
+// Cache folder IDs per club to avoid repeated lookups within a session
+const folderCache = new Map<string, string>();
+
+async function getOrCreateFolder(clubId: string, folderName: string, userId: string): Promise<string | null> {
+  const cacheKey = `${clubId}:${folderName}`;
+  if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
+
+  const { data } = await supabase
+    .from("vault_folders")
+    .select("id")
+    .eq("club_id", clubId)
+    .eq("name", folderName)
+    .is("parent_id", null)
+    .is("team_id", null)
+    .maybeSingle();
+
+  if (data) {
+    folderCache.set(cacheKey, data.id);
+    return data.id;
+  }
+
+  const { data: newFolder, error } = await supabase
+    .from("vault_folders")
+    .insert({ club_id: clubId, name: folderName, created_by: userId })
+    .select("id")
+    .single();
+
+  if (error || !newFolder) {
+    console.warn("Failed to create vault folder:", error);
+    return null;
+  }
+
+  folderCache.set(cacheKey, newFolder.id);
+  return newFolder.id;
 }
 
 // File extensions we consider worth syncing as external links
@@ -91,7 +144,6 @@ function extractFileUrls(text: string): string[] {
   if (!text) return [];
   const urlRegex = /(?:https?:\/\/)[^\s]+/gi;
   const matches = text.match(urlRegex) || [];
-  // Only include URLs that look like files (have a file extension) or are Google Drive links
   return matches.filter(
     (url) =>
       FILE_EXTENSIONS.test(url) ||
