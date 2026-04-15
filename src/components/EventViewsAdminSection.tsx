@@ -26,6 +26,7 @@ interface EventViewsAdminSectionProps {
   teamId: string | null;
   clubId: string;
   miniLeagueId: string | null;
+  eventTitle?: string;
 }
 
 interface MemberWithViewStatus {

@@ -2242,6 +2242,7 @@ export default function EventDetailPage() {
           teamId={event.team_id}
           clubId={event.club_id}
           miniLeagueId={event.mini_league_id}
+          eventTitle={event.title}
         />
       )}
 
