@@ -860,7 +860,7 @@ export default function TeamDetailPage() {
           teamType={(team as any).team_type || "mixed"}
           isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
           canBulkInvite={isCoachOrAdmin || isClubAdmin}
-          triggerVariant="hidden"
+          triggerVariant="none"
           externalOpen={headerInviteOpen}
           onExternalOpenChange={setHeaderInviteOpen}
         />
