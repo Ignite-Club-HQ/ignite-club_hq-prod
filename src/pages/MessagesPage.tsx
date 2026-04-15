@@ -445,7 +445,8 @@ export default function MessagesPage() {
       return { teams, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 15000,
+    refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
   });
