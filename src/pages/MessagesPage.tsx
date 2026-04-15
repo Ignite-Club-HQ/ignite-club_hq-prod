@@ -295,6 +295,7 @@ export default function MessagesPage() {
             .from("club_messages")
             .select("text, created_at, image_url, author_id")
             .eq("club_id", club.id)
+            .is("deleted_at", null)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -324,7 +325,8 @@ export default function MessagesPage() {
       return { clubs, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 60000,
+    staleTime: 15000,
+    refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
   });
@@ -410,6 +412,7 @@ export default function MessagesPage() {
             .from("team_messages")
             .select("text, created_at, image_url, author_id, is_club_announcement, club_announcement_name")
             .eq("team_id", team.id)
+            .is("deleted_at", null)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -443,7 +446,8 @@ export default function MessagesPage() {
       return { teams, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 30000,
+    staleTime: 15000,
+    refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
   });
@@ -668,6 +672,7 @@ export default function MessagesPage() {
             .from("group_messages")
             .select("text, created_at, image_url, author_id")
             .eq("group_id", group.id)
+            .is("deleted_at", null)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -697,7 +702,8 @@ export default function MessagesPage() {
       return { groups, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 60000,
+    staleTime: 15000,
+    refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
   });
