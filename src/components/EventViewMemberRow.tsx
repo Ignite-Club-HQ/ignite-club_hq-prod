@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Bell, BellOff, BellRing, Loader2, Mail, Smartphone, MoreVertical } from "lucide-react";
+import { Bell, BellOff, BellRing, Loader2, Mail, Smartphone, MoreVertical, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,6 +27,7 @@ interface EventViewMemberRowProps {
   isBusy: boolean;
   onSendReminder: (channels: "push" | "email" | "both", userIds: string[]) => void;
   onNudge: (userId: string, displayName: string) => void;
+  onShareLink?: () => void;
 }
 
 export function EventViewMemberRow({
@@ -37,6 +38,7 @@ export function EventViewMemberRow({
   isBusy,
   onSendReminder,
   onNudge,
+  onShareLink,
 }: EventViewMemberRowProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDots, setShowDots] = useState(false);
