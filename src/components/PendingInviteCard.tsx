@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, UserCheck, Send, Trash2, Pencil, Mail, Loader2, Copy, Share2, ArrowRightLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { SwipeableCard } from "@/components/ui/swipeable-card";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Badge } from "@/components/ui/badge";
@@ -453,45 +454,33 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   // Determine if email was the original invite method
   const hasEmail = !!invite.invited_email;
 
+  const swipeActions = isAdmin ? [
+    {
+      label: "Edit",
+      icon: <Pencil className="h-4 w-4" />,
+      onClick: handleOpenEdit,
+      className: "bg-blue-500 text-white",
+    },
+    ...(teamId && clubId ? [{
+      label: "Move",
+      icon: <ArrowRightLeft className="h-4 w-4" />,
+      onClick: () => setShowMoveSheet(true),
+      className: "bg-amber-500 text-white",
+    }] : []),
+    {
+      label: "Revoke",
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: () => setShowDeleteDialog(true),
+      className: "bg-destructive text-destructive-foreground",
+    },
+  ] : [];
+
   return (
     <>
-      <Card
-        className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5 select-none"
-        onPointerDown={(e) => {
-          if (!isAdmin) return;
-          longPressTriggered.current = false;
-          longPressTimer.current = setTimeout(() => {
-            longPressTriggered.current = true;
-            setShowActionSheet(true);
-            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-              navigator.vibrate(10);
-            }
-          }, 500);
-        }}
-        onPointerUp={() => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-        }}
-        onPointerCancel={() => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-        }}
-        onPointerMove={() => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-        }}
-        onContextMenu={(e) => {
-          if (isAdmin) {
-            e.preventDefault();
-            setShowActionSheet(true);
-          }
-        }}
+      <SwipeableCard
+        actions={swipeActions}
+        enabled={isAdmin}
+        className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5"
       >
         <CardContent className="p-3 flex items-center gap-3">
           <div className="relative">
@@ -541,9 +530,6 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 Sent {timeAgo}
               </span>
             </div>
-            {isAdmin && (
-              <p className="text-[10px] text-muted-foreground/60 mt-1 italic">Hold to edit or revoke</p>
-            )}
           </div>
 
           {/* Send Reminder CTA */}
@@ -553,13 +539,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 size="sm"
                 variant="default"
                 className="h-8 text-xs font-semibold gap-1.5 px-3"
-                onClick={(e) => {
-                  if (longPressTriggered.current) {
-                    e.preventDefault();
-                    return;
-                  }
-                  setShowReminderSheet(true);
-                }}
+                onClick={() => setShowReminderSheet(true)}
               >
                 <Send className="h-3.5 w-3.5" />
                 <span className="hidden xs:inline">Remind</span>
@@ -567,7 +547,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
             </div>
           )}
         </CardContent>
-      </Card>
+      </SwipeableCard>
 
       {/* Long-press action sheet */}
       {isAdmin && (
