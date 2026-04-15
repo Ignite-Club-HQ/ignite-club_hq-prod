@@ -331,18 +331,20 @@ export function ChatMembersSheet({
   const handleMemberTap = async (member: Member) => {
     if (!isCurrentUserAdmin || !effectiveTeamId) return;
     
-    // Fetch all roles for this member on this team
     const { data: roles } = await supabase
       .from("user_roles")
       .select("id, role")
       .eq("user_id", member.id)
       .eq("team_id", effectiveTeamId);
-    
-    setSelectedMember({
-      userId: member.id,
-      displayName: member.display_name || "Unknown",
-      avatarUrl: member.avatar_url,
-      roles: (roles || []).map(r => ({ id: r.id, role: r.role })),
+
+    setOpen(false);
+    requestAnimationFrame(() => {
+      setSelectedMember({
+        userId: member.id,
+        displayName: member.display_name || "Unknown",
+        avatarUrl: member.avatar_url,
+        roles: (roles || []).map(r => ({ id: r.id, role: r.role })),
+      });
     });
   };
 
