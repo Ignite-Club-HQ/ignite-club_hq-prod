@@ -314,7 +314,7 @@ export default function MiniLeagueDetailPage() {
                 {event.start_time && (
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    {event.start_time.slice(0, 5)}
+                    {format(new Date(event.start_time), "h:mm a")}
                   </span>
                 )}
                 {!compact && event.location_name && (
@@ -592,7 +592,7 @@ export default function MiniLeagueDetailPage() {
                   {upcomingEvents[0].start_time && (
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {upcomingEvents[0].start_time.slice(0, 5)}
+                      {format(new Date(upcomingEvents[0].start_time), "h:mm a")}
                     </span>
                   )}
                   {upcomingEvents[0].location_name && (
