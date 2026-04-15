@@ -59,6 +59,7 @@ export interface ChatMessageProps {
   replyToMessage?: ReplyToMessage | null;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
   onEdit?: (message: { id: string; text: string }) => void;
+  onAuthorClick?: () => void;
   searchQuery?: string;
   readFrontierReaders?: ReaderInfo[];
   readCount?: number;
@@ -87,6 +88,7 @@ export const ChatMessage = memo(function ChatMessage({
   replyToMessage,
   onReply,
   onEdit,
+  onAuthorClick,
   searchQuery,
   readFrontierReaders = [],
   readCount = 0,
@@ -663,16 +665,31 @@ export const ChatMessage = memo(function ChatMessage({
           <Megaphone className="h-4 w-4 text-primary-foreground" />
         </div>
       ) : (
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarImage src={authorAvatar || undefined} />
-          <AvatarFallback className="text-xs">
-            {displayName.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <button
+          type="button"
+          onClick={onAuthorClick}
+          disabled={!onAuthorClick}
+          className="shrink-0 rounded-full disabled:cursor-default"
+          aria-label={displayName ? `Open ${displayName} profile actions` : "Open profile actions"}
+        >
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={authorAvatar || undefined} />
+            <AvatarFallback className="text-xs">
+              {displayName.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </button>
       )}
       <div className={`flex w-full min-w-0 max-w-[75%] flex-col ${isOwn && !isClubAnnouncement ? "items-end" : "items-start"}`}>
         {(isClubAnnouncement || (!isOwn && hasName)) && (
-          <p className={`text-xs mb-1 ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground"}`}>{displayName || "Club"}</p>
+          <button
+            type="button"
+            onClick={onAuthorClick}
+            disabled={!onAuthorClick || isClubAnnouncement}
+            className={`text-xs mb-1 text-left ${isClubAnnouncement ? "font-semibold text-primary" : "text-muted-foreground disabled:cursor-default"}`}
+          >
+            {displayName || "Club"}
+          </button>
         )}
         <ReplyIndicator replyToMessage={replyToMessage} isOwn={isOwn} />
         <div className="relative min-w-0 max-w-full group/msg">

@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 
 interface BulkChild {
   id: string;
@@ -87,8 +88,6 @@ interface AddTeamMemberSheetProps {
   externalOpen?: boolean;
   /** Callback when open state changes externally */
   onExternalOpenChange?: (open: boolean) => void;
-  /** Pre-fill as a guardian invite for an existing child */
-  prefillGuardianChild?: { childId: string; childName: string } | null;
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
@@ -98,7 +97,7 @@ const allRoleOptions: { value: TeamRole; label: string; description: string; col
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default", externalOpen, onExternalOpenChange, prefillGuardianChild }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default", externalOpen, onExternalOpenChange }: AddTeamMemberSheetProps) {
   // Filter role options based on team type
   const roleOptions = allRoleOptions.filter(opt => {
     if (teamType === "junior") {
@@ -159,22 +158,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const debouncedSecondParentSearch = useDebounce(secondParentSearch, 300);
 
   const debouncedNameInput = useDebounce(nameInput, 300);
+  const nativeKbHeight = useNativeKeyboardHeight();
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
-
-  // Pre-fill guardian child when opened via child's "Invite Parent" action
-  useEffect(() => {
-    if (prefillGuardianChild && open) {
-      setSelectedRole("parent");
-      setSingleChildren([{
-        id: crypto.randomUUID(),
-        name: prefillGuardianChild.childName,
-        yearOfBirth: "",
-        jerseyNumber: "",
-      }]);
-      autoChildTriggered.current = true;
-    }
-  }, [prefillGuardianChild, open]);
 
   // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
   useEffect(() => {
@@ -826,7 +812,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
-      // Send team-invite email to second parent (existing user added directly)
+      // Send team-invite email to existing user added as coach/admin/player (non-parent)
+      if (selectedRole !== "parent" && selectedUser && !result?.roleWasDuplicate) {
+        const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
+        // Use email from customEmail field, or fall back to sending via toUserId
+        const emailTarget = customEmail.trim().toLowerCase();
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              ...(emailTarget ? { to: emailTarget } : { toUserId: selectedUser.id }),
+              subject: `${clubBranding?.name || 'Your club'}: You've been added to ${teamName} as ${roleName}`,
+              template: "team-invite",
+              senderName: clubBranding?.name || undefined,
+              replyTo: (clubBranding as any)?.contact_email || undefined,
+              templateData: {
+                recipientName: selectedUser.display_name || roleName,
+                teamName,
+                clubName: clubBranding?.name || "The Club",
+                roleName,
+                clubLogoUrl: clubBranding?.logo_url || undefined,
+                customMessage: customMessage?.trim() || undefined,
+                inviteLink: `${window.location.origin}/teams/${teamId}`,
+              },
+            },
+          });
+        } catch (err) {
+          console.error(`[AddMember] Failed to send team-invite email to ${roleName}:`, err);
+        }
+      }
+
       if (result?.secondParentAddedDirectly && selectedSecondParent) {
         const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
         if (childrenNames.length > 0) {
@@ -1817,6 +1831,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     if (Capacitor.isNativePlatform()) {
                       try {
                         await Share.share({
+                          title: `Join ${clubBranding?.name || teamName}`,
                           text: msg,
                           dialogTitle: `Share invite`,
                         });
@@ -2106,6 +2121,26 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 ))}
               </div>
             </div>
+
+            {/* Email field for existing user with non-parent role (coach/admin/player) */}
+            {selectedUser && selectedRole !== "parent" && (
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5" />
+                  Email address (optional — to send invite email)
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="e.g., coach@example.com"
+                    value={customEmail}
+                    onChange={(e) => setCustomEmail(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* 3. CONTEXTUAL HINT - only when parent selected */}
             {selectedRole === "parent" && !(selectedUser || nameInput.trim()) && (
@@ -3173,7 +3208,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         </div>
 
         {/* Sticky CTA footer */}
-        <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6" style={{ touchAction: 'pan-y' }}>
+        <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6 transition-[padding]" style={{ touchAction: 'pan-y', paddingBottom: nativeKbHeight > 0 ? `${nativeKbHeight + 16}px` : undefined }}>
           {mode === "single" ? (
             selectedUser ? (
               <Button
@@ -3203,25 +3238,43 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               <Button
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => {
+                  if (!nameConfirmed && nameInput.trim()) {
+                    setNameConfirmed(true);
+                    return;
+                  }
                   if (selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()) {
                     setSingleChildren([...singleChildren, { id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
                     return;
                   }
+                  if (deliveryMethod === "email" && !customEmail.trim()) {
+                    return;
+                  }
                   addPendingMemberMutation.mutate();
                 }}
-                disabled={!nameInput.trim() || addPendingMemberMutation.isPending || (selectedRole === "parent" && singleChildren.length === 0 && !nameInput.trim())}
-                variant={selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim() ? "outline" : "default"}
+                disabled={!nameInput.trim() || addPendingMemberMutation.isPending}
+                variant={
+                  !nameConfirmed ? "outline" 
+                  : (selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()) ? "outline" 
+                  : (deliveryMethod === "email" && !customEmail.trim()) ? "outline"
+                  : "default"
+                }
               >
                 {addPendingMemberMutation.isPending ? (
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                ) : !nameConfirmed ? (
+                  <Check className="h-5 w-5 mr-2" />
                 ) : selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim() ? (
                   <Baby className="h-5 w-5 mr-2" />
                 ) : (
                   <UserPlus className="h-5 w-5 mr-2" />
                 )}
-                {selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()
-                  ? "Add child to continue"
-                  : "Continue"}
+                {!nameConfirmed
+                  ? "Confirm name to continue"
+                  : selectedRole === "parent" && singleChildren.length === 0 && nameInput.trim()
+                    ? "Add child to continue"
+                    : deliveryMethod === "email" && !customEmail.trim()
+                      ? "Enter email to continue"
+                      : "Create Invite"}
               </Button>
             )
           ) : (

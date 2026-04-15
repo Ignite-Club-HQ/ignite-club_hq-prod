@@ -23,6 +23,8 @@ interface AddRoleToMemberDialogProps {
   teamName: string;
   clubId: string;
   existingRoles: string[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const availableRoles: { value: TeamRole; label: string; description: string; color: string }[] = [
@@ -39,8 +41,12 @@ export default function AddRoleToMemberDialog({
   teamName,
   clubId,
   existingRoles,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: AddRoleToMemberDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [selectedRoles, setSelectedRoles] = useState<TeamRole[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -53,6 +59,8 @@ export default function AddRoleToMemberDialog({
     mutationFn: async () => {
       if (selectedRoles.length === 0) return;
 
+      // The RLS policy on user_roles enforces admin permissions
+      // This mutation will fail if the current user lacks club_admin, team_admin, or app_admin role
       const rolesToInsert = selectedRoles.map((role) => ({
         user_id: userId,
         team_id: teamId,

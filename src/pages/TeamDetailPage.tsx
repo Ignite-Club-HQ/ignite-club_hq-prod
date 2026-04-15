@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useMemo } from "react";
+import { useState, useEffect, lazy, Suspense, useMemo, type ReactNode } from "react";
 import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,10 +9,11 @@ import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
-
+import InviteOtherParentSheet from "@/components/InviteOtherParentSheet";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SwipeableCard } from "@/components/ui/swipeable-card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -69,6 +70,8 @@ import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
 import TeamPlayerPositionEditor from "@/components/TeamPlayerPositionEditor";
 import PlayerPositionSheet from "@/components/PlayerPositionSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
+import MemberDetailSheet from "@/components/MemberDetailSheet";
+import ChildDetailSheet from "@/components/ChildDetailSheet";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -102,6 +105,7 @@ export default function TeamDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [memberRoleFilter, setMemberRoleFilter] = useState<string>("all");
+  const [headerInviteOpen, setHeaderInviteOpen] = useState(false);
   const [hasSetInitialFilter, setHasSetInitialFilter] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
@@ -115,6 +119,10 @@ export default function TeamDetailPage() {
   const [inviteParentChild, setInviteParentChild] = useState<{ childId: string; childName: string } | null>(null);
   const [linkChildToParent, setLinkChildToParent] = useState<{ childName: string; existingChildId?: string; pendingInviteIds: string[] } | null>(null);
   const [moveToTeam, setMoveToTeam] = useState<{ type: "adult" | "child"; id: string; name: string; roles?: string[] } | null>(null);
+  const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
+  const [removeMember, setRemoveMember] = useState<{ userId: string; name: string } | null>(null);
+  const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
+  const [selectedChild, setSelectedChild] = useState<{ childId: string; childName: string; parentDisplay: string | null; isPending: boolean; linkInviteIds?: string[] } | null>(null);
   
   // Handle admin invite dialog from team creation flow
   const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string } | null;
@@ -684,179 +692,186 @@ export default function TeamDetailPage() {
   }
 
   return (
-    <div className="py-6 space-y-6">
-      {/* Header Row 1: Back button, Team name, 3-dot menu */}
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" aria-label="Go back" onClick={() => {
-            if (window.history.length > 1) {
-              navigate(-1);
-            } else {
-              navigate(`/clubs/${team.club_id}`);
-            }
-          }}>
-            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold truncate leading-tight">{team.name}</h1>
-          </div>
-          {isAdmin && isClassMode && (
-            <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          )}
-          {(isAdmin || isClubAdmin) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Team options menu">
-                  <MoreVertical className="h-5 w-5" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit {isClassMode ? "Class" : "Team"}
-                </DropdownMenuItem>}
-                {isClassMode && (
-                  <DropdownMenuItem onClick={async () => {
-                    const { data: newTeam, error } = await supabase
-                      .from("teams")
-                      .insert({
-                        name: `${team.name} (Copy)`,
-                        club_id: team.club_id,
-                        level_age: (team as any).level_age || null,
-                        description: (team as any).description || null,
-                        folder_id: (team as any).folder_id || null,
-                        team_type: (team as any).team_type || "mixed",
-                        created_by: user!.id,
-                        class_day: (team as any).class_day || null,
-                        class_time: (team as any).class_time || null,
-                        class_duration_minutes: (team as any).class_duration_minutes || null,
-                        class_capacity: (team as any).class_capacity || null,
-                      })
-                      .select()
-                      .single();
-                    if (error) {
-                      toast({ title: "Failed to duplicate class", variant: "destructive" });
-                    } else {
-                      toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
-                      navigate(`/teams/${newTeam.id}/edit`);
-                    }
-                  }}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Duplicate Class
-                  </DropdownMenuItem>
-                )}
-                {/* Leave Team - only for members (not pure club admins) */}
-                {userRoles.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-warning">
-                          <LogOut className="h-4 w-4 mr-2" />
-                          Leave Team
-                        </DropdownMenuItem>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Leave Team?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            You will be removed from {team?.name || "this team"}. You'll need a new invite to rejoin.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={async () => {
-                              const { error } = await supabase
-                                .from("user_roles")
-                                .delete()
-                                .eq("user_id", user!.id)
-                                .eq("team_id", id!);
-                              if (error) {
-                                toast({ title: "Failed to leave team", variant: "destructive" });
-                              } else {
-                                const today = new Date().toISOString().slice(0, 10);
-                                const { data: futureEvents } = await supabase
-                                  .from("events")
-                                  .select("id")
-                                  .eq("team_id", id!)
-                                  .gte("event_date", today);
-                                if (futureEvents && futureEvents.length > 0) {
-                                  await supabase
-                                    .from("rsvps")
-                                    .delete()
-                                    .eq("user_id", user!.id)
-                                    .in("event_id", futureEvents.map(e => e.id));
-                                }
-                                toast({ title: `You left ${team?.name || "the team"}` });
-                                queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                                queryClient.invalidateQueries({ queryKey: ["user-roles"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
-                                queryClient.invalidateQueries({ queryKey: ["events"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
-                                navigate(`/clubs/${team?.club_id}`);
-                              }
-                            }}
-                            className="bg-destructive text-destructive-foreground"
-                          >
-                            Leave
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </>
-                )}
-                {isAdmin && <DropdownMenuSeparator />}
-                {isAdmin && <ArchiveTeamDialog
-                  teamId={id!}
-                  teamName={team?.name || ""}
-                  clubId={team?.club_id || ""}
-                  isArchived={(team as any)?.is_archived || false}
-                  currentSeasonLabel={(team as any)?.season_label}
-                  onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
-                  trigger={
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
-                      {(team as any)?.is_archived ? (
-                        <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
-                      ) : (
-                        <><Archive className="h-4 w-4 mr-2" />Archive Team</>
-                      )}
-                    </DropdownMenuItem>
-                  }
-                />
-                }
-                {isAdmin && <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Team
-                </DropdownMenuItem>}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-        {/* Header Row 2: Badges + member count */}
-        <div className="flex items-center gap-1.5 pl-[52px]">
-          {isTeamPro && !hasProFootball && (
-            <Badge className="bg-yellow-500 text-yellow-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO</Badge>
-          )}
-          {hasProFootball && (
-            <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
-          )}
-          {isOnTrial && isTeamPro && (
-            <Badge variant="outline" className="text-amber-600 border-amber-500 text-[10px] px-1.5 py-0 h-4 shrink-0">Free Trial</Badge>
-          )}
-          <span className="text-xs text-muted-foreground">
+    <div className="py-4 space-y-4">
+      {/* Header: Back, Team name + member count, Invite CTA, overflow menu */}
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10" aria-label="Go back" onClick={() => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate(`/clubs/${team.club_id}`);
+          }
+        }}>
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-bold truncate leading-tight">{team.name}</h1>
+          <p className="text-xs text-muted-foreground leading-tight">
             {Object.keys(members).length + teamChildren.length} member{Object.keys(members).length + teamChildren.length !== 1 ? 's' : ''}
-          </span>
+          </p>
         </div>
+        {(isAdmin || isClubAdmin) && (
+          <Button size="sm" className="shrink-0 h-9" onClick={() => setHeaderInviteOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-1.5" />
+            Invite
+          </Button>
+        )}
+        {isAdmin && isClassMode && (
+          <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        )}
+        {(isAdmin || isClubAdmin) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Team options menu">
+                <MoreVertical className="h-5 w-5" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit {isClassMode ? "Class" : "Team"}
+              </DropdownMenuItem>}
+              {isClassMode && (
+                <DropdownMenuItem onClick={async () => {
+                  const { data: newTeam, error } = await supabase
+                    .from("teams")
+                    .insert({
+                      name: `${team.name} (Copy)`,
+                      club_id: team.club_id,
+                      level_age: (team as any).level_age || null,
+                      description: (team as any).description || null,
+                      folder_id: (team as any).folder_id || null,
+                      team_type: (team as any).team_type || "mixed",
+                      created_by: user!.id,
+                      class_day: (team as any).class_day || null,
+                      class_time: (team as any).class_time || null,
+                      class_duration_minutes: (team as any).class_duration_minutes || null,
+                      class_capacity: (team as any).class_capacity || null,
+                    })
+                    .select()
+                    .single();
+                  if (error) {
+                    toast({ title: "Failed to duplicate class", variant: "destructive" });
+                  } else {
+                    toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
+                    navigate(`/teams/${newTeam.id}/edit`);
+                  }
+                }}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate Class
+                </DropdownMenuItem>
+              )}
+              {/* Leave Team - only for members (not pure club admins) */}
+              {userRoles.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-warning">
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Leave Team
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Leave Team?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          You will be removed from {team?.name || "this team"}. You'll need a new invite to rejoin.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={async () => {
+                            const { error } = await supabase
+                              .from("user_roles")
+                              .delete()
+                              .eq("user_id", user!.id)
+                              .eq("team_id", id!);
+                            if (error) {
+                              toast({ title: "Failed to leave team", variant: "destructive" });
+                            } else {
+                              const today = new Date().toISOString().slice(0, 10);
+                              const { data: futureEvents } = await supabase
+                                .from("events")
+                                .select("id")
+                                .eq("team_id", id!)
+                                .gte("event_date", today);
+                              if (futureEvents && futureEvents.length > 0) {
+                                await supabase
+                                  .from("rsvps")
+                                  .delete()
+                                  .eq("user_id", user!.id)
+                                  .in("event_id", futureEvents.map(e => e.id));
+                              }
+                              toast({ title: `You left ${team?.name || "the team"}` });
+                              queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                              queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
+                              queryClient.invalidateQueries({ queryKey: ["events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+                              navigate(`/clubs/${team?.club_id}`);
+                            }
+                          }}
+                          className="bg-destructive text-destructive-foreground"
+                        >
+                          Leave
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
+              {isAdmin && <DropdownMenuSeparator />}
+              {isAdmin && <ArchiveTeamDialog
+                teamId={id!}
+                teamName={team?.name || ""}
+                clubId={team?.club_id || ""}
+                isArchived={(team as any)?.is_archived || false}
+                currentSeasonLabel={(team as any)?.season_label}
+                onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
+                trigger={
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
+                    {(team as any)?.is_archived ? (
+                      <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
+                    ) : (
+                      <><Archive className="h-4 w-4 mr-2" />Archive Team</>
+                    )}
+                  </DropdownMenuItem>
+                }
+              />
+              }
+              {isAdmin && <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Team
+              </DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
+
+      {/* Hidden AddTeamMemberSheet controlled by header Invite button */}
+      {(isAdmin || isClubAdmin) && (
+        <AddTeamMemberSheet
+          teamId={id!}
+          teamName={team.name}
+          clubId={team.club_id}
+          teamType={(team as any).team_type || "mixed"}
+          isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
+          canBulkInvite={isCoachOrAdmin || isClubAdmin}
+          triggerVariant="none"
+          externalOpen={headerInviteOpen}
+          onExternalOpenChange={setHeaderInviteOpen}
+        />
+      )}
 
       {/* Soft-deleted banner */}
       {(team as any)?.deleted_at && isAdmin && (
@@ -1134,12 +1149,12 @@ export default function TeamDetailPage() {
 
       {/* Primary Actions - Chat & Schedule */}
       {isMember && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
-            <Card className="border-primary/20 bg-primary/[0.04] hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-primary/10">
-                  <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
+            <Card className="border-primary/20 bg-primary/[0.03] hover:border-primary/40 transition-colors" role="button">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <MessageCircle className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
                 </div>
                 <TeamChatPreview teamId={team.id} />
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -1147,10 +1162,10 @@ export default function TeamDetailPage() {
             </Card>
           </Link>
           <Link to={`/events?team=${team.id}`} aria-label="View team schedule" className="block">
-            <Card className="hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-primary/10">
-                  <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
+            <Card className="hover:border-primary/40 transition-colors" role="button">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Calendar className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-semibold">Schedule</span>
@@ -1168,54 +1183,25 @@ export default function TeamDetailPage() {
         <div className="grid grid-cols-2 gap-2">
           {(isSubscriptionLoading || isTeamPro) ? (
             <Link to={`/vault?team=${team.id}`} aria-label="Open file vault" className="block">
-              <Card className="hover:border-primary/50 transition-colors" role="button">
-                <CardContent className="p-3 flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <span className="text-xs font-medium">Vault</span>
-                </CardContent>
-              </Card>
+              <Button variant="outline" className="w-full h-9 text-xs font-medium justify-start gap-2">
+                <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                Vault
+              </Button>
             </Link>
           ) : (
-            <Card className="border-muted bg-muted/30 cursor-not-allowed">
-              <CardContent className="p-3 flex items-center gap-2">
-                <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">Vault</span>
-                <Badge variant="secondary" className="text-[10px] ml-auto gap-0.5 h-4 px-1">
-                  <Lock className="h-2.5 w-2.5" />
-                  Pro
-                </Badge>
-              </CardContent>
-            </Card>
+            <Button variant="outline" className="w-full h-9 text-xs font-medium justify-start gap-2 opacity-50 cursor-not-allowed" disabled>
+              <FolderOpen className="h-3.5 w-3.5" />
+              Vault
+              <Badge variant="secondary" className="text-[9px] ml-auto gap-0.5 h-3.5 px-1">
+                <Lock className="h-2 w-2" />
+                Pro
+              </Badge>
+            </Button>
           )}
           {isSoccerClub && (hasProFootball || isAppAdmin) && (
-            <Card 
-              className="hover:border-primary/50 transition-colors cursor-pointer"
-              role="button"
-              tabIndex={0}
-              aria-label="Open Pitch Board"
-              onKeyDown={async (e) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                e.preventDefault();
-                const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
-                const freshMembers = membersResult.data || [];
-                const freshChildren = childrenResult.data || [];
-                const nextPitchBoardMembers = [
-                  ...freshMembers.map(m => ({
-                    id: m.id, user_id: m.user_id, role: m.role, profiles: m.profiles,
-                  })),
-                  ...freshChildren
-                    .filter(child => child.children)
-                    .map(child => ({
-                      id: `child-${child.children.id}`, user_id: child.children.id,
-                      role: "player" as string,
-                      profiles: { display_name: child.children.name, avatar_url: null },
-                    })),
-                ];
-                setPitchBoardMembersOverride(nextPitchBoardMembers);
-                const nearbyEventId = await findNearbyGameEvent(id!);
-                setLinkedEventId(nearbyEventId);
-                setShowPitchBoard(true);
-              }}
+            <Button 
+              variant="outline"
+              className="w-full h-9 text-xs font-medium justify-start gap-2"
               onClick={async () => {
                 const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
                 const freshMembers = membersResult.data || [];
@@ -1238,11 +1224,9 @@ export default function TeamDetailPage() {
                 setShowPitchBoard(true);
               }}
             >
-              <CardContent className="p-3 flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4 text-primary" aria-hidden="true" />
-                <span className="text-xs font-medium">Pitch Board</span>
-              </CardContent>
-            </Card>
+              <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+              Pitch Board
+            </Button>
           )}
         </div>
       )}
@@ -1310,9 +1294,9 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-                <div className="flex flex-wrap gap-2 justify-between items-center pl-1">
+                <div className="flex flex-wrap gap-2 justify-between items-center">
                   <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
-                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                    <SelectTrigger className="w-[120px] h-7 text-xs">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1324,16 +1308,12 @@ export default function TeamDetailPage() {
                       <SelectItem value="child">Children</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex gap-2">
-                    <AddTeamMemberSheet 
-                        teamId={id!} 
-                        teamName={team.name} 
-                        clubId={team.club_id}
-                        teamType={(team as any).team_type || "mixed"}
-                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                        canBulkInvite={isCoachOrAdmin || isClubAdmin}
-                      />
-                  </div>
+                  {(isAdmin || isClubAdmin) && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-primary" onClick={() => setHeaderInviteOpen(true)}>
+                      <UserPlus className="h-3.5 w-3.5 mr-1" />
+                      Add members
+                    </Button>
+                  )}
                 </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <div className="flex flex-col items-center py-6 text-center gap-3">
@@ -1344,14 +1324,10 @@ export default function TeamDetailPage() {
                       <p className="font-medium text-foreground">No members yet</p>
                       <p className="text-sm text-muted-foreground mt-1">Invite players, parents or coaches to get started</p>
                     </div>
-                    <AddTeamMemberSheet
-                        teamId={id!}
-                        teamName={team.name}
-                        clubId={team.club_id}
-                        teamType={(team as any).team_type || "mixed"}
-                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                        canBulkInvite={isCoachOrAdmin || isClubAdmin}
-                      />
+                    <Button size="sm" onClick={() => setHeaderInviteOpen(true)}>
+                      <UserPlus className="h-4 w-4 mr-1.5" />
+                      Invite Members
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1365,16 +1341,33 @@ export default function TeamDetailPage() {
                       const meta = inv.metadata as { children?: { name: string }[] } | null;
                       return meta?.children && meta.children.length > 0;
                     })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
-                      <div className="mb-4 pb-4 border-b">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-medium text-muted-foreground">Players (Children)</p>
-                          {(isAdmin || isClubAdmin) && isSoccerClub && (
-                            <p className="text-[10px] text-muted-foreground italic">Long-press to set number & position</p>
-                          )}
+                      <div className="mb-6 pb-4 border-b">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Players ({(() => {
+                              const pendingOnlyCount = (() => {
+                                const confirmedIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
+                                const confirmedNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()?.trim()).filter(Boolean));
+                                const seen = new Set<string>();
+                                for (const inv of pendingInvites) {
+                                  const meta = inv.metadata as { children?: { name: string; child_id?: string; existingChildId?: string }[] } | null;
+                                  if (!meta?.children) continue;
+                                  for (const c of meta.children) {
+                                    if (!c.name) continue;
+                                    if (c.child_id && confirmedIds.has(c.child_id)) continue;
+                                    if (confirmedNames.has(c.name.toLowerCase().trim())) continue;
+                                    if (typeof c.existingChildId === 'string' && c.existingChildId.startsWith('pending-')) continue;
+                                    seen.add(c.name.toLowerCase().trim());
+                                  }
+                                }
+                                return seen.size;
+                              })();
+                              return teamChildren.length + pendingOnlyCount;
+                            })()})
+                          </p>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           {(() => {
-                            // Build set of child IDs from pending invites to mark as pending
                             const pendingChildIds = new Set<string>();
                             const pendingChildNames = new Set<string>();
                             const pendingParentLabels = new Map<string, string>();
@@ -1394,7 +1387,6 @@ export default function TeamDetailPage() {
                               }
                             }
 
-                             // Sort confirmed children first, pending children last
                              const sorted = [...teamChildren].sort((a: any, b: any) => {
                                const aChild = a.children;
                                const bChild = b.children;
@@ -1411,94 +1403,107 @@ export default function TeamDetailPage() {
                               const isPending = pendingChildIds.has(child.id) || 
                                 (child.name && pendingChildNames.has(child.name.toLowerCase()) && (!child.allParentNames || child.allParentNames.length === 0));
                               const parentLabel = pendingParentLabels.get(child.id) || pendingParentLabels.get(child.name?.toLowerCase());
+
+                              const parentDisplay = isPending && parentLabel
+                                ? `Parent: ${parentLabel}`
+                                : child.allParentNames && child.allParentNames.length > 0
+                                  ? `${child.allParentNames.length === 1 ? "Parent" : "Parents"}: ${child.allParentNames.join(" & ")}`
+                                  : null;
+
+                              const swipeActions = (() => {
+                                if (!(isAdmin || isClubAdmin)) return [];
+                                if (isPending) {
+                                  return [{
+                                    label: "Link",
+                                    icon: <UserPlus className="h-4 w-4" />,
+                                    onClick: () => {
+                                      const inviteIds = pendingInvites
+                                        .filter(inv => {
+                                          const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
+                                          return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
+                                        })
+                                        .map(inv => inv.id);
+                                      setLinkChildToParent({ childName: child.name, existingChildId: child.id, pendingInviteIds: inviteIds });
+                                    },
+                                    className: "bg-orange-500 text-white",
+                                  }];
+                                }
+                                const actions: { label: string; icon: ReactNode; onClick: () => void; className?: string }[] = [
+                                  {
+                                    label: "Parent",
+                                    icon: <UserPlus className="h-4 w-4" />,
+                                    onClick: () => setInviteParentChild({ childId: child.id, childName: child.name }),
+                                    className: "bg-emerald-600 text-white",
+                                  },
+                                ];
+                                if (isSoccerClub) {
+                                  actions.push({
+                                    label: "Position",
+                                    icon: <Pencil className="h-4 w-4" />,
+                                    onClick: () => setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" }),
+                                    className: "bg-blue-500 text-white",
+                                  });
+                                }
+                                if (isClubAdmin) {
+                                  actions.push({
+                                    label: "Swap",
+                                    icon: <ArrowRightLeft className="h-4 w-4" />,
+                                    onClick: () => setMoveToTeam({ type: "child", id: child.id, name: child.name }),
+                                    className: "bg-amber-500 text-white",
+                                  });
+                                }
+                                return actions;
+                              })();
+
                               return (
-                                <Card 
-                                  key={assignment.id} 
-                                  className={cn(isPending ? "opacity-70" : "", (isAdmin || isClubAdmin) && isSoccerClub && "cursor-pointer select-none")}
-                                  onTouchStart={(isAdmin || isClubAdmin) && isSoccerClub ? (() => {
-                                    const timer = setTimeout(() => {
-                                      setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
-                                    }, 500);
-                                    (window as any).__longPressTimer = timer;
-                                  }) : undefined}
-                                  onTouchEnd={() => clearTimeout((window as any).__longPressTimer)}
-                                  onTouchMove={() => clearTimeout((window as any).__longPressTimer)}
+                                <SwipeableCard
+                                  key={assignment.id}
+                                  actions={swipeActions}
+                                  enabled={(isAdmin || isClubAdmin)}
+                                  className={cn(
+                                    "border shadow-sm",
+                                    isPending ? "opacity-70" : ""
+                                  )}
                                 >
-                                  <CardContent className="p-3 flex items-center gap-3">
-                                    <Avatar className="h-8 w-8">
-                                      <AvatarFallback className={isPending ? "bg-orange-500/20 text-orange-500 text-sm" : "bg-pink-500/20 text-pink-500 text-sm"}>
+                                  <CardContent
+                                    className="p-3.5 flex items-center gap-3 cursor-pointer"
+                                    onClick={() => setSelectedChild({
+                                      childId: child.id,
+                                      childName: child.name,
+                                      parentDisplay,
+                                      isPending: !!isPending,
+                                      linkInviteIds: isPending ? pendingInvites
+                                        .filter(inv => {
+                                          const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
+                                          return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
+                                        })
+                                        .map(inv => inv.id) : undefined,
+                                    })}
+                                  >
+                                    <Avatar className="h-9 w-9 shrink-0">
+                                      <AvatarFallback className={cn(
+                                        "text-sm font-semibold",
+                                        isPending ? "bg-orange-500/20 text-orange-500" : "bg-pink-500/20 text-pink-500"
+                                      )}>
                                         {child.name?.charAt(0)?.toUpperCase() || "?"}
                                       </AvatarFallback>
                                     </Avatar>
-                                    <div className="flex-1">
-                                      <p className="font-medium text-sm">{child.name}</p>
-                                      {isPending && parentLabel ? (
-                                        <p className="text-xs text-muted-foreground">
-                                          Parent: {parentLabel}
-                                        </p>
-                                      ) : child.allParentNames && child.allParentNames.length > 0 ? (
-                                        <p className="text-xs text-muted-foreground">
-                                          {child.allParentNames.length === 1 ? "Parent" : "Parents"}: {child.allParentNames.join(" & ")}
-                                        </p>
-                                      ) : null}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-semibold text-sm truncate">{child.name}</p>
+                                      {parentDisplay && (
+                                        <p className="text-xs text-muted-foreground truncate mt-0.5">{parentDisplay}</p>
+                                      )}
                                     </div>
-                                    {(isAdmin || isClubAdmin) && isPending && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        aria-label={`Link ${child.name} to a parent`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          // Find pending invite IDs for this child
-                                          const inviteIds = pendingInvites
-                                            .filter(inv => {
-                                              const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
-                                              return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
-                                            })
-                                            .map(inv => inv.id);
-                                          setLinkChildToParent({ childName: child.name, existingChildId: child.id, pendingInviteIds: inviteIds });
-                                        }}
-                                      >
-                                        <UserPlus className="h-4 w-4 text-orange-400" />
-                                      </Button>
-                                    )}
-                                    {isClubAdmin && !isPending && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        aria-label={`Move ${child.name} to another team`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setMoveToTeam({ type: "child", id: child.id, name: child.name });
-                                        }}
-                                      >
-                                        <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                                      </Button>
-                                    )}
-                                    {(isAdmin || isClubAdmin) && !isPending && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        aria-label={`Invite parent for ${child.name}`}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setInviteParentChild({ childId: child.id, childName: child.name });
-                                        }}
-                                      >
-                                        <UserPlus className="h-4 w-4 text-muted-foreground" />
-                                      </Button>
-                                    )}
-                                    <Badge variant="outline" className={isPending 
-                                      ? "text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30"
-                                      : "text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30"
-                                    }>
+                                    <Badge variant="outline" className={cn(
+                                      "text-[10px] border px-1.5 py-0 h-4 shrink-0",
+                                      isPending 
+                                        ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                                        : "bg-pink-500/20 text-pink-400 border-pink-500/30"
+                                    )}>
                                       {isPending ? "Pending" : "Child"}
                                     </Badge>
                                   </CardContent>
-                                </Card>
+                                </SwipeableCard>
                               );
                             });
                           })()}
@@ -1506,13 +1511,11 @@ export default function TeamDetailPage() {
                             const confirmedChildIds = new Set(teamChildren.map((a: any) => a.children?.id).filter(Boolean));
                             const confirmedChildNames = new Set(teamChildren.map((a: any) => a.children?.name?.toLowerCase()?.trim()).filter(Boolean));
                             
-                            // Helper: check if a pending child name fuzzy-matches any confirmed child
                             const isConfirmedChild = (name: string) => {
                               const norm = name.toLowerCase().trim();
                               if (confirmedChildNames.has(norm)) return true;
                               for (const confirmed of confirmedChildNames) {
                                 if (Math.abs(norm.length - confirmed.length) > 2) continue;
-                                // Levenshtein distance check (max 2)
                                 const len1 = norm.length, len2 = confirmed.length;
                                 const dp: number[][] = Array.from({ length: len1 + 1 }, (_, i) => 
                                   Array.from({ length: len2 + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
@@ -1529,7 +1532,6 @@ export default function TeamDetailPage() {
                               return false;
                             };
                             
-                            // Deduplicate pending children across invites by normalized name
                             const seenPendingNames = new Map<string, { name: string; parentLabels: string[]; inviteIds: string[] }>();
                             
                             for (const inv of pendingInvites) {
@@ -1539,10 +1541,8 @@ export default function TeamDetailPage() {
                               
                               for (const child of meta.children) {
                                 if (!child.name) continue;
-                                // Skip if already confirmed (exact or fuzzy match)
                                 if (child.child_id && confirmedChildIds.has(child.child_id)) continue;
                                 if (isConfirmedChild(child.name)) continue;
-                                // Skip if this child references another pending invite's child (linked duplicate)
                                 if (typeof child.existingChildId === 'string' && child.existingChildId.startsWith('pending-')) continue;
                                 
                                 const key = child.name.toLowerCase().trim();
@@ -1561,38 +1561,34 @@ export default function TeamDetailPage() {
                             }
                             
                             return Array.from(seenPendingNames.entries()).map(([key, { name, parentLabels, inviteIds }]) => (
-                              <Card key={`pending-child-${key}`} className="opacity-70">
-                                <CardContent className="p-3 flex items-center gap-3">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm">
+                              <SwipeableCard
+                                key={`pending-child-${key}`}
+                                enabled={isAdmin || isClubAdmin}
+                                actions={(isAdmin || isClubAdmin) ? [{
+                                  label: "Link",
+                                  icon: <UserPlus className="h-4 w-4" />,
+                                  onClick: () => setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds }),
+                                  className: "bg-orange-500",
+                                }] : []}
+                                className="opacity-70 border shadow-sm"
+                              >
+                                <CardContent className="p-3.5 flex items-center gap-3">
+                                  <Avatar className="h-9 w-9 shrink-0">
+                                    <AvatarFallback className="bg-orange-500/20 text-orange-500 text-sm font-semibold">
                                       {name?.charAt(0)?.toUpperCase() || "?"}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <div className="flex-1">
-                                    <p className="font-medium text-sm">{name}</p>
-                                    <p className="text-xs text-muted-foreground">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-sm truncate">{name}</p>
+                                    <p className="text-xs text-muted-foreground truncate mt-0.5">
                                       {parentLabels.length > 1 ? `Parents: ${parentLabels.join(" & ")}` : `Parent: ${parentLabels[0]}`}
                                     </p>
                                   </div>
-                                  {(isAdmin || isClubAdmin) && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 shrink-0"
-                                      aria-label={`Link ${name} to a parent`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds });
-                                      }}
-                                    >
-                                      <UserPlus className="h-4 w-4 text-orange-400" />
-                                    </Button>
-                                  )}
-                                  <Badge variant="outline" className="text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30">
+                                  <Badge variant="outline" className="text-[10px] border px-1.5 py-0 h-4 shrink-0 bg-orange-500/20 text-orange-400 border-orange-500/30">
                                     Pending
                                   </Badge>
                                 </CardContent>
-                              </Card>
+                              </SwipeableCard>
                             ));
                           })()}
                         </div>
@@ -1662,165 +1658,89 @@ export default function TeamDetailPage() {
                         if (roleMembers.length === 0 && rolePending.length === 0) return null;
 
                         return (
-                          <div key={role} className="mb-4 pb-4 border-b last:border-b-0 last:mb-0 last:pb-0">
-                            <p className="text-sm font-medium text-muted-foreground mb-2">{roleGroupLabels[role] || role}</p>
+                          <div key={role} className="mb-3 pb-3 border-b last:border-b-0 last:mb-0 last:pb-0">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{roleGroupLabels[role] || role}</p>
                             <div className="space-y-2">
-                              {roleMembers.map(([userId, member]) => (
-                              <Card key={userId}>
-                                <CardContent className="p-3 flex items-center gap-3">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarImage src={member.profile?.avatar_url || undefined} />
-                                    <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                                      {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1">
-                                    <p className="font-medium text-sm">{member.profile?.display_name || "Unknown User"}</p>
-                                  </div>
-                                  <div className="flex flex-wrap gap-1">
-                                    {member.roles?.map((roleItem) => {
-                                      const roleLabels: Record<string, string> = {
-                                        app_admin: "App Admin",
-                                        club_admin: "Club Admin",
-                                        team_admin: "Team Admin",
-                                        coach: "Coach",
-                                        player: "Player",
-                                        parent: "Parent",
-                                        basic_user: "Member",
-                                      };
-                                      const roleColors: Record<string, string> = {
-                                        app_admin: "bg-red-500/20 text-red-400 border-red-500/30",
-                                        club_admin: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-                                        team_admin: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-                                        coach: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-                                        player: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-                                        parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
-                                        basic_user: "bg-muted text-muted-foreground border-border",
-                                      };
-                                      const colorClass = roleColors[roleItem.role] || roleColors.basic_user;
-                                      const label = roleLabels[roleItem.role] || "Member";
-                                      const canManage = isAdmin || isClubAdmin;
-                                      const canRemoveRole = canManage && userId !== user?.id && (member.roles?.length || 0) > 1;
-                                      return (
-                                        <AlertDialog key={roleItem.id}>
-                                          <Badge variant="outline" className={`text-xs border ${colorClass} flex items-center gap-1`}>
-                                            {label}
-                                            {canRemoveRole && (
-                                              <AlertDialogTrigger asChild>
-                                                <button
-                                                  onClick={(e) => e.stopPropagation()}
-                                                  aria-label={`Remove ${label} role`}
-                                                  className="ml-0.5 hover:bg-destructive/20 rounded-full p-1.5 -mr-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
-                                                >
-                                                  <X className="h-3 w-3" aria-hidden="true" />
-                                                </button>
-                                              </AlertDialogTrigger>
-                                            )}
-                                          </Badge>
-                                          <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                              <AlertDialogTitle>Remove {label} Role?</AlertDialogTitle>
-                                              <AlertDialogDescription>
-                                                This will remove the {label} role from {member.profile?.display_name || "this user"}.
-                                              </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                              <AlertDialogAction
-                                                onClick={async () => {
-                                                  const { error } = await supabase
-                                                    .from("user_roles")
-                                                    .delete()
-                                                    .eq("id", roleItem.id);
-                                                  if (error) {
-                                                    toast({ title: "Failed to remove role", variant: "destructive" });
-                                                  } else {
-                                                    toast({ title: `Removed ${label} role` });
-                                                    queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                                                  }
-                                                }}
-                                              >
-                                                Remove
-                                              </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                          </AlertDialogContent>
-                                        </AlertDialog>
-                                      );
-                                    })}
-                                  </div>
-                                  {(isAdmin || isClubAdmin) && (
-                                    <AddRoleToMemberDialog
-                                      userId={userId}
-                                      userName={member.profile?.display_name || "User"}
-                                      teamId={id!}
-                                      teamName={team.name}
-                                      clubId={team.club_id}
-                                      existingRoles={member.roles?.map(r => r.role) || []}
-                                    />
-                                  )}
-                                   {isClubAdmin && userId !== user?.id && (
-                                     <Button
-                                       variant="ghost"
-                                       size="icon"
-                                       className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                       aria-label="Move to another team"
-                                       onClick={() => setMoveToTeam({
-                                         type: "adult",
-                                         id: userId,
-                                         name: member.profile?.display_name || "User",
-                                         roles: member.roles?.map(r => r.role) || [],
-                                       })}
-                                     >
-                                       <ArrowRightLeft className="h-4 w-4" />
-                                     </Button>
-                                   )}
-                                   {(isAdmin || isClubAdmin) && userId !== user?.id && (
-                                     <AlertDialog>
-                                       <AlertDialogTrigger asChild>
-                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                           <Trash2 className="h-4 w-4" />
-                                         </Button>
-                                       </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>Remove Member?</AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            This will remove {member.profile?.display_name} from the team. They can request to join again.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                          <AlertDialogAction
-                                            onClick={async () => {
-                                              const { error } = await supabase
-                                                .from("user_roles")
-                                                .delete()
-                                                .eq("user_id", userId)
-                                                .eq("team_id", id!);
-                                              if (error) {
-                                                toast({ title: "Failed to remove member", variant: "destructive" });
-                                              } else {
-                                                await supabase.from("notifications").insert({
-                                                  user_id: userId,
-                                                  type: "membership",
-                                                  message: `You have been removed from ${team?.name || "the team"}`,
-                                                  related_id: id,
-                                                });
-                                                queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                                                toast({ title: "Member removed" });
-                                              }
-                                            }}
-                                            className="bg-destructive text-destructive-foreground"
-                                          >
-                                            Remove
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  )}
-                                </CardContent>
-                              </Card>
-                              ))}
+                              {roleMembers.map(([userId, member]) => {
+                                const canManage = (isAdmin || isClubAdmin) && userId !== user?.id;
+                                const memberSwipeActions: { label: string; icon: ReactNode; onClick: () => void; className?: string }[] = [];
+                                
+                                if ((isAdmin || isClubAdmin)) {
+                                  memberSwipeActions.push({
+                                    label: "Role",
+                                    icon: <Plus className="h-4 w-4" />,
+                                    onClick: () => setAddRoleMember({ userId, userName: member.profile?.display_name || "User", existingRoles: member.roles?.map(r => r.role) || [] }),
+                                    className: "bg-blue-600 text-white",
+                                  });
+                                }
+                                if (isClubAdmin && userId !== user?.id) {
+                                  memberSwipeActions.push({
+                                    label: "Move",
+                                    icon: <ArrowRightLeft className="h-4 w-4" />,
+                                    onClick: () => setMoveToTeam({
+                                      type: "adult",
+                                      id: userId,
+                                      name: member.profile?.display_name || "User",
+                                      roles: member.roles?.map(r => r.role) || [],
+                                    }),
+                                    className: "bg-amber-500 text-white",
+                                  });
+                                }
+                                if (canManage) {
+                                  memberSwipeActions.push({
+                                    label: "Remove",
+                                    icon: <Trash2 className="h-4 w-4" />,
+                                    onClick: () => setRemoveMember({ userId, name: member.profile?.display_name || "User" }),
+                                    className: "bg-destructive",
+                                  });
+                                }
+
+                                return (
+                                  <SwipeableCard key={userId} actions={memberSwipeActions} enabled={memberSwipeActions.length > 0} className="border shadow-sm">
+                                    <CardContent
+                                      className="p-3.5 flex items-center gap-3 cursor-pointer"
+                                      onClick={() => setSelectedMember({
+                                        userId,
+                                        displayName: member.profile?.display_name || "Unknown User",
+                                        avatarUrl: member.profile?.avatar_url,
+                                        roles: member.roles || [],
+                                      })}
+                                    >
+                                      <Avatar className="h-8 w-8 shrink-0">
+                                        <AvatarImage src={member.profile?.avatar_url || undefined} />
+                                        <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                                          {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm truncate">{member.profile?.display_name || "Unknown User"}</p>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1">
+                                        {member.roles?.map((roleItem) => {
+                                          const roleLabels: Record<string, string> = {
+                                            app_admin: "App Admin", club_admin: "Club Admin", team_admin: "Team Admin",
+                                            coach: "Coach", player: "Player", parent: "Parent", basic_user: "Member",
+                                          };
+                                          const roleColors: Record<string, string> = {
+                                            app_admin: "bg-red-500/20 text-red-400 border-red-500/30",
+                                            club_admin: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+                                            team_admin: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+                                            coach: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+                                            player: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+                                            parent: "bg-pink-500/20 text-pink-400 border-pink-500/30",
+                                            basic_user: "bg-muted text-muted-foreground border-border",
+                                          };
+                                          return (
+                                            <Badge key={roleItem.id} variant="outline" className={`text-[10px] border px-1.5 py-0 h-4 ${roleColors[roleItem.role] || roleColors.basic_user}`}>
+                                              {roleLabels[roleItem.role] || "Member"}
+                                            </Badge>
+                                          );
+                                        })}
+                                      </div>
+                                    </CardContent>
+                                  </SwipeableCard>
+                                );
+                              })}
                               {/* Pending invites at bottom of each role group */}
                               {rolePending.length > 0 && (memberRoleFilter === "all" || memberRoleFilter === role) && (
                                 <PendingInvitesList
@@ -2387,18 +2307,13 @@ export default function TeamDetailPage() {
           playerType={positionSheetPlayer.type}
         />
       )}
-      {inviteParentChild && id && team && (
-        <AddTeamMemberSheet
-          teamId={id}
-          teamName={team.name}
-          clubId={team.club_id}
-          teamType={(team as any).team_type || "mixed"}
-          isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-          canBulkInvite={false}
-          triggerVariant="none"
-          externalOpen={!!inviteParentChild}
-          onExternalOpenChange={(open) => { if (!open) setInviteParentChild(null); }}
-          prefillGuardianChild={inviteParentChild}
+      {inviteParentChild && id && (
+        <InviteOtherParentSheet
+          open={!!inviteParentChild}
+          onOpenChange={(open) => { if (!open) setInviteParentChild(null); }}
+          childId={inviteParentChild.childId}
+          childName={inviteParentChild.childName}
+          teamIds={[id]}
         />
       )}
       {linkChildToParent && id && team && (
@@ -2424,6 +2339,114 @@ export default function TeamDetailPage() {
           memberId={moveToTeam.id}
           memberName={moveToTeam.name}
           memberRoles={moveToTeam.roles}
+        />
+      )}
+      {addRoleMember && id && team && (
+        <AddRoleToMemberDialog
+          userId={addRoleMember.userId}
+          userName={addRoleMember.userName}
+          teamId={id}
+          teamName={team.name}
+          clubId={team.club_id}
+          existingRoles={addRoleMember.existingRoles}
+          open={!!addRoleMember}
+          onOpenChange={(open) => { if (!open) setAddRoleMember(null); }}
+        />
+      )}
+      <AlertDialog open={!!removeMember} onOpenChange={(open) => { if (!open) setRemoveMember(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {removeMember?.name} from the team. They can request to join again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!removeMember || !id) return;
+                const { error } = await supabase
+                  .from("user_roles")
+                  .delete()
+                  .eq("user_id", removeMember.userId)
+                  .eq("team_id", id);
+                if (error) {
+                  toast({ title: "Failed to remove member", variant: "destructive" });
+                } else {
+                  await supabase.from("notifications").insert({
+                    user_id: removeMember.userId,
+                    type: "membership",
+                    message: `You have been removed from ${team?.name || "the team"}`,
+                    related_id: id,
+                  });
+                  queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                  toast({ title: "Member removed" });
+                }
+                setRemoveMember(null);
+              }}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {selectedMember && (
+        <MemberDetailSheet
+          open={!!selectedMember}
+          onOpenChange={(open) => { if (!open) setSelectedMember(null); }}
+          userId={selectedMember.userId}
+          displayName={selectedMember.displayName}
+          avatarUrl={selectedMember.avatarUrl}
+          roles={selectedMember.roles}
+          canManage={isAdmin || isClubAdmin}
+          canMove={isClubAdmin && selectedMember.userId !== user?.id}
+          isSelf={selectedMember.userId === user?.id}
+          onAddRole={() => setAddRoleMember({
+            userId: selectedMember.userId,
+            userName: selectedMember.displayName,
+            existingRoles: selectedMember.roles.map(r => r.role),
+          })}
+          onMove={() => setMoveToTeam({
+            type: "adult",
+            id: selectedMember.userId,
+            name: selectedMember.displayName,
+            roles: selectedMember.roles.map(r => r.role),
+          })}
+          onRemove={() => setRemoveMember({
+            userId: selectedMember.userId,
+            name: selectedMember.displayName,
+          })}
+          onRemoveRole={async (roleItem) => {
+            const { error } = await supabase
+              .from("user_roles")
+              .delete()
+              .eq("id", roleItem.id);
+            if (error) {
+              toast({ title: "Failed to remove role", variant: "destructive" });
+            } else {
+              toast({ title: "Role removed" });
+              queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+              setSelectedMember(null);
+            }
+          }}
+        />
+      )}
+      {selectedChild && (
+        <ChildDetailSheet
+          open={!!selectedChild}
+          onOpenChange={(open) => { if (!open) setSelectedChild(null); }}
+          childName={selectedChild.childName}
+          parentDisplay={selectedChild.parentDisplay}
+          isPending={selectedChild.isPending}
+          canManage={isAdmin || isClubAdmin}
+          showPosition={!!isSoccerClub}
+          canMove={isClubAdmin}
+          onInviteParent={() => setInviteParentChild({ childId: selectedChild.childId, childName: selectedChild.childName })}
+          onEditPosition={() => setPositionSheetPlayer({ id: selectedChild.childId, name: selectedChild.childName, type: "child" })}
+          onSwapTeam={() => setMoveToTeam({ type: "child", id: selectedChild.childId, name: selectedChild.childName })}
+          onLink={selectedChild.isPending && selectedChild.linkInviteIds ? () => setLinkChildToParent({ childName: selectedChild.childName, existingChildId: selectedChild.childId, pendingInviteIds: selectedChild.linkInviteIds || [] }) : undefined}
         />
       )}
     </div>

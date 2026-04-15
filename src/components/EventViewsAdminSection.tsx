@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone, MessageSquareOff } from "lucide-react";
+import { Eye, EyeOff, Bell, BellOff, BellRing, Loader2, Check, ChevronDown, ChevronUp, Mail, Smartphone, MessageSquareOff, Share2 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
+import { getShareUrl } from "@/lib/shareUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,6 +26,7 @@ interface EventViewsAdminSectionProps {
   teamId: string | null;
   clubId: string;
   miniLeagueId: string | null;
+  eventTitle?: string;
 }
 
 interface MemberWithViewStatus {
@@ -39,7 +43,8 @@ export function EventViewsAdminSection({
   eventId, 
   teamId, 
   clubId, 
-  miniLeagueId 
+  miniLeagueId,
+  eventTitle,
 }: EventViewsAdminSectionProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -314,8 +319,31 @@ export function EventViewsAdminSection({
       setNudgingUser(null);
     }
   };
+  const handleShareEventLink = async () => {
+    const shareUrl = getShareUrl("event", eventId);
+    const shareText = eventTitle ? `Reminder: Please RSVP for "${eventTitle}"` : "Please RSVP for this event";
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({
+          title: shareText,
+          text: shareText,
+          url: shareUrl,
+          dialogTitle: "Share Event Reminder",
+        });
+      } else if (navigator.share) {
+        await navigator.share({ title: shareText, text: shareText, url: shareUrl });
+      } else {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Reminder link copied to clipboard!" });
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Reminder link copied to clipboard!" });
+      }
+    }
+  };
 
-  // Compute unreachable members (no push setup)
   const unreachableMembers = useMemo(() => {
     if (!pushReachable) return [];
     return (members || []).filter(m => pushReachable[m.id] === false);
@@ -383,6 +411,7 @@ export function EventViewsAdminSection({
         isBusy={sendingForUser === member.id || nudgingUser === member.id}
         onSendReminder={handleSendReminders}
         onNudge={handleSendNudgeToUser}
+        onShareLink={handleShareEventLink}
       />
     );
   };
@@ -459,6 +488,10 @@ export function EventViewsAdminSection({
                         <DropdownMenuItem onClick={() => handleSendReminders("both")}>
                           <Bell className="h-4 w-4 mr-2" />
                           Both (Push + Email)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleShareEventLink}>
+                          <Share2 className="h-4 w-4 mr-2" />
+                          Share via Link
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

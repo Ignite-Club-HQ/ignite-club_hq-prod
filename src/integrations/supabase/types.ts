@@ -6183,6 +6183,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_update_rsvp_status: {
+        Args: { p_acting_user_id: string; p_rsvp_id: string; p_status: string }
+        Returns: undefined
+      }
+      admin_upsert_rsvp: {
+        Args: {
+          p_acting_user_id: string
+          p_child_id?: string
+          p_event_id: string
+          p_mini_league_player_id?: string
+          p_status: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       approve_role_request: {
         Args: { p_request_id: string }
         Returns: undefined

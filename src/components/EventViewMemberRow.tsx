@@ -1,14 +1,9 @@
-import { useState, useRef, useCallback } from "react";
-import { Bell, BellOff, BellRing, Loader2, Mail, Smartphone, MoreVertical } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useState } from "react";
+import { Bell, BellOff, BellRing, Loader2, Mail, Smartphone, Share2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
 
 interface MemberWithViewStatus {
   id: string;
@@ -27,6 +22,7 @@ interface EventViewMemberRowProps {
   isBusy: boolean;
   onSendReminder: (channels: "push" | "email" | "both", userIds: string[]) => void;
   onNudge: (userId: string, displayName: string) => void;
+  onShareLink?: () => void;
 }
 
 export function EventViewMemberRow({
@@ -37,114 +33,131 @@ export function EventViewMemberRow({
   isBusy,
   onSendReminder,
   onNudge,
+  onShareLink,
 }: EventViewMemberRowProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [showDots, setShowDots] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchMoved = useRef(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  const clearTimer = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  }, []);
-
-  const handleTouchStart = useCallback(() => {
-    if (variant !== "not-viewed") return;
-    touchMoved.current = false;
-    longPressTimer.current = setTimeout(() => {
-      setShowDots(true);
-    }, 600);
-  }, [variant]);
-
-  const handleTouchMove = useCallback(() => {
-    touchMoved.current = true;
-    clearTimer();
-  }, [clearTimer]);
-
-  const handleTouchEnd = useCallback(() => {
-    clearTimer();
-  }, [clearTimer]);
+  const handleAction = (action: () => void) => {
+    setSheetOpen(false);
+    action();
+  };
 
   return (
-    <div
-      className={`flex items-center gap-2 p-2 rounded-lg select-none ${
-        variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
-      }`}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onContextMenu={(e) => { if (variant === "not-viewed") e.preventDefault(); }}
-    >
-      <Avatar className="h-7 w-7">
-        <AvatarImage src={member.avatar_url || undefined} />
-        <AvatarFallback className="text-xs">
-          {member.display_name?.charAt(0)?.toUpperCase() || "?"}
-        </AvatarFallback>
-      </Avatar>
-      <span className="text-sm truncate flex-1">{member.display_name || "Unknown"}</span>
-      <div className="flex items-center gap-1 shrink-0">
-        {(pushDisabled || noPushSetup) && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="p-0.5 rounded text-destructive/70">
-                <BellOff className="h-3.5 w-3.5" />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="left">
-              <p>{noPushSetup ? "No push notifications set up" : "Event push notifications disabled"}</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
-        {variant === "viewed" && member.viewedAt && (
-          <span className="text-xs text-muted-foreground">
-            {new Date(member.viewedAt).toLocaleDateString()}
-          </span>
-        )}
-        {variant === "not-viewed" && showDots && (
-          <DropdownMenu modal={false} open={menuOpen} onOpenChange={(open) => {
-            setMenuOpen(open);
-            if (!open) setShowDots(false);
-          }}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 touch-none animate-in fade-in duration-150"
-                disabled={isBusy}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {isBusy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <MoreVertical className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onSendReminder("push", [member.id])}>
-                <Smartphone className="h-4 w-4 mr-2" />
-                Send Push
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onSendReminder("email", [member.id])}>
-                <Mail className="h-4 w-4 mr-2" />
-                Send Email
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onSendReminder("both", [member.id])}>
-                <Bell className="h-4 w-4 mr-2" />
-                Send Both
-              </DropdownMenuItem>
-              {noPushSetup && (
-                <DropdownMenuItem onClick={() => onNudge(member.id, member.display_name || "Member")}>
-                  <BellRing className="h-4 w-4 mr-2" />
-                  Nudge to Enable Push
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+    <>
+      <div
+        className={`flex items-center gap-2 p-2 rounded-lg select-none cursor-pointer active:bg-muted/80 transition-colors ${
+          variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
+        }`}
+        onClick={() => {
+          if (variant === "not-viewed") setSheetOpen(true);
+        }}
+      >
+        <Avatar className="h-7 w-7">
+          <AvatarImage src={member.avatar_url || undefined} />
+          <AvatarFallback className="text-xs">
+            {member.display_name?.charAt(0)?.toUpperCase() || "?"}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-sm truncate flex-1">{member.display_name || "Unknown"}</span>
+        <div className="flex items-center gap-1 shrink-0">
+          {(pushDisabled || noPushSetup) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="p-0.5 rounded text-destructive/70">
+                  <BellOff className="h-3.5 w-3.5" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>{noPushSetup ? "No push notifications set up" : "Event push notifications disabled"}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {variant === "viewed" && member.viewedAt && (
+            <span className="text-xs text-muted-foreground">
+              {new Date(member.viewedAt).toLocaleDateString()}
+            </span>
+          )}
+        </div>
       </div>
-    </div>
+
+      {variant === "not-viewed" && (
+        <Drawer open={sheetOpen} onOpenChange={setSheetOpen}>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader className="pb-2">
+              <DrawerTitle className="sr-only">Member Actions</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-6 space-y-4">
+              {/* Profile header */}
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={member.avatar_url || undefined} />
+                  <AvatarFallback className="text-sm">
+                    {member.display_name?.charAt(0)?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate">{member.display_name || "Unknown"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {noPushSetup ? "No push notifications set up" : pushDisabled ? "Push notifications disabled" : "Send a reminder"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="grid gap-2">
+                <Button
+                  variant="outline"
+                  className="justify-start gap-2 h-11"
+                  disabled={isBusy}
+                  onClick={() => handleAction(() => onSendReminder("push", [member.id]))}
+                >
+                  {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4 text-blue-500" />}
+                  Send Push Notification
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-start gap-2 h-11"
+                  disabled={isBusy}
+                  onClick={() => handleAction(() => onSendReminder("email", [member.id]))}
+                >
+                  {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-emerald-500" />}
+                  Send Email Reminder
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-start gap-2 h-11"
+                  disabled={isBusy}
+                  onClick={() => handleAction(() => onSendReminder("both", [member.id]))}
+                >
+                  {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4 text-amber-500" />}
+                  Send Both (Push + Email)
+                </Button>
+                {onShareLink && (
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2 h-11"
+                    onClick={() => handleAction(onShareLink)}
+                  >
+                    <Share2 className="h-4 w-4 text-purple-500" />
+                    Share via Link
+                  </Button>
+                )}
+                {noPushSetup && (
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2 h-11"
+                    disabled={isBusy}
+                    onClick={() => handleAction(() => onNudge(member.id, member.display_name || "Member"))}
+                  >
+                    <BellRing className="h-4 w-4 text-orange-500" />
+                    Nudge to Enable Push
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DrawerContent>
+        </Drawer>
+      )}
+    </>
   );
 }

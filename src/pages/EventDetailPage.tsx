@@ -1011,59 +1011,24 @@ export default function EventDetailPage() {
       parentUserId: string | null;
       status: RsvpStatus;
     }) => {
-      // For mini-league players, we need to find or create an RSVP
-      // Priority: child_id > mini_league_player_id (always use player ID when no child link)
       if (childId) {
-        // Check for existing RSVP for this child
-        const { data: existingRsvp } = await supabase
-          .from("rsvps")
-          .select("id")
-          .eq("event_id", id!)
-          .eq("child_id", childId)
-          .maybeSingle();
-        
-        if (existingRsvp) {
-          const { error } = await supabase
-            .from("rsvps")
-            .update({ status })
-            .eq("id", existingRsvp.id);
-          if (error) throw error;
-        } else if (parentUserId) {
-          // Create new RSVP for this child
-          const { error } = await supabase.from("rsvps").insert({
-            event_id: id!,
-            user_id: parentUserId,
-            child_id: childId,
-            status,
-          });
-          if (error) throw error;
-        } else {
-          throw new Error("Cannot create RSVP: no parent user linked to this player");
-        }
+        const { error } = await supabase.rpc('admin_upsert_rsvp', {
+          p_event_id: id!,
+          p_user_id: parentUserId || user!.id,
+          p_status: status,
+          p_acting_user_id: user!.id,
+          p_child_id: childId,
+        });
+        if (error) throw error;
       } else {
-        // Player without child_id — always use mini_league_player_id to avoid
-        // conflicting with the parent's own personal RSVP
-        const { data: existingRsvp } = await supabase
-          .from("rsvps")
-          .select("id")
-          .eq("event_id", id!)
-          .eq("mini_league_player_id", playerId)
-          .maybeSingle();
-        
-        if (existingRsvp) {
-          const { error } = await supabase
-            .from("rsvps")
-            .update({ status })
-            .eq("id", existingRsvp.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from("rsvps").insert({
-            event_id: id!,
-            mini_league_player_id: playerId,
-            status,
-          });
-          if (error) throw error;
-        }
+        const { error } = await supabase.rpc('admin_upsert_rsvp', {
+          p_event_id: id!,
+          p_user_id: user!.id,
+          p_status: status,
+          p_acting_user_id: user!.id,
+          p_mini_league_player_id: playerId,
+        });
+        if (error) throw error;
       }
     },
     onSuccess: (_, variables) => {
@@ -1083,10 +1048,11 @@ export default function EventDetailPage() {
   // Admin mutation to update existing RSVP status by RSVP ID
   const adminUpdateRsvpMutation = useMutation({
     mutationFn: async ({ rsvpId, status, playerName }: { rsvpId: string; status: RsvpStatus; playerName: string }) => {
-      const { error } = await supabase
-        .from("rsvps")
-        .update({ status })
-        .eq("id", rsvpId);
+      const { error } = await supabase.rpc('admin_update_rsvp_status', {
+        p_rsvp_id: rsvpId,
+        p_status: status,
+        p_acting_user_id: user!.id,
+      });
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
@@ -1107,28 +1073,13 @@ export default function EventDetailPage() {
   // Admin mutation to create RSVP for a member who hasn't responded (for team/club events)
   const rsvpForMemberMutation = useMutation({
     mutationFn: async ({ memberId, memberName, status }: { memberId: string; memberName: string; status: RsvpStatus }) => {
-      // Check if RSVP already exists
-      const { data: existingRsvp } = await supabase
-        .from("rsvps")
-        .select("id")
-        .eq("event_id", id!)
-        .eq("user_id", memberId)
-        .maybeSingle();
-      
-      if (existingRsvp) {
-        // Update existing RSVP
-        const { error } = await supabase
-          .from("rsvps")
-          .update({ status })
-          .eq("id", existingRsvp.id);
-        if (error) throw error;
-      } else {
-        // Create new RSVP
-        const { error } = await supabase
-          .from("rsvps")
-          .insert({ event_id: id!, user_id: memberId, status });
-        if (error) throw error;
-      }
+      const { error } = await supabase.rpc('admin_upsert_rsvp', {
+        p_event_id: id!,
+        p_user_id: memberId,
+        p_status: status,
+        p_acting_user_id: user!.id,
+      });
+      if (error) throw error;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
@@ -1667,6 +1618,70 @@ export default function EventDetailPage() {
     },
   });
 
+  // Individual remind mutation - sends reminder to a single member
+  const individualRemindMutation = useMutation({
+    mutationFn: async ({ userId, displayName }: { userId: string; displayName: string }) => {
+      // Check if already reminded
+      const { data: existing } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("type", "event_reminder")
+        .eq("related_id", id!)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (existing) {
+        throw new Error(`${displayName} has already been reminded`);
+      }
+
+      const { error } = await supabase.from("notifications").insert({
+        user_id: userId,
+        type: "event_reminder",
+        message: `Reminder: Please RSVP for "${event?.title}"`,
+        related_id: id,
+      });
+      if (error) throw error;
+      return displayName;
+    },
+    onSuccess: (displayName) => {
+      toast({ title: "Reminder sent", description: `${displayName} has been reminded to RSVP` });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to send reminder", variant: "destructive" });
+    },
+  });
+
+  // Share event reminder link via native share
+  const handleShareReminderLink = async () => {
+    const shareUrl = getShareUrl("event", id!);
+    const shareText = `Reminder: Please RSVP for "${event?.title}"`;
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({
+          title: shareText,
+          text: shareText,
+          url: shareUrl,
+          dialogTitle: 'Share Reminder',
+        });
+      } else if (navigator.share) {
+        await navigator.share({
+          title: shareText,
+          text: shareText,
+          url: shareUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Reminder link copied to clipboard!" });
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Reminder link copied to clipboard!" });
+      }
+    }
+  };
+
+
   // Resend event invites to members who haven't been notified yet
   const resendInvitesMutation = useMutation({
     mutationFn: async () => {
@@ -1918,11 +1933,23 @@ export default function EventDetailPage() {
                 This will send a notification to all team members who haven't responded to this event yet.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto gap-1.5"
+                onClick={() => {
+                  setReminderDialogOpen(false);
+                  handleShareReminderLink();
+                }}
+              >
+                <Share2 className="h-4 w-4" />
+                Share via...
+              </Button>
+              <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 onClick={() => remindMutation.mutate()}
                 disabled={remindMutation.isPending}
+                className="w-full sm:w-auto"
               >
                 {remindMutation.isPending ? (
                   <>
@@ -1930,7 +1957,7 @@ export default function EventDetailPage() {
                     Sending...
                   </>
                 ) : (
-                  "Send Reminders"
+                  "Send In-App"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -2166,6 +2193,7 @@ export default function EventDetailPage() {
           teamId={event.team_id}
           clubId={event.club_id}
           miniLeagueId={event.mini_league_id}
+          eventTitle={event.title}
         />
       )}
 
@@ -2603,6 +2631,22 @@ export default function EventDetailPage() {
                             </div>
                           </div>
                         </div>
+                        {(isAdmin || isAppAdmin) && canSendReminders && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-warning"
+                            onClick={() => individualRemindMutation.mutate({ userId: member.id, displayName: member.display_name || "Unknown" })}
+                            disabled={individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id}
+                            title="Send reminder"
+                          >
+                            {individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Bell className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
                         {(isAdmin || isAppAdmin) && (
                           <AdminRsvpChanger
                             currentStatus={null}
