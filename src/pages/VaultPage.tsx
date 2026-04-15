@@ -350,6 +350,16 @@ export default function VaultPage() {
   // Alias for backward compatibility
   const isClubAdmin = isClubAdminOrCommittee;
 
+  // Check if user is a coach or team admin in the current club (can see club-level chat folders)
+  const isCoachOrTeamAdmin = useMemo(() => {
+    if (isClubAdmin) return true;
+    if (currentView.type !== "club" && currentView.type !== "team" && currentView.type !== "mini-league") return false;
+    const clubId = currentView.clubId;
+    return userRoles?.some(r => 
+      (r.role === "coach" || r.role === "team_admin") && r.club_id === clubId
+    ) || false;
+  }, [isClubAdmin, currentView, userRoles]);
+
   // Get first admin club/team for upgrade link
   const adminUpgradeInfo = useMemo(() => {
     if (!userRoles) return { clubId: undefined, teamId: undefined };
