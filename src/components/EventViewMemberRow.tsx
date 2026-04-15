@@ -23,6 +23,8 @@ interface EventViewMemberRowProps {
   onSendReminder: (channels: "push" | "email" | "both", userIds: string[]) => void;
   onNudge: (userId: string, displayName: string) => void;
   onShareLink?: () => void;
+  /** When true, the member has already responded – disable reminder actions */
+  hasResponded?: boolean;
 }
 
 export function EventViewMemberRow({
@@ -34,6 +36,7 @@ export function EventViewMemberRow({
   onSendReminder,
   onNudge,
   onShareLink,
+  hasResponded = false,
 }: EventViewMemberRowProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -49,7 +52,7 @@ export function EventViewMemberRow({
           variant === "viewed" ? "bg-primary/5" : "bg-muted/50"
         }`}
         onClick={() => {
-          if (variant === "not-viewed") setSheetOpen(true);
+          if (!hasResponded) setSheetOpen(true);
         }}
       >
         <Avatar className="h-7 w-7">
@@ -80,7 +83,7 @@ export function EventViewMemberRow({
         </div>
       </div>
 
-      {variant === "not-viewed" && (
+      {!hasResponded && (
         <Drawer open={sheetOpen} onOpenChange={setSheetOpen}>
           <DrawerContent className="max-h-[85vh]">
             <DrawerHeader className="pb-2">
