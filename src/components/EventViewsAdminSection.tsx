@@ -43,7 +43,8 @@ export function EventViewsAdminSection({
   eventId, 
   teamId, 
   clubId, 
-  miniLeagueId 
+  miniLeagueId,
+  eventTitle,
 }: EventViewsAdminSectionProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
