@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, UserCheck, Send, Trash2, Pencil, Mail, Loader2, Copy, Share2, ArrowRightLeft } from "lucide-react";
+import { Clock, UserCheck, Send, Trash2, Pencil, Mail, Loader2, Copy, Share2, ArrowRightLeft, MoreVertical } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
@@ -95,15 +95,12 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showReminderSheet, setShowReminderSheet] = useState(false);
-  const [showContextMenu, setShowContextMenu] = useState(false);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
   const [selectedMoveTeamId, setSelectedMoveTeamId] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState("");
   const [editName, setEditName] = useState(invite.invited_label || "");
   const [editRole, setEditRole] = useState<AppRole>(invite.role as AppRole);
   const [isResending, setIsResending] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressTriggered = useRef(false);
 
   // Fetch team name and club branding for resend email
   const { data: teamData } = useQuery({
@@ -457,44 +454,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   return (
     <>
       <Card
-        className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5 select-none"
-        onPointerDown={(e) => {
-          if (!isAdmin) return;
-          longPressTriggered.current = false;
-          longPressTimer.current = setTimeout(() => {
-            longPressTriggered.current = true;
-            setShowContextMenu(true);
-            // Haptic feedback on native
-            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-              navigator.vibrate(10);
-            }
-          }, 500);
-        }}
-        onPointerUp={() => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-        }}
-        onPointerCancel={() => {
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-        }}
-        onPointerMove={(e) => {
-          // Cancel long press if finger moves (scrolling)
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-        }}
-        onContextMenu={(e) => {
-          if (isAdmin) {
-            e.preventDefault();
-            setShowContextMenu(true);
-          }
-        }}
+        className="border-2 border-dashed border-orange-500/40 bg-gradient-to-r from-orange-500/5 to-amber-500/5"
       >
         <CardContent className="p-3 flex items-center gap-3">
           <div className="relative">
@@ -544,64 +504,51 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
                 Sent {timeAgo}
               </span>
             </div>
-            {isAdmin && (
-              <p className="text-[10px] text-muted-foreground/60 mt-1 italic">Hold to edit or revoke</p>
-            )}
           </div>
 
-          {/* Send Reminder CTA only */}
+          {/* Action buttons */}
           {isAdmin && (
-            <div className="shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               <Button
                 size="sm"
                 variant="default"
                 className="h-8 text-xs font-semibold gap-1.5 px-3"
-                onClick={(e) => {
-                  if (longPressTriggered.current) {
-                    e.preventDefault();
-                    return;
-                  }
-                  setShowReminderSheet(true);
-                }}
+                onClick={() => setShowReminderSheet(true)}
               >
                 <Send className="h-3.5 w-3.5" />
                 <span className="hidden xs:inline">Remind</span>
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[180px]">
+                  <DropdownMenuItem onClick={handleOpenEdit}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit name/role
+                  </DropdownMenuItem>
+                  {teamId && clubId && (
+                    <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      Move to team
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Revoke invite
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Long-press context menu */}
-      {isAdmin && (
-        <DropdownMenu open={showContextMenu} onOpenChange={setShowContextMenu} modal={true}>
-          <DropdownMenuTrigger className="sr-only" />
-          <DropdownMenuContent
-            align="end"
-            className="min-w-[180px]"
-            onCloseAutoFocus={(e) => e.preventDefault()}
-          >
-            <DropdownMenuItem onClick={handleOpenEdit}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Edit name/role
-            </DropdownMenuItem>
-            {teamId && clubId && (
-              <DropdownMenuItem onClick={() => setShowMoveSheet(true)}>
-                <ArrowRightLeft className="h-4 w-4 mr-2" />
-                Move to team
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              onClick={() => setShowDeleteDialog(true)}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Revoke invite
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
 
       {/* Send Reminder Bottom Sheet */}
       <Sheet open={showReminderSheet} onOpenChange={setShowReminderSheet}>
