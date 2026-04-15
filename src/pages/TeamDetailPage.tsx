@@ -438,7 +438,7 @@ export default function TeamDetailPage() {
     : userRoles.includes("coach") ? "coach"
     : userRoles[0] ?? null;
 
-  const { data: isAppAdmin } = useQuery({
+  const { data: isAppAdmin, isLoading: isAppAdminLoading } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -1055,7 +1055,7 @@ export default function TeamDetailPage() {
       })()}
 
       {/* Join Request Section for Non-members - hidden in class mode (use enrolment page instead) */}
-      {!isClassMode && !isUserRoleLoading && !isMember && !isClubAdmin && (
+      {!isClassMode && !isUserRoleLoading && !isClubAdminLoading && !isAppAdminLoading && !isMember && !isClubAdmin && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
           <CardContent className="p-5 sm:p-6">
             {existingRequest ? (
