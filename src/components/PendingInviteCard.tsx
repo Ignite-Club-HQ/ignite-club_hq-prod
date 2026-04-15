@@ -547,45 +547,7 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
         </CardContent>
       </SwipeableCard>
 
-      {/* Long-press action sheet */}
-      {isAdmin && (
-        <Sheet open={showActionSheet} onOpenChange={setShowActionSheet}>
-          <SheetContent side="bottom" className="rounded-t-2xl" data-allow-scroll>
-            <SheetHeader className="text-left pb-4">
-              <SheetTitle>{displayName}</SheetTitle>
-              <SheetDescription>Manage this pending invite</SheetDescription>
-            </SheetHeader>
-            <div className="space-y-1 pb-6">
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors text-left"
-                onClick={() => { setShowActionSheet(false); handleOpenEdit(); }}
-              >
-                <Pencil className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Edit name/role</span>
-              </button>
-              {teamId && clubId && (
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors text-left"
-                  onClick={() => { setShowActionSheet(false); setShowMoveSheet(true); }}
-                >
-                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Move to team</span>
-                </button>
-              )}
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-destructive/10 transition-colors text-left"
-                onClick={() => { setShowActionSheet(false); setShowDeleteDialog(true); }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-                <span className="text-sm font-medium text-destructive">Revoke invite</span>
-              </button>
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
+
 
       {/* Send Reminder Bottom Sheet */}
       <Sheet open={showReminderSheet} onOpenChange={setShowReminderSheet}>
