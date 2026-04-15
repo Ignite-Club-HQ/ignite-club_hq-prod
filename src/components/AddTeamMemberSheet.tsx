@@ -3160,7 +3160,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         </div>
 
         {/* Sticky CTA footer */}
-        <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6" style={{ touchAction: 'pan-y' }}>
+        <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6 transition-[padding]" style={{ touchAction: 'pan-y', paddingBottom: nativeKbHeight > 0 ? `${nativeKbHeight + 16}px` : undefined }}>
           {mode === "single" ? (
             selectedUser ? (
               <Button
