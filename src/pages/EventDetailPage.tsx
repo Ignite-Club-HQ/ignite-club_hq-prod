@@ -1667,6 +1667,70 @@ export default function EventDetailPage() {
     },
   });
 
+  // Individual remind mutation - sends reminder to a single member
+  const individualRemindMutation = useMutation({
+    mutationFn: async ({ userId, displayName }: { userId: string; displayName: string }) => {
+      // Check if already reminded
+      const { data: existing } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("type", "event_reminder")
+        .eq("related_id", id!)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (existing) {
+        throw new Error(`${displayName} has already been reminded`);
+      }
+
+      const { error } = await supabase.from("notifications").insert({
+        user_id: userId,
+        type: "event_reminder",
+        message: `Reminder: Please RSVP for "${event?.title}"`,
+        related_id: id,
+      });
+      if (error) throw error;
+      return displayName;
+    },
+    onSuccess: (displayName) => {
+      toast({ title: "Reminder sent", description: `${displayName} has been reminded to RSVP` });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to send reminder", variant: "destructive" });
+    },
+  });
+
+  // Share event reminder link via native share
+  const handleShareReminderLink = async () => {
+    const shareUrl = getShareUrl("event", id!);
+    const shareText = `Reminder: Please RSVP for "${event?.title}"`;
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({
+          title: shareText,
+          text: shareText,
+          url: shareUrl,
+          dialogTitle: 'Share Reminder',
+        });
+      } else if (navigator.share) {
+        await navigator.share({
+          title: shareText,
+          text: shareText,
+          url: shareUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Reminder link copied to clipboard!" });
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "Reminder link copied to clipboard!" });
+      }
+    }
+  };
+
+
   // Resend event invites to members who haven't been notified yet
   const resendInvitesMutation = useMutation({
     mutationFn: async () => {
@@ -1918,11 +1982,23 @@ export default function EventDetailPage() {
                 This will send a notification to all team members who haven't responded to this event yet.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto gap-1.5"
+                onClick={() => {
+                  setReminderDialogOpen(false);
+                  handleShareReminderLink();
+                }}
+              >
+                <Share2 className="h-4 w-4" />
+                Share via...
+              </Button>
+              <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 onClick={() => remindMutation.mutate()}
                 disabled={remindMutation.isPending}
+                className="w-full sm:w-auto"
               >
                 {remindMutation.isPending ? (
                   <>
@@ -1930,7 +2006,7 @@ export default function EventDetailPage() {
                     Sending...
                   </>
                 ) : (
-                  "Send Reminders"
+                  "Send In-App"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -2603,6 +2679,22 @@ export default function EventDetailPage() {
                             </div>
                           </div>
                         </div>
+                        {(isAdmin || isAppAdmin) && canSendReminders && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-warning"
+                            onClick={() => individualRemindMutation.mutate({ userId: member.id, displayName: member.display_name || "Unknown" })}
+                            disabled={individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id}
+                            title="Send reminder"
+                          >
+                            {individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Bell className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
                         {(isAdmin || isAppAdmin) && (
                           <AdminRsvpChanger
                             currentStatus={null}
