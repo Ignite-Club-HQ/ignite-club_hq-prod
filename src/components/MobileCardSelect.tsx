@@ -126,23 +126,32 @@ export function MobileCardSelect({
                     <button
                       key={option.value}
                       type="button"
+                      disabled={option.disabled}
                       onClick={() => {
+                        if (option.disabled) return;
                         onValueChange(option.value);
                         setOpen(false);
                       }}
                       className={cn(
                         "w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
-                        "hover:bg-accent/50",
-                        value === option.value
+                        option.disabled
+                          ? "opacity-50 cursor-not-allowed border-border bg-muted"
+                          : "hover:bg-accent/50",
+                        !option.disabled && value === option.value
                           ? "border-primary bg-primary/5"
-                          : "border-border bg-card"
+                          : !option.disabled ? "border-border bg-card" : ""
                       )}
                     >
-                      <span className="text-base font-medium flex items-center gap-2">
-                        {option.icon}
-                        {option.label}
-                      </span>
-                      {value === option.value && (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-base font-medium flex items-center gap-2">
+                          {option.icon}
+                          {option.label}
+                        </span>
+                        {option.description && (
+                          <span className="text-xs text-muted-foreground">{option.description}</span>
+                        )}
+                      </div>
+                      {value === option.value && !option.disabled && (
                         <Check className="h-5 w-5 text-primary" />
                       )}
                     </button>
