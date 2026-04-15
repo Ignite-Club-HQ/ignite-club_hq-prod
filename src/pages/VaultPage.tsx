@@ -590,8 +590,10 @@ export default function VaultPage() {
     return null;
   };
 
+  const CHAT_FOLDER_NAMES = ["Chat Images", "Chat Links"];
+
   const { data: subfolders } = useQuery({
-    queryKey: ["vault-subfolders", currentView, isClubAdmin],
+    queryKey: ["vault-subfolders", currentView, isClubAdmin, isCoachOrTeamAdmin],
     queryFn: async () => {
       const clubId = getCurrentClubId();
       const teamId = getCurrentTeamId();
@@ -630,7 +632,14 @@ export default function VaultPage() {
       }
       
       const { data } = await query.order("name");
-      return (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; created_at: string }[];
+      let folders = (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; created_at: string }[];
+      
+      // Non-admin coaches/team admins can only see Chat folders at club level
+      if (currentView.type === "club" && !isClubAdmin && isCoachOrTeamAdmin) {
+        folders = folders.filter(f => CHAT_FOLDER_NAMES.includes(f.name));
+      }
+      
+      return folders;
     },
     enabled: currentView.type !== "root",
   });
