@@ -2433,6 +2433,22 @@ export default function TeamDetailPage() {
           }}
         />
       )}
+      {selectedChild && (
+        <ChildDetailSheet
+          open={!!selectedChild}
+          onOpenChange={(open) => { if (!open) setSelectedChild(null); }}
+          childName={selectedChild.childName}
+          parentDisplay={selectedChild.parentDisplay}
+          isPending={selectedChild.isPending}
+          canManage={isAdmin || isClubAdmin}
+          showPosition={!!isSoccerClub}
+          canMove={isClubAdmin}
+          onInviteParent={() => setInviteParentChild({ childId: selectedChild.childId, childName: selectedChild.childName })}
+          onEditPosition={() => setPositionSheetPlayer({ id: selectedChild.childId, name: selectedChild.childName, type: "child" })}
+          onSwapTeam={() => setMoveToTeam({ type: "child", id: selectedChild.childId, name: selectedChild.childName })}
+          onLink={selectedChild.isPending && selectedChild.linkInviteIds ? () => setLinkChildToParent({ childName: selectedChild.childName, existingChildId: selectedChild.childId, pendingInviteIds: selectedChild.linkInviteIds || [] }) : undefined}
+        />
+      )}
     </div>
   );
 }
