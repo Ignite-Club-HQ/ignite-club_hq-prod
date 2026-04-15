@@ -488,6 +488,10 @@ export function EventViewsAdminSection({
                           <Bell className="h-4 w-4 mr-2" />
                           Both (Push + Email)
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleShareEventLink}>
+                          <Share2 className="h-4 w-4 mr-2" />
+                          Share via Link
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
