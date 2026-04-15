@@ -96,6 +96,27 @@ export function EventViewsAdminSection({
     staleTime: 5 * 60 * 1000,
   });
 
+  const teamChildIds = useMemo(
+    () => (teamChildren || []).map((child: any) => child.id),
+    [teamChildren]
+  );
+
+  // Fetch guardian links for children on this team so secondary guardians are treated like parents
+  const { data: teamChildGuardians } = useQuery({
+    queryKey: ["event-team-child-guardians", teamId, teamChildIds.join(",")],
+    queryFn: async () => {
+      if (!teamId || teamChildIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("child_guardians")
+        .select("child_id, guardian_id")
+        .in("child_id", teamChildIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!teamId && teamChildIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Fetch all team/club members who should see this event
   const { data: members, isLoading: membersLoading } = useQuery({
     queryKey: ["event-members-for-views", eventId, teamId, clubId],
