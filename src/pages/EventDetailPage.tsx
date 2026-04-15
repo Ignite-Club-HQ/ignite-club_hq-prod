@@ -2450,11 +2450,17 @@ export default function EventDetailPage() {
             // For regular events, use team members
             const membersToShow = effectiveShowAll ? members : playerMembers;
             
-            // Build set of parent IDs whose children have responded
+            // Build set of parent/guardian IDs whose children have responded
             const parentIdsWithRespondedChildren = new Set<string>();
             (allChildrenOnTeam || []).forEach((child: any) => {
               if (child.parent_id && respondedChildIds.has(child.id)) {
                 parentIdsWithRespondedChildren.add(child.parent_id);
+              }
+            });
+            // Also include guardians (from child_guardians table) whose children have responded
+            (childGuardiansOnTeam || []).forEach((cg: any) => {
+              if (cg.guardian_id && respondedChildIds.has(cg.child_id)) {
+                parentIdsWithRespondedChildren.add(cg.guardian_id);
               }
             });
             
