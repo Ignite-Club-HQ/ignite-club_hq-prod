@@ -650,7 +650,7 @@ export default function VaultPage() {
   // Photos uploaded via Media page are also added to vault_files
   // Photos uploaded directly to Vault stay in vault_files only (not in photos table)
   const { data: vaultItems } = useQuery({
-    queryKey: ["vault-files", currentView, isClubAdmin],
+    queryKey: ["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin],
     queryFn: async () => {
       const folderId = getCurrentFolderId();
       let query = supabase.from("vault_files").select("*").is("deleted_at", null);
@@ -658,6 +658,12 @@ export default function VaultPage() {
       if (currentView.type === "club") {
         if (!isClubAdmin && !isCoachOrTeamAdmin) return [];
         query = query.eq("club_id", currentView.clubId).is("team_id", null).is("mini_league_id", null);
+        
+        // Non-admin coaches/team admins can only see files inside chat folders
+        if (!isClubAdmin && isCoachOrTeamAdmin && !folderId) {
+          // At root level with no folder selected, they won't see loose files
+          return [];
+        }
       } else if (currentView.type === "team") {
         query = query.eq("team_id", currentView.teamId);
       } else if (currentView.type === "mini-league") {
