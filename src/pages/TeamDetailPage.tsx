@@ -1447,20 +1447,36 @@ export default function TeamDetailPage() {
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 shrink-0"
+                                        className="h-7 w-7 shrink-0"
                                         aria-label={`Invite parent for ${child.name}`}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setInviteParentChild({ childId: child.id, childName: child.name });
                                         }}
                                       >
-                                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                                        <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
                                       </Button>
                                     )}
-                                    <Badge variant="outline" className={isPending 
-                                      ? "text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30"
-                                      : "text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30"
-                                    }>
+                                    {(isAdmin || isClubAdmin) && isSoccerClub && !isPending && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 shrink-0"
+                                        aria-label={`Edit position for ${child.name}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
+                                        }}
+                                      >
+                                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                                      </Button>
+                                    )}
+                                    <Badge variant="outline" className={cn(
+                                      "text-[10px] border px-1.5 py-0 h-4",
+                                      isPending 
+                                        ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                                        : "bg-pink-500/20 text-pink-400 border-pink-500/30"
+                                    )}>
                                       {isPending ? "Pending" : "Child"}
                                     </Badge>
                                   </CardContent>
