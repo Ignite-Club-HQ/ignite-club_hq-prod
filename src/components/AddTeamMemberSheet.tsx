@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 
 interface BulkChild {
   id: string;
