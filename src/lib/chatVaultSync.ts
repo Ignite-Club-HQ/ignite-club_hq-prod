@@ -104,27 +104,36 @@ export async function syncChatAttachmentToVault({
 // Cache folder IDs per club to avoid repeated lookups within a session
 const folderCache = new Map<string, string>();
 
-async function getOrCreateFolder(clubId: string, folderName: string, userId: string): Promise<string | null> {
-  const cacheKey = `${clubId}:${folderName}`;
+async function getOrCreateFolder(clubId: string, folderName: string, userId: string, teamId?: string | null): Promise<string | null> {
+  const cacheKey = `${clubId}:${teamId || "club"}:${folderName}`;
   if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
 
-  const { data } = await supabase
+  let query = supabase
     .from("vault_folders")
     .select("id")
     .eq("club_id", clubId)
     .eq("name", folderName)
-    .is("parent_id", null)
-    .is("team_id", null)
-    .maybeSingle();
+    .is("parent_id", null);
+
+  if (teamId) {
+    query = query.eq("team_id", teamId);
+  } else {
+    query = query.is("team_id", null);
+  }
+
+  const { data } = await query.maybeSingle();
 
   if (data) {
     folderCache.set(cacheKey, data.id);
     return data.id;
   }
 
+  const insertData: Record<string, any> = { club_id: clubId, name: folderName, created_by: userId };
+  if (teamId) insertData.team_id = teamId;
+
   const { data: newFolder, error } = await supabase
     .from("vault_folders")
-    .insert({ club_id: clubId, name: folderName, created_by: userId })
+    .insert(insertData)
     .select("id")
     .single();
 
