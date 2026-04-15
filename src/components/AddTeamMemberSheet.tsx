@@ -1913,7 +1913,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           )}
         </SheetTrigger>
       )}
-      <SheetContent side="bottom" enableDragToClose className="max-h-[85vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain" data-lock-keyboard-scroll="true" data-allow-scroll style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+      <SheetContent side="bottom" enableDragToClose className="max-h-[92vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain" data-lock-keyboard-scroll="true" data-allow-scroll style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <SheetHeader className="mb-3 shrink-0">
           <SheetTitle>Invite to Team</SheetTitle>
           <SheetDescription>
