@@ -3,7 +3,9 @@ import {
   fetchProfilesWithCache, 
   getProfilesFromCache, 
   CachedProfile,
-  cacheProfiles 
+  cacheProfiles,
+  onProfileCacheUpdate,
+  getProfileFromCache,
 } from "@/lib/profileCache";
 import { supabase } from "@/integrations/supabase/client";
 
