@@ -435,6 +435,7 @@ export function EventViewsAdminSection({
         onSendReminder={handleSendReminders}
         onNudge={handleSendNudgeToUser}
         onShareLink={handleShareEventLink}
+        hasResponded={member.hasResponded}
       />
     );
   };
