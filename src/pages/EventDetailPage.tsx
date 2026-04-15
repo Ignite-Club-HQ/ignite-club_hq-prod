@@ -1011,59 +1011,24 @@ export default function EventDetailPage() {
       parentUserId: string | null;
       status: RsvpStatus;
     }) => {
-      // For mini-league players, we need to find or create an RSVP
-      // Priority: child_id > mini_league_player_id (always use player ID when no child link)
       if (childId) {
-        // Check for existing RSVP for this child
-        const { data: existingRsvp } = await supabase
-          .from("rsvps")
-          .select("id")
-          .eq("event_id", id!)
-          .eq("child_id", childId)
-          .maybeSingle();
-        
-        if (existingRsvp) {
-          const { error } = await supabase
-            .from("rsvps")
-            .update({ status })
-            .eq("id", existingRsvp.id);
-          if (error) throw error;
-        } else if (parentUserId) {
-          // Create new RSVP for this child
-          const { error } = await supabase.from("rsvps").insert({
-            event_id: id!,
-            user_id: parentUserId,
-            child_id: childId,
-            status,
-          });
-          if (error) throw error;
-        } else {
-          throw new Error("Cannot create RSVP: no parent user linked to this player");
-        }
+        const { error } = await supabase.rpc('admin_upsert_rsvp', {
+          p_event_id: id!,
+          p_user_id: parentUserId || user!.id,
+          p_status: status,
+          p_acting_user_id: user!.id,
+          p_child_id: childId,
+        });
+        if (error) throw error;
       } else {
-        // Player without child_id — always use mini_league_player_id to avoid
-        // conflicting with the parent's own personal RSVP
-        const { data: existingRsvp } = await supabase
-          .from("rsvps")
-          .select("id")
-          .eq("event_id", id!)
-          .eq("mini_league_player_id", playerId)
-          .maybeSingle();
-        
-        if (existingRsvp) {
-          const { error } = await supabase
-            .from("rsvps")
-            .update({ status })
-            .eq("id", existingRsvp.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from("rsvps").insert({
-            event_id: id!,
-            mini_league_player_id: playerId,
-            status,
-          });
-          if (error) throw error;
-        }
+        const { error } = await supabase.rpc('admin_upsert_rsvp', {
+          p_event_id: id!,
+          p_user_id: user!.id,
+          p_status: status,
+          p_acting_user_id: user!.id,
+          p_mini_league_player_id: playerId,
+        });
+        if (error) throw error;
       }
     },
     onSuccess: (_, variables) => {
@@ -1083,10 +1048,11 @@ export default function EventDetailPage() {
   // Admin mutation to update existing RSVP status by RSVP ID
   const adminUpdateRsvpMutation = useMutation({
     mutationFn: async ({ rsvpId, status, playerName }: { rsvpId: string; status: RsvpStatus; playerName: string }) => {
-      const { error } = await supabase
-        .from("rsvps")
-        .update({ status })
-        .eq("id", rsvpId);
+      const { error } = await supabase.rpc('admin_update_rsvp_status', {
+        p_rsvp_id: rsvpId,
+        p_status: status,
+        p_acting_user_id: user!.id,
+      });
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
@@ -1107,28 +1073,13 @@ export default function EventDetailPage() {
   // Admin mutation to create RSVP for a member who hasn't responded (for team/club events)
   const rsvpForMemberMutation = useMutation({
     mutationFn: async ({ memberId, memberName, status }: { memberId: string; memberName: string; status: RsvpStatus }) => {
-      // Check if RSVP already exists
-      const { data: existingRsvp } = await supabase
-        .from("rsvps")
-        .select("id")
-        .eq("event_id", id!)
-        .eq("user_id", memberId)
-        .maybeSingle();
-      
-      if (existingRsvp) {
-        // Update existing RSVP
-        const { error } = await supabase
-          .from("rsvps")
-          .update({ status })
-          .eq("id", existingRsvp.id);
-        if (error) throw error;
-      } else {
-        // Create new RSVP
-        const { error } = await supabase
-          .from("rsvps")
-          .insert({ event_id: id!, user_id: memberId, status });
-        if (error) throw error;
-      }
+      const { error } = await supabase.rpc('admin_upsert_rsvp', {
+        p_event_id: id!,
+        p_user_id: memberId,
+        p_status: status,
+        p_acting_user_id: user!.id,
+      });
+      if (error) throw error;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
