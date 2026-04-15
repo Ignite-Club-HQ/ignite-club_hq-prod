@@ -350,6 +350,16 @@ export default function VaultPage() {
   // Alias for backward compatibility
   const isClubAdmin = isClubAdminOrCommittee;
 
+  // Check if user is a coach or team admin in the current club (can see club-level chat folders)
+  const isCoachOrTeamAdmin = useMemo(() => {
+    if (isClubAdmin) return true;
+    if (currentView.type !== "club" && currentView.type !== "team" && currentView.type !== "mini-league") return false;
+    const clubId = currentView.clubId;
+    return userRoles?.some(r => 
+      (r.role === "coach" || r.role === "team_admin") && r.club_id === clubId
+    ) || false;
+  }, [isClubAdmin, currentView, userRoles]);
+
   // Get first admin club/team for upgrade link
   const adminUpgradeInfo = useMemo(() => {
     if (!userRoles) return { clubId: undefined, teamId: undefined };
@@ -580,8 +590,10 @@ export default function VaultPage() {
     return null;
   };
 
+  const CHAT_FOLDER_NAMES = ["Chat Images", "Chat Links"];
+
   const { data: subfolders } = useQuery({
-    queryKey: ["vault-subfolders", currentView, isClubAdmin],
+    queryKey: ["vault-subfolders", currentView, isClubAdmin, isCoachOrTeamAdmin],
     queryFn: async () => {
       const clubId = getCurrentClubId();
       const teamId = getCurrentTeamId();
@@ -593,8 +605,7 @@ export default function VaultPage() {
       let nullFilters: string[] = [];
       
       if (currentView.type === "club") {
-        // Club-level folders only accessible to club admins
-        if (!isClubAdmin) return [];
+        if (!isClubAdmin && !isCoachOrTeamAdmin) return [];
         filters.club_id = clubId;
         nullFilters = ["team_id", "mini_league_id"];
       } else if (currentView.type === "team") {
@@ -621,7 +632,14 @@ export default function VaultPage() {
       }
       
       const { data } = await query.order("name");
-      return (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; created_at: string }[];
+      let folders = (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; created_at: string }[];
+      
+      // Non-admin coaches/team admins can only see Chat folders at club level
+      if (currentView.type === "club" && !isClubAdmin && isCoachOrTeamAdmin) {
+        folders = folders.filter(f => CHAT_FOLDER_NAMES.includes(f.name));
+      }
+      
+      return folders;
     },
     enabled: currentView.type !== "root",
   });
@@ -632,15 +650,20 @@ export default function VaultPage() {
   // Photos uploaded via Media page are also added to vault_files
   // Photos uploaded directly to Vault stay in vault_files only (not in photos table)
   const { data: vaultItems } = useQuery({
-    queryKey: ["vault-files", currentView, isClubAdmin],
+    queryKey: ["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin],
     queryFn: async () => {
       const folderId = getCurrentFolderId();
       let query = supabase.from("vault_files").select("*").is("deleted_at", null);
       
       if (currentView.type === "club") {
-        // Club-level content only accessible to club admins
-        if (!isClubAdmin) return [];
+        if (!isClubAdmin && !isCoachOrTeamAdmin) return [];
         query = query.eq("club_id", currentView.clubId).is("team_id", null).is("mini_league_id", null);
+        
+        // Non-admin coaches/team admins can only see files inside chat folders
+        if (!isClubAdmin && isCoachOrTeamAdmin && !folderId) {
+          // At root level with no folder selected, they won't see loose files
+          return [];
+        }
       } else if (currentView.type === "team") {
         query = query.eq("team_id", currentView.teamId);
       } else if (currentView.type === "mini-league") {
@@ -1619,10 +1642,10 @@ export default function VaultPage() {
       await queryClient.cancelQueries({ queryKey: ["vault-files"] });
       
       // Snapshot the previous value
-      const previousItems = queryClient.getQueryData(["vault-files", currentView, isClubAdmin]);
+      const previousItems = queryClient.getQueryData(["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin]);
       
       // Optimistically remove the photo from the cache
-      queryClient.setQueryData(["vault-files", currentView, isClubAdmin], (old: any[] | undefined) => {
+      queryClient.setQueryData(["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin], (old: any[] | undefined) => {
         if (!old) return old;
         return old.filter((item: any) => item.id !== photoId);
       });
@@ -1637,7 +1660,7 @@ export default function VaultPage() {
     onError: (error: any, _, context) => {
       // Rollback on error
       if (context?.previousItems) {
-        queryClient.setQueryData(["vault-files", currentView, isClubAdmin], context.previousItems);
+        queryClient.setQueryData(["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin], context.previousItems);
       }
       toast.error(error.message || "Failed to delete photo");
     },
