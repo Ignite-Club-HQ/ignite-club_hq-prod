@@ -1086,7 +1086,7 @@ export default function GroupChatPage() {
       }
       toast.error("Failed to send message");
     },
-    onSettled: () => {
+    onSettled: (_, __, variables) => {
       // Invalidate messages page preview so latest message shows
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
       // Award engagement points (fire and forget)
@@ -1099,6 +1099,18 @@ export default function GroupChatPage() {
             scopeId: groupId,
           }).catch(() => {});
         });
+        // Auto-sync attachments/file links to vault (fire and forget)
+        if (variables?.image_url || variables?.text) {
+          import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
+            syncChatAttachmentToVault({
+              imageUrl: variables.image_url,
+              text: variables.text,
+              userId: user.id,
+              clubId: group.club_id!,
+              teamId: group.team_id,
+            }).catch(() => {});
+          });
+        }
       }
     },
    });

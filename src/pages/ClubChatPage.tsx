@@ -1018,7 +1018,7 @@ export default function ClubChatPage() {
         variant: "destructive",
       });
     },
-    onSettled: () => {
+    onSettled: (_, __, variables) => {
       // Don't invalidate here; realtime will sync messages
       // Award engagement points (fire and forget)
       if (user && clubId) {
@@ -1030,6 +1030,17 @@ export default function ClubChatPage() {
             scopeId: clubId,
           }).catch(() => {});
         });
+        // Auto-sync attachments/file links to vault (fire and forget)
+        if (variables?.image_url || variables?.text) {
+          import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
+            syncChatAttachmentToVault({
+              imageUrl: variables.image_url,
+              text: variables.text,
+              userId: user.id,
+              clubId: clubId,
+            }).catch(() => {});
+          });
+        }
       }
     },
    });
