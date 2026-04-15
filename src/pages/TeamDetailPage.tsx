@@ -102,6 +102,7 @@ export default function TeamDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [memberRoleFilter, setMemberRoleFilter] = useState<string>("all");
+  const [headerInviteOpen, setHeaderInviteOpen] = useState(false);
   const [hasSetInitialFilter, setHasSetInitialFilter] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<TeamRole>("player");
@@ -684,179 +685,186 @@ export default function TeamDetailPage() {
   }
 
   return (
-    <div className="py-6 space-y-6">
-      {/* Header Row 1: Back button, Team name, 3-dot menu */}
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" aria-label="Go back" onClick={() => {
-            if (window.history.length > 1) {
-              navigate(-1);
-            } else {
-              navigate(`/clubs/${team.club_id}`);
-            }
-          }}>
-            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold truncate leading-tight">{team.name}</h1>
-          </div>
-          {isAdmin && isClassMode && (
-            <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          )}
-          {(isAdmin || isClubAdmin) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Team options menu">
-                  <MoreVertical className="h-5 w-5" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit {isClassMode ? "Class" : "Team"}
-                </DropdownMenuItem>}
-                {isClassMode && (
-                  <DropdownMenuItem onClick={async () => {
-                    const { data: newTeam, error } = await supabase
-                      .from("teams")
-                      .insert({
-                        name: `${team.name} (Copy)`,
-                        club_id: team.club_id,
-                        level_age: (team as any).level_age || null,
-                        description: (team as any).description || null,
-                        folder_id: (team as any).folder_id || null,
-                        team_type: (team as any).team_type || "mixed",
-                        created_by: user!.id,
-                        class_day: (team as any).class_day || null,
-                        class_time: (team as any).class_time || null,
-                        class_duration_minutes: (team as any).class_duration_minutes || null,
-                        class_capacity: (team as any).class_capacity || null,
-                      })
-                      .select()
-                      .single();
-                    if (error) {
-                      toast({ title: "Failed to duplicate class", variant: "destructive" });
-                    } else {
-                      toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
-                      navigate(`/teams/${newTeam.id}/edit`);
-                    }
-                  }}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Duplicate Class
-                  </DropdownMenuItem>
-                )}
-                {/* Leave Team - only for members (not pure club admins) */}
-                {userRoles.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-warning">
-                          <LogOut className="h-4 w-4 mr-2" />
-                          Leave Team
-                        </DropdownMenuItem>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Leave Team?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            You will be removed from {team?.name || "this team"}. You'll need a new invite to rejoin.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={async () => {
-                              const { error } = await supabase
-                                .from("user_roles")
-                                .delete()
-                                .eq("user_id", user!.id)
-                                .eq("team_id", id!);
-                              if (error) {
-                                toast({ title: "Failed to leave team", variant: "destructive" });
-                              } else {
-                                const today = new Date().toISOString().slice(0, 10);
-                                const { data: futureEvents } = await supabase
-                                  .from("events")
-                                  .select("id")
-                                  .eq("team_id", id!)
-                                  .gte("event_date", today);
-                                if (futureEvents && futureEvents.length > 0) {
-                                  await supabase
-                                    .from("rsvps")
-                                    .delete()
-                                    .eq("user_id", user!.id)
-                                    .in("event_id", futureEvents.map(e => e.id));
-                                }
-                                toast({ title: `You left ${team?.name || "the team"}` });
-                                queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                                queryClient.invalidateQueries({ queryKey: ["user-roles"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
-                                queryClient.invalidateQueries({ queryKey: ["events"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
-                                navigate(`/clubs/${team?.club_id}`);
-                              }
-                            }}
-                            className="bg-destructive text-destructive-foreground"
-                          >
-                            Leave
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </>
-                )}
-                {isAdmin && <DropdownMenuSeparator />}
-                {isAdmin && <ArchiveTeamDialog
-                  teamId={id!}
-                  teamName={team?.name || ""}
-                  clubId={team?.club_id || ""}
-                  isArchived={(team as any)?.is_archived || false}
-                  currentSeasonLabel={(team as any)?.season_label}
-                  onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
-                  trigger={
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
-                      {(team as any)?.is_archived ? (
-                        <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
-                      ) : (
-                        <><Archive className="h-4 w-4 mr-2" />Archive Team</>
-                      )}
-                    </DropdownMenuItem>
-                  }
-                />
-                }
-                {isAdmin && <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Team
-                </DropdownMenuItem>}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-        {/* Header Row 2: Badges + member count */}
-        <div className="flex items-center gap-1.5 pl-[52px]">
-          {isTeamPro && !hasProFootball && (
-            <Badge className="bg-yellow-500 text-yellow-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO</Badge>
-          )}
-          {hasProFootball && (
-            <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
-          )}
-          {isOnTrial && isTeamPro && (
-            <Badge variant="outline" className="text-amber-600 border-amber-500 text-[10px] px-1.5 py-0 h-4 shrink-0">Free Trial</Badge>
-          )}
-          <span className="text-xs text-muted-foreground">
+    <div className="py-4 space-y-4">
+      {/* Header: Back, Team name + member count, Invite CTA, overflow menu */}
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10" aria-label="Go back" onClick={() => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate(`/clubs/${team.club_id}`);
+          }
+        }}>
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-bold truncate leading-tight">{team.name}</h1>
+          <p className="text-xs text-muted-foreground leading-tight">
             {Object.keys(members).length + teamChildren.length} member{Object.keys(members).length + teamChildren.length !== 1 ? 's' : ''}
-          </span>
+          </p>
         </div>
+        {(isAdmin || isClubAdmin) && (
+          <Button size="sm" className="shrink-0 h-9" onClick={() => setHeaderInviteOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-1.5" />
+            Invite
+          </Button>
+        )}
+        {isAdmin && isClassMode && (
+          <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        )}
+        {(isAdmin || isClubAdmin) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Team options menu">
+                <MoreVertical className="h-5 w-5" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit {isClassMode ? "Class" : "Team"}
+              </DropdownMenuItem>}
+              {isClassMode && (
+                <DropdownMenuItem onClick={async () => {
+                  const { data: newTeam, error } = await supabase
+                    .from("teams")
+                    .insert({
+                      name: `${team.name} (Copy)`,
+                      club_id: team.club_id,
+                      level_age: (team as any).level_age || null,
+                      description: (team as any).description || null,
+                      folder_id: (team as any).folder_id || null,
+                      team_type: (team as any).team_type || "mixed",
+                      created_by: user!.id,
+                      class_day: (team as any).class_day || null,
+                      class_time: (team as any).class_time || null,
+                      class_duration_minutes: (team as any).class_duration_minutes || null,
+                      class_capacity: (team as any).class_capacity || null,
+                    })
+                    .select()
+                    .single();
+                  if (error) {
+                    toast({ title: "Failed to duplicate class", variant: "destructive" });
+                  } else {
+                    toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
+                    navigate(`/teams/${newTeam.id}/edit`);
+                  }
+                }}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate Class
+                </DropdownMenuItem>
+              )}
+              {/* Leave Team - only for members (not pure club admins) */}
+              {userRoles.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-warning">
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Leave Team
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Leave Team?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          You will be removed from {team?.name || "this team"}. You'll need a new invite to rejoin.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={async () => {
+                            const { error } = await supabase
+                              .from("user_roles")
+                              .delete()
+                              .eq("user_id", user!.id)
+                              .eq("team_id", id!);
+                            if (error) {
+                              toast({ title: "Failed to leave team", variant: "destructive" });
+                            } else {
+                              const today = new Date().toISOString().slice(0, 10);
+                              const { data: futureEvents } = await supabase
+                                .from("events")
+                                .select("id")
+                                .eq("team_id", id!)
+                                .gte("event_date", today);
+                              if (futureEvents && futureEvents.length > 0) {
+                                await supabase
+                                  .from("rsvps")
+                                  .delete()
+                                  .eq("user_id", user!.id)
+                                  .in("event_id", futureEvents.map(e => e.id));
+                              }
+                              toast({ title: `You left ${team?.name || "the team"}` });
+                              queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                              queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
+                              queryClient.invalidateQueries({ queryKey: ["events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+                              navigate(`/clubs/${team?.club_id}`);
+                            }
+                          }}
+                          className="bg-destructive text-destructive-foreground"
+                        >
+                          Leave
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
+              {isAdmin && <DropdownMenuSeparator />}
+              {isAdmin && <ArchiveTeamDialog
+                teamId={id!}
+                teamName={team?.name || ""}
+                clubId={team?.club_id || ""}
+                isArchived={(team as any)?.is_archived || false}
+                currentSeasonLabel={(team as any)?.season_label}
+                onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
+                trigger={
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
+                    {(team as any)?.is_archived ? (
+                      <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
+                    ) : (
+                      <><Archive className="h-4 w-4 mr-2" />Archive Team</>
+                    )}
+                  </DropdownMenuItem>
+                }
+              />
+              }
+              {isAdmin && <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Team
+              </DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
+
+      {/* Hidden AddTeamMemberSheet controlled by header Invite button */}
+      {(isAdmin || isClubAdmin) && (
+        <AddTeamMemberSheet
+          teamId={id!}
+          teamName={team.name}
+          clubId={team.club_id}
+          teamType={(team as any).team_type || "mixed"}
+          isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
+          canBulkInvite={isCoachOrAdmin || isClubAdmin}
+          triggerVariant="none"
+          externalOpen={headerInviteOpen}
+          onExternalOpenChange={setHeaderInviteOpen}
+        />
+      )}
 
       {/* Soft-deleted banner */}
       {(team as any)?.deleted_at && isAdmin && (
@@ -1134,12 +1142,12 @@ export default function TeamDetailPage() {
 
       {/* Primary Actions - Chat & Schedule */}
       {isMember && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
-            <Card className="border-primary/20 bg-primary/[0.04] hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-primary/10">
-                  <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
+            <Card className="border-primary/20 bg-primary/[0.03] hover:border-primary/40 transition-colors" role="button">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <MessageCircle className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
                 </div>
                 <TeamChatPreview teamId={team.id} />
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -1147,10 +1155,10 @@ export default function TeamDetailPage() {
             </Card>
           </Link>
           <Link to={`/events?team=${team.id}`} aria-label="View team schedule" className="block">
-            <Card className="hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-primary/10">
-                  <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
+            <Card className="hover:border-primary/40 transition-colors" role="button">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Calendar className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-semibold">Schedule</span>
@@ -1168,54 +1176,25 @@ export default function TeamDetailPage() {
         <div className="grid grid-cols-2 gap-2">
           {(isSubscriptionLoading || isTeamPro) ? (
             <Link to={`/vault?team=${team.id}`} aria-label="Open file vault" className="block">
-              <Card className="hover:border-primary/50 transition-colors" role="button">
-                <CardContent className="p-3 flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <span className="text-xs font-medium">Vault</span>
-                </CardContent>
-              </Card>
+              <Button variant="outline" className="w-full h-9 text-xs font-medium justify-start gap-2">
+                <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                Vault
+              </Button>
             </Link>
           ) : (
-            <Card className="border-muted bg-muted/30 cursor-not-allowed">
-              <CardContent className="p-3 flex items-center gap-2">
-                <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">Vault</span>
-                <Badge variant="secondary" className="text-[10px] ml-auto gap-0.5 h-4 px-1">
-                  <Lock className="h-2.5 w-2.5" />
-                  Pro
-                </Badge>
-              </CardContent>
-            </Card>
+            <Button variant="outline" className="w-full h-9 text-xs font-medium justify-start gap-2 opacity-50 cursor-not-allowed" disabled>
+              <FolderOpen className="h-3.5 w-3.5" />
+              Vault
+              <Badge variant="secondary" className="text-[9px] ml-auto gap-0.5 h-3.5 px-1">
+                <Lock className="h-2 w-2" />
+                Pro
+              </Badge>
+            </Button>
           )}
           {isSoccerClub && (hasProFootball || isAppAdmin) && (
-            <Card 
-              className="hover:border-primary/50 transition-colors cursor-pointer"
-              role="button"
-              tabIndex={0}
-              aria-label="Open Pitch Board"
-              onKeyDown={async (e) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                e.preventDefault();
-                const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
-                const freshMembers = membersResult.data || [];
-                const freshChildren = childrenResult.data || [];
-                const nextPitchBoardMembers = [
-                  ...freshMembers.map(m => ({
-                    id: m.id, user_id: m.user_id, role: m.role, profiles: m.profiles,
-                  })),
-                  ...freshChildren
-                    .filter(child => child.children)
-                    .map(child => ({
-                      id: `child-${child.children.id}`, user_id: child.children.id,
-                      role: "player" as string,
-                      profiles: { display_name: child.children.name, avatar_url: null },
-                    })),
-                ];
-                setPitchBoardMembersOverride(nextPitchBoardMembers);
-                const nearbyEventId = await findNearbyGameEvent(id!);
-                setLinkedEventId(nearbyEventId);
-                setShowPitchBoard(true);
-              }}
+            <Button 
+              variant="outline"
+              className="w-full h-9 text-xs font-medium justify-start gap-2"
               onClick={async () => {
                 const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
                 const freshMembers = membersResult.data || [];
@@ -1238,11 +1217,9 @@ export default function TeamDetailPage() {
                 setShowPitchBoard(true);
               }}
             >
-              <CardContent className="p-3 flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4 text-primary" aria-hidden="true" />
-                <span className="text-xs font-medium">Pitch Board</span>
-              </CardContent>
-            </Card>
+              <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+              Pitch Board
+            </Button>
           )}
         </div>
       )}
@@ -1310,9 +1287,9 @@ export default function TeamDetailPage() {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-                <div className="flex flex-wrap gap-2 justify-between items-center pl-1">
+                <div className="flex flex-wrap gap-2 justify-between items-center">
                   <Select value={memberRoleFilter} onValueChange={setMemberRoleFilter}>
-                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                    <SelectTrigger className="w-[120px] h-7 text-xs">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1324,16 +1301,12 @@ export default function TeamDetailPage() {
                       <SelectItem value="child">Children</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex gap-2">
-                    <AddTeamMemberSheet 
-                        teamId={id!} 
-                        teamName={team.name} 
-                        clubId={team.club_id}
-                        teamType={(team as any).team_type || "mixed"}
-                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                        canBulkInvite={isCoachOrAdmin || isClubAdmin}
-                      />
-                  </div>
+                  {(isAdmin || isClubAdmin) && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-primary" onClick={() => setHeaderInviteOpen(true)}>
+                      <UserPlus className="h-3.5 w-3.5 mr-1" />
+                      Add members
+                    </Button>
+                  )}
                 </div>
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <div className="flex flex-col items-center py-6 text-center gap-3">
@@ -1344,14 +1317,10 @@ export default function TeamDetailPage() {
                       <p className="font-medium text-foreground">No members yet</p>
                       <p className="text-sm text-muted-foreground mt-1">Invite players, parents or coaches to get started</p>
                     </div>
-                    <AddTeamMemberSheet
-                        teamId={id!}
-                        teamName={team.name}
-                        clubId={team.club_id}
-                        teamType={(team as any).team_type || "mixed"}
-                        isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
-                        canBulkInvite={isCoachOrAdmin || isClubAdmin}
-                      />
+                    <Button size="sm" onClick={() => setHeaderInviteOpen(true)}>
+                      <UserPlus className="h-4 w-4 mr-1.5" />
+                      Invite Members
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1367,10 +1336,7 @@ export default function TeamDetailPage() {
                     })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
                       <div className="mb-4 pb-4 border-b">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-medium text-muted-foreground">Players (Children)</p>
-                          {(isAdmin || isClubAdmin) && isSoccerClub && (
-                            <p className="text-[10px] text-muted-foreground italic">Long-press to set number & position</p>
-                          )}
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Players (Children)</p>
                         </div>
                         <div className="space-y-2">
                           {(() => {
@@ -1481,20 +1447,36 @@ export default function TeamDetailPage() {
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 shrink-0"
+                                        className="h-7 w-7 shrink-0"
                                         aria-label={`Invite parent for ${child.name}`}
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setInviteParentChild({ childId: child.id, childName: child.name });
                                         }}
                                       >
-                                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                                        <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
                                       </Button>
                                     )}
-                                    <Badge variant="outline" className={isPending 
-                                      ? "text-xs border bg-orange-500/20 text-orange-400 border-orange-500/30"
-                                      : "text-xs border bg-pink-500/20 text-pink-400 border-pink-500/30"
-                                    }>
+                                    {(isAdmin || isClubAdmin) && isSoccerClub && !isPending && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 shrink-0"
+                                        aria-label={`Edit position for ${child.name}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPositionSheetPlayer({ id: child.id, name: child.name, type: "child" });
+                                        }}
+                                      >
+                                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                                      </Button>
+                                    )}
+                                    <Badge variant="outline" className={cn(
+                                      "text-[10px] border px-1.5 py-0 h-4",
+                                      isPending 
+                                        ? "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                                        : "bg-pink-500/20 text-pink-400 border-pink-500/30"
+                                    )}>
                                       {isPending ? "Pending" : "Child"}
                                     </Badge>
                                   </CardContent>
@@ -1662,8 +1644,8 @@ export default function TeamDetailPage() {
                         if (roleMembers.length === 0 && rolePending.length === 0) return null;
 
                         return (
-                          <div key={role} className="mb-4 pb-4 border-b last:border-b-0 last:mb-0 last:pb-0">
-                            <p className="text-sm font-medium text-muted-foreground mb-2">{roleGroupLabels[role] || role}</p>
+                          <div key={role} className="mb-3 pb-3 border-b last:border-b-0 last:mb-0 last:pb-0">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{roleGroupLabels[role] || role}</p>
                             <div className="space-y-2">
                               {roleMembers.map(([userId, member]) => (
                               <Card key={userId}>
@@ -1703,7 +1685,7 @@ export default function TeamDetailPage() {
                                       const canRemoveRole = canManage && userId !== user?.id && (member.roles?.length || 0) > 1;
                                       return (
                                         <AlertDialog key={roleItem.id}>
-                                          <Badge variant="outline" className={`text-xs border ${colorClass} flex items-center gap-1`}>
+                                          <Badge variant="outline" className={`text-[10px] border px-1.5 py-0 h-4 ${colorClass} flex items-center gap-0.5`}>
                                             {label}
                                             {canRemoveRole && (
                                               <AlertDialogTrigger asChild>
