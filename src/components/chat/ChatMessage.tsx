@@ -59,6 +59,7 @@ export interface ChatMessageProps {
   replyToMessage?: ReplyToMessage | null;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;
   onEdit?: (message: { id: string; text: string }) => void;
+  onAuthorClick?: () => void;
   searchQuery?: string;
   readFrontierReaders?: ReaderInfo[];
   readCount?: number;
@@ -87,6 +88,7 @@ export const ChatMessage = memo(function ChatMessage({
   replyToMessage,
   onReply,
   onEdit,
+  onAuthorClick,
   searchQuery,
   readFrontierReaders = [],
   readCount = 0,

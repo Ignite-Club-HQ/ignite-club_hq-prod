@@ -18,6 +18,8 @@ import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
 import { PageLoading } from "@/components/ui/page-loading";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
+import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
+import MemberDetailSheet from "@/components/MemberDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";

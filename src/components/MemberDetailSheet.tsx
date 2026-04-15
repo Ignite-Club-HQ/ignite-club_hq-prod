@@ -40,6 +40,8 @@ interface MemberDetailSheetProps {
   canManage: boolean;
   canMove: boolean;
   isSelf: boolean;
+  showMoveAction?: boolean;
+  showRemoveAction?: boolean;
   onAddRole: () => void;
   onMove: () => void;
   onRemove: () => void;
@@ -55,6 +57,8 @@ export default function MemberDetailSheet({
   canManage,
   canMove,
   isSelf,
+  showMoveAction = true,
+  showRemoveAction = true,
   onAddRole,
   onMove,
   onRemove,
