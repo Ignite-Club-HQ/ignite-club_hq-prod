@@ -772,6 +772,22 @@ export default function EventDetailPage() {
     enabled: !!event?.team_id,
   });
 
+  // Fetch guardians for children on this team (so guardians are excluded from "not responded" when their child has RSVP'd)
+  const childIdsOnTeam = (allChildrenOnTeam || []).map((c: any) => c.id);
+  const { data: childGuardiansOnTeam } = useQuery({
+    queryKey: ["child-guardians-on-team", event?.team_id, childIdsOnTeam.join(",")],
+    queryFn: async () => {
+      if (childIdsOnTeam.length === 0) return [];
+      const { data, error } = await supabase
+        .from("child_guardians")
+        .select("child_id, guardian_id")
+        .in("child_id", childIdsOnTeam);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: childIdsOnTeam.length > 0,
+  });
+
   // Get existing RSVPs for children (any guardian's RSVP for the child counts)
   const myChildIds = new Set((childrenOnTeam || []).map((c: any) => c.id));
   const childRsvps = rsvps?.filter((r) => r.child_id && myChildIds.has(r.child_id)) || [];
