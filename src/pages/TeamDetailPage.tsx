@@ -1142,12 +1142,12 @@ export default function TeamDetailPage() {
 
       {/* Primary Actions - Chat & Schedule */}
       {isMember && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <Link to={`/messages/${team.id}`} aria-label="Open team chat" className="block">
-            <Card className="border-primary/20 bg-primary/[0.04] hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-primary/10">
-                  <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
+            <Card className="border-primary/20 bg-primary/[0.03] hover:border-primary/40 transition-colors" role="button">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <MessageCircle className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
                 </div>
                 <TeamChatPreview teamId={team.id} />
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -1155,10 +1155,10 @@ export default function TeamDetailPage() {
             </Card>
           </Link>
           <Link to={`/events?team=${team.id}`} aria-label="View team schedule" className="block">
-            <Card className="hover:border-primary/50 transition-colors" role="button">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-primary/10">
-                  <Calendar className="h-5 w-5 text-primary" aria-hidden="true" />
+            <Card className="hover:border-primary/40 transition-colors" role="button">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Calendar className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-semibold">Schedule</span>
@@ -1176,54 +1176,25 @@ export default function TeamDetailPage() {
         <div className="grid grid-cols-2 gap-2">
           {(isSubscriptionLoading || isTeamPro) ? (
             <Link to={`/vault?team=${team.id}`} aria-label="Open file vault" className="block">
-              <Card className="hover:border-primary/50 transition-colors" role="button">
-                <CardContent className="p-3 flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <span className="text-xs font-medium">Vault</span>
-                </CardContent>
-              </Card>
+              <Button variant="outline" className="w-full h-9 text-xs font-medium justify-start gap-2">
+                <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                Vault
+              </Button>
             </Link>
           ) : (
-            <Card className="border-muted bg-muted/30 cursor-not-allowed">
-              <CardContent className="p-3 flex items-center gap-2">
-                <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">Vault</span>
-                <Badge variant="secondary" className="text-[10px] ml-auto gap-0.5 h-4 px-1">
-                  <Lock className="h-2.5 w-2.5" />
-                  Pro
-                </Badge>
-              </CardContent>
-            </Card>
+            <Button variant="outline" className="w-full h-9 text-xs font-medium justify-start gap-2 opacity-50 cursor-not-allowed" disabled>
+              <FolderOpen className="h-3.5 w-3.5" />
+              Vault
+              <Badge variant="secondary" className="text-[9px] ml-auto gap-0.5 h-3.5 px-1">
+                <Lock className="h-2 w-2" />
+                Pro
+              </Badge>
+            </Button>
           )}
           {isSoccerClub && (hasProFootball || isAppAdmin) && (
-            <Card 
-              className="hover:border-primary/50 transition-colors cursor-pointer"
-              role="button"
-              tabIndex={0}
-              aria-label="Open Pitch Board"
-              onKeyDown={async (e) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                e.preventDefault();
-                const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
-                const freshMembers = membersResult.data || [];
-                const freshChildren = childrenResult.data || [];
-                const nextPitchBoardMembers = [
-                  ...freshMembers.map(m => ({
-                    id: m.id, user_id: m.user_id, role: m.role, profiles: m.profiles,
-                  })),
-                  ...freshChildren
-                    .filter(child => child.children)
-                    .map(child => ({
-                      id: `child-${child.children.id}`, user_id: child.children.id,
-                      role: "player" as string,
-                      profiles: { display_name: child.children.name, avatar_url: null },
-                    })),
-                ];
-                setPitchBoardMembersOverride(nextPitchBoardMembers);
-                const nearbyEventId = await findNearbyGameEvent(id!);
-                setLinkedEventId(nearbyEventId);
-                setShowPitchBoard(true);
-              }}
+            <Button 
+              variant="outline"
+              className="w-full h-9 text-xs font-medium justify-start gap-2"
               onClick={async () => {
                 const [membersResult, childrenResult] = await Promise.all([refetchMembers(), refetchChildren()]);
                 const freshMembers = membersResult.data || [];
@@ -1246,11 +1217,9 @@ export default function TeamDetailPage() {
                 setShowPitchBoard(true);
               }}
             >
-              <CardContent className="p-3 flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4 text-primary" aria-hidden="true" />
-                <span className="text-xs font-medium">Pitch Board</span>
-              </CardContent>
-            </Card>
+              <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+              Pitch Board
+            </Button>
           )}
         </div>
       )}
