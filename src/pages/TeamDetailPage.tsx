@@ -1336,10 +1336,7 @@ export default function TeamDetailPage() {
                     })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
                       <div className="mb-4 pb-4 border-b">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-medium text-muted-foreground">Players (Children)</p>
-                          {(isAdmin || isClubAdmin) && isSoccerClub && (
-                            <p className="text-[10px] text-muted-foreground italic">Long-press to set number & position</p>
-                          )}
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Players (Children)</p>
                         </div>
                         <div className="space-y-2">
                           {(() => {
