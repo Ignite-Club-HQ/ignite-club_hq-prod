@@ -13,6 +13,7 @@ import InviteOtherParentSheet from "@/components/InviteOtherParentSheet";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SwipeableCard } from "@/components/ui/swipeable-card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
