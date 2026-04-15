@@ -2433,7 +2433,19 @@ export default function EventDetailPage() {
           } else {
             // For regular events, use team members
             const membersToShow = effectiveShowAll ? members : playerMembers;
-            notResponded = membersToShow?.filter((m: any) => !respondedUserIds.has(m.id)) || [];
+            
+            // Build set of parent IDs whose children have responded
+            const parentIdsWithRespondedChildren = new Set<string>();
+            (allChildrenOnTeam || []).forEach((child: any) => {
+              if (child.parent_id && respondedChildIds.has(child.id)) {
+                parentIdsWithRespondedChildren.add(child.parent_id);
+              }
+            });
+            
+            // Exclude parents from "not responded" if they have responded themselves OR any of their children have responded
+            notResponded = membersToShow?.filter((m: any) => 
+              !respondedUserIds.has(m.id) && !parentIdsWithRespondedChildren.has(m.id)
+            ) || [];
             // Get children who haven't responded (children are always treated as players)
             notRespondedChildren = allChildrenOnTeam?.filter((child: any) => !respondedChildIds.has(child.id)) || [];
           }
