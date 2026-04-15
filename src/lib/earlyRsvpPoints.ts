@@ -22,6 +22,7 @@ interface AwardEarlyRsvpPointsParams {
  */
 export async function awardEarlyRsvpPoints({
   userId,
+  childId,
   eventDate,
   rsvpId,
   clubId,
