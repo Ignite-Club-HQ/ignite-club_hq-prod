@@ -129,16 +129,14 @@ serve(async (req) => {
         const profile = profileMap.get(token.user_id);
         if (!profile) continue;
 
-        const existing = userMap.get(token.user_id);
-        if (!existing || (token.app_version && !existing.appVersion)) {
-          userMap.set(token.user_id, {
-            userId: token.user_id,
-            name: profile.display_name || 'Unknown',
-            platform: token.platform || 'unknown',
-            appVersion: token.app_version || null,
-            buildNumber: token.build_number || null,
-          });
-        }
+        // Always overwrite with the later token (results are ordered by updated_at asc)
+        userMap.set(token.user_id, {
+          userId: token.user_id,
+          name: profile.display_name || 'Unknown',
+          platform: token.platform || 'unknown',
+          appVersion: token.app_version || null,
+          buildNumber: token.build_number || null,
+        });
       }
 
       const users = Array.from(userMap.values()).sort((a: any, b: any) => a.name.localeCompare(b.name));
