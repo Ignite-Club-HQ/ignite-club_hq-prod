@@ -1465,7 +1465,21 @@ export default function TeamDetailPage() {
                                     isPending ? "opacity-70" : ""
                                   )}
                                 >
-                                  <CardContent className="p-3.5 flex items-center gap-3">
+                                  <CardContent
+                                    className="p-3.5 flex items-center gap-3 cursor-pointer"
+                                    onClick={() => setSelectedChild({
+                                      childId: child.id,
+                                      childName: child.name,
+                                      parentDisplay,
+                                      isPending: !!isPending,
+                                      linkInviteIds: isPending ? pendingInvites
+                                        .filter(inv => {
+                                          const meta = inv.metadata as { children?: { name: string; child_id?: string }[] } | null;
+                                          return meta?.children?.some(c => c.child_id === child.id || c.name?.toLowerCase() === child.name?.toLowerCase());
+                                        })
+                                        .map(inv => inv.id) : undefined,
+                                    })}
+                                  >
                                     <Avatar className="h-9 w-9 shrink-0">
                                       <AvatarFallback className={cn(
                                         "text-sm font-semibold",
