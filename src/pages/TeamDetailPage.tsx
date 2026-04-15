@@ -1421,7 +1421,7 @@ export default function TeamDetailPage() {
                                         .map(inv => inv.id);
                                       setLinkChildToParent({ childName: child.name, existingChildId: child.id, pendingInviteIds: inviteIds });
                                     },
-                                    className: "bg-orange-500",
+                                    className: "bg-orange-500 text-white",
                                   }];
                                 }
                                 const actions: { label: string; icon: ReactNode; onClick: () => void; className?: string }[] = [
