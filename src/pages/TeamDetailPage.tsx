@@ -2376,6 +2376,47 @@ export default function TeamDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {selectedMember && (
+        <MemberDetailSheet
+          open={!!selectedMember}
+          onOpenChange={(open) => { if (!open) setSelectedMember(null); }}
+          userId={selectedMember.userId}
+          displayName={selectedMember.displayName}
+          avatarUrl={selectedMember.avatarUrl}
+          roles={selectedMember.roles}
+          canManage={isAdmin || isClubAdmin}
+          canMove={isClubAdmin && selectedMember.userId !== user?.id}
+          isSelf={selectedMember.userId === user?.id}
+          onAddRole={() => setAddRoleMember({
+            userId: selectedMember.userId,
+            userName: selectedMember.displayName,
+            existingRoles: selectedMember.roles.map(r => r.role),
+          })}
+          onMove={() => setMoveToTeam({
+            type: "adult",
+            id: selectedMember.userId,
+            name: selectedMember.displayName,
+            roles: selectedMember.roles.map(r => r.role),
+          })}
+          onRemove={() => setRemoveMember({
+            userId: selectedMember.userId,
+            name: selectedMember.displayName,
+          })}
+          onRemoveRole={async (roleItem) => {
+            const { error } = await supabase
+              .from("user_roles")
+              .delete()
+              .eq("id", roleItem.id);
+            if (error) {
+              toast({ title: "Failed to remove role", variant: "destructive" });
+            } else {
+              toast({ title: "Role removed" });
+              queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+              setSelectedMember(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
