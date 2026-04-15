@@ -100,10 +100,7 @@ export function SwipeableCard({ children, actions, className, enabled = true }: 
           <button
             key={i}
             className={cn(
-              "flex flex-col items-center justify-center gap-1 text-[10px] font-medium text-white",
-              i === 0 && "bg-primary",
-              i === 1 && "bg-blue-500",
-              i === 2 && "bg-amber-500",
+              "flex flex-col items-center justify-center gap-1 text-[10px] font-medium text-primary-foreground",
               action.className
             )}
             style={{ width: ACTION_WIDTH }}
