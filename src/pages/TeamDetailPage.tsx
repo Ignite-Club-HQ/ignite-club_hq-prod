@@ -685,179 +685,186 @@ export default function TeamDetailPage() {
   }
 
   return (
-    <div className="py-6 space-y-6">
-      {/* Header Row 1: Back button, Team name, 3-dot menu */}
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="shrink-0 h-11 w-11" aria-label="Go back" onClick={() => {
-            if (window.history.length > 1) {
-              navigate(-1);
-            } else {
-              navigate(`/clubs/${team.club_id}`);
-            }
-          }}>
-            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold truncate leading-tight">{team.name}</h1>
-          </div>
-          {isAdmin && isClassMode && (
-            <Button variant="ghost" size="icon" className="h-11 w-11" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          )}
-          {(isAdmin || isClubAdmin) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Team options menu">
-                  <MoreVertical className="h-5 w-5" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit {isClassMode ? "Class" : "Team"}
-                </DropdownMenuItem>}
-                {isClassMode && (
-                  <DropdownMenuItem onClick={async () => {
-                    const { data: newTeam, error } = await supabase
-                      .from("teams")
-                      .insert({
-                        name: `${team.name} (Copy)`,
-                        club_id: team.club_id,
-                        level_age: (team as any).level_age || null,
-                        description: (team as any).description || null,
-                        folder_id: (team as any).folder_id || null,
-                        team_type: (team as any).team_type || "mixed",
-                        created_by: user!.id,
-                        class_day: (team as any).class_day || null,
-                        class_time: (team as any).class_time || null,
-                        class_duration_minutes: (team as any).class_duration_minutes || null,
-                        class_capacity: (team as any).class_capacity || null,
-                      })
-                      .select()
-                      .single();
-                    if (error) {
-                      toast({ title: "Failed to duplicate class", variant: "destructive" });
-                    } else {
-                      toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
-                      navigate(`/teams/${newTeam.id}/edit`);
-                    }
-                  }}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Duplicate Class
-                  </DropdownMenuItem>
-                )}
-                {/* Leave Team - only for members (not pure club admins) */}
-                {userRoles.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-warning">
-                          <LogOut className="h-4 w-4 mr-2" />
-                          Leave Team
-                        </DropdownMenuItem>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Leave Team?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            You will be removed from {team?.name || "this team"}. You'll need a new invite to rejoin.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={async () => {
-                              const { error } = await supabase
-                                .from("user_roles")
-                                .delete()
-                                .eq("user_id", user!.id)
-                                .eq("team_id", id!);
-                              if (error) {
-                                toast({ title: "Failed to leave team", variant: "destructive" });
-                              } else {
-                                const today = new Date().toISOString().slice(0, 10);
-                                const { data: futureEvents } = await supabase
-                                  .from("events")
-                                  .select("id")
-                                  .eq("team_id", id!)
-                                  .gte("event_date", today);
-                                if (futureEvents && futureEvents.length > 0) {
-                                  await supabase
-                                    .from("rsvps")
-                                    .delete()
-                                    .eq("user_id", user!.id)
-                                    .in("event_id", futureEvents.map(e => e.id));
-                                }
-                                toast({ title: `You left ${team?.name || "the team"}` });
-                                queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
-                                queryClient.invalidateQueries({ queryKey: ["user-roles"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
-                                queryClient.invalidateQueries({ queryKey: ["events"] });
-                                queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
-                                navigate(`/clubs/${team?.club_id}`);
-                              }
-                            }}
-                            className="bg-destructive text-destructive-foreground"
-                          >
-                            Leave
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </>
-                )}
-                {isAdmin && <DropdownMenuSeparator />}
-                {isAdmin && <ArchiveTeamDialog
-                  teamId={id!}
-                  teamName={team?.name || ""}
-                  clubId={team?.club_id || ""}
-                  isArchived={(team as any)?.is_archived || false}
-                  currentSeasonLabel={(team as any)?.season_label}
-                  onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
-                  trigger={
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
-                      {(team as any)?.is_archived ? (
-                        <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
-                      ) : (
-                        <><Archive className="h-4 w-4 mr-2" />Archive Team</>
-                      )}
-                    </DropdownMenuItem>
-                  }
-                />
-                }
-                {isAdmin && <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Team
-                </DropdownMenuItem>}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-        {/* Header Row 2: Badges + member count */}
-        <div className="flex items-center gap-1.5 pl-[52px]">
-          {isTeamPro && !hasProFootball && (
-            <Badge className="bg-yellow-500 text-yellow-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO</Badge>
-          )}
-          {hasProFootball && (
-            <Badge className="bg-emerald-500 text-emerald-950 text-[10px] px-1.5 py-0 h-4 shrink-0">PRO FOOTBALL</Badge>
-          )}
-          {isOnTrial && isTeamPro && (
-            <Badge variant="outline" className="text-amber-600 border-amber-500 text-[10px] px-1.5 py-0 h-4 shrink-0">Free Trial</Badge>
-          )}
-          <span className="text-xs text-muted-foreground">
+    <div className="py-4 space-y-4">
+      {/* Header: Back, Team name + member count, Invite CTA, overflow menu */}
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10" aria-label="Go back" onClick={() => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate(`/clubs/${team.club_id}`);
+          }
+        }}>
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-bold truncate leading-tight">{team.name}</h1>
+          <p className="text-xs text-muted-foreground leading-tight">
             {Object.keys(members).length + teamChildren.length} member{Object.keys(members).length + teamChildren.length !== 1 ? 's' : ''}
-          </span>
+          </p>
         </div>
+        {(isAdmin || isClubAdmin) && (
+          <Button size="sm" className="shrink-0 h-9" onClick={() => setHeaderInviteOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-1.5" />
+            Invite
+          </Button>
+        )}
+        {isAdmin && isClassMode && (
+          <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        )}
+        {(isAdmin || isClubAdmin) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Team options menu">
+                <MoreVertical className="h-5 w-5" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isAdmin && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit {isClassMode ? "Class" : "Team"}
+              </DropdownMenuItem>}
+              {isClassMode && (
+                <DropdownMenuItem onClick={async () => {
+                  const { data: newTeam, error } = await supabase
+                    .from("teams")
+                    .insert({
+                      name: `${team.name} (Copy)`,
+                      club_id: team.club_id,
+                      level_age: (team as any).level_age || null,
+                      description: (team as any).description || null,
+                      folder_id: (team as any).folder_id || null,
+                      team_type: (team as any).team_type || "mixed",
+                      created_by: user!.id,
+                      class_day: (team as any).class_day || null,
+                      class_time: (team as any).class_time || null,
+                      class_duration_minutes: (team as any).class_duration_minutes || null,
+                      class_capacity: (team as any).class_capacity || null,
+                    })
+                    .select()
+                    .single();
+                  if (error) {
+                    toast({ title: "Failed to duplicate class", variant: "destructive" });
+                  } else {
+                    toast({ title: "Class duplicated", description: `"${newTeam.name}" created. Edit it to customise.` });
+                    navigate(`/teams/${newTeam.id}/edit`);
+                  }
+                }}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate Class
+                </DropdownMenuItem>
+              )}
+              {/* Leave Team - only for members (not pure club admins) */}
+              {userRoles.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-warning">
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Leave Team
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Leave Team?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          You will be removed from {team?.name || "this team"}. You'll need a new invite to rejoin.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={async () => {
+                            const { error } = await supabase
+                              .from("user_roles")
+                              .delete()
+                              .eq("user_id", user!.id)
+                              .eq("team_id", id!);
+                            if (error) {
+                              toast({ title: "Failed to leave team", variant: "destructive" });
+                            } else {
+                              const today = new Date().toISOString().slice(0, 10);
+                              const { data: futureEvents } = await supabase
+                                .from("events")
+                                .select("id")
+                                .eq("team_id", id!)
+                                .gte("event_date", today);
+                              if (futureEvents && futureEvents.length > 0) {
+                                await supabase
+                                  .from("rsvps")
+                                  .delete()
+                                  .eq("user_id", user!.id)
+                                  .in("event_id", futureEvents.map(e => e.id));
+                              }
+                              toast({ title: `You left ${team?.name || "the team"}` });
+                              queryClient.invalidateQueries({ queryKey: ["team-roles", id] });
+                              queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-clubs-for-filter"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-teams-for-filter"] });
+                              queryClient.invalidateQueries({ queryKey: ["events"] });
+                              queryClient.invalidateQueries({ queryKey: ["user-rsvps-home"] });
+                              navigate(`/clubs/${team?.club_id}`);
+                            }
+                          }}
+                          className="bg-destructive text-destructive-foreground"
+                        >
+                          Leave
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
+              {isAdmin && <DropdownMenuSeparator />}
+              {isAdmin && <ArchiveTeamDialog
+                teamId={id!}
+                teamName={team?.name || ""}
+                clubId={team?.club_id || ""}
+                isArchived={(team as any)?.is_archived || false}
+                currentSeasonLabel={(team as any)?.season_label}
+                onSuccess={() => navigate(`/clubs/${team?.club_id}`)}
+                trigger={
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-amber-600">
+                    {(team as any)?.is_archived ? (
+                      <><ArchiveRestore className="h-4 w-4 mr-2" />Reinstate Team</>
+                    ) : (
+                      <><Archive className="h-4 w-4 mr-2" />Archive Team</>
+                    )}
+                  </DropdownMenuItem>
+                }
+              />
+              }
+              {isAdmin && <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Team
+              </DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
+
+      {/* Hidden AddTeamMemberSheet controlled by header Invite button */}
+      {(isAdmin || isClubAdmin) && (
+        <AddTeamMemberSheet
+          teamId={id!}
+          teamName={team.name}
+          clubId={team.club_id}
+          teamType={(team as any).team_type || "mixed"}
+          isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
+          canBulkInvite={isCoachOrAdmin || isClubAdmin}
+          triggerVariant="hidden"
+          externalOpen={headerInviteOpen}
+          onExternalOpenChange={setHeaderInviteOpen}
+        />
+      )}
 
       {/* Soft-deleted banner */}
       {(team as any)?.deleted_at && isAdmin && (
