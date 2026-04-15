@@ -59,6 +59,8 @@ export default function AddRoleToMemberDialog({
     mutationFn: async () => {
       if (selectedRoles.length === 0) return;
 
+      // The RLS policy on user_roles enforces admin permissions
+      // This mutation will fail if the current user lacks club_admin, team_admin, or app_admin role
       const rolesToInsert = selectedRoles.map((role) => ({
         user_id: userId,
         team_id: teamId,

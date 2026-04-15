@@ -56,6 +56,8 @@ export default function PromoteToTeamAdminDialog({
     mutationFn: async () => {
       if (!selectedUserId) return;
 
+      // The RLS policy on user_roles enforces admin permissions
+      // This mutation will fail if the current user lacks club_admin, team_admin, or app_admin role
       const { error } = await supabase.from("user_roles").insert({
         user_id: selectedUserId,
         team_id: teamId,
