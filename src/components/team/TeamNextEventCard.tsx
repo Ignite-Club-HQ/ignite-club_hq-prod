@@ -83,8 +83,8 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
               {nextEvent.start_time && (
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {nextEvent.start_time.slice(0, 5)}
-                  {nextEvent.end_time && ` – ${nextEvent.end_time.slice(0, 5)}`}
+                  {format(new Date(nextEvent.start_time), "h:mm a")}
+                  {nextEvent.end_time && ` – ${format(new Date(nextEvent.end_time), "h:mm a")}`}
                 </span>
               )}
               {locationDisplay && (
