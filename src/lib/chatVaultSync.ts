@@ -128,12 +128,11 @@ async function getOrCreateFolder(clubId: string, folderName: string, userId: str
     return data.id;
   }
 
-  const insertData: Record<string, any> = { club_id: clubId, name: folderName, created_by: userId };
-  if (teamId) insertData.team_id = teamId;
+  const insertData = { club_id: clubId, name: folderName, created_by: userId, team_id: teamId || null };
 
   const { data: newFolder, error } = await supabase
     .from("vault_folders")
-    .insert(insertData)
+    .insert(insertData as any)
     .select("id")
     .single();
 
