@@ -15,8 +15,8 @@ interface UseInitialChatBottomPinOptions {
  * Pins a chat scroll container to the bottom on initial load.
  *
  * Strategy: wait for content to appear and layout to stabilise (quiet for 80ms),
- * then snap once and reveal. Much simpler than the previous rAF-loop approach,
- * eliminating scroll thrash during the stabilisation window.
+ * then snap once and reveal. Once the user scrolls away from the bottom, all
+ * automatic snapping is suppressed until the next navigation (resetKey change).
  */
 export function useInitialChatBottomPin({
   scrollContainerRef,
@@ -31,10 +31,41 @@ export function useInitialChatBottomPin({
   const [isPinned, setIsPinned] = useState(false);
   // Track if we "pinned" due to empty content so we can re-pin when data arrives
   const pinnedWhileEmptyRef = useRef(false);
+  // Once the user scrolls away from bottom, suppress all automatic snapping
+  const userScrolledAwayRef = useRef(false);
 
   useEffect(() => {
     onPinnedRef.current = onPinned;
   }, [onPinned]);
+
+  // Reset the user-scrolled flag whenever the chat changes
+  useEffect(() => {
+    userScrolledAwayRef.current = false;
+  }, [resetKey]);
+
+  // Detect manual scrolling away from bottom to suppress auto-snap
+  useEffect(() => {
+    if (!isPinned) return;
+
+    const viewport = resolveChatScrollViewport(scrollContainerRef.current);
+    if (!viewport) return;
+
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        const metrics = getChatScrollMetrics(scrollContainerRef.current);
+        if (metrics && metrics.distanceFromBottom > 200) {
+          userScrolledAwayRef.current = true;
+        }
+      });
+    };
+
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, [isPinned, scrollContainerRef, resetKey]);
 
   useLayoutEffect(() => {
     if (!enabled) {
@@ -42,48 +73,27 @@ export function useInitialChatBottomPin({
       return;
     }
 
-    // Once pinned for this key, stay pinned — never flash visibility:hidden again.
-    // The only re-pin case is a genuinely new resetKey (navigating to a different chat).
     if (pinnedKeyRef.current === resetKey) {
-      // If we pinned while empty and content has now arrived, just re-snap
-      // to the bottom without hiding. This avoids the flash.
-      // Use multi-pass rAF to ensure DOM has rendered the new messages.
       if (pinnedWhileEmptyRef.current && itemCount > 0) {
         pinnedWhileEmptyRef.current = false;
-        // First pass: immediate snap
         scrollChatToBottom(scrollContainerRef.current);
-        // Second pass: after React commit & browser paint
         requestAnimationFrame(() => {
           scrollChatToBottom(scrollContainerRef.current);
-          // Third pass: catch any async image/layout shifts
           requestAnimationFrame(() => {
             scrollChatToBottom(scrollContainerRef.current);
-            // Final pass after a short delay for any remaining layout
-            setTimeout(() => {
-              scrollChatToBottom(scrollContainerRef.current);
-            }, 150);
           });
         });
 
-        // Set up a temporary ResizeObserver to catch container height changes
-        // (e.g. keyboard dismissing after login on iOS). Without this, the
-        // scroll position goes stale when the container grows taller.
+        // Brief resize guard — only snap if user hasn't scrolled away
         const viewport = resolveChatScrollViewport(scrollContainerRef.current);
         if (viewport && typeof ResizeObserver !== "undefined") {
           const guardObserver = new ResizeObserver(() => {
-            scrollChatToBottom(scrollContainerRef.current);
+            if (!userScrolledAwayRef.current) {
+              scrollChatToBottom(scrollContainerRef.current);
+            }
           });
           guardObserver.observe(viewport);
-          // Also watch for DOM mutations (late-loading avatars, metadata)
-          const guardMutation = new MutationObserver(() => {
-            scrollChatToBottom(scrollContainerRef.current);
-          });
-          guardMutation.observe(viewport, { childList: true, subtree: true });
-          // Tear down after 2s settle window
-          setTimeout(() => {
-            guardObserver.disconnect();
-            guardMutation.disconnect();
-          }, 2000);
+          setTimeout(() => guardObserver.disconnect(), 1000);
         }
       }
       return;
@@ -104,7 +114,6 @@ export function useInitialChatBottomPin({
     let observer: MutationObserver | null = null;
     let mountObserver: MutationObserver | null = null;
     let resizeObserver: ResizeObserver | null = null;
-    let postPinObserver: MutationObserver | null = null;
     let postPinResizeObserver: ResizeObserver | null = null;
     let stabilityTimer: ReturnType<typeof setTimeout> | null = null;
     let maxTimer: ReturnType<typeof setTimeout> | null = null;
@@ -112,7 +121,7 @@ export function useInitialChatBottomPin({
     let rafId = 0;
     const STABILITY_MS = 100;
     const MAX_WAIT_MS = 1500;
-    const POST_PIN_GUARD_MS = 2000;
+    const POST_PIN_GUARD_MS = 1200;
     const BOTTOM_THRESHOLD_PX = 2;
     const MAX_SETTLE_ATTEMPTS = 8;
 
@@ -120,12 +129,16 @@ export function useInitialChatBottomPin({
       observer?.disconnect();
       mountObserver?.disconnect();
       resizeObserver?.disconnect();
-      postPinObserver?.disconnect();
       postPinResizeObserver?.disconnect();
       if (stabilityTimer) clearTimeout(stabilityTimer);
       if (maxTimer) clearTimeout(maxTimer);
       if (postPinTimer) clearTimeout(postPinTimer);
       cancelAnimationFrame(rafId);
+    };
+
+    const guardSnap = () => {
+      if (cancelled || userScrolledAwayRef.current) return;
+      scrollChatToBottom(scrollContainerRef.current);
     };
 
     const startPostPinGuard = () => {
@@ -134,39 +147,16 @@ export function useInitialChatBottomPin({
       const viewport = resolveChatScrollViewport(scrollContainerRef.current);
       if (!viewport) return;
 
-      const guardSnap = () => {
-        if (cancelled) return;
-        scrollChatToBottom(scrollContainerRef.current);
-      };
-
-      postPinObserver?.disconnect();
-      postPinObserver = new MutationObserver(() => {
-        guardSnap();
-      });
-      postPinObserver.observe(viewport, { childList: true, subtree: true, characterData: true });
-
+      // Only watch for resize changes (layout shifts), not DOM mutations
+      // which fire on every render and fight user scrolling
       postPinResizeObserver?.disconnect();
       if (typeof ResizeObserver !== "undefined") {
-        postPinResizeObserver = new ResizeObserver(() => {
-          guardSnap();
-        });
-
+        postPinResizeObserver = new ResizeObserver(() => guardSnap());
         postPinResizeObserver.observe(viewport);
-
-        const contentTarget =
-          bottomAnchorRef?.current?.parentElement ??
-          viewport.firstElementChild ??
-          viewport;
-
-        if (contentTarget instanceof HTMLElement && contentTarget !== viewport) {
-          postPinResizeObserver.observe(contentTarget);
-        }
       }
 
       guardSnap();
       postPinTimer = setTimeout(() => {
-        postPinObserver?.disconnect();
-        postPinObserver = null;
         postPinResizeObserver?.disconnect();
         postPinResizeObserver = null;
       }, POST_PIN_GUARD_MS);
@@ -292,20 +282,17 @@ export function useInitialChatBottomPin({
     };
   }, [bottomAnchorRef, enabled, itemCount, resetKey, scrollContainerRef]);
 
-  // On resume: remember whether we were near bottom, then re-snap after
-  // query refetch re-renders messages. Uses a MutationObserver with a longer
-  // settle window to survive the full invalidate→fetch→render cycle.
+  // On resume: snap to bottom only if user was already near bottom.
+  // Uses a short observation window instead of aggressive polling.
   useEffect(() => {
     if (!isPinned) return;
 
     let wasNearBottom = true;
     let observer: MutationObserver | null = null;
     let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
-    let snapInterval: ReturnType<typeof setInterval> | null = null;
 
     const onHidden = () => {
       if (document.visibilityState === "hidden") {
-        // Remember scroll position before app goes to background
         const viewport = resolveChatScrollViewport(scrollContainerRef.current);
         if (viewport) {
           const maxScroll = viewport.scrollHeight - viewport.clientHeight;
@@ -315,37 +302,29 @@ export function useInitialChatBottomPin({
     };
 
     const onVisible = () => {
-      if (document.visibilityState !== "visible" || !wasNearBottom) return;
+      if (document.visibilityState !== "visible" || !wasNearBottom || userScrolledAwayRef.current) return;
 
       const viewport = resolveChatScrollViewport(scrollContainerRef.current);
       if (!viewport) return;
 
-      // Immediate snap for cached content
       scrollChatToBottom(scrollContainerRef.current);
 
-      // Watch for DOM mutations from query refetch, snap on each change
       observer?.disconnect();
       observer = new MutationObserver(() => {
-        scrollChatToBottom(scrollContainerRef.current);
+        if (!userScrolledAwayRef.current) {
+          scrollChatToBottom(scrollContainerRef.current);
+        }
       });
       observer.observe(viewport, { childList: true, subtree: true });
 
-      // Also poll-snap every 100ms to catch any React re-render gaps
-      // the MutationObserver might miss (e.g. full list replacement)
-      if (snapInterval) clearInterval(snapInterval);
-      snapInterval = setInterval(() => {
-        scrollChatToBottom(scrollContainerRef.current);
-      }, 100);
-
-      // Stop after 2s settle window — covers slow network refetch
       if (watchdogTimer) clearTimeout(watchdogTimer);
       watchdogTimer = setTimeout(() => {
         observer?.disconnect();
         observer = null;
-        if (snapInterval) { clearInterval(snapInterval); snapInterval = null; }
-        // Final snap
-        requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
-      }, 2000);
+        if (!userScrolledAwayRef.current) {
+          requestAnimationFrame(() => scrollChatToBottom(scrollContainerRef.current));
+        }
+      }, 1500);
     };
 
     document.addEventListener("visibilitychange", onHidden);
@@ -353,7 +332,6 @@ export function useInitialChatBottomPin({
     return () => {
       observer?.disconnect();
       if (watchdogTimer) clearTimeout(watchdogTimer);
-      if (snapInterval) clearInterval(snapInterval);
       document.removeEventListener("visibilitychange", onHidden);
       document.removeEventListener("visibilitychange", onVisible);
     };
