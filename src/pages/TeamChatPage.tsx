@@ -826,9 +826,10 @@ export default function TeamChatPage() {
               return old;
             }
             
-            // Check for temp message to replace
+            // Check for temp message to replace — match by author AND text to avoid
+            // replacing the wrong temp message when a user sends multiple messages quickly
             const tempIndex = existingMessages.findIndex(
-              m => m.id.startsWith('temp-') && m.author_id === newMsg.author_id
+              m => m.id.startsWith('temp-') && m.author_id === newMsg.author_id && m.text === newMsg.text
             );
             
             const messageToAdd: Message = {
