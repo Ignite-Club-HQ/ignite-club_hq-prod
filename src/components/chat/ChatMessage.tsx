@@ -465,6 +465,7 @@ export const ChatMessage = memo(function ChatMessage({
       armDismissGuard();
       // Haptic feedback
       hapticImpactLight();
+      window.getSelection?.()?.removeAllRanges();
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
@@ -740,6 +741,9 @@ export const ChatMessage = memo(function ChatMessage({
                     : (isOwn ? 'brightness(1.06)' : 'brightness(0.97)'),
                 };
               })() : undefined}
+              onPointerDown={(e) => e.preventDefault()}
+              onContextMenu={(e) => e.preventDefault()}
+              onDragStart={(e) => e.preventDefault()}
             >
               <div className="text-sm min-w-0 max-w-full overflow-hidden">
                 <MessageContent 
