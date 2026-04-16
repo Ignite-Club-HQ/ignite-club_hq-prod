@@ -797,7 +797,17 @@ export const ChatMessage = memo(function ChatMessage({
           onDelete={handleDelete}
           onReport={() => setShowReportDialog(true)}
           onBlock={() => setShowBlockDialog(true)}
+          hasImage={!!imageUrl}
+          onViewImage={() => setShowFullscreenImage(true)}
         />
+        {/* Fullscreen image viewer triggered from action sheet */}
+        {showFullscreenImage && imageUrl && (
+          <FullscreenImageViewer
+            src={imageUrl}
+            alt="Attachment"
+            onClose={() => setShowFullscreenImage(false)}
+          />
+        )}
         {/* Link previews rendered outside the message bubble */}
         <div className="w-full min-w-0 max-w-full self-stretch overflow-hidden">
           <MessageContent text={text} previewsOnly />
