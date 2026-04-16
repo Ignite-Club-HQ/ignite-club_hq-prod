@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Send, UserPlus, Mail, User, CheckCircle2 } from "lucide-react";
+import { Loader2, Send, UserPlus, Mail, User, CheckCircle2, Share2, Copy } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -35,11 +38,16 @@ export default function InviteOtherParentSheet({
   const queryClient = useQueryClient();
   const [parentName, setParentName] = useState("");
   const [parentEmail, setParentEmail] = useState("");
+  const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
   const [sent, setSent] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [resolvedClubName, setResolvedClubName] = useState("");
+  const [resolvedTeamName, setResolvedTeamName] = useState("");
 
   const sendInvite = useMutation({
     mutationFn: async () => {
-      if (!user || !parentName.trim() || !parentEmail.trim()) return;
+      if (!user || !parentName.trim()) return;
+      if (deliveryMethod === "email" && !parentEmail.trim()) return;
 
       const inviteToken = crypto.randomUUID();
 
@@ -55,6 +63,8 @@ export default function InviteOtherParentSheet({
         clubId = team?.club_id || null;
       }
 
+      const trimmedEmail = parentEmail.trim().toLowerCase();
+
       const { data: insertedInvite, error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: teamId,
         club_id: clubId,
@@ -62,7 +72,7 @@ export default function InviteOtherParentSheet({
         invited_user_id: null,
         invited_by_user_id: user.id,
         invited_label: parentName.trim(),
-        invited_email: parentEmail.trim().toLowerCase(),
+        invited_email: trimmedEmail || null,
         invite_token: inviteToken,
         metadata: {
           guardian_child_id: childId,
@@ -102,40 +112,47 @@ export default function InviteOtherParentSheet({
         teamName = team?.name || "";
       }
 
-      await supabase.functions.invoke("send-email", {
-        body: {
-          to: parentEmail.trim().toLowerCase(),
-          subject: `${clubName}: You've been invited as a guardian for ${childName} ⚽`,
-          template: "team-invite",
-          senderName: clubName,
-          replyTo: contactEmail,
-          templateData: {
-            recipientName: parentName.trim(),
-            invitedEmail: parentEmail.trim().toLowerCase(),
-            teamName,
-            clubName,
-            roleName: "Parent",
-            inviteLink: link,
-            clubLogoUrl,
-            childrenNames: [childName],
-          },
-        },
-      });
+      setResolvedClubName(clubName);
+      setResolvedTeamName(teamName);
 
-      if (insertedInvite?.id) {
-        await supabase
-          .from("pending_invites")
-          .update({
-            email_sent_at: new Date().toISOString(),
-          } as any)
-          .eq("id", insertedInvite.id);
+      // Only send email if delivery method is email
+      if (deliveryMethod === "email" && trimmedEmail) {
+        await supabase.functions.invoke("send-email", {
+          body: {
+            to: trimmedEmail,
+            subject: `${clubName}: You've been invited as a guardian for ${childName} ⚽`,
+            template: "team-invite",
+            senderName: clubName,
+            replyTo: contactEmail,
+            templateData: {
+              recipientName: parentName.trim(),
+              invitedEmail: trimmedEmail,
+              teamName,
+              clubName,
+              roleName: "Parent",
+              inviteLink: link,
+              clubLogoUrl,
+              childrenNames: [childName],
+            },
+          },
+        });
+
+        if (insertedInvite?.id) {
+          await supabase
+            .from("pending_invites")
+            .update({
+              email_sent_at: new Date().toISOString(),
+            } as any)
+            .eq("id", insertedInvite.id);
+        }
       }
 
       return { link };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["child_guardians", childId] });
       queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
+      setInviteLink(data?.link || null);
       setSent(true);
     },
     onError: (error: Error) => {
@@ -149,13 +166,29 @@ export default function InviteOtherParentSheet({
       setTimeout(() => {
         setParentName("");
         setParentEmail("");
+        setDeliveryMethod("share");
         setSent(false);
+        setInviteLink(null);
+        setResolvedClubName("");
+        setResolvedTeamName("");
       }, 300);
     }
     onOpenChange(open);
   };
 
-  const canSend = parentName.trim() && parentEmail.trim() && parentEmail.includes("@");
+  const buildShareMessage = () => {
+    const parts: string[] = [];
+    if (resolvedClubName) {
+      parts.push(`You've been invited to join ${resolvedClubName} as a guardian for ${childName}.`);
+    } else {
+      parts.push(`You've been invited as a guardian for ${childName}.`);
+    }
+    parts.push("");
+    parts.push(`Tap the link to accept: ${inviteLink}`);
+    return parts.join("\n");
+  };
+
+  const canSend = parentName.trim() && (deliveryMethod === "share" || (parentEmail.trim() && parentEmail.includes("@")));
 
   return (
     <ResponsiveDialog open={open} onOpenChange={handleClose}>
@@ -168,7 +201,7 @@ export default function InviteOtherParentSheet({
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
-                  <ResponsiveDialogTitle>Invite Sent!</ResponsiveDialogTitle>
+                  <ResponsiveDialogTitle>Invite Created!</ResponsiveDialogTitle>
                   <ResponsiveDialogDescription>
                     Guardian invite for {childName}
                   </ResponsiveDialogDescription>
@@ -181,8 +214,55 @@ export default function InviteOtherParentSheet({
                 <p className="font-medium mb-1">{parentName}</p>
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5" />
-                  Invite sent to {parentEmail}
+                  {deliveryMethod === "email" && parentEmail
+                    ? `Invite sent to ${parentEmail}`
+                    : "Invite link created — share it with them"}
                 </p>
+              </div>
+
+              {/* Share invite via other channels */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-center">Share invite via</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={async () => {
+                      const msg = buildShareMessage();
+                      if (Capacitor.isNativePlatform()) {
+                        try {
+                          await Share.share({
+                            title: `Join ${resolvedClubName || resolvedTeamName}`,
+                            text: msg,
+                            dialogTitle: "Share invite",
+                          });
+                          return;
+                        } catch {
+                          // cancelled
+                        }
+                      }
+                      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                    }}
+                  >
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Share
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(inviteLink || "");
+                        toast({ title: "Invite link copied!" });
+                      } catch {
+                        toast({ title: "Failed to copy link", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Link
+                  </Button>
+                </div>
               </div>
 
               <p className="text-sm text-muted-foreground text-center">
@@ -213,6 +293,7 @@ export default function InviteOtherParentSheet({
             </ResponsiveDialogHeader>
 
             <div className="space-y-4 py-2">
+              {/* Name input */}
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -223,15 +304,49 @@ export default function InviteOtherParentSheet({
                 />
               </div>
 
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="email"
-                  value={parentEmail}
-                  onChange={(e) => setParentEmail(e.target.value)}
-                  placeholder="Parent's email"
-                  className="pl-10"
-                />
+              {/* Delivery method toggle */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">How to deliver invite?</Label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setDeliveryMethod("email"); }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                      deliveryMethod === "email"
+                        ? "bg-primary/10 border-primary text-primary"
+                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                    }`}
+                  >
+                    <Mail className="h-4 w-4" />
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDeliveryMethod("share"); setParentEmail(""); }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                      deliveryMethod === "share"
+                        ? "bg-primary/10 border-primary text-primary"
+                        : "bg-muted/30 border-border text-muted-foreground hover:bg-muted/50"
+                    }`}
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Share Link
+                  </button>
+                </div>
+
+                {deliveryMethod === "email" && (
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      value={parentEmail}
+                      onChange={(e) => setParentEmail(e.target.value)}
+                      placeholder="e.g., parent@example.com"
+                      className="pl-10"
+                      autoFocus
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -246,7 +361,11 @@ export default function InviteOtherParentSheet({
                 ) : (
                   <Send className="h-4 w-4 mr-2" />
                 )}
-                {canSend ? "Send Invite" : "Enter name and email"}
+                {!parentName.trim()
+                  ? "Enter name to continue"
+                  : deliveryMethod === "email" && !parentEmail.trim()
+                    ? "Enter email to continue"
+                    : "Create Invite"}
               </Button>
             </ResponsiveDialogFooter>
           </>
