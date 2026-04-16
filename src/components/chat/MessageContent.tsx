@@ -247,8 +247,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         />
       )}
 
-      {/* Text content */}
-      {text && (
+      {/* Text content - hide if only event tokens remain */}
+      {text && parts.some(p => (p.type === "text" && p.content.trim()) || p.type === "mention" || p.type === "link" || p.type === "markdown-link") && (
         <div
           className="min-w-0 max-w-full whitespace-pre-wrap"
           style={{
