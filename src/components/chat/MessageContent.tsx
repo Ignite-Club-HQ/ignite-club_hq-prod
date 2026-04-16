@@ -183,6 +183,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   if (previewsOnly) {
     return (
       <>
+        {/* Event link cards */}
+        {eventIds.length > 0 && (
+          <div className="space-y-2 min-w-0 max-w-full">
+            {eventIds.map((eventId) => (
+              <EventLinkCard key={eventId} eventId={eventId} />
+            ))}
+          </div>
+        )}
+
         {/* YouTube embeds */}
         {youtubeUrls.length > 0 && (
           <div className="space-y-2 min-w-0 max-w-full">
