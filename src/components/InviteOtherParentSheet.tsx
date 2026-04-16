@@ -314,15 +314,83 @@ export default function InviteOtherParentSheet({
             </ResponsiveDialogHeader>
 
             <div className="space-y-4 py-2">
-              {/* Name input */}
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={parentName}
-                  onChange={(e) => setParentName(e.target.value)}
-                  placeholder="Parent's name"
-                  className="pl-10"
-                />
+              {/* Name input with search */}
+              <div className="space-y-1">
+                {selectedUser ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={selectedUser.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                        {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium flex-1">{selectedUser.display_name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setParentName("");
+                      }}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={parentName}
+                        onChange={(e) => setParentName(e.target.value)}
+                        placeholder="Search or type parent's name"
+                        className="pl-10"
+                        autoFocus
+                      />
+                    </div>
+
+                    {isSearching && debouncedName.length >= 2 && (
+                      <div className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Searching...
+                      </div>
+                    )}
+
+                    {!isSearching && searchResults.length > 0 && debouncedName.length >= 2 && (
+                      <div className="space-y-1 max-h-40 overflow-y-auto rounded-lg border bg-muted/30 p-1.5">
+                        {searchResults.map((result) => (
+                          <button
+                            key={result.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedUser(result);
+                              setParentName(result.display_name || "");
+                            }}
+                            className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
+                          >
+                            <Avatar className="h-7 w-7">
+                              <AvatarImage src={result.avatar_url || undefined} />
+                              <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                                {result.display_name?.[0]?.toUpperCase() || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                          </button>
+                        ))}
+                        <p className="text-xs text-muted-foreground px-2 pt-1">
+                          Or continue typing to invite as new
+                        </p>
+                      </div>
+                    )}
+
+                    {!isSearching && debouncedName.length >= 2 && searchResults.length === 0 && (
+                      <p className="text-xs text-muted-foreground py-1">
+                        No existing users found — will be invited as new
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Delivery method toggle */}
