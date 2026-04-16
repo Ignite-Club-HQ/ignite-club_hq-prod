@@ -26,6 +26,10 @@ const URL_REGEX = /(?:https?:\/\/|www\.)[^\s]+/gi;
 const MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
 // Markdown link pattern [text](url)
 const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+// Event link pattern [event:uuid]
+const EVENT_LINK_REGEX = /\[event:([0-9a-f-]{36})\]/gi;
+// Event URL pattern - matches /events/uuid in URLs
+const EVENT_URL_REGEX = /(?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})/gi;
 
 // Ensure URL has protocol for href
 const ensureProtocol = (url: string): string => {
