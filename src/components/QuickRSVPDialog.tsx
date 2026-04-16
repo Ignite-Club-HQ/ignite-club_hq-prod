@@ -227,6 +227,7 @@ export function QuickRSVPDialog({
   const childRsvpMutation = useMutation({
     mutationFn: async ({ childId, status }: { childId: string; status: RsvpStatus }) => {
       const existingChildRsvp = existingRsvps?.find(r => r.child_id === childId);
+      let rsvpId: string | null = null;
       
       if (existingChildRsvp) {
         const { error } = await supabase
@@ -234,14 +235,28 @@ export function QuickRSVPDialog({
           .update({ status })
           .eq("id", existingChildRsvp.id);
         if (error) throw error;
+        rsvpId = existingChildRsvp.id;
       } else {
-        const { error } = await supabase.from("rsvps").insert({
+        const { data: newRsvp, error } = await supabase.from("rsvps").insert({
           event_id: eventId,
           user_id: user!.id,
           child_id: childId,
           status,
-        });
+        }).select("id").single();
         if (error) throw error;
+        rsvpId = newRsvp?.id || null;
+      }
+
+      // Fire-and-forget: award early RSVP points for child
+      if (status === "going" && rsvpId) {
+        awardEarlyRsvpPoints({
+          userId: user!.id,
+          childId,
+          eventDate,
+          rsvpId,
+          clubId,
+          clubName,
+        }).catch(console.error);
       }
     },
     onSuccess: () => {

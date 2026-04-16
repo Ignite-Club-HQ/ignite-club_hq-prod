@@ -8,6 +8,7 @@ const EARLY_RSVP_POINTS = 3;
 
 interface AwardEarlyRsvpPointsParams {
   userId: string;
+  childId?: string | null;
   eventDate: string;
   rsvpId: string;
   clubId: string;
@@ -21,6 +22,7 @@ interface AwardEarlyRsvpPointsParams {
  */
 export async function awardEarlyRsvpPoints({
   userId,
+  childId,
   eventDate,
   rsvpId,
   clubId,
@@ -75,25 +77,44 @@ export async function awardEarlyRsvpPoints({
       return false; // Another request already marked it
     }
 
-    // Atomic points increment
-    const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
-      _user_id: userId,
-      _amount: EARLY_RSVP_POINTS,
-    });
+    // Atomic points increment — child or user
+    let balanceAfter: number;
+    let previousPoints: number;
 
-    if (updateError) {
-      console.error("Failed to award early RSVP points:", updateError);
-      // Revert the flag since points weren't actually awarded
-      await supabase.from("rsvps").update({ early_rsvp_points_awarded: false }).eq("id", rsvpId);
-      return false;
+    if (childId) {
+      const { data: newPoints, error: updateError } = await supabase.rpc('increment_child_ignite_points', {
+        _child_id: childId,
+        _amount: EARLY_RSVP_POINTS,
+      });
+
+      if (updateError) {
+        console.error("Failed to award early RSVP points to child:", updateError);
+        await supabase.from("rsvps").update({ early_rsvp_points_awarded: false }).eq("id", rsvpId);
+        return false;
+      }
+
+      balanceAfter = newPoints || 0;
+      previousPoints = balanceAfter - EARLY_RSVP_POINTS;
+    } else {
+      const { data: newPoints, error: updateError } = await supabase.rpc('increment_ignite_points', {
+        _user_id: userId,
+        _amount: EARLY_RSVP_POINTS,
+      });
+
+      if (updateError) {
+        console.error("Failed to award early RSVP points:", updateError);
+        await supabase.from("rsvps").update({ early_rsvp_points_awarded: false }).eq("id", rsvpId);
+        return false;
+      }
+
+      balanceAfter = newPoints || 0;
+      previousPoints = balanceAfter - EARLY_RSVP_POINTS;
     }
-
-    const balanceAfter = newPoints || 0;
-    const previousPoints = balanceAfter - EARLY_RSVP_POINTS;
 
     // Record in points history
     await recordPointsHistory({
       userId,
+      childId: childId || undefined,
       clubId,
       amount: EARLY_RSVP_POINTS,
       balanceAfter,
@@ -110,17 +131,18 @@ export async function awardEarlyRsvpPoints({
       .single();
     const pointsName = (clubData as any)?.points_display_name || 'reward points';
 
-    // Create notification
+    // Create notification (always notify the parent user)
     await supabase.from("notifications").insert({
       user_id: userId,
       type: "early_rsvp_points",
-      message: `🎯 Early bird bonus! You earned +${EARLY_RSVP_POINTS} ${pointsName} for RSVPing ${daysUntilEvent} days before the event. Keep it up!`,
+      message: `🎯 Early bird bonus! ${childId ? 'Your child' : 'You'} earned +${EARLY_RSVP_POINTS} ${pointsName} for RSVPing ${daysUntilEvent} days before the event. Keep it up!`,
       related_id: clubId,
     });
 
     // Check reward threshold
     const rewardName = await checkRewardThreshold({
-      userId,
+      userId: childId ? undefined : userId,
+      childId: childId || undefined,
       clubId,
       previousPoints,
       newPoints: balanceAfter,

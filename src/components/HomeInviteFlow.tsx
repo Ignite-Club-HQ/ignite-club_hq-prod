@@ -169,10 +169,15 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                 <MobileCardSelect
                   value={selectedClubId || ""}
                   onValueChange={handleClubSelect}
-                  options={clubs.map(c => ({
-                    value: c.id,
-                    label: c.name,
-                  }))}
+                  options={clubs.map(c => {
+                    const hasTeams = allTeams.some(t => t.club_id === c.id);
+                    return {
+                      value: c.id,
+                      label: c.name,
+                      description: !hasTeams ? "No teams" : undefined,
+                      disabled: !hasTeams,
+                    };
+                  })}
                   label="Select Club"
                   placeholder="Choose a club..."
                   searchable={clubs.length > 5}
