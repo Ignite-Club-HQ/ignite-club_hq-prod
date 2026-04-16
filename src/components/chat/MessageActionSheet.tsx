@@ -110,7 +110,7 @@ export function MessageActionSheet({
     const isMessageCopied = copiedText === messageText;
     actions.push({
       label: isMessageCopied ? "Copied!" : "Copy Message",
-      icon: isMessageCopied ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />,
+      icon: isMessageCopied ? <Check className="h-5 w-5 text-emerald-500" /> : <Copy className="h-5 w-5" />,
       onClick: () => {
         navigator.clipboard.writeText(messageText).then(() => {
           setCopiedText(messageText);
@@ -139,7 +139,7 @@ export function MessageActionSheet({
       // Copy Link action
       actions.push({
         label: isLinkCopied ? "Link Copied!" : "Copy Link",
-        icon: isLinkCopied ? <Check className="h-5 w-5 text-green-500" /> : <Link className="h-5 w-5" />,
+        icon: isLinkCopied ? <Check className="h-5 w-5 text-emerald-500" /> : <Link className="h-5 w-5" />,
         onClick: () => {
           navigator.clipboard.writeText(firstUrl).then(() => {
             setCopiedText(firstUrl);
