@@ -1334,6 +1334,7 @@ export default function ClubChatPage() {
               clubId={clubId}
               showEventPicker={true}
               onEventSelect={() => setEventPickerOpen(true)}
+              hasText={!!message.trim()}
             />
             <MentionInput
               placeholder="Send announcement..."

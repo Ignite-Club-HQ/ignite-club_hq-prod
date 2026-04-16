@@ -1674,6 +1674,7 @@ export default function GroupChatPage() {
             teamId={group?.team_id || undefined}
             showEventPicker={true}
             onEventSelect={() => setEventPickerOpen(true)}
+            hasText={!!message.trim()}
           />
           <MentionInput
             value={message}
