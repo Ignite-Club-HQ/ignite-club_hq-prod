@@ -107,14 +107,15 @@ export function MessageActionSheet({
 
   // Copy message text
   if (messageText) {
+    const isMessageCopied = copiedText === messageText;
     actions.push({
-      label: "Copy Message",
-      icon: <Copy className="h-5 w-5" />,
+      label: isMessageCopied ? "Copied!" : "Copy Message",
+      icon: isMessageCopied ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />,
       onClick: () => {
         navigator.clipboard.writeText(messageText).then(() => {
-          toast.success("Message copied");
+          setCopiedText(messageText);
         }).catch(() => {
-          toast.error("Failed to copy");
+          setCopiedText(null);
         });
       },
     });
@@ -122,25 +123,28 @@ export function MessageActionSheet({
     // Extract URLs for link actions
     const urls = extractUrls(messageText);
     if (urls.length > 0) {
+      const firstUrl = urls[0];
+      const isLinkCopied = copiedText === firstUrl;
+      
       // Open Link action
       actions.push({
         label: urls.length > 1 ? "Open Link" : "Open Link",
         icon: <ExternalLink className="h-5 w-5" />,
         onClick: () => {
-          const fullUrl = urls[0].startsWith('http') ? urls[0] : `https://${urls[0]}`;
+          const fullUrl = firstUrl.startsWith('http') ? firstUrl : `https://${firstUrl}`;
           safeOpenUrl(fullUrl);
         },
       });
 
       // Copy Link action
       actions.push({
-        label: "Copy Link",
-        icon: <Link className="h-5 w-5" />,
+        label: isLinkCopied ? "Link Copied!" : "Copy Link",
+        icon: isLinkCopied ? <Check className="h-5 w-5 text-green-500" /> : <Link className="h-5 w-5" />,
         onClick: () => {
-          navigator.clipboard.writeText(urls[0]).then(() => {
-            toast.success("Link copied");
+          navigator.clipboard.writeText(firstUrl).then(() => {
+            setCopiedText(firstUrl);
           }).catch(() => {
-            toast.error("Failed to copy");
+            setCopiedText(null);
           });
         },
       });
