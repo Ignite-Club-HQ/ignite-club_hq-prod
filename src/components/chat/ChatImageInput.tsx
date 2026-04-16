@@ -308,9 +308,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     );
   }
 
-  // Show dedicated image and event icons
+  // Show dedicated image and event icons (attachment action group)
   return (
-    <div className="flex shrink-0 items-center self-end">
+    <div className="flex shrink-0 items-center gap-3 self-end pl-2">
       <input
         ref={fileInputRef}
         type="file"
@@ -323,13 +323,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         type="button"
         onClick={handleImageButtonClick}
         disabled={disabled || uploading}
-        className="flex items-center justify-center h-[44px] w-[40px] shrink-0 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-foreground hover:text-primary transition-colors disabled:opacity-50"
         aria-label="Upload photo"
       >
         {uploading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-[22px] w-[22px] animate-spin" />
         ) : (
-          <ImagePlus className="h-5 w-5" />
+          <ImagePlus className="h-[22px] w-[22px]" strokeWidth={2.25} />
         )}
       </button>
       {showEventPicker && onEventSelect && (
@@ -337,10 +337,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           type="button"
           onClick={() => onEventSelect("")}
           disabled={disabled}
-          className="flex items-center justify-center h-[44px] w-[40px] shrink-0 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
           aria-label="Share event"
         >
-          <CalendarPlus className="h-5 w-5" />
+          <CalendarPlus className="h-[22px] w-[22px]" strokeWidth={1.75} />
         </button>
       )}
     </div>
