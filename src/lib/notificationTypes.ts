@@ -128,6 +128,14 @@ export const NOTIFICATION_ICON_CONFIG: Record<string, NotificationIconConfig> = 
   half_time: { iconName: 'Timer', colorClass: 'text-yellow-500', emoji: '⏸️' },
   game_finished: { iconName: 'Trophy', colorClass: 'text-amber-500', emoji: '🏆' },
   formation_change: { iconName: 'LayoutGrid', colorClass: 'text-blue-500', emoji: '⚽' },
+
+  // Gamification types
+  points_awarded: { iconName: 'Zap', colorClass: 'text-amber-500', emoji: '⭐' },
+  leaderboard_update: { iconName: 'TrendingUp', colorClass: 'text-green-500', emoji: '📈' },
+  streak_progress: { iconName: 'Flame', colorClass: 'text-orange-500', emoji: '🔥' },
+  streak_bonus: { iconName: 'Flame', colorClass: 'text-orange-500', emoji: '🔥' },
+  reward_proximity: { iconName: 'Gift', colorClass: 'text-purple-500', emoji: '🎁' },
+  reward_unlocked: { iconName: 'Gift', colorClass: 'text-purple-500', emoji: '🎁' },
 };
 
 // Default icon config for unknown types
