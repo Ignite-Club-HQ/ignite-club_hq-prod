@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
@@ -44,11 +44,13 @@ interface MessageActionSheetProps {
   canDelete: boolean;
   isSystemMessage?: boolean;
   messageText?: string;
+  hasImage?: boolean;
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onReport: () => void;
   onBlock: () => void;
+  onViewImage?: () => void;
 }
 
 export function MessageActionSheet({
