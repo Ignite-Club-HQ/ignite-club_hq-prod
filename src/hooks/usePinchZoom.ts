@@ -14,6 +14,7 @@ interface UsePinchZoomReturn {
   onTouchMove: (e: TouchEvent) => void;
   onTouchEnd: () => void;
   resetZoom: () => void;
+  isPanningOrPinching: () => boolean;
 }
 
 export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
@@ -23,7 +24,6 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     translateY: 0,
   });
 
-  // Use a ref to always have the latest state for callbacks
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -32,6 +32,10 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
   const initialCenter = useRef<{ x: number; y: number } | null>(null);
   const lastTranslate = useRef({ x: 0, y: 0 });
   const isPinching = useRef(false);
+
+  // Single-finger pan state
+  const panStart = useRef<{ x: number; y: number } | null>(null);
+  const isPanning = useRef(false);
 
   const getDistance = (touch1: React.Touch, touch2: React.Touch): number => {
     const dx = touch1.clientX - touch2.clientX;
@@ -49,11 +53,18 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
   const onTouchStart = useCallback((e: TouchEvent) => {
     if (e.touches.length === 2) {
       isPinching.current = true;
+      isPanning.current = false;
+      panStart.current = null;
       initialDistance.current = getDistance(e.touches[0], e.touches[1]);
       initialScale.current = stateRef.current.scale;
       initialCenter.current = getCenter(e.touches[0], e.touches[1]);
       lastTranslate.current = { x: stateRef.current.translateX, y: stateRef.current.translateY };
       e.preventDefault();
+    } else if (e.touches.length === 1 && stateRef.current.scale > 1) {
+      // Start single-finger pan when zoomed
+      panStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      lastTranslate.current = { x: stateRef.current.translateX, y: stateRef.current.translateY };
+      isPanning.current = true;
     }
   }, []);
 
@@ -88,6 +99,15 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
         translateX: newTranslateX,
         translateY: newTranslateY,
       });
+    } else if (e.touches.length === 1 && isPanning.current && panStart.current) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - panStart.current.x;
+      const dy = e.touches[0].clientY - panStart.current.y;
+      setState({
+        scale: stateRef.current.scale,
+        translateX: lastTranslate.current.x + dx,
+        translateY: lastTranslate.current.y + dy,
+      });
     }
   }, [minScale, maxScale]);
 
@@ -95,8 +115,9 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     initialDistance.current = null;
     initialCenter.current = null;
     isPinching.current = false;
+    panStart.current = null;
+    isPanning.current = false;
     
-    // Always snap back if close to 1 — read from ref to avoid stale closure
     if (stateRef.current.scale < 1.15) {
       setState({ scale: 1, translateX: 0, translateY: 0 });
     }
@@ -104,6 +125,10 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
 
   const resetZoom = useCallback(() => {
     setState({ scale: 1, translateX: 0, translateY: 0 });
+  }, []);
+
+  const isPanningOrPinching = useCallback(() => {
+    return isPinching.current || isPanning.current || stateRef.current.scale > 1;
   }, []);
 
   return {
@@ -114,5 +139,6 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     onTouchMove,
     onTouchEnd,
     resetZoom,
+    isPanningOrPinching,
   };
 }

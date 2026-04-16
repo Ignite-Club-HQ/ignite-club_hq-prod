@@ -695,8 +695,8 @@ export default function TeamDetailPage() {
     <div className="py-4 space-y-4">
       {/* Header: Back, Team name + member count, Invite CTA, overflow menu */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="shrink-0 h-10 w-10" aria-label="Go back" onClick={() => {
-          if (window.history.length > 1) {
+        <Button variant="ghost" size="icon" className="shrink-0 min-h-[48px] min-w-[48px] h-12 w-12 -ml-2" aria-label="Go back" onClick={() => {
+          if (location.key && location.key !== "default") {
             navigate(-1);
           } else {
             navigate(`/clubs/${team.club_id}`);
@@ -1462,7 +1462,7 @@ export default function TeamDetailPage() {
                                   enabled={(isAdmin || isClubAdmin)}
                                   className={cn(
                                     "border shadow-sm",
-                                    isPending ? "opacity-70" : ""
+                                    ""
                                   )}
                                 >
                                   <CardContent
@@ -1570,7 +1570,7 @@ export default function TeamDetailPage() {
                                   onClick: () => setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds }),
                                   className: "bg-orange-500",
                                 }] : []}
-                                className="opacity-70 border shadow-sm"
+                                className="border shadow-sm"
                               >
                                 <CardContent className="p-3.5 flex items-center gap-3">
                                   <Avatar className="h-9 w-9 shrink-0">

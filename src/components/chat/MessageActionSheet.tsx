@@ -1,12 +1,11 @@
-import { useState } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { toast } from "sonner";
 
 interface MessageAction {
   label: string;
@@ -71,6 +70,14 @@ export function MessageActionSheet({
   onViewImage,
 }: MessageActionSheetProps) {
   const [showSafety, setShowSafety] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (copiedText) {
+      const timer = setTimeout(() => setCopiedText(null), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [copiedText]);
 
   const actions: MessageAction[] = [];
 
@@ -100,14 +107,15 @@ export function MessageActionSheet({
 
   // Copy message text
   if (messageText) {
+    const isMessageCopied = copiedText === messageText;
     actions.push({
-      label: "Copy Message",
-      icon: <Copy className="h-5 w-5" />,
+      label: isMessageCopied ? "Copied!" : "Copy Message",
+      icon: isMessageCopied ? <Check className="h-5 w-5 text-primary" /> : <Copy className="h-5 w-5" />,
       onClick: () => {
         navigator.clipboard.writeText(messageText).then(() => {
-          toast.success("Message copied");
+          setCopiedText(messageText);
         }).catch(() => {
-          toast.error("Failed to copy");
+          setCopiedText(null);
         });
       },
     });
@@ -115,25 +123,28 @@ export function MessageActionSheet({
     // Extract URLs for link actions
     const urls = extractUrls(messageText);
     if (urls.length > 0) {
+      const firstUrl = urls[0];
+      const isLinkCopied = copiedText === firstUrl;
+      
       // Open Link action
       actions.push({
         label: urls.length > 1 ? "Open Link" : "Open Link",
         icon: <ExternalLink className="h-5 w-5" />,
         onClick: () => {
-          const fullUrl = urls[0].startsWith('http') ? urls[0] : `https://${urls[0]}`;
+          const fullUrl = firstUrl.startsWith('http') ? firstUrl : `https://${firstUrl}`;
           safeOpenUrl(fullUrl);
         },
       });
 
       // Copy Link action
       actions.push({
-        label: "Copy Link",
-        icon: <Link className="h-5 w-5" />,
+        label: isLinkCopied ? "Link Copied!" : "Copy Link",
+        icon: isLinkCopied ? <Check className="h-5 w-5 text-primary" /> : <Link className="h-5 w-5" />,
         onClick: () => {
-          navigator.clipboard.writeText(urls[0]).then(() => {
-            toast.success("Link copied");
+          navigator.clipboard.writeText(firstUrl).then(() => {
+            setCopiedText(firstUrl);
           }).catch(() => {
-            toast.error("Failed to copy");
+            setCopiedText(null);
           });
         },
       });
@@ -237,6 +248,12 @@ export function MessageActionSheet({
                 Block User
               </button>
             </>
+          )}
+          {copiedText && (
+            <div className="mx-6 mt-2 mb-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+              <p className="text-xs text-muted-foreground mb-1">Copied to clipboard:</p>
+              <p className="text-sm text-foreground truncate">{copiedText}</p>
+            </div>
           )}
         </div>
       </SheetContent>

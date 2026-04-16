@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, ChevronLeft, ChevronRight, Trash2, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -73,6 +73,7 @@ export function PhotoLightbox({
     onTouchMove: pinchTouchMove,
     onTouchEnd: pinchTouchEnd,
     resetZoom,
+    isPanningOrPinching,
   } = usePinchZoom(1, 4);
 
   const handlePrev = () => {
@@ -104,24 +105,27 @@ export function PhotoLightbox({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      pinchTouchStart(e);
-    } else if (e.touches.length === 1 && scale === 1) {
+    // Always let pinch zoom handle 2-finger and 1-finger-when-zoomed
+    pinchTouchStart(e);
+    // Only pass to swipe if not zoomed
+    if (e.touches.length === 1 && scale <= 1) {
       swipeHandlers.onTouchStart(e);
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      pinchTouchMove(e);
-    } else if (e.touches.length === 1 && scale === 1) {
+    pinchTouchMove(e);
+    if (e.touches.length === 1 && scale <= 1) {
       swipeHandlers.onTouchMove(e);
     }
   };
 
   const handleTouchEnd = () => {
     pinchTouchEnd();
-    swipeHandlers.onTouchEnd();
+    // Only trigger swipe navigation if not zoomed
+    if (scale <= 1) {
+      swipeHandlers.onTouchEnd();
+    }
   };
 
   const handleDoubleClick = () => {
