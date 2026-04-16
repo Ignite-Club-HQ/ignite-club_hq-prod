@@ -3,15 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
-import { Calendar, Clock, MapPin, Search } from "lucide-react";
+import { Clock, MapPin, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface EventPickerSheetProps {
   open: boolean;
@@ -79,11 +79,16 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
   };
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} handleOnly>
-      <DrawerContent className="max-h-[85vh] flex flex-col overflow-hidden" style={{ touchAction: "pan-y" }}>
-        <DrawerHeader className="pb-2">
-          <DrawerTitle>Share Event</DrawerTitle>
-        </DrawerHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        className="!left-0 !right-0 !top-auto !bottom-0 !w-full !max-w-none !translate-x-0 !translate-y-0 !rounded-t-[10px] !rounded-b-none !border-x-0 !border-b-0 !p-0 !gap-0 !max-h-[85vh] !overflow-hidden !flex !flex-col"
+      >
+        <div className="mx-auto mt-4 mb-2 h-2 w-[100px] rounded-full bg-muted" />
+
+        <DialogHeader className="px-4 pb-2">
+          <DialogTitle>Share Event</DialogTitle>
+        </DialogHeader>
 
         <div className="px-4 pb-2">
           <div className="relative">
@@ -97,7 +102,10 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
           </div>
         </div>
 
-        <div data-vaul-no-drag className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 space-y-1.5">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6 space-y-1.5"
+          style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+        >
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-14 w-full rounded-lg" />
@@ -160,7 +168,7 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
             })
           )}
         </div>
-      </DrawerContent>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }
