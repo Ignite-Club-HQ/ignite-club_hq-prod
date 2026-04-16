@@ -19,6 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { MessageContent } from "./MessageContent";
+import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { MessageReadAvatars } from "./MessageReadAvatars";
 import { ReadReceiptSheet } from "./ReadReceiptSheet";
 import type { ReaderInfo } from "@/hooks/useMessageReads";
@@ -104,6 +105,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [showFullscreenImage, setShowFullscreenImage] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -144,6 +146,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
       resetReplyReveal();
       armDismissGuard();
       hapticImpactLight();
+      window.getSelection?.()?.removeAllRanges();
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
@@ -412,8 +415,20 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
                       : (isOwnMessage ? 'brightness(1.06)' : 'brightness(0.97)'),
                   };
                 })() : undefined}
+                onPointerDown={(e) => e.preventDefault()}
+                onContextMenu={(e) => e.preventDefault()}
+                onDragStart={(e) => e.preventDefault()}
               >
-                <div className="text-sm min-w-0 max-w-full overflow-hidden"><MessageContent text={msg.text} imageUrl={msg.image_url} showPreviews={false} /></div>
+                <div className="text-sm min-w-0 max-w-full overflow-hidden">
+                  <MessageContent
+                    text={msg.text}
+                    imageUrl={msg.image_url}
+                    showPreviews={false}
+                    showImageActions={!isOwnMessage && !!msg.image_url}
+                    onReportImage={() => setShowReportDialog(true)}
+                    onBlockImageAuthor={() => setShowBlockDialog(true)}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -514,7 +529,16 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         onDelete={() => { setShowDeleteConfirm(true); closeActionUi(); }}
         onReport={() => { setShowReportDialog(true); closeActionUi(); }}
         onBlock={() => { setShowBlockDialog(true); closeActionUi(); }}
+        hasImage={!!msg.image_url}
+        onViewImage={() => { setShowFullscreenImage(true); closeActionUi(); }}
       />
+      {showFullscreenImage && msg.image_url && (
+        <FullscreenImageViewer
+          src={msg.image_url}
+          alt="Attachment"
+          onClose={() => setShowFullscreenImage(false)}
+        />
+      )}
       {showReportDialog && (
         <ReportMessageDialog
           isOpen={showReportDialog}

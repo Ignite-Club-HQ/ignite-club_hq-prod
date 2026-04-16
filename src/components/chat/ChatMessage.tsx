@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { removeMessageFromCache } from "@/lib/messageCache";
 import { MessageContent } from "./MessageContent";
+import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
 import { MessageReadAvatars } from "./MessageReadAvatars";
@@ -106,6 +107,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [showMenu, setShowMenu] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFullscreenImage, setShowFullscreenImage] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
   const [optimisticReactions, setOptimisticReactions] = useState<Reaction[]>(reactions);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -463,6 +465,7 @@ export const ChatMessage = memo(function ChatMessage({
       armDismissGuard();
       // Haptic feedback
       hapticImpactLight();
+      window.getSelection?.()?.removeAllRanges();
       reactionPickerOpenedAtRef.current = Date.now();
       setShowMenu(true);
       setShowReactionPicker(true);
@@ -738,6 +741,9 @@ export const ChatMessage = memo(function ChatMessage({
                     : (isOwn ? 'brightness(1.06)' : 'brightness(0.97)'),
                 };
               })() : undefined}
+              onPointerDown={(e) => e.preventDefault()}
+              onContextMenu={(e) => e.preventDefault()}
+              onDragStart={(e) => e.preventDefault()}
             >
               <div className="text-sm min-w-0 max-w-full overflow-hidden">
                 <MessageContent 
@@ -795,7 +801,17 @@ export const ChatMessage = memo(function ChatMessage({
           onDelete={handleDelete}
           onReport={() => setShowReportDialog(true)}
           onBlock={() => setShowBlockDialog(true)}
+          hasImage={!!imageUrl}
+          onViewImage={() => setShowFullscreenImage(true)}
         />
+        {/* Fullscreen image viewer triggered from action sheet */}
+        {showFullscreenImage && imageUrl && (
+          <FullscreenImageViewer
+            src={imageUrl}
+            alt="Attachment"
+            onClose={() => setShowFullscreenImage(false)}
+          />
+        )}
         {/* Link previews rendered outside the message bubble */}
         <div className="w-full min-w-0 max-w-full self-stretch overflow-hidden">
           <MessageContent text={text} previewsOnly />

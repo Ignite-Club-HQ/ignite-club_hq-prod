@@ -325,7 +325,8 @@ export default function MessagesPage() {
       return { clubs, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 15000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.memberClubs ? { clubs: cachedData.memberClubs as any, latestMessages: cachedData.latestClubMessages ?? {} } : undefined),
@@ -369,7 +370,8 @@ export default function MessagesPage() {
       };
     },
     enabled: !!user && initialized,
-    staleTime: 60000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     placeholderData: (prev) => prev,
   });
 
@@ -446,7 +448,8 @@ export default function MessagesPage() {
       return { teams, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 15000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.teams ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} } : undefined),
@@ -702,7 +705,8 @@ export default function MessagesPage() {
       return { groups, latestMessages };
     },
     enabled: !!user && initialized,
-    staleTime: 15000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchInterval: 30000,
     gcTime: 10 * 60 * 1000,
     placeholderData: (prev) => prev ?? (cachedData?.chatGroups ? { groups: cachedData.chatGroups as any, latestMessages: cachedData.latestGroupMessages ?? {} } : undefined),
@@ -813,7 +817,8 @@ export default function MessagesPage() {
       return result;
     },
     enabled: !!user && initialized && !!hasAnyProAccess,
-    staleTime: 30000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;
       return cachedData.dmConversations.map(conv => ({
