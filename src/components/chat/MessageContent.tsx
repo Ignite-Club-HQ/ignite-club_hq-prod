@@ -2,6 +2,7 @@ import { useMemo, memo, useState, useCallback, useRef, useEffect } from "react";
 import { LinkPreview } from "./LinkPreview";
 import { YouTubeEmbed, extractYouTubeId } from "./YouTubeEmbed";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
+import { EventLinkCard } from "./EventLinkCard";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
