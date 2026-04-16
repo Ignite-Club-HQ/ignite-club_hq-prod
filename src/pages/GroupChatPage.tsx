@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search, CalendarPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
+import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -172,6 +173,7 @@ export default function GroupChatPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
+  const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -1671,6 +1673,14 @@ export default function GroupChatPage() {
             clubId={group?.club_id || undefined}
             teamId={group?.team_id || undefined}
           />
+          <button
+            type="button"
+            onClick={() => setEventPickerOpen(true)}
+            disabled={sendMessageMutation.isPending}
+            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <CalendarPlus className="h-5 w-5" />
+          </button>
           <MentionInput
             value={message}
             onChange={(val) => {
@@ -1701,6 +1711,16 @@ export default function GroupChatPage() {
             <Send className="h-5 w-5" />
           </button>
         </div>
+        <EventPickerSheet
+          open={eventPickerOpen}
+          onOpenChange={setEventPickerOpen}
+          onSelectEvent={(eventId) => {
+            const token = `[event:${eventId}]`;
+            setMessage(message ? `${message} ${token}` : token);
+          }}
+          teamId={group?.team_id || undefined}
+          clubId={group?.club_id || undefined}
+        />
       </div>
 
       {/* Edit Group Dialog */}

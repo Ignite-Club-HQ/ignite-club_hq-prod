@@ -8,7 +8,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Search, UserPlus } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Search, UserPlus, CalendarPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
@@ -32,6 +32,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
+import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -127,6 +128,7 @@ export default function TeamChatPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
+  const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1441,6 +1443,14 @@ export default function TeamChatPage() {
             clubId={team?.club_id}
             teamId={teamId}
           />
+          <button
+            type="button"
+            onClick={() => setEventPickerOpen(true)}
+            disabled={sendMessageMutation.isPending}
+            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <CalendarPlus className="h-5 w-5" />
+          </button>
           <MentionInput
             placeholder="Type a message..."
             value={message}
@@ -1469,6 +1479,16 @@ export default function TeamChatPage() {
             )}
           </button>
         </div>
+        <EventPickerSheet
+          open={eventPickerOpen}
+          onOpenChange={setEventPickerOpen}
+          onSelectEvent={(eventId) => {
+            const token = `[event:${eventId}]`;
+            setMessage(message ? `${message} ${token}` : token);
+          }}
+          teamId={teamId}
+          clubId={team?.club_id}
+        />
       </div>
 
       {selectedMember && teamId && team && (

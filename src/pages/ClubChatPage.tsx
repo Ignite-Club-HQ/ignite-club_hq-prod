@@ -8,7 +8,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Building2, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Building2, Search, CalendarPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
@@ -28,6 +28,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
+import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -111,6 +112,7 @@ export default function ClubChatPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
+  const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -1331,6 +1333,14 @@ export default function ClubChatPage() {
               disabled={sendMutation.isPending}
               clubId={clubId}
             />
+            <button
+              type="button"
+              onClick={() => setEventPickerOpen(true)}
+              disabled={sendMutation.isPending}
+              className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              <CalendarPlus className="h-5 w-5" />
+            </button>
             <MentionInput
               placeholder="Send announcement..."
               value={message}
@@ -1358,6 +1368,15 @@ export default function ClubChatPage() {
               )}
             </button>
           </div>
+          <EventPickerSheet
+            open={eventPickerOpen}
+            onOpenChange={setEventPickerOpen}
+            onSelectEvent={(eventId) => {
+              const token = `[event:${eventId}]`;
+              setMessage(message ? `${message} ${token}` : token);
+            }}
+            clubId={clubId}
+          />
           <p className="text-xs text-muted-foreground mt-1">
             Long-press a message to react • Tap menu to reply
           </p>
