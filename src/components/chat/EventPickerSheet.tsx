@@ -103,6 +103,7 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
         </div>
 
         <div
+          data-chat-scroll-lock="true"
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6 space-y-1.5"
           style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
         >

@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { LinkPreview } from "./LinkPreview";
 import { EmojiPicker } from "./EmojiPicker";
+import { EventLinkCard } from "./EventLinkCard";
 import { Capacitor } from "@capacitor/core";
 
 interface MentionInputProps {
@@ -80,7 +81,7 @@ function parseRawValue(raw: string): RawSegment[] {
       segments.push({
         type: "event",
         raw: match[0],
-        display: "Shared event",
+        display: "",
         rawStart: match.index,
         rawEnd: match.index + match[0].length,
         eventId: match[5],
@@ -295,6 +296,15 @@ export function MentionInput({
   }, [value]);
 
   const hasEventToken = useMemo(() => EVENT_TOKEN_REGEX.test(value), [value]);
+
+  const eventIds = useMemo(
+    () => [...new Set(Array.from(value.matchAll(EVENT_TOKEN_REGEX), (match) => match[1]).filter(Boolean))].slice(0, 3),
+    [value]
+  );
+
+  const removeEventToken = useCallback((eventId: string) => {
+    onChange(value.replace(new RegExp(`\\s*\\[event:${eventId}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
+  }, [onChange, value]);
 
   // Fetch users based on team/club/group context
   const { data: users } = useQuery({
@@ -533,6 +543,25 @@ export function MentionInput({
         </div>
       )}
 
+      {eventIds.length > 0 && (
+        <div className="w-full min-w-0 max-w-full space-y-2">
+          {eventIds.map((eventId) => (
+            <div key={eventId} className="flex items-start gap-2 min-w-0 max-w-full">
+              <div className="min-w-0 flex-1">
+                <EventLinkCard eventId={eventId} />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeEventToken(eventId)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-[22px] bg-muted/60 px-1 min-h-[44px] transition-all duration-150">
         {showEmojiPicker && (
           <div className="flex items-center h-[44px]">
@@ -570,7 +599,7 @@ export function MentionInput({
               }
             }}
             disabled={disabled}
-            placeholder={placeholder}
+             placeholder={hasEventToken ? "" : placeholder}
             rows={1}
             wrap="soft"
             autoComplete="off"
