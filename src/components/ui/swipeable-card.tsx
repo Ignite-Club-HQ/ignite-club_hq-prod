@@ -117,7 +117,7 @@ export function SwipeableCard({ children, actions, className, enabled = true }: 
 
       {/* Foreground card */}
       <Card
-        className={cn("relative transition-transform will-change-transform", className)}
+        className={cn("relative transition-transform will-change-transform bg-card", className)}
         style={{
           transform: `translateX(${offsetX}px)`,
           transition: isDragging.current ? "none" : "transform 200ms ease-out",
