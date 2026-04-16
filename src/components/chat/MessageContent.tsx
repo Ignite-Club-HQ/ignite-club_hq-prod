@@ -227,7 +227,19 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
       {/* Text content */}
       {text && (
-        <div className="min-w-0 max-w-full whitespace-pre-wrap" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+        <div
+          className="min-w-0 max-w-full whitespace-pre-wrap"
+          style={{
+            overflowWrap: 'break-word',
+            wordBreak: 'break-word',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            WebkitTouchCallout: 'none',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
+        >
           {parts.length === 0 ? (
             // Fallback: render text as-is if parsing fails
             text
@@ -242,6 +254,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block max-w-full align-top break-words underline hover:opacity-80"
+                    style={{
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      WebkitTouchCallout: 'none',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
                     onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(part.content); }}
                   >
                     {part.linkText}
@@ -260,6 +278,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block max-w-full align-top break-all underline hover:opacity-80"
+                    style={{
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      WebkitTouchCallout: 'none',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
                     onClick={(e) => { e.preventDefault(); handleLinkClick(e); safeOpenUrl(ensureProtocol(part.content)); }}
                   >
                     {truncateUrl(part.content)}
@@ -271,6 +295,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                   <span
                     key={index}
                     className="font-semibold"
+                    style={{
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      WebkitTouchCallout: 'none',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
                   >
                     {part.content}
                   </span>
@@ -278,13 +308,33 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               }
               if (part.type === "text" && part.content) {
                 return (
-                  <span key={index}>
+                  <span
+                    key={index}
+                    style={{
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      WebkitTouchCallout: 'none',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
+                  >
                     {searchQuery ? highlightText(part.content, searchQuery) : part.content}
                   </span>
                 );
               }
               // Safety fallback for any part with content
-              return part.content ? <span key={index}>{part.content}</span> : null;
+              return part.content ? (
+                <span
+                  key={index}
+                  style={{
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    WebkitTouchCallout: 'none',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  {part.content}
+                </span>
+              ) : null;
             })
           )}
         </div>
