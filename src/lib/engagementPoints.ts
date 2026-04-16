@@ -12,22 +12,21 @@ import {
  * Engagement Points System
  * 
  * Awards points for active app usage with daily cooldowns:
- * - Chat message (team/club/group): 1 pt per unique chat per day, max 2/day
- * - Photo upload: 2 pts per upload, max 4 pts/day (2 uploads)
+ * - Chat message (team/club/group): 2 pts per unique chat per day, max 6/day
+ * - Photo upload: 3 pts per upload, max 6 pts/day (2 uploads)
  * - Photo comment: 1 pt per unique photo per day, max 3/day
  * 
- * Gamification layer:
- * - Actionable nudges in notifications (tells user what to do next)
- * - Leaderboard position alerts (top 20)
- * - Weekly engagement streak bonuses (3/5/7 day streaks)
- * - Reward proximity alerts (within 20% of next reward)
+ * Notifications:
+ * - NO instant push for individual engagement points (prevents spam)
+ * - Weekly digest summarises total engagement points earned
+ * - Instant push kept for: streaks, leaderboard moves, reward unlocks
  */
 
 type EngagementAction = 'chat_message' | 'photo_upload' | 'photo_comment';
 
 const ACTION_CONFIG: Record<EngagementAction, { points: number; dailyCap: number }> = {
-  chat_message: { points: 1, dailyCap: 2 },
-  photo_upload: { points: 2, dailyCap: 4 },
+  chat_message: { points: 2, dailyCap: 6 },
+  photo_upload: { points: 3, dailyCap: 6 },
   photo_comment: { points: 1, dailyCap: 3 },
 };
 
@@ -122,17 +121,8 @@ export async function awardEngagementPoints({
       description: DESCRIPTION_MAP[action],
     });
 
-    // Create notification with actionable nudge
-    const notificationMessage = buildEngagementNotification(action, config.points);
-
-    supabase.from("notifications").insert({
-      user_id: userId,
-      type: "points_awarded",
-      message: notificationMessage,
-      related_id: clubId,
-    }).then(({ error }) => {
-      if (error) console.error("Failed to create engagement points notification:", error);
-    });
+    // No instant notification for engagement points — weekly digest handles this.
+    // Gamification checks below still send notifications for streaks, leaderboard, and reward proximity.
 
     // Check reward threshold (fire and forget)
     checkRewardThreshold({
