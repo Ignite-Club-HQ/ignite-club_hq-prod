@@ -249,6 +249,12 @@ export function MessageActionSheet({
               </button>
             </>
           )}
+          {copiedText && (
+            <div className="mx-6 mt-2 mb-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+              <p className="text-xs text-muted-foreground mb-1">Copied to clipboard:</p>
+              <p className="text-sm text-foreground truncate">{copiedText}</p>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
