@@ -1324,7 +1324,7 @@ export default function ClubChatPage() {
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-          <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden">
+          <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
