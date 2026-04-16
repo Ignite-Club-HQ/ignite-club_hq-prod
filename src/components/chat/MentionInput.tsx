@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-// Input component replaced with native input for WhatsApp-style pill
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { LinkPreview } from "./LinkPreview";
@@ -27,8 +26,211 @@ interface SuggestedUser {
   avatar_url: string | null;
 }
 
+// Mention format: @[DisplayName](userId)
+const MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
+
 // URL detection regex
 const URL_REGEX = /https?:\/\/[^\s]+/g;
+
+/**
+ * Parse raw value into segments of plain text and mentions.
+ * Each mention segment includes its raw string, display text, and position in the raw string.
+ */
+interface RawSegment {
+  type: "text" | "mention";
+  raw: string;       // the raw string in value
+  display: string;   // what the user sees: for mentions it's "@DisplayName"
+  rawStart: number;  // start index in raw value
+  rawEnd: number;    // end index in raw value
+  userId?: string;
+  displayName?: string;
+}
+
+function parseRawValue(raw: string): RawSegment[] {
+  const segments: RawSegment[] = [];
+  const regex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+  let lastEnd = 0;
+  let match;
+
+  while ((match = regex.exec(raw)) !== null) {
+    if (match.index > lastEnd) {
+      const textPart = raw.slice(lastEnd, match.index);
+      segments.push({
+        type: "text",
+        raw: textPart,
+        display: textPart,
+        rawStart: lastEnd,
+        rawEnd: match.index,
+      });
+    }
+    segments.push({
+      type: "mention",
+      raw: match[0],
+      display: `@${match[1]}`,  // Show @ prefix for mentions
+      rawStart: match.index,
+      rawEnd: match.index + match[0].length,
+      userId: match[2],
+      displayName: match[1],
+    });
+    lastEnd = match.index + match[0].length;
+  }
+
+  if (lastEnd < raw.length) {
+    segments.push({
+      type: "text",
+      raw: raw.slice(lastEnd),
+      display: raw.slice(lastEnd),
+      rawStart: lastEnd,
+      rawEnd: raw.length,
+    });
+  }
+
+  return segments;
+}
+
+function segmentsToDisplay(segments: RawSegment[]): string {
+  return segments.map(s => s.display).join("");
+}
+
+/**
+ * Convert a cursor position in display space to raw space.
+ */
+function displayToRawCursor(segments: RawSegment[], displayPos: number): number {
+  let dispAccum = 0;
+  for (const seg of segments) {
+    const segDisplayLen = seg.display.length;
+    if (dispAccum + segDisplayLen >= displayPos) {
+      if (seg.type === "mention") {
+        // If cursor is within a mention display, snap to start or end
+        const offset = displayPos - dispAccum;
+        return offset <= segDisplayLen / 2 ? seg.rawStart : seg.rawEnd;
+      }
+      return seg.rawStart + (displayPos - dispAccum);
+    }
+    dispAccum += segDisplayLen;
+  }
+  return segments.length > 0 ? segments[segments.length - 1].rawEnd : 0;
+}
+
+/**
+ * Convert a cursor position in raw space to display space.
+ */
+function rawToDisplayCursor(segments: RawSegment[], rawPos: number): number {
+  let dispAccum = 0;
+  for (const seg of segments) {
+    if (rawPos <= seg.rawStart) {
+      return dispAccum;
+    }
+    if (rawPos < seg.rawEnd) {
+      if (seg.type === "mention") {
+        return dispAccum; // snap to start of mention
+      }
+      return dispAccum + (rawPos - seg.rawStart);
+    }
+    dispAccum += seg.display.length;
+  }
+  return dispAccum;
+}
+
+/**
+ * Given old raw value, old segments, and a new display string + cursor,
+ * reconstruct the new raw value preserving mentions that weren't edited.
+ */
+function reconstructRawFromDisplayEdit(
+  oldSegments: RawSegment[],
+  oldDisplay: string,
+  newDisplay: string,
+  cursorInNewDisplay: number
+): string {
+  // Simple diff: find common prefix and suffix between old and new display
+  let prefixLen = 0;
+  while (
+    prefixLen < oldDisplay.length &&
+    prefixLen < newDisplay.length &&
+    oldDisplay[prefixLen] === newDisplay[prefixLen]
+  ) {
+    prefixLen++;
+  }
+
+  let suffixLen = 0;
+  while (
+    suffixLen < oldDisplay.length - prefixLen &&
+    suffixLen < newDisplay.length - prefixLen &&
+    oldDisplay[oldDisplay.length - 1 - suffixLen] === newDisplay[newDisplay.length - 1 - suffixLen]
+  ) {
+    suffixLen++;
+  }
+
+  const oldEditStart = prefixLen;
+  const oldEditEnd = oldDisplay.length - suffixLen;
+  const newEditStart = prefixLen;
+  const newEditEnd = newDisplay.length - suffixLen;
+  const insertedText = newDisplay.slice(newEditStart, newEditEnd);
+
+  // Map display positions to raw positions
+  const rawEditStart = displayToRawCursor(oldSegments, oldEditStart);
+  const rawEditEnd = displayToRawCursor(oldSegments, oldEditEnd);
+
+  // Check if edit range covers any mentions partially or fully
+  // If a mention is partially in the edit range, remove the entire mention
+  let actualRawStart = rawEditStart;
+  let actualRawEnd = rawEditEnd;
+
+  for (const seg of oldSegments) {
+    if (seg.type === "mention") {
+      // If the edit overlaps with this mention at all, remove the entire mention
+      if (seg.rawStart < actualRawEnd && seg.rawEnd > actualRawStart) {
+        actualRawStart = Math.min(actualRawStart, seg.rawStart);
+        actualRawEnd = Math.max(actualRawEnd, seg.rawEnd);
+      }
+    }
+  }
+
+  // Rebuild: prefix raw + inserted text + suffix raw
+  const rawBefore = oldSegments.length > 0
+    ? oldSegments[0].raw.length > 0
+      ? getRawUpTo(oldSegments, actualRawStart)
+      : ""
+    : "";
+  const rawAfter = getRawFrom(oldSegments, actualRawEnd);
+
+  return rawBefore + insertedText + rawAfter;
+}
+
+function getRawUpTo(segments: RawSegment[], rawPos: number): string {
+  let result = "";
+  for (const seg of segments) {
+    if (seg.rawEnd <= rawPos) {
+      result += seg.raw;
+    } else if (seg.rawStart < rawPos) {
+      if (seg.type === "mention") {
+        // Don't include partial mentions
+      } else {
+        result += seg.raw.slice(0, rawPos - seg.rawStart);
+      }
+      break;
+    } else {
+      break;
+    }
+  }
+  return result;
+}
+
+function getRawFrom(segments: RawSegment[], rawPos: number): string {
+  let result = "";
+  for (const seg of segments) {
+    if (seg.rawStart >= rawPos) {
+      result += seg.raw;
+    } else if (seg.rawEnd > rawPos) {
+      if (seg.type === "mention") {
+        // Don't include partial mentions
+      } else {
+        result += seg.raw.slice(rawPos - seg.rawStart);
+      }
+    }
+  }
+  return result;
+}
 
 export function MentionInput({
   value,
@@ -45,34 +247,36 @@ export function MentionInput({
 }: MentionInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
-  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1); // in display space
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+
+  // Parse segments from raw value
+  const segments = useMemo(() => parseRawValue(value), [value]);
+  const displayValue = useMemo(() => segmentsToDisplay(segments), [segments]);
 
   // Auto-resize textarea
   const adjustHeight = useCallback(() => {
     const textarea = inputRef.current;
     if (!textarea) return;
     textarea.style.height = 'auto';
-    const maxHeight = 120; // ~5 lines
+    const maxHeight = 120;
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
-    // Sync highlight overlay scroll
     if (highlightRef.current) {
       highlightRef.current.scrollTop = textarea.scrollTop;
     }
   }, []);
 
-  // Re-adjust height when value changes (including reset on send)
   useEffect(() => {
     adjustHeight();
   }, [value, adjustHeight]);
 
   const detectedUrls = useMemo(() => {
     const matches = value.match(URL_REGEX) || [];
-    return [...new Set(matches)].slice(0, 3); // Max 3 previews
+    return [...new Set(matches)].slice(0, 3);
   }, [value]);
 
   // Fetch users based on team/club/group context
@@ -80,15 +284,14 @@ export function MentionInput({
     queryKey: ["mention-users", teamId, clubId, groupId, mentionSearch],
     queryFn: async () => {
       let userIds: string[] = [];
-      
+
       if (groupId) {
-        // For group chats, get users who have access to the group via their roles
         const { data: group } = await supabase
           .from("chat_groups")
           .select("team_id, club_id")
           .eq("id", groupId)
           .single();
-        
+
         if (group?.team_id) {
           const { data: roles } = await supabase
             .from("user_roles")
@@ -115,9 +318,8 @@ export function MentionInput({
           .eq("club_id", clubId);
         userIds = roles?.map((r) => r.user_id) || [];
       }
-      
+
       if (userIds.length === 0) {
-        // Fallback to all profiles if no context
         const { data } = await supabase
           .from("profiles")
           .select("id, display_name, avatar_url")
@@ -126,7 +328,7 @@ export function MentionInput({
           .limit(5);
         return data as SuggestedUser[];
       }
-      
+
       const { data } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
@@ -134,131 +336,113 @@ export function MentionInput({
         .not("display_name", "is", null)
         .ilike("display_name", `%${mentionSearch}%`)
         .limit(5);
-        
+
       return data as SuggestedUser[];
     },
     enabled: showSuggestions && mentionSearch.length >= 0,
   });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    const cursorPosition = e.target.selectionStart || 0;
-    
-    onChange(newValue);
-    adjustHeight();
-    
-    // Check for @ trigger
-    const textBeforeCursor = newValue.slice(0, cursorPosition);
+  // Highlighted segments for the overlay
+  const highlightedSegments = useMemo(() => {
+    return segments.map((seg, i) => ({
+      text: seg.display,
+      isMention: seg.type === "mention",
+      key: i,
+    }));
+  }, [segments]);
+
+  // Check for @ mention trigger in display text
+  const checkForMentionTrigger = useCallback((text: string, cursorPos: number) => {
+    const textBeforeCursor = text.slice(0, cursorPos);
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
-    
+
     if (lastAtIndex !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
+      // Don't trigger if there's a space or newline after @
       if (!textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
-        setShowSuggestions(true);
-        setMentionSearch(textAfterAt);
-        setMentionStartIndex(lastAtIndex);
-        setSelectedIndex(0);
-        return;
+        // Check if this @ is part of an existing mention display (e.g. "@John")
+        // We need to verify this isn't an already-completed mention
+        let isMentionDisplay = false;
+        let dispAccum = 0;
+        for (const seg of segments) {
+          if (seg.type === "mention") {
+            const mentionStart = dispAccum;
+            const mentionEnd = dispAccum + seg.display.length;
+            if (lastAtIndex >= mentionStart && lastAtIndex < mentionEnd) {
+              isMentionDisplay = true;
+              break;
+            }
+          }
+          dispAccum += seg.display.length;
+        }
+
+        if (!isMentionDisplay) {
+          setShowSuggestions(true);
+          setMentionSearch(textAfterAt);
+          setMentionStartIndex(lastAtIndex);
+          setSelectedIndex(0);
+          return;
+        }
       }
     }
-    
+
     setShowSuggestions(false);
     setMentionSearch("");
     setMentionStartIndex(-1);
-  };
+  }, [segments]);
 
-  // Convert raw value (with IDs) to display value (without IDs)
-  const rawToDisplay = useCallback((raw: string) => {
-    return raw.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1');
-  }, []);
+  const handleDisplayChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newDisplay = e.target.value;
+    const cursorPos = e.target.selectionStart || 0;
 
-  // Store mapping of display mentions to raw mentions
-  const mentionMap = useMemo(() => {
-    const map = new Map<string, string>();
-    const matches = value.matchAll(/@\[([^\]]+)\]\(([^)]+)\)/g);
-    for (const match of matches) {
-      map.set(match[1], match[0]);
-    }
-    return map;
-  }, [value]);
+    if (newDisplay === displayValue) return;
 
-  const displayValue = useMemo(() => rawToDisplay(value), [value, rawToDisplay]);
+    // Reconstruct raw value from display edit
+    const newRaw = reconstructRawFromDisplayEdit(segments, displayValue, newDisplay, cursorPos);
 
-  // Split display value into segments with mention highlights
-  const highlightedSegments = useMemo(() => {
-    const mentionNames = Array.from(mentionMap.keys());
-    if (mentionNames.length === 0) return [{ text: displayValue, isMention: false }];
-    const escaped = mentionNames.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const regex = new RegExp(`(${escaped.join('|')})`, 'g');
-    const parts = displayValue.split(regex);
-    return parts.map(part => ({
-      text: part,
-      isMention: mentionMap.has(part),
-    }));
-  }, [displayValue, mentionMap]);
+    onChange(newRaw);
+    adjustHeight();
 
-  // Convert display index to raw index
-  const displayIndexToRawIndex = useCallback((displayIdx: number) => {
-    let rawIdx = 0;
-    let dispIdx = 0;
-    const mentionRegex = /@\[([^\]]+)\]\([^)]+\)/g;
-    let lastEnd = 0;
-    let match;
-    
-    while ((match = mentionRegex.exec(value)) !== null) {
-      const beforeMention = value.slice(lastEnd, match.index);
-      // Count chars before this mention
-      if (dispIdx + beforeMention.length >= displayIdx) {
-        // Target is before this mention
-        return rawIdx + (displayIdx - dispIdx);
-      }
-      dispIdx += beforeMention.length;
-      rawIdx += beforeMention.length;
-      
-      // The mention displays as Name (no @ prefix)
-      const displayMentionLen = match[1].length;
-      const rawMentionLen = match[0].length;
-      
-      if (dispIdx + displayMentionLen > displayIdx) {
-        // Target is within this mention - return start of mention
-        return rawIdx;
-      }
-      
-      dispIdx += displayMentionLen;
-      rawIdx += rawMentionLen;
-      lastEnd = match.index + match[0].length;
-    }
-    
-    // Handle remaining text after last mention
-    const remaining = value.slice(lastEnd);
-    return rawIdx + Math.min(displayIdx - dispIdx, remaining.length);
-  }, [value]);
+    // Check for mention trigger
+    checkForMentionTrigger(newDisplay, cursorPos);
+  }, [segments, displayValue, onChange, adjustHeight, checkForMentionTrigger]);
 
   const insertMention = useCallback((user: SuggestedUser) => {
     if (mentionStartIndex === -1 || !user.display_name) return;
-    
-    // Convert display index to raw index
-    const rawStartIndex = displayIndexToRawIndex(mentionStartIndex);
-    
-    // Build the new raw value
+
+    // mentionStartIndex is in display space, pointing to the "@"
+    // We need to replace from "@" + mentionSearch in raw space
+    const rawStartIndex = displayToRawCursor(segments, mentionStartIndex);
+
+    // The raw text at this position should be "@" + mentionSearch
     const rawMention = `@[${user.display_name}](${user.id}) `;
-    
-    // Get parts of raw value
-    const beforeRaw = value.slice(0, rawStartIndex);
-    const afterRaw = value.slice(rawStartIndex + mentionSearch.length + 1);
-    
-    const newRaw = beforeRaw + rawMention + afterRaw;
-    
+
+    // Calculate what to remove: the "@" + search text
+    const removeLength = 1 + mentionSearch.length; // "@" + search text
+    const rawEndIndex = rawStartIndex + removeLength;
+
+    const newRaw = value.slice(0, rawStartIndex) + rawMention + value.slice(rawEndIndex);
+
     onChange(newRaw);
     setShowSuggestions(false);
     setMentionSearch("");
     setMentionStartIndex(-1);
-    
-    // Focus back on input
-    inputRef.current?.focus();
-  }, [mentionStartIndex, mentionSearch, value, onChange, displayIndexToRawIndex]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Focus and set cursor after the inserted mention
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const newSegments = parseRawValue(newRaw);
+        const newDisplayVal = segmentsToDisplay(newSegments);
+        // Find cursor position after the mention + space
+        const rawCursorPos = rawStartIndex + rawMention.length;
+        const displayCursorPos = rawToDisplayCursor(newSegments, rawCursorPos);
+        inputRef.current.setSelectionRange(displayCursorPos, displayCursorPos);
+      }
+    }, 0);
+  }, [mentionStartIndex, mentionSearch, value, onChange, segments]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (!showSuggestions || !users || users.length === 0) {
       if (e.key === "Enter" && !e.shiftKey && onKeyPress) {
         e.preventDefault();
@@ -281,7 +465,7 @@ export function MentionInput({
     } else if (e.key === "Escape") {
       setShowSuggestions(false);
     }
-  };
+  }, [showSuggestions, users, selectedIndex, insertMention, onKeyPress]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -290,50 +474,11 @@ export function MentionInput({
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  const handleDisplayChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newDisplay = e.target.value;
-    const cursorPos = e.target.selectionStart || 0;
-    
-    if (newDisplay === displayValue) return;
-    
-    let newRaw = newDisplay;
-    
-    mentionMap.forEach((rawMention, displayMention) => {
-      if (newRaw.includes(displayMention)) {
-        newRaw = newRaw.replace(displayMention, rawMention);
-      }
-    });
-    
-    onChange(newRaw);
-    adjustHeight();
-    
-    const textBeforeCursor = newDisplay.slice(0, cursorPos);
-    const lastAtIndex = textBeforeCursor.lastIndexOf("@");
-    
-    if (lastAtIndex !== -1) {
-      const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
-      if (!textAfterAt.includes(" ") && !textAfterAt.includes("\n")) {
-        const mentionAtCursor = textAfterAt;
-        const isExistingMention = mentionMap.has(mentionAtCursor);
-        
-        if (!isExistingMention) {
-          setShowSuggestions(true);
-          setMentionSearch(textAfterAt);
-          setMentionStartIndex(lastAtIndex);
-          setSelectedIndex(0);
-          return;
-        }
-      }
-    }
-    
-    setShowSuggestions(false);
-    setMentionSearch("");
-    setMentionStartIndex(-1);
-  };
-
   const handleEmojiSelect = useCallback((emoji: string) => {
-    const cursorPos = inputRef.current?.selectionStart || value.length;
-    const newValue = value.slice(0, cursorPos) + emoji + value.slice(cursorPos);
+    const cursorPos = inputRef.current?.selectionStart || displayValue.length;
+    // Convert display cursor to raw cursor for insertion
+    const rawCursorPos = displayToRawCursor(segments, cursorPos);
+    const newValue = value.slice(0, rawCursorPos) + emoji + value.slice(rawCursorPos);
     onChange(newValue);
 
     setTimeout(() => {
@@ -343,10 +488,11 @@ export function MentionInput({
       }
 
       inputRef.current?.focus();
-      const newPos = cursorPos + emoji.length;
-      inputRef.current?.setSelectionRange(newPos, newPos);
+      const newSegments = parseRawValue(newValue);
+      const newDisplayCursor = rawToDisplayCursor(newSegments, rawCursorPos + emoji.length);
+      inputRef.current?.setSelectionRange(newDisplayCursor, newDisplayCursor);
     }, 0);
-  }, [value, onChange, isNativeIOS]);
+  }, [value, onChange, isNativeIOS, segments, displayValue]);
 
   return (
     <div className="relative flex-1 min-w-0 max-w-full self-end space-y-2">
@@ -363,7 +509,7 @@ export function MentionInput({
           ))}
         </div>
       )}
-      
+
       <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-[22px] bg-muted/60 px-1 min-h-[44px] transition-all duration-150">
         {showEmojiPicker && (
           <div className="flex items-center h-[44px]">
@@ -371,7 +517,7 @@ export function MentionInput({
           </div>
         )}
         <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">
-          {/* Highlight overlay for mentions - hidden on native iOS to not interfere with paste menu */}
+          {/* Highlight overlay for mentions */}
           {!isNativeIOS && (
             <div
               ref={highlightRef}
@@ -379,10 +525,10 @@ export function MentionInput({
               className="absolute inset-0 pointer-events-none overflow-hidden px-2 pt-[13px] pb-[7px] text-base leading-[1.4] whitespace-pre-wrap break-words text-transparent"
               style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
             >
-              {highlightedSegments.map((seg, i) =>
+              {highlightedSegments.map((seg) =>
                 seg.isMention
-                  ? <span key={i} className="bg-primary/15 rounded px-0.5 text-transparent">{seg.text}</span>
-                  : <span key={i}>{seg.text}</span>
+                  ? <span key={seg.key} className="bg-primary/15 rounded px-0.5 text-transparent">{seg.text}</span>
+                  : <span key={seg.key}>{seg.text}</span>
               )}
             </div>
           )}
@@ -408,9 +554,9 @@ export function MentionInput({
           />
         </div>
       </div>
-      
+
       {showSuggestions && users && users.length > 0 && (
-        <div 
+        <div
           className="absolute bottom-full left-0 right-0 mb-1 bg-popover border rounded-lg shadow-lg overflow-hidden z-50"
           onClick={(e) => e.stopPropagation()}
         >
