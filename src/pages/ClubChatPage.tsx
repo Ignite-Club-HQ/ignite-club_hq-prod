@@ -1333,6 +1333,14 @@ export default function ClubChatPage() {
               disabled={sendMutation.isPending}
               clubId={clubId}
             />
+            <button
+              type="button"
+              onClick={() => setEventPickerOpen(true)}
+              disabled={sendMutation.isPending}
+              className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              <CalendarPlus className="h-5 w-5" />
+            </button>
             <MentionInput
               placeholder="Send announcement..."
               value={message}
@@ -1360,6 +1368,15 @@ export default function ClubChatPage() {
               )}
             </button>
           </div>
+          <EventPickerSheet
+            open={eventPickerOpen}
+            onOpenChange={setEventPickerOpen}
+            onSelectEvent={(eventId) => {
+              const token = `[event:${eventId}]`;
+              setMessage(message ? `${message} ${token}` : token);
+            }}
+            clubId={clubId}
+          />
           <p className="text-xs text-muted-foreground mt-1">
             Long-press a message to react • Tap menu to reply
           </p>

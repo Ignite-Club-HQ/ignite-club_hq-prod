@@ -1673,6 +1673,14 @@ export default function GroupChatPage() {
             clubId={group?.club_id || undefined}
             teamId={group?.team_id || undefined}
           />
+          <button
+            type="button"
+            onClick={() => setEventPickerOpen(true)}
+            disabled={sendMessageMutation.isPending}
+            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <CalendarPlus className="h-5 w-5" />
+          </button>
           <MentionInput
             value={message}
             onChange={(val) => {
@@ -1703,6 +1711,16 @@ export default function GroupChatPage() {
             <Send className="h-5 w-5" />
           </button>
         </div>
+        <EventPickerSheet
+          open={eventPickerOpen}
+          onOpenChange={setEventPickerOpen}
+          onSelectEvent={(eventId) => {
+            const token = `[event:${eventId}]`;
+            setMessage(message ? `${message} ${token}` : token);
+          }}
+          teamId={group?.team_id || undefined}
+          clubId={group?.club_id || undefined}
+        />
       </div>
 
       {/* Edit Group Dialog */}
