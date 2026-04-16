@@ -519,6 +519,11 @@ function getPreferenceColumn(notificationType: string | undefined): string | nul
     'reward_available': 'rewards_enabled',
     'early_rsvp_points': 'rewards_enabled',
     'engagement_reminder': 'rewards_enabled',
+    'streak_bonus': 'rewards_enabled',
+    'streak_progress': 'rewards_enabled',
+    'leaderboard_position': 'rewards_enabled',
+    'reward_proximity': 'rewards_enabled',
+    'weekly_engagement_digest': 'rewards_enabled',
     // POM/Stats types
     'player_of_match': 'pom_enabled',
     'game_stats_ready': 'pom_enabled',
