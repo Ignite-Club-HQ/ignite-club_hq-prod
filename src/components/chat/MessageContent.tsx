@@ -2,6 +2,7 @@ import { useMemo, memo, useState, useCallback, useRef, useEffect } from "react";
 import { LinkPreview } from "./LinkPreview";
 import { YouTubeEmbed, extractYouTubeId } from "./YouTubeEmbed";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
+import { EventLinkCard } from "./EventLinkCard";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
@@ -25,6 +26,10 @@ const URL_REGEX = /(?:https?:\/\/|www\.)[^\s]+/gi;
 const MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
 // Markdown link pattern [text](url)
 const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+// Event link pattern [event:uuid]
+const EVENT_LINK_REGEX = /\[event:([0-9a-f-]{36})\]/gi;
+// Event URL pattern - matches /events/uuid in URLs
+const EVENT_URL_REGEX = /(?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})/gi;
 
 // Ensure URL has protocol for href
 const ensureProtocol = (url: string): string => {
@@ -72,12 +77,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const parts = useMemo(() => {
     if (!text) return [];
     
-    const result: { type: "text" | "link" | "mention" | "markdown-link"; content: string; userId?: string; linkText?: string }[] = [];
+    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link"; content: string; userId?: string; linkText?: string }[] = [];
     let lastIndex = 0;
     
-    // Combined regex to find markdown links, plain URLs, and mentions
-    // Order matters: markdown links first to prevent plain URL matching the URL inside markdown
-    const combinedRegex = /(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
+    // Combined regex to find event tokens, markdown links, plain URLs, mentions, and event URLs
+    // Order matters: event tokens first, then markdown links, then full event URLs, then plain URLs, then mentions
+    const combinedRegex = /(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
     let match;
     
     while ((match = combinedRegex.exec(text)) !== null) {
@@ -90,21 +95,27 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       }
       
       if (match[1]) {
-        // Markdown link match: [text](url) - match[2] is text, match[3] is URL
+        // Event token: [event:uuid] - match[2] is the event ID
+        result.push({ type: "event-link", content: match[2] || "" });
+      } else if (match[3]) {
+        // Markdown link match: [text](url) - match[4] is text, match[5] is URL
         result.push({ 
           type: "markdown-link", 
-          content: match[3] || "", 
-          linkText: match[2] || "" 
+          content: match[5] || "", 
+          linkText: match[4] || "" 
         });
-      } else if (match[4]) {
+      } else if (match[6]) {
+        // Event URL match: /events/uuid - match[7] is the event ID
+        result.push({ type: "event-link", content: match[7] || "" });
+      } else if (match[8]) {
         // Plain URL match
-        result.push({ type: "link", content: match[4] });
-      } else if (match[5]) {
-        // Mention match - match[6] is display name, match[7] is userId
+        result.push({ type: "link", content: match[8] });
+      } else if (match[9]) {
+        // Mention match - match[10] is display name, match[11] is userId
         result.push({ 
           type: "mention", 
-          content: match[6] || "", 
-          userId: match[7] || "" 
+          content: match[10] || "", 
+          userId: match[11] || "" 
         });
       }
       
@@ -124,10 +135,11 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, [text]);
 
   // Extract URLs and categorize them
-  const { youtubeUrls, otherUrls } = useMemo(() => {
+  const { youtubeUrls, otherUrls, eventIds } = useMemo(() => {
     const urls = [...new Set(parts.filter(p => p.type === "link").map(p => p.content))];
     const youtube: { url: string; videoId: string }[] = [];
     const other: string[] = [];
+    const events = [...new Set(parts.filter(p => p.type === "event-link").map(p => p.content))];
 
     for (const url of urls) {
       const videoId = extractYouTubeId(url);
@@ -141,6 +153,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     return {
       youtubeUrls: youtube.slice(0, 2),
       otherUrls: other.slice(0, 2),
+      eventIds: events.slice(0, 3),
     };
   }, [parts]);
 
@@ -170,6 +183,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   if (previewsOnly) {
     return (
       <>
+        {/* Event link cards */}
+        {eventIds.length > 0 && (
+          <div className="space-y-2 min-w-0 max-w-full">
+            {eventIds.map((eventId) => (
+              <EventLinkCard key={eventId} eventId={eventId} />
+            ))}
+          </div>
+        )}
+
         {/* YouTube embeds */}
         {youtubeUrls.length > 0 && (
           <div className="space-y-2 min-w-0 max-w-full">
@@ -225,8 +247,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         />
       )}
 
-      {/* Text content */}
-      {text && (
+      {/* Text content - hide entirely when message contains event cards */}
+      {text && eventIds.length === 0 && (
         <div
           className="min-w-0 max-w-full whitespace-pre-wrap"
           style={{
@@ -265,6 +287,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     {part.linkText}
                   </a>
                 );
+               }
+              if (part.type === "event-link") {
+                // Event links are rendered as empty spans inline; the card is shown below
+                return <span key={index} />;
               }
               if (part.type === "link") {
                 const videoId = extractYouTubeId(part.content);
@@ -337,6 +363,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
               ) : null;
             })
           )}
+        </div>
+      )}
+
+      {/* Event link cards */}
+      {eventIds.length > 0 && (
+        <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {eventIds.map((eventId) => (
+            <EventLinkCard key={eventId} eventId={eventId} />
+          ))}
         </div>
       )}
 

@@ -284,9 +284,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Determine points based on role: coaches/team_admins get 10, everyone else gets 3
+      // Determine points based on role: coaches/team_admins get 10, everyone else gets 5
       const teamId = event?.team_id;
-      let attendancePts = 3; // Default for regular members
+      let attendancePts = 5; // Default for regular members
       let roleLabel = 'member';
 
       if (teamId) {

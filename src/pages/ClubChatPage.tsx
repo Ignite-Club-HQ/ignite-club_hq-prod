@@ -8,7 +8,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Building2, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Building2, Search, CalendarPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
@@ -28,6 +28,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
+import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -111,6 +112,7 @@ export default function ClubChatPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
+  const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -1330,6 +1332,9 @@ export default function ClubChatPage() {
               onImageUploaded={setImageUrl}
               disabled={sendMutation.isPending}
               clubId={clubId}
+              showEventPicker={true}
+              onEventSelect={() => setEventPickerOpen(true)}
+              hasText={!!message.trim()}
             />
             <MentionInput
               placeholder="Send announcement..."
@@ -1358,6 +1363,15 @@ export default function ClubChatPage() {
               )}
             </button>
           </div>
+          <EventPickerSheet
+            open={eventPickerOpen}
+            onOpenChange={setEventPickerOpen}
+            onSelectEvent={(eventId) => {
+              const token = `[event:${eventId}]`;
+              setMessage(message ? `${message} ${token}` : token);
+            }}
+            clubId={clubId}
+          />
           <p className="text-xs text-muted-foreground mt-1">
             Long-press a message to react • Tap menu to reply
           </p>

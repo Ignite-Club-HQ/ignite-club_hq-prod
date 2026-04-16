@@ -6291,6 +6291,10 @@ export type Database = {
         }[]
       }
       get_club_team_count: { Args: { _club_id: string }; Returns: number }
+      get_engagement_streak: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: number
+      }
       get_members_events_enabled: {
         Args: { member_ids: string[] }
         Returns: {
@@ -6408,6 +6412,10 @@ export type Database = {
           email: string
           user_id: string
         }[]
+      }
+      get_user_leaderboard_rank: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: number
       }
       has_role: {
         Args: {
@@ -6582,6 +6590,15 @@ export type Database = {
       team_has_club_pro_access: { Args: { _team_id: string }; Returns: boolean }
       team_has_club_pro_football_access: {
         Args: { _team_id: string }
+        Returns: boolean
+      }
+      try_award_streak_bonus: {
+        Args: {
+          _bonus_points: number
+          _club_id: string
+          _streak_length: number
+          _user_id: string
+        }
         Returns: boolean
       }
       try_insert_points_cooldown: {

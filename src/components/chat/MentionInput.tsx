@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { LinkPreview } from "./LinkPreview";
 import { EmojiPicker } from "./EmojiPicker";
+import { EventLinkCard } from "./EventLinkCard";
 import { Capacitor } from "@capacitor/core";
 
 interface MentionInputProps {
@@ -28,6 +29,7 @@ interface SuggestedUser {
 
 // Mention format: @[DisplayName](userId)
 const MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
+const EVENT_TOKEN_RE = /\[event:([0-9a-f-]{36})\]/gi;
 
 // URL detection regex
 const URL_REGEX = /https?:\/\/[^\s]+/g;
@@ -37,18 +39,19 @@ const URL_REGEX = /https?:\/\/[^\s]+/g;
  * Each mention segment includes its raw string, display text, and position in the raw string.
  */
 interface RawSegment {
-  type: "text" | "mention";
+  type: "text" | "mention" | "event";
   raw: string;       // the raw string in value
   display: string;   // what the user sees: for mentions it's "@DisplayName"
   rawStart: number;  // start index in raw value
   rawEnd: number;    // end index in raw value
   userId?: string;
   displayName?: string;
+  eventId?: string;
 }
 
 function parseRawValue(raw: string): RawSegment[] {
   const segments: RawSegment[] = [];
-  const regex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+  const regex = /(@\[([^\]]+)\]\(([^)]+)\))|(\[event:([0-9a-f-]{36})\])/gi;
   let lastEnd = 0;
   let match;
 
@@ -63,15 +66,28 @@ function parseRawValue(raw: string): RawSegment[] {
         rawEnd: match.index,
       });
     }
-    segments.push({
-      type: "mention",
-      raw: match[0],
-      display: `@${match[1]}`,  // Show @ prefix for mentions
-      rawStart: match.index,
-      rawEnd: match.index + match[0].length,
-      userId: match[2],
-      displayName: match[1],
-    });
+
+    if (match[1]) {
+      segments.push({
+        type: "mention",
+        raw: match[0],
+        display: `@${match[2]}`,
+        rawStart: match.index,
+        rawEnd: match.index + match[0].length,
+        userId: match[3],
+        displayName: match[2],
+      });
+    } else if (match[4]) {
+      segments.push({
+        type: "event",
+        raw: match[0],
+        display: "",
+        rawStart: match.index,
+        rawEnd: match.index + match[0].length,
+        eventId: match[5],
+      });
+    }
+
     lastEnd = match.index + match[0].length;
   }
 
@@ -100,7 +116,7 @@ function displayToRawCursor(segments: RawSegment[], displayPos: number): number 
   for (const seg of segments) {
     const segDisplayLen = seg.display.length;
     if (dispAccum + segDisplayLen >= displayPos) {
-      if (seg.type === "mention") {
+      if (seg.type !== "text") {
         // If cursor is within a mention display, snap to start or end
         const offset = displayPos - dispAccum;
         return offset <= segDisplayLen / 2 ? seg.rawStart : seg.rawEnd;
@@ -122,7 +138,7 @@ function rawToDisplayCursor(segments: RawSegment[], rawPos: number): number {
       return dispAccum;
     }
     if (rawPos < seg.rawEnd) {
-      if (seg.type === "mention") {
+      if (seg.type !== "text") {
         return dispAccum; // snap to start of mention
       }
       return dispAccum + (rawPos - seg.rawStart);
@@ -177,7 +193,7 @@ function reconstructRawFromDisplayEdit(
   let actualRawEnd = rawEditEnd;
 
   for (const seg of oldSegments) {
-    if (seg.type === "mention") {
+    if (seg.type !== "text") {
       // If the edit overlaps with this mention at all, remove the entire mention
       if (seg.rawStart < actualRawEnd && seg.rawEnd > actualRawStart) {
         actualRawStart = Math.min(actualRawStart, seg.rawStart);
@@ -203,7 +219,7 @@ function getRawUpTo(segments: RawSegment[], rawPos: number): string {
     if (seg.rawEnd <= rawPos) {
       result += seg.raw;
     } else if (seg.rawStart < rawPos) {
-      if (seg.type === "mention") {
+      if (seg.type !== "text") {
         // Don't include partial mentions
       } else {
         result += seg.raw.slice(0, rawPos - seg.rawStart);
@@ -222,7 +238,7 @@ function getRawFrom(segments: RawSegment[], rawPos: number): string {
     if (seg.rawStart >= rawPos) {
       result += seg.raw;
     } else if (seg.rawEnd > rawPos) {
-      if (seg.type === "mention") {
+      if (seg.type !== "text") {
         // Don't include partial mentions
       } else {
         result += seg.raw.slice(rawPos - seg.rawStart);
@@ -278,6 +294,17 @@ export function MentionInput({
     const matches = value.match(URL_REGEX) || [];
     return [...new Set(matches)].slice(0, 3);
   }, [value]);
+
+  const hasEventToken = useMemo(() => /\[event:[0-9a-f-]{36}\]/i.test(value), [value]);
+
+  const eventIds = useMemo(
+    () => [...new Set(Array.from(value.matchAll(/\[event:([0-9a-f-]{36})\]/gi), (match) => match[1]).filter(Boolean))].slice(0, 3),
+    [value]
+  );
+
+  const removeEventToken = useCallback((eventId: string) => {
+    onChange(value.replace(new RegExp(`\\s*\\[event:${eventId}\\]\\s*`, "i"), " ").replace(/\s{2,}/g, " ").trim());
+  }, [onChange, value]);
 
   // Fetch users based on team/club/group context
   const { data: users } = useQuery({
@@ -347,6 +374,7 @@ export function MentionInput({
     return segments.map((seg, i) => ({
       text: seg.display,
       isMention: seg.type === "mention",
+      isEvent: seg.type === "event",
       key: i,
     }));
   }, [segments]);
@@ -515,6 +543,25 @@ export function MentionInput({
         </div>
       )}
 
+      {eventIds.length > 0 && (
+        <div className="w-full min-w-0 max-w-full space-y-2">
+          {eventIds.map((eventId) => (
+            <div key={eventId} className="flex items-start gap-2 min-w-0 max-w-full">
+              <div className="min-w-0 flex-1">
+                <EventLinkCard eventId={eventId} />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeEventToken(eventId)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-[22px] bg-muted/60 px-1 min-h-[44px] transition-all duration-150">
         {showEmojiPicker && (
           <div className="flex items-center h-[44px]">
@@ -531,9 +578,11 @@ export function MentionInput({
               style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
             >
               {highlightedSegments.map((seg) =>
-                seg.isMention
-                  ? <span key={seg.key} className="bg-primary/15 rounded px-0.5 text-transparent">{seg.text}</span>
-                  : <span key={seg.key}>{seg.text}</span>
+                seg.isMention ? (
+                  <span key={seg.key} className="rounded px-0.5 bg-primary/15 text-transparent">{seg.text}</span>
+                ) : (
+                  <span key={seg.key}>{seg.text}</span>
+                )
               )}
             </div>
           )}
@@ -548,13 +597,13 @@ export function MentionInput({
               }
             }}
             disabled={disabled}
-            placeholder={placeholder}
+             placeholder={hasEventToken ? "" : placeholder}
             rows={1}
             wrap="soft"
             autoComplete="off"
             autoCorrect="on"
             spellCheck
-            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[13px] pb-[7px] text-base leading-[1.4] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
+            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[13px] pb-[7px] text-base leading-[1.4] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${hasEventToken ? "font-medium" : ""} ${className || ''}`}
             style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto' } as React.CSSProperties}
           />
         </div>

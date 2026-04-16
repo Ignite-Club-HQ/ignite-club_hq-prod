@@ -1,21 +1,32 @@
 import { supabase } from "@/integrations/supabase/client";
 import { recordPointsHistory, type PointsSourceType } from "@/lib/pointsHistory";
 import { checkRewardThreshold } from "@/lib/rewardThresholdCheck";
+import {
+  buildEngagementNotification,
+  checkLeaderboardPosition,
+  checkEngagementStreak,
+  checkRewardProximity,
+} from "@/lib/engagementGamification";
 
 /**
  * Engagement Points System
  * 
  * Awards points for active app usage with daily cooldowns:
- * - Chat message (team/club/group): 1 pt per unique chat per day, max 2/day
- * - Photo upload: 2 pts per upload, max 4 pts/day (2 uploads)
+ * - Chat message (team/club/group): 2 pts per unique chat per day, max 6/day
+ * - Photo upload: 3 pts per upload, max 6 pts/day (2 uploads)
  * - Photo comment: 1 pt per unique photo per day, max 3/day
+ * 
+ * Notifications:
+ * - NO instant push for individual engagement points (prevents spam)
+ * - Weekly digest summarises total engagement points earned
+ * - Instant push kept for: streaks, leaderboard moves, reward unlocks
  */
 
 type EngagementAction = 'chat_message' | 'photo_upload' | 'photo_comment';
 
 const ACTION_CONFIG: Record<EngagementAction, { points: number; dailyCap: number }> = {
-  chat_message: { points: 1, dailyCap: 2 },
-  photo_upload: { points: 2, dailyCap: 4 },
+  chat_message: { points: 2, dailyCap: 6 },
+  photo_upload: { points: 3, dailyCap: 6 },
   photo_comment: { points: 1, dailyCap: 3 },
 };
 
@@ -42,6 +53,7 @@ interface AwardEngagementPointsParams {
 
 /**
  * Awards engagement points with atomic cooldown checks and point increments.
+ * Includes gamification: actionable nudges, leaderboard alerts, streaks, reward proximity.
  * Fire-and-forget — call without awaiting in non-critical paths.
  */
 export async function awardEngagementPoints({
@@ -109,6 +121,9 @@ export async function awardEngagementPoints({
       description: DESCRIPTION_MAP[action],
     });
 
+    // No instant notification for engagement points — weekly digest handles this.
+    // Gamification checks below still send notifications for streaks, leaderboard, and reward proximity.
+
     // Check reward threshold (fire and forget)
     checkRewardThreshold({
       userId,
@@ -116,6 +131,17 @@ export async function awardEngagementPoints({
       previousPoints,
       newPoints: balanceAfter,
     }).catch(() => {});
+
+    // ── Gamification checks (all fire-and-forget) ──
+    
+    // Leaderboard position alert
+    checkLeaderboardPosition({ userId, clubId }).catch(() => {});
+
+    // Weekly engagement streak check + bonus
+    checkEngagementStreak({ userId, clubId }).catch(() => {});
+
+    // Reward proximity alert
+    checkRewardProximity({ userId, clubId, currentPoints: balanceAfter }).catch(() => {});
 
     return true;
   } catch (error) {
