@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Send, UserPlus, Mail, User, CheckCircle2, Share2, Copy } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Send, UserPlus, Mail, User, CheckCircle2, Share2, Copy, Search } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -17,6 +18,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface InviteOtherParentSheetProps {
   open: boolean;
@@ -43,6 +45,25 @@ export default function InviteOtherParentSheet({
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [resolvedClubName, setResolvedClubName] = useState("");
   const [resolvedTeamName, setResolvedTeamName] = useState("");
+  const [selectedUser, setSelectedUser] = useState<{ id: string; display_name: string | null; avatar_url: string | null } | null>(null);
+
+  const debouncedName = useDebounce(parentName, 300);
+
+  // Search for existing users as parent types
+  const { data: searchResults = [], isLoading: isSearching } = useQuery({
+    queryKey: ["parent-invite-user-search", debouncedName],
+    queryFn: async () => {
+      if (debouncedName.length < 2) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .ilike("display_name", `%${debouncedName}%`)
+        .limit(6);
+      // Filter out self
+      return (data || []).filter(u => u.id !== user?.id);
+    },
+    enabled: open && debouncedName.length >= 2 && !selectedUser,
+  });
 
   const sendInvite = useMutation({
     mutationFn: async () => {
