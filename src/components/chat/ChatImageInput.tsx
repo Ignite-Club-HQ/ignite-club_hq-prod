@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, ImagePlus, X, Loader2 } from "lucide-react";
+import { Plus, ImagePlus, X, Loader2, CalendarPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
@@ -16,14 +17,17 @@ interface ChatImageInputProps {
   disabled?: boolean;
   clubId?: string;
   teamId?: string;
+  onEventSelect?: (eventId: string) => void;
+  showEventPicker?: boolean;
 }
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
@@ -203,7 +207,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleImageButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (shouldUseNativePicker()) {
+    if (showEventPicker) {
+      // Open attachment menu when event picker is available
+      setAttachmentMenuOpen(true);
+      (e.currentTarget as HTMLElement)?.blur();
+    } else if (shouldUseNativePicker()) {
       // Do NOT call dismissIOSKeyboardAccessory() before Camera.getPhoto —
       // blurring breaks the gesture chain and iOS rejects the picker.
       void handleNativePhotoPick();
@@ -211,6 +219,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       // Blur the button so its focus/active style doesn't persist after the
       // file picker closes (especially visible on Android WebView).
       (e.currentTarget as HTMLElement)?.blur();
+      fileInputRef.current?.click();
+      if (shouldStabilizeIOSLayout) {
+        requestAnimationFrame(() => {
+          restoreNativeLayout();
+        });
+      }
+    }
+  };
+
+  const handleImagePickFromMenu = () => {
+    setAttachmentMenuOpen(false);
+    if (shouldUseNativePicker()) {
+      void handleNativePhotoPick();
+    } else {
       fileInputRef.current?.click();
       if (shouldStabilizeIOSLayout) {
         requestAnimationFrame(() => {
@@ -297,6 +319,51 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             <X className="h-2.5 w-2.5" />
           </button>
         </div>
+      ) : showEventPicker ? (
+        <Sheet open={attachmentMenuOpen} onOpenChange={setAttachmentMenuOpen}>
+          <SheetTrigger asChild>
+            <button
+              type="button"
+              onClick={handleImageButtonClick}
+              disabled={disabled || uploading}
+              className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {uploading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Plus className="h-5 w-5" />
+              )}
+            </button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="p-0">
+            <div className="flex flex-col gap-1 p-4">
+              <button
+                type="button"
+                onClick={handleImagePickFromMenu}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors text-left"
+              >
+                <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                <span className="text-base">Upload Photo</span>
+              </button>
+              {onEventSelect && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttachmentMenuOpen(false);
+                    // Small delay to let the sheet close smoothly
+                    setTimeout(() => {
+                      onEventSelect("");
+                    }, 100);
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors text-left"
+                >
+                  <CalendarPlus className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-base">Share Event</span>
+                </button>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
       ) : (
         <button
           type="button"

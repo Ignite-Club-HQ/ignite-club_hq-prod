@@ -8,7 +8,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Search, UserPlus, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Search, UserPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
@@ -1442,15 +1442,9 @@ export default function TeamChatPage() {
             disabled={sendMessageMutation.isPending}
             clubId={team?.club_id}
             teamId={teamId}
+            showEventPicker={true}
+            onEventSelect={() => setEventPickerOpen(true)}
           />
-          <button
-            type="button"
-            onClick={() => setEventPickerOpen(true)}
-            disabled={sendMessageMutation.isPending}
-            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <CalendarPlus className="h-5 w-5" />
-          </button>
           <MentionInput
             placeholder="Type a message..."
             value={message}

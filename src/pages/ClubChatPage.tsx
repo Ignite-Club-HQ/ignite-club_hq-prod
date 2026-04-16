@@ -1332,15 +1332,9 @@ export default function ClubChatPage() {
               onImageUploaded={setImageUrl}
               disabled={sendMutation.isPending}
               clubId={clubId}
+              showEventPicker={true}
+              onEventSelect={() => setEventPickerOpen(true)}
             />
-            <button
-              type="button"
-              onClick={() => setEventPickerOpen(true)}
-              disabled={sendMutation.isPending}
-              className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            >
-              <CalendarPlus className="h-5 w-5" />
-            </button>
             <MentionInput
               placeholder="Send announcement..."
               value={message}
