@@ -529,6 +529,15 @@ export const ChatMessage = memo(function ChatMessage({
         longPressTriggeredRef.current = false;
       });
     } else if (gestureModeRef.current === "press" && touchStartPos.current) {
+      // If the tap target is an image inside the bubble, let the click event through
+      // so the fullscreen image viewer opens instead of the action sheet
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'IMG' && target.closest('[data-chat-image]')) {
+        // Let the synthetic click fire on the image
+        touchStartPos.current = null;
+        gestureModeRef.current = "idle";
+        return;
+      }
       // Short tap — flash highlight then open action sheet
       e.preventDefault();
       e.stopPropagation();
