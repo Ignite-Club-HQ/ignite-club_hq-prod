@@ -106,6 +106,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [showMenu, setShowMenu] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFullscreenImage, setShowFullscreenImage] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
   const [optimisticReactions, setOptimisticReactions] = useState<Reaction[]>(reactions);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
