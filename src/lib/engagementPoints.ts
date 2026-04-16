@@ -26,8 +26,8 @@ import {
 type EngagementAction = 'chat_message' | 'photo_upload' | 'photo_comment';
 
 const ACTION_CONFIG: Record<EngagementAction, { points: number; dailyCap: number }> = {
-  chat_message: { points: 1, dailyCap: 2 },
-  photo_upload: { points: 2, dailyCap: 4 },
+  chat_message: { points: 2, dailyCap: 6 },
+  photo_upload: { points: 3, dailyCap: 6 },
   photo_comment: { points: 1, dailyCap: 3 },
 };
 
@@ -122,17 +122,8 @@ export async function awardEngagementPoints({
       description: DESCRIPTION_MAP[action],
     });
 
-    // Create notification with actionable nudge
-    const notificationMessage = buildEngagementNotification(action, config.points);
-
-    supabase.from("notifications").insert({
-      user_id: userId,
-      type: "points_awarded",
-      message: notificationMessage,
-      related_id: clubId,
-    }).then(({ error }) => {
-      if (error) console.error("Failed to create engagement points notification:", error);
-    });
+    // No instant notification for engagement points — weekly digest handles this.
+    // Gamification checks below still send notifications for streaks, leaderboard, and reward proximity.
 
     // Check reward threshold (fire and forget)
     checkRewardThreshold({
