@@ -1443,6 +1443,14 @@ export default function TeamChatPage() {
             clubId={team?.club_id}
             teamId={teamId}
           />
+          <button
+            type="button"
+            onClick={() => setEventPickerOpen(true)}
+            disabled={sendMessageMutation.isPending}
+            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <CalendarPlus className="h-5 w-5" />
+          </button>
           <MentionInput
             placeholder="Type a message..."
             value={message}
@@ -1471,6 +1479,16 @@ export default function TeamChatPage() {
             )}
           </button>
         </div>
+        <EventPickerSheet
+          open={eventPickerOpen}
+          onOpenChange={setEventPickerOpen}
+          onSelectEvent={(eventId) => {
+            const token = `[event:${eventId}]`;
+            setMessage(prev => prev ? `${prev} ${token}` : token);
+          }}
+          teamId={teamId}
+          clubId={team?.club_id}
+        />
       </div>
 
       {selectedMember && teamId && team && (
