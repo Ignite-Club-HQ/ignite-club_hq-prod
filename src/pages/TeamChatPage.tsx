@@ -1433,7 +1433,7 @@ export default function TeamChatPage() {
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden pt-1 pb-2 px-2">
+        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible pt-1 pb-2 px-2">
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}

@@ -1664,7 +1664,7 @@ export default function GroupChatPage() {
             </Button>
           </div>
         )}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-hidden">
+        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
             imageUrl={imageUrl} 
