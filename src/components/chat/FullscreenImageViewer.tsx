@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { useCallback } from "react";
 import { X, Download, Flag, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
+import { usePinchZoom } from "@/hooks/usePinchZoom";
 import { Capacitor } from "@capacitor/core";
 import { applyStatusBarForViewer, refreshStatusBar } from "@/lib/statusBarControl";
 
@@ -20,6 +22,15 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
   const [loaded, setLoaded] = useState(false);
   const { signedUrl } = useSignedPhotoUrl(src);
   const effectiveSrc = signedUrl || src;
+  const {
+    scale,
+    translateX,
+    translateY,
+    onTouchStart: pinchTouchStart,
+    onTouchMove: pinchTouchMove,
+    onTouchEnd: pinchTouchEnd,
+    resetZoom,
+  } = usePinchZoom(1, 4);
 
   // Lock body scroll to prevent iOS viewport shift
   useIOSScrollLock(true);
@@ -35,13 +46,24 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
 
   useEffect(() => {
     setLoaded(false);
-  }, [effectiveSrc]);
+    resetZoom();
+  }, [effectiveSrc, resetZoom]);
+
+  const handleDoubleClick = useCallback(() => {
+    if (scale > 1) {
+      resetZoom();
+    }
+  }, [scale, resetZoom]);
 
   return (
     <div
       className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-      onClick={onClose}
+      onClick={scale === 1 ? onClose : undefined}
+      onTouchStart={pinchTouchStart}
+      onTouchMove={pinchTouchMove}
+      onTouchEnd={pinchTouchEnd}
+      onDoubleClick={handleDoubleClick}
     >
       <Button
         size="icon"
@@ -91,9 +113,14 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       <img
         src={effectiveSrc}
         alt={alt}
-        className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
+        style={{
+          transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
+          touchAction: 'none',
+        }}
         onClick={(e) => e.stopPropagation()}
         onLoad={() => setLoaded(true)}
+        draggable={false}
       />
     </div>
   );
