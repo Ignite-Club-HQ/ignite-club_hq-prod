@@ -370,7 +370,8 @@ export default function MessagesPage() {
       };
     },
     enabled: !!user && initialized,
-    staleTime: 60000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     placeholderData: (prev) => prev,
   });
 
@@ -816,7 +817,8 @@ export default function MessagesPage() {
       return result;
     },
     enabled: !!user && initialized && !!hasAnyProAccess,
-    staleTime: 30000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     placeholderData: () => {
       if (!cachedData?.dmConversations?.length) return undefined;
       return cachedData.dmConversations.map(conv => ({
