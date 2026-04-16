@@ -467,9 +467,14 @@ export function MentionInput({
     }
   }, [showSuggestions, users, selectedIndex, insertMention, onKeyPress]);
 
-  // Close suggestions when clicking outside
+  // Close suggestions when clicking outside (but not inside our component)
+  const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const handleClickOutside = () => setShowSuggestions(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
@@ -495,7 +500,7 @@ export function MentionInput({
   }, [value, onChange, isNativeIOS, segments, displayValue]);
 
   return (
-    <div className="relative flex-1 min-w-0 max-w-full self-end space-y-2">
+    <div ref={containerRef} className="relative flex-1 min-w-0 max-w-full self-end space-y-2">
       {/* URL Previews */}
       {detectedUrls.length > 0 && (
         <div className="w-full min-w-0 max-w-full max-h-28 space-y-2 overflow-x-hidden overflow-y-auto overscroll-contain pr-1">
