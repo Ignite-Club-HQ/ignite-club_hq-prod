@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
@@ -44,11 +44,13 @@ interface MessageActionSheetProps {
   canDelete: boolean;
   isSystemMessage?: boolean;
   messageText?: string;
+  hasImage?: boolean;
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onReport: () => void;
   onBlock: () => void;
+  onViewImage?: () => void;
 }
 
 export function MessageActionSheet({
@@ -60,15 +62,25 @@ export function MessageActionSheet({
   canDelete,
   isSystemMessage,
   messageText,
+  hasImage,
   onReply,
   onEdit,
   onDelete,
   onReport,
   onBlock,
+  onViewImage,
 }: MessageActionSheetProps) {
   const [showSafety, setShowSafety] = useState(false);
 
   const actions: MessageAction[] = [];
+
+  if (hasImage && onViewImage) {
+    actions.push({
+      label: "View Image",
+      icon: <ImageIcon className="h-5 w-5" />,
+      onClick: onViewImage,
+    });
+  }
 
   if (canReply) {
     actions.push({

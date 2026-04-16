@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { removeMessageFromCache } from "@/lib/messageCache";
 import { MessageContent } from "./MessageContent";
+import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { MessageReactionsPopover, MessageReactionsDisplay } from "./MessageReactions";
 import { ReplyIndicator } from "./ReplyPreview";
 import { MessageReadAvatars } from "./MessageReadAvatars";
@@ -106,6 +107,7 @@ export const ChatMessage = memo(function ChatMessage({
   const [showMenu, setShowMenu] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFullscreenImage, setShowFullscreenImage] = useState(false);
   const [tapFlash, setTapFlash] = useState(false);
   const [optimisticReactions, setOptimisticReactions] = useState<Reaction[]>(reactions);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -529,15 +531,6 @@ export const ChatMessage = memo(function ChatMessage({
         longPressTriggeredRef.current = false;
       });
     } else if (gestureModeRef.current === "press" && touchStartPos.current) {
-      // If the tap target is an image inside the bubble, let the click event through
-      // so the fullscreen image viewer opens instead of the action sheet
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'IMG' && target.closest('[data-chat-image]')) {
-        // Let the synthetic click fire on the image
-        touchStartPos.current = null;
-        gestureModeRef.current = "idle";
-        return;
-      }
       // Short tap — flash highlight then open action sheet
       e.preventDefault();
       e.stopPropagation();
@@ -804,7 +797,17 @@ export const ChatMessage = memo(function ChatMessage({
           onDelete={handleDelete}
           onReport={() => setShowReportDialog(true)}
           onBlock={() => setShowBlockDialog(true)}
+          hasImage={!!imageUrl}
+          onViewImage={() => setShowFullscreenImage(true)}
         />
+        {/* Fullscreen image viewer triggered from action sheet */}
+        {showFullscreenImage && imageUrl && (
+          <FullscreenImageViewer
+            src={imageUrl}
+            alt="Attachment"
+            onClose={() => setShowFullscreenImage(false)}
+          />
+        )}
         {/* Link previews rendered outside the message bubble */}
         <div className="w-full min-w-0 max-w-full self-stretch overflow-hidden">
           <MessageContent text={text} previewsOnly />
