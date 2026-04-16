@@ -109,6 +109,22 @@ export async function awardEngagementPoints({
       description: DESCRIPTION_MAP[action],
     });
 
+    // Create notification so user gets a push
+    const NOTIFICATION_MAP: Record<EngagementAction, string> = {
+      chat_message: `⭐ +${config.points} reward point for chat engagement!`,
+      photo_upload: `📸 +${config.points} reward points for uploading a photo!`,
+      photo_comment: `💬 +${config.points} reward point for commenting on a photo!`,
+    };
+
+    supabase.from("notifications").insert({
+      user_id: userId,
+      type: "points_awarded",
+      message: NOTIFICATION_MAP[action],
+      related_id: clubId,
+    }).then(({ error }) => {
+      if (error) console.error("Failed to create engagement points notification:", error);
+    });
+
     // Check reward threshold (fire and forget)
     checkRewardThreshold({
       userId,
