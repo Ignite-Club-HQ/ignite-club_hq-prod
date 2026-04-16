@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, ImagePlus, X, Loader2, CalendarPlus } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
@@ -19,15 +18,16 @@ interface ChatImageInputProps {
   teamId?: string;
   onEventSelect?: (eventId: string) => void;
   showEventPicker?: boolean;
+  /** When true, the action icons are hidden and only the image preview (if any) is shown */
+  hasText?: boolean;
 }
 
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, hasText = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
-  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
@@ -61,7 +61,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         ? blob
         : new File([blob], `photo.${mimeToExtension(originalMimeType)}`, { type: originalMimeType });
 
-      // Compression can fail for some iOS-native formats or webview edge-cases, so fail open.
       try {
         const { file: compressedFile } = await compressImageFile(sourceFile);
         fileToUpload = compressedFile;
@@ -96,8 +95,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleNativePhotoPick = async () => {
-    // CRITICAL: Do NOT set state or blur before pickNativePhoto — doing so
-    // triggers a re-render / breaks the gesture chain and iOS rejects the picker.
     console.log("[ChatImageInput] handleNativePhotoPick START");
     let stablePreviewUrl: string | null = null;
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
@@ -106,12 +103,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       const result = await pickNativePhoto({ quality: 80 });
       console.log("[ChatImageInput] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
 
-      // Stabilize BottomNav immediately once picker returns
       requestAnimationFrame(() => {
         restoreNativeLayout();
       });
 
-      // NOW it's safe to set uploading state — the native picker has closed
       setUploading(true);
 
       const { blob, mimeType } = result;
@@ -207,32 +202,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   };
 
   const handleImageButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (showEventPicker) {
-      // Open attachment menu when event picker is available
-      setAttachmentMenuOpen(true);
-      (e.currentTarget as HTMLElement)?.blur();
-    } else if (shouldUseNativePicker()) {
-      // Do NOT call dismissIOSKeyboardAccessory() before Camera.getPhoto —
-      // blurring breaks the gesture chain and iOS rejects the picker.
-      void handleNativePhotoPick();
-    } else {
-      // Blur the button so its focus/active style doesn't persist after the
-      // file picker closes (especially visible on Android WebView).
-      (e.currentTarget as HTMLElement)?.blur();
-      fileInputRef.current?.click();
-      if (shouldStabilizeIOSLayout) {
-        requestAnimationFrame(() => {
-          restoreNativeLayout();
-        });
-      }
-    }
-  };
-
-  const handleImagePickFromMenu = () => {
-    setAttachmentMenuOpen(false);
     if (shouldUseNativePicker()) {
       void handleNativePhotoPick();
     } else {
+      (e.currentTarget as HTMLElement)?.blur();
       fileInputRef.current?.click();
       if (shouldStabilizeIOSLayout) {
         requestAnimationFrame(() => {
@@ -253,7 +226,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const [previewFailed, setPreviewFailed] = useState(false);
 
-  // Reset previewFailed when the image source changes
   useEffect(() => {
     setPreviewFailed(false);
   }, [localPreview, imageUrl]);
@@ -264,7 +236,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     };
   }, []);
 
-  // When the parent clears an attached image after send, force a final iOS viewport settle
   useEffect(() => {
     const hasAttachment = Boolean(localPreview || imageUrl);
 
@@ -279,18 +250,18 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const displayUrl = localPreview || imageUrl;
 
-  return (
-    <div className="flex shrink-0 items-center gap-2 self-end">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileSelect}
-        className="sr-only"
-        disabled={disabled || uploading}
-      />
-
-      {displayUrl ? (
+  // If there's an image attached, always show the preview regardless of hasText
+  if (displayUrl) {
+    return (
+      <div className="flex shrink-0 items-center gap-2 self-end">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="sr-only"
+          disabled={disabled || uploading}
+        />
         <div className="relative inline-block">
           {previewFailed ? (
             <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
@@ -319,63 +290,57 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             <X className="h-2.5 w-2.5" />
           </button>
         </div>
-      ) : showEventPicker ? (
-        <Sheet open={attachmentMenuOpen} onOpenChange={setAttachmentMenuOpen}>
-          <SheetTrigger asChild>
-            <button
-              type="button"
-              onClick={handleImageButtonClick}
-              disabled={disabled || uploading}
-              className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            >
-              {uploading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Plus className="h-5 w-5" />
-              )}
-            </button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="p-0">
-            <div className="flex flex-col gap-1 p-4">
-              <button
-                type="button"
-                onClick={handleImagePickFromMenu}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors text-left"
-              >
-                <ImagePlus className="h-5 w-5 text-muted-foreground" />
-                <span className="text-base">Upload Photo</span>
-              </button>
-              {onEventSelect && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAttachmentMenuOpen(false);
-                    // Small delay to let the sheet close smoothly
-                    setTimeout(() => {
-                      onEventSelect("");
-                    }, 100);
-                  }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent transition-colors text-left"
-                >
-                  <CalendarPlus className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-base">Share Event</span>
-                </button>
-              )}
-            </div>
-          </SheetContent>
-        </Sheet>
-      ) : (
+      </div>
+    );
+  }
+
+  // Hide action icons when user is typing
+  if (hasText) {
+    return (
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileSelect}
+        className="sr-only"
+        disabled={disabled || uploading}
+      />
+    );
+  }
+
+  // Show dedicated image and event icons
+  return (
+    <div className="flex shrink-0 items-center self-end">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileSelect}
+        className="sr-only"
+        disabled={disabled || uploading}
+      />
+      <button
+        type="button"
+        onClick={handleImageButtonClick}
+        disabled={disabled || uploading}
+        className="flex items-center justify-center h-[44px] w-[40px] shrink-0 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        aria-label="Upload photo"
+      >
+        {uploading ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <ImagePlus className="h-5 w-5" />
+        )}
+      </button>
+      {showEventPicker && onEventSelect && (
         <button
           type="button"
-          onClick={handleImageButtonClick}
-          disabled={disabled || uploading}
-          className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          onClick={() => onEventSelect("")}
+          disabled={disabled}
+          className="flex items-center justify-center h-[44px] w-[40px] shrink-0 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          aria-label="Share event"
         >
-          {uploading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Plus className="h-5 w-5" />
-          )}
+          <CalendarPlus className="h-5 w-5" />
         </button>
       )}
     </div>

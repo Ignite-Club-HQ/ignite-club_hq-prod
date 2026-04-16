@@ -1043,6 +1043,7 @@ export default function BroadcastChatPage() {
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
               disabled={sendMutation.isPending}
+              hasText={!!message.trim()}
             />
             <MentionInput
               placeholder="Send announcement..."

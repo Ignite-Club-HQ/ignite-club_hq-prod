@@ -1444,6 +1444,7 @@ export default function TeamChatPage() {
             teamId={teamId}
             showEventPicker={true}
             onEventSelect={() => setEventPickerOpen(true)}
+            hasText={!!message.trim()}
           />
           <MentionInput
             placeholder="Type a message..."
