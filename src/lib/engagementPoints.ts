@@ -1,6 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { recordPointsHistory, type PointsSourceType } from "@/lib/pointsHistory";
 import { checkRewardThreshold } from "@/lib/rewardThresholdCheck";
+import {
+  buildEngagementNotification,
+  checkLeaderboardPosition,
+  checkEngagementStreak,
+  checkRewardProximity,
+} from "@/lib/engagementGamification";
 
 /**
  * Engagement Points System
@@ -9,6 +15,12 @@ import { checkRewardThreshold } from "@/lib/rewardThresholdCheck";
  * - Chat message (team/club/group): 1 pt per unique chat per day, max 2/day
  * - Photo upload: 2 pts per upload, max 4 pts/day (2 uploads)
  * - Photo comment: 1 pt per unique photo per day, max 3/day
+ * 
+ * Gamification layer:
+ * - Actionable nudges in notifications (tells user what to do next)
+ * - Leaderboard position alerts (top 20)
+ * - Weekly engagement streak bonuses (3/5/7 day streaks)
+ * - Reward proximity alerts (within 20% of next reward)
  */
 
 type EngagementAction = 'chat_message' | 'photo_upload' | 'photo_comment';
@@ -42,6 +54,7 @@ interface AwardEngagementPointsParams {
 
 /**
  * Awards engagement points with atomic cooldown checks and point increments.
+ * Includes gamification: actionable nudges, leaderboard alerts, streaks, reward proximity.
  * Fire-and-forget — call without awaiting in non-critical paths.
  */
 export async function awardEngagementPoints({
@@ -109,17 +122,13 @@ export async function awardEngagementPoints({
       description: DESCRIPTION_MAP[action],
     });
 
-    // Create notification so user gets a push
-    const NOTIFICATION_MAP: Record<EngagementAction, string> = {
-      chat_message: `⭐ +${config.points} reward point for chat engagement!`,
-      photo_upload: `📸 +${config.points} reward points for uploading a photo!`,
-      photo_comment: `💬 +${config.points} reward point for commenting on a photo!`,
-    };
+    // Create notification with actionable nudge
+    const notificationMessage = buildEngagementNotification(action, config.points);
 
     supabase.from("notifications").insert({
       user_id: userId,
       type: "points_awarded",
-      message: NOTIFICATION_MAP[action],
+      message: notificationMessage,
       related_id: clubId,
     }).then(({ error }) => {
       if (error) console.error("Failed to create engagement points notification:", error);
@@ -132,6 +141,17 @@ export async function awardEngagementPoints({
       previousPoints,
       newPoints: balanceAfter,
     }).catch(() => {});
+
+    // ── Gamification checks (all fire-and-forget) ──
+    
+    // Leaderboard position alert
+    checkLeaderboardPosition({ userId, clubId }).catch(() => {});
+
+    // Weekly engagement streak check + bonus
+    checkEngagementStreak({ userId, clubId }).catch(() => {});
+
+    // Reward proximity alert
+    checkRewardProximity({ userId, clubId, currentPoints: balanceAfter }).catch(() => {});
 
     return true;
   } catch (error) {
