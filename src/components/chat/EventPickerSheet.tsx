@@ -80,7 +80,7 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[85vh]">
+      <DrawerContent className="max-h-[85vh] flex flex-col overflow-hidden">
         <DrawerHeader className="pb-2">
           <DrawerTitle>Share Event</DrawerTitle>
         </DrawerHeader>
