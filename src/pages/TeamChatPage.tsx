@@ -1484,7 +1484,7 @@ export default function TeamChatPage() {
           onOpenChange={setEventPickerOpen}
           onSelectEvent={(eventId) => {
             const token = `[event:${eventId}]`;
-            setMessage(prev => prev ? `${prev} ${token}` : token);
+            setMessage(message ? `${message} ${token}` : token);
           }}
           teamId={teamId}
           clubId={team?.club_id}
