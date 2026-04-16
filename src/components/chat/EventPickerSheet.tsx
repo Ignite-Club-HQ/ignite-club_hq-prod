@@ -80,7 +80,7 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} handleOnly>
-      <DrawerContent className="max-h-[85vh] flex flex-col overflow-hidden">
+      <DrawerContent className="max-h-[85vh] flex flex-col overflow-hidden" style={{ touchAction: "pan-y" }}>
         <DrawerHeader className="pb-2">
           <DrawerTitle>Share Event</DrawerTitle>
         </DrawerHeader>
