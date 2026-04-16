@@ -97,7 +97,7 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 space-y-1.5">
+        <div data-vaul-no-drag className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 space-y-1.5">
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-14 w-full rounded-lg" />
