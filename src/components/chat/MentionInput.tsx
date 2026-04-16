@@ -29,7 +29,7 @@ interface SuggestedUser {
 
 // Mention format: @[DisplayName](userId)
 const MENTION_REGEX = /@\[([^\]]+)\]\(([^)]+)\)/g;
-const EVENT_TOKEN_REGEX = /\[event:([0-9a-f-]{36})\]/gi;
+const EVENT_TOKEN_RE = /\[event:([0-9a-f-]{36})\]/gi;
 
 // URL detection regex
 const URL_REGEX = /https?:\/\/[^\s]+/g;
@@ -295,10 +295,10 @@ export function MentionInput({
     return [...new Set(matches)].slice(0, 3);
   }, [value]);
 
-  const hasEventToken = useMemo(() => EVENT_TOKEN_REGEX.test(value), [value]);
+  const hasEventToken = useMemo(() => /\[event:[0-9a-f-]{36}\]/i.test(value), [value]);
 
   const eventIds = useMemo(
-    () => [...new Set(Array.from(value.matchAll(EVENT_TOKEN_REGEX), (match) => match[1]).filter(Boolean))].slice(0, 3),
+    () => [...new Set(Array.from(value.matchAll(/\[event:([0-9a-f-]{36})\]/gi), (match) => match[1]).filter(Boolean))].slice(0, 3),
     [value]
   );
 
@@ -580,8 +580,6 @@ export function MentionInput({
               {highlightedSegments.map((seg) =>
                 seg.isMention ? (
                   <span key={seg.key} className="rounded px-0.5 bg-primary/15 text-transparent">{seg.text}</span>
-                ) : seg.isEvent ? (
-                  <span key={seg.key} className="rounded-md px-1.5 py-0.5 bg-accent text-transparent">{seg.text}</span>
                 ) : (
                   <span key={seg.key}>{seg.text}</span>
                 )
