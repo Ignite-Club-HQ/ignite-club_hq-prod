@@ -90,7 +90,7 @@ export default function InviteOtherParentSheet({
         team_id: teamId,
         club_id: clubId,
         role: "parent" as any,
-        invited_user_id: null,
+        invited_user_id: selectedUser?.id || null,
         invited_by_user_id: user.id,
         invited_label: parentName.trim(),
         invited_email: trimmedEmail || null,
