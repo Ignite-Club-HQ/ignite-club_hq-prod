@@ -135,10 +135,11 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, [text]);
 
   // Extract URLs and categorize them
-  const { youtubeUrls, otherUrls } = useMemo(() => {
+  const { youtubeUrls, otherUrls, eventIds } = useMemo(() => {
     const urls = [...new Set(parts.filter(p => p.type === "link").map(p => p.content))];
     const youtube: { url: string; videoId: string }[] = [];
     const other: string[] = [];
+    const events = [...new Set(parts.filter(p => p.type === "event-link").map(p => p.content))];
 
     for (const url of urls) {
       const videoId = extractYouTubeId(url);
@@ -152,6 +153,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     return {
       youtubeUrls: youtube.slice(0, 2),
       otherUrls: other.slice(0, 2),
+      eventIds: events.slice(0, 3),
     };
   }, [parts]);
 
