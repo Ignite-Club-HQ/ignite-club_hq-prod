@@ -192,6 +192,7 @@ export default function InviteOtherParentSheet({
         setInviteLink(null);
         setResolvedClubName("");
         setResolvedTeamName("");
+        setSelectedUser(null);
       }, 300);
     }
     onOpenChange(open);
