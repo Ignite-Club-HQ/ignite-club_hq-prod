@@ -278,6 +278,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                     {part.linkText}
                   </a>
                 );
+               }
+              if (part.type === "event-link") {
+                // Event links are rendered as empty spans inline; the card is shown below
+                return <span key={index} />;
               }
               if (part.type === "link") {
                 const videoId = extractYouTubeId(part.content);
