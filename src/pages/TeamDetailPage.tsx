@@ -1462,7 +1462,7 @@ export default function TeamDetailPage() {
                                   enabled={(isAdmin || isClubAdmin)}
                                   className={cn(
                                     "border shadow-sm",
-                                    isPending ? "opacity-70" : ""
+                                    ""
                                   )}
                                 >
                                   <CardContent
@@ -1570,7 +1570,7 @@ export default function TeamDetailPage() {
                                   onClick: () => setLinkChildToParent({ childName: name, pendingInviteIds: inviteIds }),
                                   className: "bg-orange-500",
                                 }] : []}
-                                className="opacity-70 border shadow-sm"
+                                className="border shadow-sm"
                               >
                                 <CardContent className="p-3.5 flex items-center gap-3">
                                   <Avatar className="h-9 w-9 shrink-0">
