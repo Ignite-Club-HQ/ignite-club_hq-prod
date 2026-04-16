@@ -104,60 +104,28 @@ export function PhotoLightbox({
     if (e.key === "Escape") onClose();
   };
 
-  // Track single-finger pan when zoomed
-  const panStart = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
-
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      pinchTouchStart(e);
-      panStart.current = null;
-    } else if (e.touches.length === 1) {
-      if (scale > 1) {
-        // Start panning
-        panStart.current = {
-          x: e.touches[0].clientX,
-          y: e.touches[0].clientY,
-          tx: translateX,
-          ty: translateY,
-        };
-      } else {
-        swipeHandlers.onTouchStart(e);
-      }
+    // Always let pinch zoom handle 2-finger and 1-finger-when-zoomed
+    pinchTouchStart(e);
+    // Only pass to swipe if not zoomed
+    if (e.touches.length === 1 && scale <= 1) {
+      swipeHandlers.onTouchStart(e);
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      pinchTouchMove(e);
-    } else if (e.touches.length === 1) {
-      if (scale > 1 && panStart.current) {
-        // Pan the zoomed image
-        const dx = e.touches[0].clientX - panStart.current.x;
-        const dy = e.touches[0].clientY - panStart.current.y;
-        // Directly update pinch zoom translate via the hook isn't possible,
-        // so we apply pan offset through CSS
-        panStart.current = {
-          ...panStart.current,
-          tx: panStart.current.tx + (e.touches[0].clientX - panStart.current.x),
-          ty: panStart.current.ty + (e.touches[0].clientY - panStart.current.y),
-          x: e.touches[0].clientX,
-          y: e.touches[0].clientY,
-        };
-        // We need to update the pinch zoom state - use resetZoom workaround
-        // Actually we need to expose a setTranslate or handle pan in the hook
-        e.preventDefault();
-      } else if (scale === 1) {
-        swipeHandlers.onTouchMove(e);
-      }
+    pinchTouchMove(e);
+    if (e.touches.length === 1 && scale <= 1) {
+      swipeHandlers.onTouchMove(e);
     }
   };
 
   const handleTouchEnd = () => {
     pinchTouchEnd();
+    // Only trigger swipe navigation if not zoomed
     if (scale <= 1) {
       swipeHandlers.onTouchEnd();
     }
-    panStart.current = null;
   };
 
   const handleDoubleClick = () => {
