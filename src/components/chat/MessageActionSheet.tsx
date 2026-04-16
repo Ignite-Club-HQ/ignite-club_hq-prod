@@ -1,12 +1,11 @@
-import { useState } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { toast } from "sonner";
 
 interface MessageAction {
   label: string;
