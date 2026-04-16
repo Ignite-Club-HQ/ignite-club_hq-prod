@@ -20,6 +20,18 @@ const DrawerPortal = DrawerPrimitive.Portal;
 
 const DrawerClose = DrawerPrimitive.Close;
 
+const DrawerHandle = React.forwardRef<
+  React.ElementRef<typeof DrawerPrimitive.Handle>,
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Handle>
+>(({ className, ...props }, ref) => (
+  <DrawerPrimitive.Handle
+    ref={ref}
+    className={cn("mx-auto mt-4 mb-2 h-2 w-[100px] rounded-full bg-muted", className)}
+    {...props}
+  />
+));
+DrawerHandle.displayName = DrawerPrimitive.Handle.displayName;
+
 const DrawerOverlay = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
@@ -42,7 +54,7 @@ const DrawerContent = React.forwardRef<
       )}
       {...props}
     >
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+      <DrawerHandle />
       {children}
     </DrawerPrimitive.Content>
   </DrawerPortal>
@@ -85,6 +97,7 @@ export {
   DrawerOverlay,
   DrawerTrigger,
   DrawerClose,
+  DrawerHandle,
   DrawerContent,
   DrawerHeader,
   DrawerFooter,
