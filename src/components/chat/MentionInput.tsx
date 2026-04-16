@@ -467,9 +467,14 @@ export function MentionInput({
     }
   }, [showSuggestions, users, selectedIndex, insertMention, onKeyPress]);
 
-  // Close suggestions when clicking outside
+  // Close suggestions when clicking outside (but not inside our component)
+  const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const handleClickOutside = () => setShowSuggestions(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
