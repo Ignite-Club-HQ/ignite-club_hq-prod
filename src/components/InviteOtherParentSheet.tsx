@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Send, UserPlus, Mail, User, CheckCircle2, Share2, Copy } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Send, UserPlus, Mail, User, CheckCircle2, Share2, Copy, Search } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -17,6 +18,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface InviteOtherParentSheetProps {
   open: boolean;
@@ -43,6 +45,25 @@ export default function InviteOtherParentSheet({
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [resolvedClubName, setResolvedClubName] = useState("");
   const [resolvedTeamName, setResolvedTeamName] = useState("");
+  const [selectedUser, setSelectedUser] = useState<{ id: string; display_name: string | null; avatar_url: string | null } | null>(null);
+
+  const debouncedName = useDebounce(parentName, 300);
+
+  // Search for existing users as parent types
+  const { data: searchResults = [], isLoading: isSearching } = useQuery({
+    queryKey: ["parent-invite-user-search", debouncedName],
+    queryFn: async () => {
+      if (debouncedName.length < 2) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .ilike("display_name", `%${debouncedName}%`)
+        .limit(6);
+      // Filter out self
+      return (data || []).filter(u => u.id !== user?.id);
+    },
+    enabled: open && debouncedName.length >= 2 && !selectedUser,
+  });
 
   const sendInvite = useMutation({
     mutationFn: async () => {
@@ -69,7 +90,7 @@ export default function InviteOtherParentSheet({
         team_id: teamId,
         club_id: clubId,
         role: "parent" as any,
-        invited_user_id: null,
+        invited_user_id: selectedUser?.id || null,
         invited_by_user_id: user.id,
         invited_label: parentName.trim(),
         invited_email: trimmedEmail || null,
@@ -171,6 +192,7 @@ export default function InviteOtherParentSheet({
         setInviteLink(null);
         setResolvedClubName("");
         setResolvedTeamName("");
+        setSelectedUser(null);
       }, 300);
     }
     onOpenChange(open);
@@ -293,15 +315,83 @@ export default function InviteOtherParentSheet({
             </ResponsiveDialogHeader>
 
             <div className="space-y-4 py-2">
-              {/* Name input */}
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={parentName}
-                  onChange={(e) => setParentName(e.target.value)}
-                  placeholder="Parent's name"
-                  className="pl-10"
-                />
+              {/* Name input with search */}
+              <div className="space-y-1">
+                {selectedUser ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={selectedUser.avatar_url || undefined} />
+                      <AvatarFallback className="bg-primary/20 text-primary text-sm">
+                        {selectedUser.display_name?.[0]?.toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium flex-1">{selectedUser.display_name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setParentName("");
+                      }}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={parentName}
+                        onChange={(e) => setParentName(e.target.value)}
+                        placeholder="Search or type parent's name"
+                        className="pl-10"
+                        autoFocus
+                      />
+                    </div>
+
+                    {isSearching && debouncedName.length >= 2 && (
+                      <div className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Searching...
+                      </div>
+                    )}
+
+                    {!isSearching && searchResults.length > 0 && debouncedName.length >= 2 && (
+                      <div className="space-y-1 max-h-40 overflow-y-auto rounded-lg border bg-muted/30 p-1.5">
+                        {searchResults.map((result) => (
+                          <button
+                            key={result.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedUser(result);
+                              setParentName(result.display_name || "");
+                            }}
+                            className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
+                          >
+                            <Avatar className="h-7 w-7">
+                              <AvatarImage src={result.avatar_url || undefined} />
+                              <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                                {result.display_name?.[0]?.toUpperCase() || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm font-medium">{result.display_name || "Unknown"}</span>
+                          </button>
+                        ))}
+                        <p className="text-xs text-muted-foreground px-2 pt-1">
+                          Or continue typing to invite as new
+                        </p>
+                      </div>
+                    )}
+
+                    {!isSearching && debouncedName.length >= 2 && searchResults.length === 0 && (
+                      <p className="text-xs text-muted-foreground py-1">
+                        No existing users found — will be invited as new
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Delivery method toggle */}
