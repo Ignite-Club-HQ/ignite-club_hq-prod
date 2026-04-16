@@ -77,12 +77,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const parts = useMemo(() => {
     if (!text) return [];
     
-    const result: { type: "text" | "link" | "mention" | "markdown-link"; content: string; userId?: string; linkText?: string }[] = [];
+    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link"; content: string; userId?: string; linkText?: string }[] = [];
     let lastIndex = 0;
     
-    // Combined regex to find markdown links, plain URLs, and mentions
-    // Order matters: markdown links first to prevent plain URL matching the URL inside markdown
-    const combinedRegex = /(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
+    // Combined regex to find event tokens, markdown links, plain URLs, mentions, and event URLs
+    // Order matters: event tokens first, then markdown links, then full event URLs, then plain URLs, then mentions
+    const combinedRegex = /(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
     let match;
     
     while ((match = combinedRegex.exec(text)) !== null) {
@@ -95,21 +95,27 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       }
       
       if (match[1]) {
-        // Markdown link match: [text](url) - match[2] is text, match[3] is URL
+        // Event token: [event:uuid] - match[2] is the event ID
+        result.push({ type: "event-link", content: match[2] || "" });
+      } else if (match[3]) {
+        // Markdown link match: [text](url) - match[4] is text, match[5] is URL
         result.push({ 
           type: "markdown-link", 
-          content: match[3] || "", 
-          linkText: match[2] || "" 
+          content: match[5] || "", 
+          linkText: match[4] || "" 
         });
-      } else if (match[4]) {
+      } else if (match[6]) {
+        // Event URL match: /events/uuid - match[7] is the event ID
+        result.push({ type: "event-link", content: match[7] || "" });
+      } else if (match[8]) {
         // Plain URL match
-        result.push({ type: "link", content: match[4] });
-      } else if (match[5]) {
-        // Mention match - match[6] is display name, match[7] is userId
+        result.push({ type: "link", content: match[8] });
+      } else if (match[9]) {
+        // Mention match - match[10] is display name, match[11] is userId
         result.push({ 
           type: "mention", 
-          content: match[6] || "", 
-          userId: match[7] || "" 
+          content: match[10] || "", 
+          userId: match[11] || "" 
         });
       }
       
