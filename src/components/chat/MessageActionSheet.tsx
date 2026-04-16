@@ -62,11 +62,13 @@ export function MessageActionSheet({
   canDelete,
   isSystemMessage,
   messageText,
+  hasImage,
   onReply,
   onEdit,
   onDelete,
   onReport,
   onBlock,
+  onViewImage,
 }: MessageActionSheetProps) {
   const [showSafety, setShowSafety] = useState(false);
 
