@@ -70,6 +70,14 @@ export function MessageActionSheet({
   onViewImage,
 }: MessageActionSheetProps) {
   const [showSafety, setShowSafety] = useState(false);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (copiedText) {
+      const timer = setTimeout(() => setCopiedText(null), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [copiedText]);
 
   const actions: MessageAction[] = [];
 
