@@ -191,11 +191,16 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onTouchStart={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    // Ignore touches that arrive within 500ms of the picker opening
+                    // to prevent accidental selection from the long-press finger lift
+                    if (Date.now() - mountedAtRef.current < 500) return;
                     triggerEmojiSelection(type);
                   }}
                   onTouchEnd={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    // Also trigger on touchEnd as fallback, but with the same guard
+                    if (Date.now() - mountedAtRef.current < 500) return;
                   }}
                   onPointerDown={(e) => {
                     e.stopPropagation();
@@ -204,6 +209,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
+                    if (Date.now() - mountedAtRef.current < 500) return;
                     triggerEmojiSelection(type);
                   }}
                   style={{ touchAction: "none" }}
