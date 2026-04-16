@@ -74,6 +74,14 @@ export function MessageActionSheet({
 
   const actions: MessageAction[] = [];
 
+  if (hasImage && onViewImage) {
+    actions.push({
+      label: "View Image",
+      icon: <ImageIcon className="h-5 w-5" />,
+      onClick: onViewImage,
+    });
+  }
+
   if (canReply) {
     actions.push({
       label: "Reply",
