@@ -157,107 +157,100 @@ export default function InviteOtherParentSheet({
 
   const canSend = parentName.trim() && parentEmail.trim() && parentEmail.includes("@");
 
-  // Success state
-  if (sent) {
-    return (
-      <ResponsiveDialog open={open} onOpenChange={handleClose}>
-        <ResponsiveDialogContent className="max-w-md">
-          <ResponsiveDialogHeader>
-            <div className="flex items-center gap-3 mb-1">
-              <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <ResponsiveDialogTitle>Invite Sent!</ResponsiveDialogTitle>
-                <ResponsiveDialogDescription>
-                  Guardian invite for {childName}
-                </ResponsiveDialogDescription>
-              </div>
-            </div>
-          </ResponsiveDialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
-              <p className="font-medium mb-1">{parentName}</p>
-              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5" />
-                Invite sent to {parentEmail}
-              </p>
-            </div>
-
-            <p className="text-sm text-muted-foreground text-center">
-              When they accept, they'll be automatically linked to <strong>{childName}</strong> as a guardian.
-            </p>
-          </div>
-
-          <ResponsiveDialogFooter>
-            <Button onClick={() => handleClose(false)} className="w-full">
-              Done
-            </Button>
-          </ResponsiveDialogFooter>
-        </ResponsiveDialogContent>
-      </ResponsiveDialog>
-    );
-  }
-
   return (
     <ResponsiveDialog open={open} onOpenChange={handleClose}>
       <ResponsiveDialogContent className="max-w-md">
-        <ResponsiveDialogHeader>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <UserPlus className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <ResponsiveDialogTitle>Invite Parent</ResponsiveDialogTitle>
-              <ResponsiveDialogDescription>
-                Guardian for {childName}
-              </ResponsiveDialogDescription>
-            </div>
-          </div>
-        </ResponsiveDialogHeader>
+        {sent ? (
+          <>
+            <ResponsiveDialogHeader>
+              <div className="flex items-center gap-3 mb-1">
+                <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <ResponsiveDialogTitle>Invite Sent!</ResponsiveDialogTitle>
+                  <ResponsiveDialogDescription>
+                    Guardian invite for {childName}
+                  </ResponsiveDialogDescription>
+                </div>
+              </div>
+            </ResponsiveDialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={parentName}
-                onChange={(e) => setParentName(e.target.value)}
-                placeholder="Parent's name"
-                className="pl-10"
-              />
-            </div>
-          </div>
+            <div className="space-y-4 py-4">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+                <p className="font-medium mb-1">{parentName}</p>
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5" />
+                  Invite sent to {parentEmail}
+                </p>
+              </div>
 
-          <div className="space-y-2">
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="email"
-                value={parentEmail}
-                onChange={(e) => setParentEmail(e.target.value)}
-                placeholder="Parent's email"
-                className="pl-10"
-              />
+              <p className="text-sm text-muted-foreground text-center">
+                When they accept, they'll be automatically linked to <strong>{childName}</strong> as a guardian.
+              </p>
             </div>
-          </div>
-        </div>
 
-        <ResponsiveDialogFooter className="mt-2">
-          <Button
-            className="w-full"
-            onClick={() => sendInvite.mutate()}
-            disabled={!canSend || sendInvite.isPending}
-          >
-            {sendInvite.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Send className="h-4 w-4 mr-2" />
-            )}
-            {canSend ? `Send Invite` : "Enter name and email"}
-          </Button>
-        </ResponsiveDialogFooter>
+            <ResponsiveDialogFooter>
+              <Button onClick={() => handleClose(false)} className="w-full">
+                Done
+              </Button>
+            </ResponsiveDialogFooter>
+          </>
+        ) : (
+          <>
+            <ResponsiveDialogHeader>
+              <div className="flex items-center gap-3 mb-1">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <UserPlus className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <ResponsiveDialogTitle>Invite Parent</ResponsiveDialogTitle>
+                  <ResponsiveDialogDescription>
+                    Guardian for {childName}
+                  </ResponsiveDialogDescription>
+                </div>
+              </div>
+            </ResponsiveDialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={parentName}
+                  onChange={(e) => setParentName(e.target.value)}
+                  placeholder="Parent's name"
+                  className="pl-10"
+                />
+              </div>
+
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="email"
+                  value={parentEmail}
+                  onChange={(e) => setParentEmail(e.target.value)}
+                  placeholder="Parent's email"
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <ResponsiveDialogFooter className="mt-2">
+              <Button
+                className="w-full"
+                onClick={() => sendInvite.mutate()}
+                disabled={!canSend || sendInvite.isPending}
+              >
+                {sendInvite.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                {canSend ? "Send Invite" : "Enter name and email"}
+              </Button>
+            </ResponsiveDialogFooter>
+          </>
+        )}
       </ResponsiveDialogContent>
     </ResponsiveDialog>
   );
