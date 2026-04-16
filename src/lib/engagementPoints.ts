@@ -12,15 +12,14 @@ import {
  * Engagement Points System
  * 
  * Awards points for active app usage with daily cooldowns:
- * - Chat message (team/club/group): 1 pt per unique chat per day, max 2/day
- * - Photo upload: 2 pts per upload, max 4 pts/day (2 uploads)
+ * - Chat message (team/club/group): 2 pts per unique chat per day, max 6/day
+ * - Photo upload: 3 pts per upload, max 6 pts/day (2 uploads)
  * - Photo comment: 1 pt per unique photo per day, max 3/day
  * 
- * Gamification layer:
- * - Actionable nudges in notifications (tells user what to do next)
- * - Leaderboard position alerts (top 20)
- * - Weekly engagement streak bonuses (3/5/7 day streaks)
- * - Reward proximity alerts (within 20% of next reward)
+ * Notifications:
+ * - NO instant push for individual engagement points (prevents spam)
+ * - Weekly digest summarises total engagement points earned
+ * - Instant push kept for: streaks, leaderboard moves, reward unlocks
  */
 
 type EngagementAction = 'chat_message' | 'photo_upload' | 'photo_comment';
