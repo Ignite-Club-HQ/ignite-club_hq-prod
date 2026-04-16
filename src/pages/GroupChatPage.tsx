@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
@@ -1672,15 +1672,9 @@ export default function GroupChatPage() {
             imageUrl={imageUrl} 
             clubId={group?.club_id || undefined}
             teamId={group?.team_id || undefined}
+            showEventPicker={true}
+            onEventSelect={() => setEventPickerOpen(true)}
           />
-          <button
-            type="button"
-            onClick={() => setEventPickerOpen(true)}
-            disabled={sendMessageMutation.isPending}
-            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <CalendarPlus className="h-5 w-5" />
-          </button>
           <MentionInput
             value={message}
             onChange={(val) => {
