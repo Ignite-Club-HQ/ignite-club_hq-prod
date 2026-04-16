@@ -3,6 +3,7 @@ import { X, Download, Flag, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { useIOSScrollLock } from "@/hooks/useIOSScrollLock";
+import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { Capacitor } from "@capacitor/core";
 import { applyStatusBarForViewer, refreshStatusBar } from "@/lib/statusBarControl";
 
@@ -17,6 +18,8 @@ interface FullscreenImageViewerProps {
 
 export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, onBlockUser, showActions = false }: FullscreenImageViewerProps) {
   const [loaded, setLoaded] = useState(false);
+  const { signedUrl } = useSignedPhotoUrl(src);
+  const effectiveSrc = signedUrl || src;
 
   // Lock body scroll to prevent iOS viewport shift
   useIOSScrollLock(true);
@@ -29,6 +32,10 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       refreshStatusBar();
     };
   }, []);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [effectiveSrc]);
 
   return (
     <div
@@ -50,7 +57,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           size="icon"
           variant="ghost"
           className="text-white hover:bg-white/20"
-          onClick={(e) => { e.stopPropagation(); safeOpenUrl(src); }}
+          onClick={(e) => { e.stopPropagation(); safeOpenUrl(effectiveSrc); }}
         >
           <Download className="h-6 w-6" />
         </Button>
@@ -82,7 +89,7 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
         <div className="animate-pulse bg-muted/20 rounded w-64 h-64" />
       )}
       <img
-        src={src}
+        src={effectiveSrc}
         alt={alt}
         className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity ${loaded ? "opacity-100" : "opacity-0"}`}
         onClick={(e) => e.stopPropagation()}
