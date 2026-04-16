@@ -73,6 +73,7 @@ export function PhotoLightbox({
     onTouchMove: pinchTouchMove,
     onTouchEnd: pinchTouchEnd,
     resetZoom,
+    isPanningOrPinching,
   } = usePinchZoom(1, 4);
 
   const handlePrev = () => {
