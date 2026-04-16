@@ -195,7 +195,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     <div className="space-y-2 min-w-0 max-w-full">
       {/* Image attachment */}
       {imageUrl && !imageError && (
-        <div className="rounded-lg overflow-hidden max-w-xs">
+        <div className="rounded-lg overflow-hidden max-w-xs" data-chat-image>
           {(!imageLoaded || isLoadingSignedUrl) && (
             <Skeleton className="w-48 h-32" />
           )}
