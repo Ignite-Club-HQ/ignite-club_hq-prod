@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Send, UserPlus } from "lucide-react";
+import { Loader2, Send, UserPlus, Mail, User, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,16 +35,14 @@ export default function InviteOtherParentSheet({
   const queryClient = useQueryClient();
   const [parentName, setParentName] = useState("");
   const [parentEmail, setParentEmail] = useState("");
+  const [sent, setSent] = useState(false);
 
   const sendInvite = useMutation({
     mutationFn: async () => {
       if (!user || !parentName.trim() || !parentEmail.trim()) return;
 
-      // Create one invite per team the child is assigned to
-      // If no teams, create a club-level guardian invite
       const inviteToken = crypto.randomUUID();
 
-      // Get the first team's club_id for context
       let clubId: string | null = null;
       let teamId: string | null = null;
       if (teamIds.length > 0) {
@@ -57,7 +55,6 @@ export default function InviteOtherParentSheet({
         clubId = team?.club_id || null;
       }
 
-      // Create pending invite with guardian metadata (include all team IDs)
       const { data: insertedInvite, error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: teamId,
         club_id: clubId,
@@ -79,8 +76,6 @@ export default function InviteOtherParentSheet({
 
       const link = `${window.location.origin}/join/p/${inviteToken}`;
 
-      // Send email notification
-      // Get club branding for the email
       let clubName = "Your Club";
       let clubLogoUrl: string | undefined;
       let contactEmail: string | undefined;
@@ -97,7 +92,6 @@ export default function InviteOtherParentSheet({
         }
       }
 
-      // Get team name
       let teamName = "";
       if (teamId) {
         const { data: team } = await supabase
@@ -128,7 +122,6 @@ export default function InviteOtherParentSheet({
         },
       });
 
-      // Mark email as sent on the pending invite
       if (insertedInvite?.id) {
         await supabase
           .from("pending_invites")
@@ -143,10 +136,7 @@ export default function InviteOtherParentSheet({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["child_guardians", childId] });
       queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
-      toast({ title: `Invite sent to ${parentName.trim()}` });
-      setParentName("");
-      setParentEmail("");
-      onOpenChange(false);
+      setSent(true);
     },
     onError: (error: Error) => {
       console.error("[InviteOtherParent] Error:", error);
@@ -154,46 +144,107 @@ export default function InviteOtherParentSheet({
     },
   });
 
+  const handleClose = (open: boolean) => {
+    if (!open) {
+      setTimeout(() => {
+        setParentName("");
+        setParentEmail("");
+        setSent(false);
+      }, 300);
+    }
+    onOpenChange(open);
+  };
+
   const canSend = parentName.trim() && parentEmail.trim() && parentEmail.includes("@");
 
+  // Success state
+  if (sent) {
+    return (
+      <ResponsiveDialog open={open} onOpenChange={handleClose}>
+        <ResponsiveDialogContent className="max-w-md">
+          <ResponsiveDialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <ResponsiveDialogTitle>Invite Sent!</ResponsiveDialogTitle>
+                <ResponsiveDialogDescription>
+                  Guardian invite for {childName}
+                </ResponsiveDialogDescription>
+              </div>
+            </div>
+          </ResponsiveDialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+              <p className="font-medium mb-1">{parentName}</p>
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5" />
+                Invite sent to {parentEmail}
+              </p>
+            </div>
+
+            <p className="text-sm text-muted-foreground text-center">
+              When they accept, they'll be automatically linked to <strong>{childName}</strong> as a guardian.
+            </p>
+          </div>
+
+          <ResponsiveDialogFooter>
+            <Button onClick={() => handleClose(false)} className="w-full">
+              Done
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
+    );
+  }
+
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+    <ResponsiveDialog open={open} onOpenChange={handleClose}>
       <ResponsiveDialogContent className="max-w-md">
         <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            Invite Parent for {childName}
-          </ResponsiveDialogTitle>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <UserPlus className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <ResponsiveDialogTitle>Invite Parent</ResponsiveDialogTitle>
+              <ResponsiveDialogDescription>
+                Guardian for {childName}
+              </ResponsiveDialogDescription>
+            </div>
+          </div>
         </ResponsiveDialogHeader>
 
-        <div className="space-y-4 pt-2">
-          <p className="text-sm text-muted-foreground">
-            Invite another parent or guardian. They'll be automatically linked to {childName} when they accept.
-          </p>
-
+        <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="parent-name">Name</Label>
-            <Input
-              id="parent-name"
-              value={parentName}
-              onChange={(e) => setParentName(e.target.value)}
-              placeholder="Enter parent's name"
-            />
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={parentName}
+                onChange={(e) => setParentName(e.target.value)}
+                placeholder="Parent's name"
+                className="pl-10"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="parent-email">Email</Label>
-            <Input
-              id="parent-email"
-              type="email"
-              value={parentEmail}
-              onChange={(e) => setParentEmail(e.target.value)}
-              placeholder="Enter parent's email"
-            />
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="email"
+                value={parentEmail}
+                onChange={(e) => setParentEmail(e.target.value)}
+                placeholder="Parent's email"
+                className="pl-10"
+              />
+            </div>
           </div>
         </div>
 
-        <ResponsiveDialogFooter className="mt-4">
+        <ResponsiveDialogFooter className="mt-2">
           <Button
             className="w-full"
             onClick={() => sendInvite.mutate()}
@@ -204,7 +255,7 @@ export default function InviteOtherParentSheet({
             ) : (
               <Send className="h-4 w-4 mr-2" />
             )}
-            {canSend ? `Send Invite to ${parentName.trim()}` : "Enter name and email"}
+            {canSend ? `Send Invite` : "Enter name and email"}
           </Button>
         </ResponsiveDialogFooter>
       </ResponsiveDialogContent>
