@@ -767,6 +767,8 @@ export default function NetballBoard({
             onRotationIntervalChange={setRotationIntervalMinutes}
             validationMode={validationMode}
             onValidationModeChange={setValidationMode}
+            periodType={timerState.periodType ?? "quarters"}
+            onPeriodTypeChange={setPeriodType}
           />
         )}
         {lineupPlannerOpen && (
