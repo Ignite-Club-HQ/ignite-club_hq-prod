@@ -7,6 +7,7 @@ import BasketballActionBar from "./BasketballActionBar";
 import BasketballCourtArea from "./BasketballCourtArea";
 import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
+import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 
 // Lazy-load secondary dialogs
