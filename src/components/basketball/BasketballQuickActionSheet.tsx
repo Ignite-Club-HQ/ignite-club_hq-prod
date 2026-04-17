@@ -38,6 +38,7 @@ export default function BasketballQuickActionSheet({
 }: BasketballQuickActionSheetProps) {
   if (!player) return null;
   const onCourt = player.position !== null;
+  const fouledOut = (player.fouls ?? 0) >= 5;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -71,6 +72,7 @@ export default function BasketballQuickActionSheet({
               onStartSwap();
               onOpenChange(false);
             }}
+            disabled={fouledOut}
           >
             <ArrowLeftRight className="h-5 w-5" />
             <span className="text-xs">Swap with…</span>
@@ -96,9 +98,10 @@ export default function BasketballQuickActionSheet({
                 onSubOn();
                 onOpenChange(false);
               }}
+              disabled={fouledOut}
             >
               <LogIn className="h-5 w-5" />
-              <span className="text-xs">Sub on…</span>
+              <span className="text-xs">{fouledOut ? "Fouled out" : "Sub on…"}</span>
             </Button>
           )}
 
