@@ -38,6 +38,8 @@ interface AttendanceSectionProps {
   canSendReminders: boolean;
   /** Total members who could view this event (used to compute "X viewed") */
   trackableMembersCount?: number;
+  /** Optional: open the native/web share sheet with a copyable RSVP link */
+  onShareLink?: () => void;
 }
 
 export function AttendanceSection({
