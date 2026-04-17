@@ -365,6 +365,26 @@ export default function BasketballBoard({
             readOnly={readOnly}
           />
         )}
+        {autoSubPanelOpen && (
+          <QuarterAutoSubControlPanel
+            open={autoSubPanelOpen}
+            onOpenChange={setAutoSubPanelOpen}
+            plan={board.autoSubPlan}
+            players={board.players}
+            currentQuarter={board.timerState.currentQuarter}
+            elapsedSeconds={board.timerState.elapsedSeconds}
+            minutesPerPeriod={board.timerState.minutesPerQuarter}
+            periodType={board.timerState.periodType ?? "quarters"}
+            paused={board.autoSubPaused}
+            lockedPlayerIds={board.lockedPlayerIds}
+            onTogglePause={board.toggleAutoSubPaused}
+            onExecuteNext={board.executeNextSubNow}
+            onSkipNext={board.skipNextSub}
+            onCancel={board.cancelAutoSubPlan}
+            onRegenerate={board.regenerateAutoSubPlan}
+            onToggleLock={board.togglePlayerLock}
+          />
+        )}
       </Suspense>
     </div>
   );
