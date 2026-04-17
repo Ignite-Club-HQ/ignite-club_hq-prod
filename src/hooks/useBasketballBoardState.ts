@@ -694,6 +694,58 @@ export function useBasketballBoardState({
     }));
   }, []);
 
+  // ---------- Timeouts ----------
+  const callTimeout = useCallback(
+    (side: "home" | "away") => {
+      let actuallyCalled = false;
+      setTimerState((s) => {
+        const key = side === "home" ? "homeTimeoutsRemaining" : "awayTimeoutsRemaining";
+        const remaining = s[key] ?? s.timeoutsPerHalf ?? 3;
+        if (remaining <= 0) return s;
+        actuallyCalled = true;
+        return {
+          ...s,
+          [key]: remaining - 1,
+          // Pause the clock — timeouts always stop play.
+          isRunning: false,
+          lastUpdateTime: Date.now(),
+        };
+      });
+      if (actuallyCalled) {
+        cueTimeout();
+        toast({
+          title: "Timeout",
+          description: side === "home" ? "Home timeout called." : "Away timeout called.",
+        });
+      }
+    },
+    [toast]
+  );
+
+  const resetTimeoutsForCurrentHalf = useCallback(() => {
+    setTimerState((s) => {
+      const allowance = s.timeoutsPerHalf ?? 3;
+      return {
+        ...s,
+        homeTimeoutsRemaining: allowance,
+        awayTimeoutsRemaining: allowance,
+        lastUpdateTime: Date.now(),
+      };
+    });
+  }, []);
+
+  const setTimeoutsPerHalf = useCallback((n: number) => {
+    const safe = Math.max(0, Math.min(10, Math.floor(n)));
+    setTimerState((s) => ({
+      ...s,
+      timeoutsPerHalf: safe,
+      // Bump remaining so a coach increasing the allowance mid-half sees the new max.
+      homeTimeoutsRemaining: Math.min(safe, s.homeTimeoutsRemaining ?? safe),
+      awayTimeoutsRemaining: Math.min(safe, s.awayTimeoutsRemaining ?? safe),
+      lastUpdateTime: Date.now(),
+    }));
+  }, []);
+
   return {
     // state
     players,
