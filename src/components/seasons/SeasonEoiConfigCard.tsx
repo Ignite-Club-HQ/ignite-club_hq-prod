@@ -21,6 +21,7 @@ interface Props {
     eoi_closes_at: string | null;
     eoi_welcome_message: string | null;
     eoi_thank_you_message: string | null;
+    eoi_thank_you_redirect_url: string | null;
     eoi_require_dob: boolean;
     eoi_require_gender: boolean;
     eoi_ask_preferences: boolean;
@@ -43,6 +44,7 @@ export function SeasonEoiConfigCard({ seasonId, clubName, season }: Props) {
   const [closesAt, setClosesAt] = useState(toDateInput(season.eoi_closes_at));
   const [welcome, setWelcome] = useState(season.eoi_welcome_message ?? "");
   const [thankYou, setThankYou] = useState(season.eoi_thank_you_message ?? "");
+  const [redirectUrl, setRedirectUrl] = useState(season.eoi_thank_you_redirect_url ?? "");
   const [requireDob, setRequireDob] = useState(season.eoi_require_dob);
   const [requireGender, setRequireGender] = useState(season.eoi_require_gender);
   const [askPrefs, setAskPrefs] = useState(season.eoi_ask_preferences);
@@ -57,6 +59,7 @@ export function SeasonEoiConfigCard({ seasonId, clubName, season }: Props) {
     setClosesAt(toDateInput(season.eoi_closes_at));
     setWelcome(season.eoi_welcome_message ?? "");
     setThankYou(season.eoi_thank_you_message ?? "");
+    setRedirectUrl(season.eoi_thank_you_redirect_url ?? "");
     setRequireDob(season.eoi_require_dob);
     setRequireGender(season.eoi_require_gender);
     setAskPrefs(season.eoi_ask_preferences);
@@ -75,6 +78,7 @@ export function SeasonEoiConfigCard({ seasonId, clubName, season }: Props) {
         eoi_closes_at: closesAt ? new Date(closesAt + "T23:59:59").toISOString() : null,
         eoi_welcome_message: welcome.trim() || null,
         eoi_thank_you_message: thankYou.trim() || null,
+        eoi_thank_you_redirect_url: redirectUrl.trim() || null,
         eoi_require_dob: requireDob,
         eoi_require_gender: requireGender,
         eoi_ask_preferences: askPrefs,
@@ -201,10 +205,25 @@ export function SeasonEoiConfigCard({ seasonId, clubName, season }: Props) {
             id="eoi-thanks"
             value={thankYou}
             onChange={(e) => setThankYou(e.target.value)}
-            placeholder="Shown after submission."
+            placeholder="Shown after submission (ignored if redirect URL is set)."
             maxLength={500}
             className="mt-1"
           />
+        </div>
+
+        <div>
+          <Label htmlFor="eoi-redirect">Custom thank-you redirect (optional)</Label>
+          <Input
+            id="eoi-redirect"
+            type="url"
+            value={redirectUrl}
+            onChange={(e) => setRedirectUrl(e.target.value)}
+            placeholder="https://yourclub.com/thanks"
+            className="mt-1"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            If set, parents are sent to this URL after submitting instead of the default thank-you screen.
+          </p>
         </div>
 
         <div className="space-y-2 border-t pt-3">
