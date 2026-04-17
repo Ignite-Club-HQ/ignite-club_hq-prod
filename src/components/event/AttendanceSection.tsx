@@ -224,7 +224,39 @@ export function AttendanceSection({
                 <ViewerList members={viewedMembers} emptyText="No one has viewed yet." />
               </TabsContent>
               <TabsContent value="not-viewed" className="flex-1 overflow-y-auto mt-3">
-                <ViewerList members={notViewedMembers} emptyText="Everyone has opened this event." />
+                {notViewedMembers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-6 text-center">
+                    Everyone has opened this event.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {notViewedMembers.map((m) => {
+                      const hasResponded = !notRespondedSet.has(m.id);
+                      return (
+                        <EventViewMemberRow
+                          key={m.id}
+                          member={{
+                            id: m.id,
+                            display_name: m.display_name ?? null,
+                            avatar_url: m.avatar_url ?? null,
+                            hasViewed: false,
+                            hasResponded,
+                          }}
+                          variant="not-viewed"
+                          pushDisabled={false}
+                          noPushSetup={false}
+                          isBusy={sendingForUser === m.id}
+                          onSendReminder={(channels, userIds) =>
+                            handleSendReminders(channels, userIds)
+                          }
+                          onNudge={handleNudgeUser}
+                          onShareLink={onShareLink}
+                          hasResponded={hasResponded}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           )}
