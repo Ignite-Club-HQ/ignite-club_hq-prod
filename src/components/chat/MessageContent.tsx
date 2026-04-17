@@ -3,6 +3,7 @@ import { LinkPreview } from "./LinkPreview";
 import { YouTubeEmbed, extractYouTubeId } from "./YouTubeEmbed";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { EventLinkCard } from "./EventLinkCard";
+import { PollCard } from "./PollCard";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
