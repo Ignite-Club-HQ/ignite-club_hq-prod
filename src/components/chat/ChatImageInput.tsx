@@ -176,12 +176,21 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
+    const isVideo = isVideoFile(file);
+
+    if (!isVideo && !file.type.startsWith("image/")) {
+      toast.error("Please select an image or video file");
       return;
     }
 
-    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    if (isVideo) {
+      const validation = await validateVideo(file);
+      if (!validation.ok) {
+        toast.error(validation.reason || "Video is not valid");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    } else if (file.size > MAX_UPLOAD_SIZE_BYTES) {
       toast.error("Image must be less than 10MB");
       return;
     }
@@ -197,13 +206,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setUploading(true);
 
     try {
-      const storageUrl = await uploadBlob(file);
+      const storageUrl = await uploadBlob(file, { isVideo });
       URL.revokeObjectURL(localUrl);
       setLocalPreview(null);
       onImageUploaded(storageUrl);
     } catch (error) {
       console.error("Upload error:", error);
-      toast.error("Failed to upload image");
+      toast.error(isVideo ? "Failed to upload video" : "Failed to upload image");
       URL.revokeObjectURL(localUrl);
       setLocalPreview(null);
     } finally {
