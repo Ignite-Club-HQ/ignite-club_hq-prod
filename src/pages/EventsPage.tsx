@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus } from "lucide-react";
+import { exportEventsIcs } from "@/lib/icsExport";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -48,6 +49,7 @@ interface Event {
 
 export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
+  const { toast } = useToast();
   usePageTitle("Schedule");
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
@@ -267,8 +269,13 @@ export default function EventsPage() {
           title,
           type,
           event_date,
+          start_time,
+          end_time,
+          description,
           address,
           suburb,
+          state,
+          postcode,
           location_name,
           club_id,
           team_id,
@@ -442,6 +449,47 @@ export default function EventsPage() {
               )}
             </Button>
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                disabled={!upcomingEvents?.length}
+                onClick={async () => {
+                  if (!upcomingEvents?.length) return;
+                  try {
+                    await exportEventsIcs(
+                      upcomingEvents.map((e: any) => ({
+                        id: e.id,
+                        title: e.title,
+                        type: e.type,
+                        event_date: e.event_date,
+                        start_time: e.start_time,
+                        end_time: e.end_time,
+                        description: e.description,
+                        location_name: e.location_name,
+                        address: e.address,
+                        suburb: e.suburb,
+                        state: e.state,
+                        postcode: e.postcode,
+                        is_cancelled: e.is_cancelled,
+                        updated_at: e.updated_at,
+                        url: `${window.location.origin}/events/${e.id}`,
+                      })),
+                      "Ignite Schedule",
+                      "ignite-schedule",
+                    );
+                    toast({ title: "Schedule exported", description: `Open the file to add ${upcomingEvents.length} event${upcomingEvents.length === 1 ? "" : "s"} to your calendar.` });
+                  } catch (err) {
+                    toast({ title: "Couldn't export schedule", description: (err as Error).message, variant: "destructive" });
+                  }
+                }}
+              >
+                <CalendarPlus className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add to your calendar</TooltipContent>
+          </Tooltip>
           {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
             <Tooltip>
               <TooltipTrigger asChild>

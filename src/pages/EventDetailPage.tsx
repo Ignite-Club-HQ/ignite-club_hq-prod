@@ -6,7 +6,8 @@ import { getShareUrl } from "@/lib/shareUtils";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus } from "lucide-react";
+import { exportEventIcs } from "@/lib/icsExport";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
 import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
@@ -1852,6 +1853,40 @@ export default function EventDetailPage() {
         </Badge>
         
         <div className="flex-1" />
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          aria-label="Add to calendar"
+          title="Add to calendar"
+          onClick={async () => {
+            try {
+              await exportEventIcs({
+                id: event.id,
+                title: event.title,
+                type: event.type,
+                event_date: event.event_date,
+                start_time: (event as any).start_time,
+                end_time: (event as any).end_time,
+                description: event.description,
+                location_name: (event as any).location_name,
+                address: event.address,
+                suburb: (event as any).suburb,
+                state: (event as any).state,
+                postcode: (event as any).postcode,
+                is_cancelled: event.is_cancelled,
+                updated_at: (event as any).updated_at,
+                url: getShareUrl("event", id!),
+              });
+              toast({ title: "Calendar file ready", description: "Open it to add this event to your calendar." });
+            } catch (err) {
+              toast({ title: "Couldn't export event", description: (err as Error).message, variant: "destructive" });
+            }
+          }}
+        >
+          <CalendarPlus className="h-5 w-5" />
+        </Button>
 
         <Button
           variant="ghost"
