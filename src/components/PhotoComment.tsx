@@ -522,7 +522,7 @@ export const PhotoComment = memo(function PhotoComment({
               </p>
             )}
             <p className="text-sm">
-              <span className="font-medium">{displayName}</span>{" "}
+              <span className="font-semibold">{displayName}</span>{" "}
               {displayText}
               {createdAt && (
                 <span className="text-xs text-muted-foreground ml-2">
