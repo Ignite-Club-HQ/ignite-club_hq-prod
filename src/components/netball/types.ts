@@ -81,7 +81,7 @@ export interface NetballPlayer {
 export type Quarter = 1 | 2 | 3 | 4;
 
 /** "Quarters" = 4 periods (default netball). "Halves" = 2 periods (juniors). */
-export type PeriodType = "quarters" | "halves";
+export type { PeriodType } from "@/lib/periodTypes";
 
 export type RotationMode = "time-based" | "quarter-break" | "off";
 

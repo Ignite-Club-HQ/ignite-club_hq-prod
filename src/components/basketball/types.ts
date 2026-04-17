@@ -85,7 +85,7 @@ export interface BasketballPlayer {
 }
 
 /** "Quarters" = 4 periods (default basketball). "Halves" = 2 periods (younger leagues). */
-export type PeriodType = "quarters" | "halves";
+export type { PeriodType } from "@/lib/periodTypes";
 
 export type Quarter = 1 | 2 | 3 | 4;
 
