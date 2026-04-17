@@ -7,6 +7,7 @@ import { isVideoUrl } from "./videoUtils";
 const MENTION_RE = /@\[([^\]]+)\]\(([^)]+)\)/g;
 const EVENT_TOKEN_RE = /\[event:[0-9a-f-]{36}\]/gi;
 const POLL_TOKEN_RE = /\[poll:[0-9a-f-]{36}\]/gi;
+const BOARD_TOKEN_RE = /\[board:[0-9a-f-]{36}\]/gi;
 // Markdown-style links: [label](url)
 const MD_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
 
@@ -26,15 +27,11 @@ export function formatMessagePreview(text: string | null | undefined): string {
   if (!text) return "";
   let out = text;
 
-  // Replace event tokens with friendly label
   out = out.replace(EVENT_TOKEN_RE, "📅 Event");
-  // Replace poll tokens with friendly label
   out = out.replace(POLL_TOKEN_RE, "📊 Poll");
-  // Markdown links → just the label
+  out = out.replace(BOARD_TOKEN_RE, "🏟️ Live board");
   out = out.replace(MD_LINK_RE, "$1");
-  // Mentions → @Name
   out = stripMentionFormatting(out);
-  // Collapse whitespace
   out = out.replace(/\s+/g, " ").trim();
 
   return out;
