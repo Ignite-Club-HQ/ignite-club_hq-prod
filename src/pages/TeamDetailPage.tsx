@@ -924,14 +924,14 @@ export default function TeamDetailPage() {
 
       {/* Archived Banner */}
       {(team as any)?.is_archived && (
-        <Card className="border-amber-500/40 bg-amber-50 dark:bg-amber-950/20">
+        <Card className="border-warning/40 bg-warning/5">
           <CardContent className="p-3 flex items-center gap-3">
-            <Archive className="h-5 w-5 text-amber-600 shrink-0" />
+            <Archive className="h-5 w-5 text-warning shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+              <p className="text-sm font-medium text-foreground">
                 This team is archived{(team as any)?.season_label ? ` · ${(team as any).season_label}` : ""}
               </p>
-              <p className="text-xs text-amber-700 dark:text-amber-400">Only admins can see this team</p>
+              <p className="text-xs text-muted-foreground">Read-only — history is preserved. Only admins can see this team.</p>
             </div>
             {isAdmin && (
               <ArchiveTeamDialog
@@ -942,7 +942,7 @@ export default function TeamDetailPage() {
                 currentSeasonLabel={(team as any)?.season_label}
                 onSuccess={() => queryClient.invalidateQueries({ queryKey: ["team", id] })}
                 trigger={
-                  <Button size="sm" variant="outline" className="shrink-0 border-amber-600/40 text-amber-700">
+                  <Button size="sm" variant="outline" className="shrink-0">
                     <ArchiveRestore className="h-4 w-4 mr-1" /> Reinstate
                   </Button>
                 }

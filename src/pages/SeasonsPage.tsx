@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Archive, CheckCircle2, Clock, Lock } from "lucide-react";
+import { ArrowLeft, Plus, Archive, CheckCircle2, Clock, Lock, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,26 @@ export default function SeasonsPage() {
 
   const { data: seasons = [], isLoading: seasonsLoading, refetch } = useClubSeasons(clubId);
 
+  const seasonIds = useMemo(() => seasons.map((s) => s.id), [seasons]);
+
+  const { data: teamCounts = {} } = useQuery({
+    queryKey: ["season-team-counts", clubId, seasonIds.join(",")],
+    queryFn: async (): Promise<Record<string, number>> => {
+      if (seasonIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("teams")
+        .select("season_id")
+        .in("season_id", seasonIds);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((row: any) => {
+        if (row.season_id) counts[row.season_id] = (counts[row.season_id] ?? 0) + 1;
+      });
+      return counts;
+    },
+    enabled: seasonIds.length > 0,
+  });
+
   const grouped = useMemo(() => {
     const active: Season[] = [];
     const draft: Season[] = [];
@@ -100,15 +120,15 @@ export default function SeasonsPage() {
       </div>
 
       {grouped.active.length > 0 && (
-        <SeasonGroup title="Current season" seasons={grouped.active} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Current season" seasons={grouped.active} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
       )}
 
       {grouped.draft.length > 0 && (
-        <SeasonGroup title="Draft seasons" seasons={grouped.draft} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Draft seasons" seasons={grouped.draft} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
       )}
 
       {grouped.past.length > 0 && (
-        <SeasonGroup title="Past seasons" seasons={grouped.past} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Past seasons" seasons={grouped.past} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
       )}
 
       {seasons.length === 0 && (
@@ -138,10 +158,12 @@ export default function SeasonsPage() {
 function SeasonGroup({
   title,
   seasons,
+  teamCounts,
   onClick,
 }: {
   title: string;
   seasons: Season[];
+  teamCounts: Record<string, number>;
   onClick: (s: Season) => void;
 }) {
   return (
@@ -150,14 +172,23 @@ function SeasonGroup({
       {seasons.map((s) => {
         const meta = STATUS_META[s.status];
         const Icon = meta.icon;
+        const count = teamCounts[s.id] ?? 0;
         return (
           <Card key={s.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => onClick(s)}>
             <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 py-4">
               <div className="min-w-0 flex-1">
                 <CardTitle className="text-base truncate">{s.name}</CardTitle>
-                <CardDescription className="text-xs">
-                  {s.start_date ? format(new Date(s.start_date), "MMM yyyy") : "No start date"}
-                  {s.end_date ? ` – ${format(new Date(s.end_date), "MMM yyyy")}` : ""}
+                <CardDescription className="text-xs flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    {count} team{count === 1 ? "" : "s"}
+                  </span>
+                  {s.start_date && (
+                    <span>
+                      · {format(new Date(s.start_date), "MMM yyyy")}
+                      {s.end_date ? ` – ${format(new Date(s.end_date), "MMM yyyy")}` : ""}
+                    </span>
+                  )}
                 </CardDescription>
               </div>
               <Badge variant={meta.variant} className="gap-1 flex-shrink-0">

@@ -51,6 +51,30 @@ export default function SeasonDetailPage() {
     enabled: !!seasonId,
   });
 
+  const teamIds = teams.map((t) => t.id);
+  const { data: playerCounts = {} } = useQuery({
+    queryKey: ["season-team-player-counts", seasonId, teamIds.join(",")],
+    queryFn: async (): Promise<Record<string, number>> => {
+      if (teamIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("team_memberships")
+        .select("team_id")
+        .eq("season_id", seasonId!)
+        .eq("status", "active")
+        .eq("role", "player")
+        .in("team_id", teamIds);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((row: any) => {
+        counts[row.team_id] = (counts[row.team_id] ?? 0) + 1;
+      });
+      return counts;
+    },
+    enabled: teamIds.length > 0,
+  });
+
+  const totalPlayers = Object.values(playerCounts).reduce((a, b) => a + b, 0);
+
   const archiveMut = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.rpc("archive_season", { _season_id: seasonId! });
@@ -132,25 +156,33 @@ export default function SeasonDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Teams in this season</CardTitle>
-          <CardDescription>{teams.length} team{teams.length === 1 ? "" : "s"}</CardDescription>
+          <CardDescription>
+            {teams.length} team{teams.length === 1 ? "" : "s"} · {totalPlayers} player{totalPlayers === 1 ? "" : "s"}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {teams.length === 0 && (
             <p className="text-sm text-muted-foreground">No teams yet.</p>
           )}
-          {teams.map((t) => (
-            <div
-              key={t.id}
-              className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/40 cursor-pointer"
-              onClick={() => navigate(`/teams/${t.id}`)}
-            >
-              <div className="min-w-0">
-                <p className="font-medium truncate">{t.name}</p>
-                {t.level_age && <p className="text-xs text-muted-foreground">{t.level_age}</p>}
+          {teams.map((t) => {
+            const playerCount = playerCounts[t.id] ?? 0;
+            return (
+              <div
+                key={t.id}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/40 cursor-pointer"
+                onClick={() => navigate(`/teams/${t.id}`)}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{t.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {playerCount} player{playerCount === 1 ? "" : "s"}
+                    {t.level_age ? ` · ${t.level_age}` : ""}
+                  </p>
+                </div>
+                <Badge variant="outline" className="capitalize flex-shrink-0">{t.lifecycle_status}</Badge>
               </div>
-              <Badge variant="outline" className="capitalize flex-shrink-0">{t.lifecycle_status}</Badge>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
