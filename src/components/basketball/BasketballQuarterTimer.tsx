@@ -100,12 +100,16 @@ export default function BasketballQuarterTimer({
   }, [state, onChange]);
 
   const reset = useCallback(() => {
+    if (!window.confirm("Reset the game? This clears the timer and the score.")) return;
     onChange({
       ...state,
       currentQuarter: 1,
       elapsedSeconds: 0,
       isRunning: false,
       isGameFinished: false,
+      homeScore: 0,
+      awayScore: 0,
+      scoreLog: [],
       lastUpdateTime: Date.now(),
     });
   }, [state, onChange]);
