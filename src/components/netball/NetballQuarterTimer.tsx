@@ -8,8 +8,10 @@ import { formatTime } from "./netballHelpers";
 interface NetballQuarterTimerProps {
   state: NetballTimerState;
   onChange: (next: NetballTimerState) => void;
-  /** Called every second while running, with elapsed seconds in current quarter. */
-  onTick?: (elapsedSeconds: number, quarter: Quarter) => void;
+  /** Called every tick while running. `deltaSeconds` is the real elapsed
+   *  seconds since the previous tick (>= 1) — used to credit on-court players
+   *  accurately even when the app was backgrounded. */
+  onTick?: (elapsedSeconds: number, quarter: Quarter, deltaSeconds: number) => void;
   /** Called when a quarter ends naturally. */
   onQuarterEnd?: (quarter: Quarter) => void;
   readOnly?: boolean;
@@ -36,13 +38,20 @@ export default function NetballQuarterTimer({
 
     const tick = () => {
       const cur = stateRef.current;
-      const elapsedSinceUpdate = Math.floor((Date.now() - cur.lastUpdateTime) / 1000);
+      const elapsedSinceUpdate = Math.max(
+        1,
+        Math.floor((Date.now() - cur.lastUpdateTime) / 1000)
+      );
       const newElapsed = cur.elapsedSeconds + elapsedSinceUpdate;
       const quarterSeconds = cur.minutesPerQuarter * 60;
 
       if (newElapsed >= quarterSeconds) {
         // Quarter ended
         const endingQuarter = cur.currentQuarter;
+        const deltaToEnd = Math.max(0, quarterSeconds - cur.elapsedSeconds);
+        if (deltaToEnd > 0) {
+          onTickRef.current?.(quarterSeconds, cur.currentQuarter, deltaToEnd);
+        }
         if (cur.currentQuarter === 4) {
           onChange({
             ...cur,
@@ -63,7 +72,7 @@ export default function NetballQuarterTimer({
         onQuarterEndRef.current?.(endingQuarter);
       } else {
         onChange({ ...cur, elapsedSeconds: newElapsed, lastUpdateTime: Date.now() });
-        onTickRef.current?.(newElapsed, cur.currentQuarter);
+        onTickRef.current?.(newElapsed, cur.currentQuarter, elapsedSinceUpdate);
       }
     };
 
@@ -92,12 +101,16 @@ export default function NetballQuarterTimer({
   }, [state, onChange]);
 
   const reset = useCallback(() => {
+    if (!window.confirm("Reset the game? This clears the timer and the score.")) return;
     onChange({
       ...state,
       currentQuarter: 1,
       elapsedSeconds: 0,
       isRunning: false,
       isGameFinished: false,
+      homeScore: 0,
+      awayScore: 0,
+      scoreLog: [],
       lastUpdateTime: Date.now(),
     });
   }, [state, onChange]);
