@@ -14,6 +14,7 @@ import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
 import CuesToggle from "@/components/scoreboard/CuesToggle";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 
 // Lazy-load secondary dialogs
 const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
@@ -78,6 +79,8 @@ export default function BasketballBoard({
     attempts: 1 | 2 | 3;
   } | null>(null);
 
+  const { save: saveGameResult } = useSaveGameResult();
+
   // Auto-open the summary the first time the game ticks over to "finished".
   useEffect(() => {
     if (board.timerState.isGameFinished) setSummaryOpen(true);
@@ -114,6 +117,37 @@ export default function BasketballBoard({
 
   // Keep the screen awake while a coach is actively running the game.
   useWakeLock(!readOnly && board.timerState.isRunning && !board.timerState.isGameFinished);
+
+  // Auto-save the finished game to history (admins/coaches only — RLS guards the rest).
+  useEffect(() => {
+    if (!readOnly && board.timerState.isGameFinished) {
+      saveGameResult({
+        teamId,
+        eventId,
+        sport: "basketball",
+        homeLabel: teamName,
+        awayLabel: board.timerState.opponentName ?? "Opponent",
+        homeScore: board.timerState.homeScore ?? 0,
+        awayScore: board.timerState.awayScore ?? 0,
+        perQuarter,
+        players: summaryPlayers,
+        mvpPlayerId: board.timerState.mvpPlayerId ?? null,
+      });
+    }
+  }, [
+    readOnly,
+    board.timerState.isGameFinished,
+    board.timerState.mvpPlayerId,
+    teamId,
+    eventId,
+    teamName,
+    board.timerState.opponentName,
+    board.timerState.homeScore,
+    board.timerState.awayScore,
+    perQuarter,
+    summaryPlayers,
+    saveGameResult,
+  ]);
 
   return (
     <div className="flex flex-col h-full bg-background">

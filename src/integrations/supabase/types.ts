@@ -2969,6 +2969,78 @@ export type Database = {
           },
         ]
       }
+      game_results: {
+        Row: {
+          away_label: string
+          away_score: number
+          created_at: string
+          event_id: string | null
+          home_label: string
+          home_score: number
+          id: string
+          mvp_player_id: string | null
+          mvp_player_name: string | null
+          period_scores: Json
+          played_at: string
+          player_stats: Json
+          saved_by: string
+          sport: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          away_label: string
+          away_score?: number
+          created_at?: string
+          event_id?: string | null
+          home_label: string
+          home_score?: number
+          id?: string
+          mvp_player_id?: string | null
+          mvp_player_name?: string | null
+          period_scores?: Json
+          played_at?: string
+          player_stats?: Json
+          saved_by: string
+          sport: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          away_label?: string
+          away_score?: number
+          created_at?: string
+          event_id?: string | null
+          home_label?: string
+          home_score?: number
+          id?: string
+          mvp_player_id?: string | null
+          mvp_player_name?: string | null
+          period_scores?: Json
+          played_at?: string
+          player_stats?: Json
+          saved_by?: string
+          sport?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_results_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_results_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       game_summaries: {
         Row: {
           created_at: string

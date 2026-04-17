@@ -14,6 +14,7 @@ import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
 import CuesToggle from "@/components/scoreboard/CuesToggle";
 import QuarterAutoSubControlPanel from "@/components/scoreboard/QuarterAutoSubControlPanel";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 
 import {
@@ -723,6 +724,38 @@ export default function NetballBoard({
 
   // Keep the screen awake while a coach is actively running the game.
   useWakeLock(!readOnly && timerState.isRunning && !timerState.isGameFinished);
+
+  // Auto-save the finished game to history (admins/coaches only — RLS guards the rest).
+  const { save: saveGameResult } = useSaveGameResult();
+  useEffect(() => {
+    if (!readOnly && timerState.isGameFinished) {
+      saveGameResult({
+        teamId,
+        eventId,
+        sport: "netball",
+        homeLabel: teamName,
+        awayLabel: timerState.opponentName ?? "Opponent",
+        homeScore: timerState.homeScore ?? 0,
+        awayScore: timerState.awayScore ?? 0,
+        perQuarter,
+        players: summaryPlayers,
+        mvpPlayerId: timerState.mvpPlayerId ?? null,
+      });
+    }
+  }, [
+    readOnly,
+    timerState.isGameFinished,
+    timerState.mvpPlayerId,
+    teamId,
+    eventId,
+    teamName,
+    timerState.opponentName,
+    timerState.homeScore,
+    timerState.awayScore,
+    perQuarter,
+    summaryPlayers,
+    saveGameResult,
+  ]);
 
   // ---------- Render ----------
   return (
