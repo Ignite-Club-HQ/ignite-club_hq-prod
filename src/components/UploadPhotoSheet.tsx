@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { compressImage, formatFileSize } from "@/lib/imageCompression";
+import { isVideoFile, validateVideo } from "@/lib/videoUtils";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
@@ -470,21 +471,36 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const addPhotosToSelection = async (files: File[]) => {
     if (files.length === 0) return;
 
-    // Create initial photos with compressing status
-    const newPhotos: SelectedPhoto[] = files.map(file => ({
+    // Validate videos up-front (size + duration); skip invalid ones with a toast
+    const acceptedFiles: File[] = [];
+    for (const file of files) {
+      if (isVideoFile(file)) {
+        const validation = await validateVideo(file);
+        if (!validation.ok) {
+          toast.error(`${file.name}: ${validation.reason || "Video is not valid"}`);
+          continue;
+        }
+      }
+      acceptedFiles.push(file);
+    }
+    if (acceptedFiles.length === 0) return;
+
+    // Create initial entries; videos go straight to 'pending' (no client compression)
+    const newPhotos: SelectedPhoto[] = acceptedFiles.map(file => ({
       id: `${Date.now()}-${Math.random().toString(36).substring(7)}`,
       file,
       originalFile: file,
       previewUrl: URL.createObjectURL(file),
-      status: 'compressing' as const,
+      status: isVideoFile(file) ? ('pending' as const) : ('compressing' as const),
       originalSize: file.size,
       compressedSize: file.size,
     }));
 
     setSelectedPhotos(prev => [...prev, ...newPhotos]);
 
-    // Compress each photo
+    // Compress only image entries
     for (const photo of newPhotos) {
+      if (isVideoFile(photo.originalFile)) continue;
       try {
         const result = await compressImage(photo.originalFile);
         setSelectedPhotos(prev => prev.map(p =>
