@@ -2028,6 +2028,144 @@ export type Database = {
         }
         Relationships: []
       }
+      eoi_submissions: {
+        Row: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          game_days: string[]
+          id: string
+          notes: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          age_group?: string | null
+          allocated_at?: string | null
+          assigned_team_id?: string | null
+          child_id?: string | null
+          claim_token?: string
+          claimed_at?: string | null
+          club_id: string
+          confirmed_at?: string | null
+          created_at?: string
+          game_days?: string[]
+          id?: string
+          notes?: string | null
+          parent_email: string
+          parent_mobile?: string | null
+          parent_name: string
+          parent_user_id?: string | null
+          player_dob?: string | null
+          player_gender?: string | null
+          player_name: string
+          preferred_position?: string | null
+          preferred_teammates?: string | null
+          registered_at?: string | null
+          returning_player?: boolean
+          season_id: string
+          skill_level?: number | null
+          source?: Database["public"]["Enums"]["eoi_source"]
+          status?: Database["public"]["Enums"]["eoi_status"]
+          submitted_at?: string
+          training_days?: string[]
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          age_group?: string | null
+          allocated_at?: string | null
+          assigned_team_id?: string | null
+          child_id?: string | null
+          claim_token?: string
+          claimed_at?: string | null
+          club_id?: string
+          confirmed_at?: string | null
+          created_at?: string
+          game_days?: string[]
+          id?: string
+          notes?: string | null
+          parent_email?: string
+          parent_mobile?: string | null
+          parent_name?: string
+          parent_user_id?: string | null
+          player_dob?: string | null
+          player_gender?: string | null
+          player_name?: string
+          preferred_position?: string | null
+          preferred_teammates?: string | null
+          registered_at?: string | null
+          returning_player?: boolean
+          season_id?: string
+          skill_level?: number | null
+          source?: Database["public"]["Enums"]["eoi_source"]
+          status?: Database["public"]["Enums"]["eoi_status"]
+          submitted_at?: string
+          training_days?: string[]
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eoi_submissions_assigned_team_id_fkey"
+            columns: ["assigned_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_submissions_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_submissions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_submissions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_submissions_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_group_duties: {
         Row: {
           assigned_to: string | null
@@ -5205,6 +5343,18 @@ export type Database = {
           created_at: string
           created_by: string | null
           end_date: string | null
+          eoi_ask_availability: boolean
+          eoi_ask_position: boolean
+          eoi_ask_preferences: boolean
+          eoi_ask_skill_level: boolean
+          eoi_closes_at: string | null
+          eoi_enabled: boolean
+          eoi_opens_at: string | null
+          eoi_require_dob: boolean
+          eoi_require_gender: boolean
+          eoi_slug: string | null
+          eoi_thank_you_message: string | null
+          eoi_welcome_message: string | null
           id: string
           name: string
           start_date: string | null
@@ -5217,6 +5367,18 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_date?: string | null
+          eoi_ask_availability?: boolean
+          eoi_ask_position?: boolean
+          eoi_ask_preferences?: boolean
+          eoi_ask_skill_level?: boolean
+          eoi_closes_at?: string | null
+          eoi_enabled?: boolean
+          eoi_opens_at?: string | null
+          eoi_require_dob?: boolean
+          eoi_require_gender?: boolean
+          eoi_slug?: string | null
+          eoi_thank_you_message?: string | null
+          eoi_welcome_message?: string | null
           id?: string
           name: string
           start_date?: string | null
@@ -5229,6 +5391,18 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_date?: string | null
+          eoi_ask_availability?: boolean
+          eoi_ask_position?: boolean
+          eoi_ask_preferences?: boolean
+          eoi_ask_skill_level?: boolean
+          eoi_closes_at?: string | null
+          eoi_enabled?: boolean
+          eoi_opens_at?: string | null
+          eoi_require_dob?: boolean
+          eoi_require_gender?: boolean
+          eoi_slug?: string | null
+          eoi_thank_you_message?: string | null
+          eoi_welcome_message?: string | null
           id?: string
           name?: string
           start_date?: string | null
@@ -6595,6 +6769,7 @@ export type Database = {
         Returns: boolean
       }
       can_dm_user: { Args: { other_user_id: string }; Returns: boolean }
+      can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
       can_manage_team_roster: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
@@ -6634,6 +6809,48 @@ export type Database = {
       check_password_reset_rate_limit: {
         Args: { p_email: string }
         Returns: boolean
+      }
+      claim_eoi_submission: {
+        Args: { _token: string }
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          game_days: string[]
+          id: string
+          notes: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       cleanup_fcm_token_for_user: {
         Args: { p_token: string; p_user_id: string }
@@ -6703,6 +6920,65 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: number
       }
+      get_eoi_by_claim_token: {
+        Args: { _token: string }
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          game_days: string[]
+          id: string
+          notes: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_eoi_stats: {
+        Args: { _club_id: string; _season_id?: string }
+        Returns: {
+          allocated: number
+          confirmed: number
+          new_players: number
+          preferences_completed: number
+          registered: number
+          returning_players: number
+          source_admin: number
+          source_app: number
+          source_website: number
+          submitted: number
+          total: number
+          withdrawn: number
+        }[]
+      }
       get_members_events_enabled: {
         Args: { member_ids: string[] }
         Returns: {
@@ -6765,6 +7041,27 @@ export type Database = {
           team_id: string
           team_logo_url: string
           team_name: string
+        }[]
+      }
+      get_public_eoi_config: {
+        Args: { _club_slug: string; _season_slug: string }
+        Returns: {
+          ask_availability: boolean
+          ask_position: boolean
+          ask_preferences: boolean
+          ask_skill_level: boolean
+          closes_at: string
+          club_id: string
+          club_logo_url: string
+          club_name: string
+          is_open: boolean
+          opens_at: string
+          require_dob: boolean
+          require_gender: boolean
+          season_id: string
+          season_name: string
+          thank_you_message: string
+          welcome_message: string
         }[]
       }
       get_push_subscription_health: {
@@ -6912,6 +7209,7 @@ export type Database = {
         Returns: boolean
       }
       is_season_editable: { Args: { _season_id: string }; Returns: boolean }
+      is_season_eoi_open: { Args: { _season_id: string }; Returns: boolean }
       is_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
@@ -7133,6 +7431,15 @@ export type Database = {
       club_subscription_plan: "starter" | "standard" | "unlimited"
       duty_status: "open" | "completed"
       enrolment_status: "enrolled" | "waitlisted" | "withdrawn"
+      eoi_source: "website" | "app" | "admin"
+      eoi_status:
+        | "invited"
+        | "submitted"
+        | "preferences_completed"
+        | "allocated"
+        | "confirmed"
+        | "registered"
+        | "withdrawn"
       event_type: "game" | "training" | "social" | "mini_league"
       feedback_status: "open" | "in_progress" | "resolved"
       poll_chat_type: "team" | "club" | "group" | "broadcast" | "club_admin"
@@ -7284,6 +7591,16 @@ export const Constants = {
       club_subscription_plan: ["starter", "standard", "unlimited"],
       duty_status: ["open", "completed"],
       enrolment_status: ["enrolled", "waitlisted", "withdrawn"],
+      eoi_source: ["website", "app", "admin"],
+      eoi_status: [
+        "invited",
+        "submitted",
+        "preferences_completed",
+        "allocated",
+        "confirmed",
+        "registered",
+        "withdrawn",
+      ],
       event_type: ["game", "training", "social", "mini_league"],
       feedback_status: ["open", "in_progress", "resolved"],
       poll_chat_type: ["team", "club", "group", "broadcast", "club_admin"],
