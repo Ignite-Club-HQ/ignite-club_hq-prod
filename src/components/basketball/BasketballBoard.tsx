@@ -8,7 +8,9 @@ import BasketballCourtArea from "./BasketballCourtArea";
 import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
+import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
+import { useWakeLock } from "@/hooks/useWakeLock";
 
 // Lazy-load secondary dialogs
 const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
@@ -59,6 +61,9 @@ export default function BasketballBoard({
   const [rosterOpen, setRosterOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
 
+  // Keep the screen awake while a coach is actively running the game.
+  useWakeLock(!readOnly && board.timerState.isRunning && !board.timerState.isGameFinished);
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -86,10 +91,16 @@ export default function BasketballBoard({
         awayScore={board.timerState.awayScore ?? 0}
         increments={[1, 2, 3]}
         readOnly={readOnly}
+        disabled={!!board.timerState.isGameFinished}
         onScore={board.addScore}
         onUndo={board.undoScore}
         onRenameAway={board.setOpponentName}
         canUndo={(board.timerState.scoreLog?.length ?? 0) > 0}
+      />
+
+      <QuarterScoreStrip
+        scoreLog={board.timerState.scoreLog}
+        currentQuarter={board.timerState.currentQuarter}
       />
 
       {!readOnly && (
