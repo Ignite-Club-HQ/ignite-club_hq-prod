@@ -51,6 +51,7 @@ const GameScoreboard = memo(function GameScoreboard({
   onUndo,
   onRenameAway,
   canUndo,
+  disabled = false,
   className,
 }: GameScoreboardProps) {
   const [renameOpen, setRenameOpen] = useState(false);
@@ -71,6 +72,7 @@ const GameScoreboard = memo(function GameScoreboard({
         score={homeScore}
         increments={increments}
         readOnly={readOnly}
+        disabled={disabled}
         onScore={(pts) => onScore("home", pts)}
         align="left"
       />
@@ -148,6 +150,7 @@ const GameScoreboard = memo(function GameScoreboard({
           score={awayScore}
           increments={increments}
           readOnly={readOnly}
+          disabled={disabled}
           onScore={(pts) => onScore("away", pts)}
           align="right"
         />
@@ -161,6 +164,7 @@ interface ScoreColumnProps {
   score: number;
   increments: number[];
   readOnly: boolean;
+  disabled?: boolean;
   onScore: (points: number) => void;
   align: "left" | "right";
 }
@@ -170,6 +174,7 @@ function ScoreColumn({
   score,
   increments,
   readOnly,
+  disabled = false,
   onScore,
   align,
 }: ScoreColumnProps) {
@@ -206,6 +211,7 @@ function ScoreColumn({
                 variant="secondary"
                 className="h-7 min-w-7 px-1.5 text-xs font-bold"
                 onClick={() => onScore(pts)}
+                disabled={disabled}
                 aria-label={`Add ${pts} point${pts === 1 ? "" : "s"}`}
               >
                 +{pts}
