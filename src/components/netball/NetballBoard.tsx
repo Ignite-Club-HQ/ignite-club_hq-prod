@@ -215,6 +215,8 @@ export default function NetballBoard({
   // `delta` is the real elapsed seconds since the last tick. Using a constant
   // `1` here causes drift when the app backgrounds (the timer catches up via
   // wall-clock but per-player minutes wouldn't).
+  // Track sub-cue de-dupe so we don't beep every second.
+  const cuedSubIdsRef = useRef<Set<string>>(new Set());
   const handleTick = useCallback(
     (elapsed: number, quarter: Quarter, delta = 1) => {
       const safeDelta = Math.max(1, Math.floor(delta));
@@ -227,6 +229,14 @@ export default function NetballBoard({
       );
 
       if (rotationMode !== "off") {
+        const upcoming = findNextDueSub(autoSubPlan, quarter, elapsed + 10);
+        if (upcoming && upcoming.time > elapsed) {
+          const key = `${quarter}:${upcoming.time}:${upcoming.playerOut.id}`;
+          if (!cuedSubIdsRef.current.has(key)) {
+            cuedSubIdsRef.current.add(key);
+            cueSubDue();
+          }
+        }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
         if (due) executeSub(due);
       }
@@ -267,6 +277,7 @@ export default function NetballBoard({
   // ---------- Quarter end → quarter-break rotations + apply next lineup ----------
   const handleQuarterEnd = useCallback(
     (endedQuarter: Quarter) => {
+      cueQuarterEnd();
       const nextQuarter = (endedQuarter + 1) as Quarter;
       if (nextQuarter > 4) {
         toast({ title: "Game finished", description: "Q4 complete." });
@@ -449,6 +460,7 @@ export default function NetballBoard({
   }, []);
 
   // ---------- Scoring ----------
+  // After every goal, the centre pass automatically flips to the OTHER side.
   const addScore = useCallback((side: "home" | "away", points: number) => {
     setTimerState((s) => {
       const event = {
@@ -463,6 +475,7 @@ export default function NetballBoard({
         homeScore: (s.homeScore ?? 0) + (side === "home" ? points : 0),
         awayScore: (s.awayScore ?? 0) + (side === "away" ? points : 0),
         scoreLog: [...(s.scoreLog ?? []), event],
+        centrePass: side === "home" ? "away" : "home",
         lastUpdateTime: Date.now(),
       };
     });
