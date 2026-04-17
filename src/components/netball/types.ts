@@ -111,6 +111,20 @@ export interface NetballScoreEvent {
   at: number;
 }
 
+/** Append-only sub log entry — supports undo + post-game review. */
+export interface NetballSubLogEntry {
+  id: string;
+  quarter: Quarter;
+  time: number;
+  at: number;
+  playerOutId: string;
+  playerOutName: string;
+  playerInId: string;
+  playerInName: string;
+  position: NetballPosition;
+  source: "auto" | "manual";
+}
+
 export interface NetballTimerState {
   minutesPerQuarter: number;
   currentQuarter: Quarter;
@@ -125,6 +139,10 @@ export interface NetballTimerState {
   opponentName?: string;
   /** Append-only score log to support undo + per-quarter stats */
   scoreLog?: NetballScoreEvent[];
+  /** Append-only sub log for undo + post-game review. */
+  subLog?: NetballSubLogEntry[];
+  /** Coach-selected MVP / Player of the Match (player.id). */
+  mvpPlayerId?: string | null;
 }
 
 export interface NetballBoardState {
