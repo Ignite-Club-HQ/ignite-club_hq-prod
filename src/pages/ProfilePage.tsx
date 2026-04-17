@@ -43,8 +43,10 @@ export default function ProfilePage() {
   const [clubPlansOpen, setClubPlansOpen] = useState(true);
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
   const [myClubsTeamsOpen, setMyClubsTeamsOpen] = useState(true);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>("all");
   
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
+  const { data: seasonsForRank = [] } = useClubSeasons(activeClubFilter || undefined);
 
   // Auto-scroll to points history when navigated from notification
   useEffect(() => {
