@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
+import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +38,7 @@ import { SharePhotoButton } from "@/components/SharePhotoButton";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
+import { usePhotoViewCounts, useRecordPhotoView, usePhotoViewRealtime } from "@/hooks/usePhotoViews";
 import {
   AlertDialog,
   AlertDialogAction,
