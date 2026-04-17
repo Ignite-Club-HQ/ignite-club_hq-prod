@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trophy, Download, Share2, Star } from "lucide-react";
+import { Trophy, Download, Share2, Star, Save, Check, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -51,6 +51,10 @@ export interface GameSummaryProps {
   onSelectMvp?: (playerId: string | null) => void;
   /** Read-only mode hides MVP edit + sharing. */
   readOnly?: boolean;
+  /** Optional manual save-to-history callback. When provided, a "Save to history" button appears. */
+  onSaveNow?: () => Promise<void> | void;
+  /** When true, the save button shows a "Saved" check state (parent controls). */
+  isSaved?: boolean;
 }
 
 const fmtTime = (secs: number) => {
@@ -72,10 +76,13 @@ export default function GameSummaryDialog({
   mvpPlayerId,
   onSelectMvp,
   readOnly = false,
+  onSaveNow,
+  isSaved = false,
 }: GameSummaryProps) {
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const result = useMemo(() => {
     if (homeScore > awayScore) return "WIN";
