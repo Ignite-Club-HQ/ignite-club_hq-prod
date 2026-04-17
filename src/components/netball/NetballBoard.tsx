@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, AlertTriangle, Loader2, Trophy, Undo2 } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Loader2, Trophy, Undo2, Repeat } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import NetballQuarterTimer from "./NetballQuarterTimer";
@@ -12,6 +12,7 @@ import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import CentrePassIndicator from "@/components/scoreboard/CentrePassIndicator";
 import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
 import CuesToggle from "@/components/scoreboard/CuesToggle";
+import QuarterAutoSubControlPanel from "@/components/scoreboard/QuarterAutoSubControlPanel";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 
@@ -587,6 +588,83 @@ export default function NetballBoard({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, rosterSignature]);
+
+  // ---------- Auto-sub control panel handlers ----------
+  const findUpcomingSub = useCallback(() => {
+    return (
+      autoSubPlan.find(
+        (s) =>
+          !s.executed &&
+          !s.skipped &&
+          s.quarter === timerState.currentQuarter &&
+          s.time >= timerState.elapsedSeconds
+      ) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped && s.quarter > timerState.currentQuarter) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped)
+    );
+  }, [autoSubPlan, timerState.currentQuarter, timerState.elapsedSeconds]);
+
+  const executeNextSubNow = useCallback(() => {
+    const target = findUpcomingSub();
+    if (!target) {
+      toast({ title: "No subs queued" });
+      return;
+    }
+    executeSub(target);
+  }, [findUpcomingSub, executeSub, toast]);
+
+  const skipNextSub = useCallback(() => {
+    const target = findUpcomingSub();
+    if (!target) return;
+    setAutoSubPlan((prev) =>
+      prev.map((s) =>
+        !s.executed && !s.skipped && s.quarter === target.quarter && s.time === target.time
+          ? { ...s, skipped: true }
+          : s
+      )
+    );
+    toast({ title: "Sub skipped" });
+  }, [findUpcomingSub, toast]);
+
+  const cancelAutoSubPlan = useCallback(() => {
+    setAutoSubPlan((prev) => prev.map((s) => (s.executed ? s : { ...s, skipped: true })));
+    toast({ title: "Plan cancelled", description: "All pending auto-subs cleared." });
+  }, [toast]);
+
+  const regenerateAutoSubPlan = useCallback(() => {
+    if (rotationMode === "off") {
+      toast({
+        title: "Rotation is off",
+        description: "Enable a rotation mode in Settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const fresh =
+      rotationMode === "time-based"
+        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter)
+        : generateQuarterBreakRotationPlan(players, 2);
+    const executed = autoSubPlan.filter((s) => s.executed);
+    setAutoSubPlan([
+      ...executed,
+      ...fresh.filter(
+        (f) =>
+          !executed.some(
+            (e) =>
+              e.quarter === f.quarter && e.time === f.time && e.playerOut.id === f.playerOut.id
+          )
+      ),
+    ]);
+    toast({ title: "Plan regenerated" });
+  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, autoSubPlan, toast]);
+
+  const onCourtForPanel = useMemo(
+    () =>
+      players
+        .filter((p) => p.position !== null)
+        .map((p) => ({ id: p.id, name: p.name, number: p.number, position: p.position })),
+    [players]
+  );
 
   // ---------- Derived ----------
   const bench = useMemo(() => getBench(players), [players]);
