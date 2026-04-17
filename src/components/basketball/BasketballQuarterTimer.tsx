@@ -8,7 +8,11 @@ import { formatTime } from "./basketballHelpers";
 interface BasketballQuarterTimerProps {
   state: BasketballTimerState;
   onChange: (next: BasketballTimerState) => void;
-  onTick?: (elapsedSeconds: number, quarter: Quarter) => void;
+  /** Fired each tick with the new elapsed seconds, current quarter, and the
+   *  number of real seconds that elapsed since the previous tick (>= 1).
+   *  Boards should use deltaSeconds to advance per-player minutes — using a
+   *  hard-coded `1` causes drift after backgrounding. */
+  onTick?: (elapsedSeconds: number, quarter: Quarter, deltaSeconds: number) => void;
   onQuarterEnd?: (quarter: Quarter) => void;
   readOnly?: boolean;
 }
@@ -34,12 +38,20 @@ export default function BasketballQuarterTimer({
 
     const tick = () => {
       const cur = stateRef.current;
-      const elapsedSinceUpdate = Math.floor((Date.now() - cur.lastUpdateTime) / 1000);
+      const elapsedSinceUpdate = Math.max(
+        1,
+        Math.floor((Date.now() - cur.lastUpdateTime) / 1000)
+      );
       const newElapsed = cur.elapsedSeconds + elapsedSinceUpdate;
       const quarterSeconds = cur.minutesPerQuarter * 60;
 
       if (newElapsed >= quarterSeconds) {
         const endingQuarter = cur.currentQuarter;
+        // Credit the final partial second of the quarter to on-court players.
+        const deltaToEnd = Math.max(0, quarterSeconds - cur.elapsedSeconds);
+        if (deltaToEnd > 0) {
+          onTickRef.current?.(quarterSeconds, cur.currentQuarter, deltaToEnd);
+        }
         if (cur.currentQuarter === 4) {
           onChange({
             ...cur,
@@ -60,7 +72,7 @@ export default function BasketballQuarterTimer({
         onQuarterEndRef.current?.(endingQuarter);
       } else {
         onChange({ ...cur, elapsedSeconds: newElapsed, lastUpdateTime: Date.now() });
-        onTickRef.current?.(newElapsed, cur.currentQuarter);
+        onTickRef.current?.(newElapsed, cur.currentQuarter, elapsedSinceUpdate);
       }
     };
 
@@ -88,12 +100,16 @@ export default function BasketballQuarterTimer({
   }, [state, onChange]);
 
   const reset = useCallback(() => {
+    if (!window.confirm("Reset the game? This clears the timer and the score.")) return;
     onChange({
       ...state,
       currentQuarter: 1,
       elapsedSeconds: 0,
       isRunning: false,
       isGameFinished: false,
+      homeScore: 0,
+      awayScore: 0,
+      scoreLog: [],
       lastUpdateTime: Date.now(),
     });
   }, [state, onChange]);

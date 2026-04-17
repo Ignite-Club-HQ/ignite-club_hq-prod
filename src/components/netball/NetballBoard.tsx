@@ -8,6 +8,8 @@ import NetballActionBar from "./NetballActionBar";
 import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
+import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
+import { useWakeLock } from "@/hooks/useWakeLock";
 
 import {
   NetballPlayer,
@@ -174,11 +176,17 @@ export default function NetballBoard({
   useNetballGameSync(boardState, timerState, !readOnly);
 
   // ---------- Time tracking ----------
+  // `delta` is the real elapsed seconds since the last tick. Using a constant
+  // `1` here causes drift when the app backgrounds (the timer catches up via
+  // wall-clock but per-player minutes wouldn't).
   const handleTick = useCallback(
-    (elapsed: number, quarter: Quarter) => {
+    (elapsed: number, quarter: Quarter, delta = 1) => {
+      const safeDelta = Math.max(1, Math.floor(delta));
       setPlayers((prev) =>
         prev.map((p) =>
-          p.position !== null ? { ...p, minutesPlayed: (p.minutesPlayed ?? 0) + 1 } : p
+          p.position !== null
+            ? { ...p, minutesPlayed: (p.minutesPlayed ?? 0) + safeDelta }
+            : p
         )
       );
 
@@ -402,6 +410,9 @@ export default function NetballBoard({
     toast({ title: `Q${nextQ} lineup applied` });
   };
 
+  // Keep the screen awake while a coach is actively running the game.
+  useWakeLock(!readOnly && timerState.isRunning && !timerState.isGameFinished);
+
   // ---------- Render ----------
   return (
     <div className="flex flex-col h-full bg-background">
@@ -430,10 +441,16 @@ export default function NetballBoard({
         awayScore={timerState.awayScore ?? 0}
         increments={[1]}
         readOnly={readOnly}
+        disabled={!!timerState.isGameFinished}
         onScore={addScore}
         onUndo={undoScore}
         onRenameAway={setOpponentName}
         canUndo={(timerState.scoreLog?.length ?? 0) > 0}
+      />
+
+      <QuarterScoreStrip
+        scoreLog={timerState.scoreLog}
+        currentQuarter={timerState.currentQuarter}
       />
 
       {!readOnly && (
