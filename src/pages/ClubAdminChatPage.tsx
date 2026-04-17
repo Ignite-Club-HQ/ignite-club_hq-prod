@@ -28,6 +28,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
+import { queueMessage } from "@/lib/messageQueue";
 import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { Capacitor } from "@capacitor/core";
