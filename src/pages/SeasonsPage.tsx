@@ -120,15 +120,15 @@ export default function SeasonsPage() {
       </div>
 
       {grouped.active.length > 0 && (
-        <SeasonGroup title="Current season" seasons={grouped.active} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Current season" seasons={grouped.active} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
       )}
 
       {grouped.draft.length > 0 && (
-        <SeasonGroup title="Draft seasons" seasons={grouped.draft} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Draft seasons" seasons={grouped.draft} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
       )}
 
       {grouped.past.length > 0 && (
-        <SeasonGroup title="Past seasons" seasons={grouped.past} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Past seasons" seasons={grouped.past} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
       )}
 
       {seasons.length === 0 && (
