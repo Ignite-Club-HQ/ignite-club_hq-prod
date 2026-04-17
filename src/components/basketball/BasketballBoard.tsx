@@ -156,6 +156,16 @@ export default function BasketballBoard({
             onSave={board.setPlayers}
           />
         )}
+        {presetsOpen && (
+          <BasketballLineupPresetsDialog
+            open={presetsOpen}
+            onOpenChange={setPresetsOpen}
+            players={board.players}
+            presets={board.lineupPresets}
+            onSave={board.setLineupPresets}
+            onApply={board.applyPreset}
+          />
+        )}
         {board.quickActionPlayerId && board.quickActionPlayer && (
           <BasketballQuickActionSheet
             open={!!board.quickActionPlayerId}
