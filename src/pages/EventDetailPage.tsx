@@ -2673,9 +2673,10 @@ export default function EventDetailPage() {
               maybeContent={renderBucket(maybeRsvps, "maybe")}
               notGoingContent={renderBucket(notGoingRsvps, "not_going")}
               notRespondedContent={notRespondedNode}
-              notRespondedUserIds={notResponded.map((m: any) => m.id)}
+              notRespondedUserIds={allNotRespondedForReminders.map((m: any) => m.id)}
               canSendReminders={canSendReminders}
               trackableMembersCount={trackableMembers}
+              onShareLink={handleShareReminderLink}
             />
           </div>
         );
