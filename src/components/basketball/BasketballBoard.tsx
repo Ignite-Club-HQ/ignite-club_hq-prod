@@ -79,6 +79,19 @@ export default function BasketballBoard({
         />
       </header>
 
+      <GameScoreboard
+        homeLabel={teamName}
+        awayLabel={board.timerState.opponentName ?? "Opponent"}
+        homeScore={board.timerState.homeScore ?? 0}
+        awayScore={board.timerState.awayScore ?? 0}
+        increments={[1, 2, 3]}
+        readOnly={readOnly}
+        onScore={board.addScore}
+        onUndo={board.undoScore}
+        onRenameAway={board.setOpponentName}
+        canUndo={(board.timerState.scoreLog?.length ?? 0) > 0}
+      />
+
       {!readOnly && (
         <BasketballActionBar
           onOpenSquad={() => setRosterOpen(true)}
