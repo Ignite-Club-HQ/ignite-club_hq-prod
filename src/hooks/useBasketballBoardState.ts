@@ -321,6 +321,8 @@ export function useBasketballBoardState({
   // `delta` is the number of real seconds elapsed since the last tick — using
   // a hard-coded `1` causes drift after the app backgrounds (the timer keeps
   // ticking via wall-clock but per-player minutes wouldn't catch up).
+  // Track which subs we've already "warned" about so we don't beep every second.
+  const cuedSubIdsRef = useRef<Set<string>>(new Set());
   const handleTick = useCallback(
     (elapsed: number, quarter: Quarter, delta = 1) => {
       const safeDelta = Math.max(1, Math.floor(delta));
@@ -332,6 +334,16 @@ export function useBasketballBoardState({
         )
       );
       if (rotationMode !== "off") {
+        // Cue the coach ~10s before a sub fires so they have time to react.
+        const upcoming = findNextDueSub(autoSubPlan, quarter, elapsed + 10);
+        if (upcoming && upcoming.time > elapsed) {
+          // Stable id per-sub: position + time + outgoing player.
+          const key = `${quarter}:${upcoming.time}:${upcoming.playerOut.id}`;
+          if (!cuedSubIdsRef.current.has(key)) {
+            cuedSubIdsRef.current.add(key);
+            cueSubDue();
+          }
+        }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
         if (due) executeSub(due);
       }
@@ -342,7 +354,18 @@ export function useBasketballBoardState({
   // ---------- Quarter end ----------
   const handleQuarterEnd = useCallback(
     (endedQuarter: Quarter) => {
+      cueQuarterEnd();
       const nextQuarter = (endedQuarter + 1) as Quarter;
+      // Reset half-based timeouts when crossing into the second half (Q3 starts).
+      if (nextQuarter === 3) {
+        setTimerState((s) => ({
+          ...s,
+          homeTimeoutsRemaining: s.timeoutsPerHalf ?? 3,
+          awayTimeoutsRemaining: s.timeoutsPerHalf ?? 3,
+          timeoutsHalfTracked: 2,
+          lastUpdateTime: Date.now(),
+        }));
+      }
       if (nextQuarter > 4) {
         toast({ title: "Game finished", description: "Q4 complete." });
         return;
