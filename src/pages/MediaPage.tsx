@@ -433,6 +433,7 @@ export default function MediaPage() {
     if (cachedPhotosData && cachedPhotosData.length > 0) {
       return cachedPhotosData.map(p => ({
         ...p,
+        caption: p.caption ?? null,
         image_url: p.file_url, // Cached data uses file_url
         mini_league_id: null,
         clubs: null,
