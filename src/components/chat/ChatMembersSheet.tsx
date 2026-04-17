@@ -592,6 +592,20 @@ export function ChatMembersSheet({
                             {chatMuted && (
                               <svg style={{ marginLeft: 2, flexShrink: 0 }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A.7.7 0 0 1 5.9 7.8H4a1 1 0 0 0-1 1v6.4a1 1 0 0 0 1 1h1.9a.7.7 0 0 1 .513.213l3.384 3.383A.705.705 0 0 0 11 19.298z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
                             )}
+                            {isPersonalGroupChat && isGroupCreator && member.id !== user?.id && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRemoveMemberConfirm({ id: member.id, name: member.display_name || "this member" });
+                                }}
+                                aria-label="Remove member"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         );
                       })}
