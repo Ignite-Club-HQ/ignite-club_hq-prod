@@ -879,7 +879,8 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           </Button>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                     
                     {/* Add More Button */}
                     {!uploading && (
