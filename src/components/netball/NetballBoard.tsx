@@ -491,9 +491,15 @@ export default function NetballBoard({
         homeScore: Math.max(0, (s.homeScore ?? 0) - (last.side === "home" ? last.points : 0)),
         awayScore: Math.max(0, (s.awayScore ?? 0) - (last.side === "away" ? last.points : 0)),
         scoreLog: log.slice(0, -1),
+        // Flip centre pass back to the team that just had it taken away.
+        centrePass: last.side,
         lastUpdateTime: Date.now(),
       };
     });
+  }, []);
+
+  const setCentrePass = useCallback((side: "home" | "away") => {
+    setTimerState((s) => ({ ...s, centrePass: side, lastUpdateTime: Date.now() }));
   }, []);
 
   const setOpponentName = useCallback((name: string) => {
