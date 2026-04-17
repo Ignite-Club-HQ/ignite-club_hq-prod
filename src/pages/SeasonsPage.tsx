@@ -187,11 +187,13 @@ function SeasonGroup({
   seasons,
   teamCounts,
   onClick,
+  onTemplate,
 }: {
   title: string;
   seasons: Season[];
   teamCounts: Record<string, number>;
   onClick: (s: Season) => void;
+  onTemplate?: (s: Season) => void;
 }) {
   return (
     <div className="space-y-2">
