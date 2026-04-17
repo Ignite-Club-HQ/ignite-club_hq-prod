@@ -132,6 +132,10 @@ export function useBasketballBoardState({
         elapsedSeconds: 0,
         isRunning: false,
         lastUpdateTime: Date.now(),
+        timeoutsPerHalf: 3,
+        homeTimeoutsRemaining: 3,
+        awayTimeoutsRemaining: 3,
+        timeoutsHalfTracked: 1,
       }
   );
 
