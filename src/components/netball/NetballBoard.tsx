@@ -146,6 +146,19 @@ export default function NetballBoard({
   const [rosterOpen, setRosterOpen] = useState(false);
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // Auto-sub control panel state
+  const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
+  const [autoSubPaused, setAutoSubPaused] = useState(false);
+  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
+  const toggleLockPlayer = useCallback((playerId: string) => {
+    setLockedPlayerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  }, []);
 
   // Auto-open the summary the first time the game ticks over to "finished".
   useEffect(() => {
@@ -229,9 +242,13 @@ export default function NetballBoard({
         )
       );
 
-      if (rotationMode !== "off") {
+      if (rotationMode !== "off" && !autoSubPaused) {
         const upcoming = findNextDueSub(autoSubPlan, quarter, elapsed + 10);
-        if (upcoming && upcoming.time > elapsed) {
+        if (
+          upcoming &&
+          upcoming.time > elapsed &&
+          !lockedPlayerIds.has(upcoming.playerOut.id)
+        ) {
           const key = `${quarter}:${upcoming.time}:${upcoming.playerOut.id}`;
           if (!cuedSubIdsRef.current.has(key)) {
             cuedSubIdsRef.current.add(key);
@@ -239,10 +256,10 @@ export default function NetballBoard({
           }
         }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
-        if (due) executeSub(due);
+        if (due && !lockedPlayerIds.has(due.playerOut.id)) executeSub(due);
       }
     },
-    [autoSubPlan, rotationMode] // executeSub stable via setState callbacks
+    [autoSubPlan, rotationMode, autoSubPaused, lockedPlayerIds] // executeSub stable via setState callbacks
   );
 
   // ---------- Sub execution ----------
