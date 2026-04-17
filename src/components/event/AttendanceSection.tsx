@@ -112,8 +112,10 @@ export function AttendanceSection({
     }
   };
 
-  const showReminderAction =
-    isAdmin && canSendReminders && counts.notResponded > 0 && notRespondedUserIds.length > 0;
+  // Sharing a reminder link is always available to admins (no Pro required).
+  // Push/email reminders require Pro (canSendReminders).
+  const hasNonResponders = counts.notResponded > 0 && notRespondedUserIds.length > 0;
+  const showReminderAction = isAdmin && hasNonResponders && (canSendReminders || !!onShareLink);
 
   return (
     <section className="space-y-4">
@@ -159,19 +161,30 @@ export function AttendanceSection({
                   <ChevronDown className="h-3 w-3 ml-0.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => handleSendReminders("push")}>
-                  <Smartphone className="h-4 w-4 mr-2" />
-                  Push Notification
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSendReminders("email")}>
-                  <Mail className="h-4 w-4 mr-2" />
-                  Email
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSendReminders("both")}>
-                  <Bell className="h-4 w-4 mr-2" />
-                  Both (Push + Email)
-                </DropdownMenuItem>
+              <DropdownMenuContent align="start" className="w-56">
+                {canSendReminders && (
+                  <>
+                    <DropdownMenuItem onClick={() => handleSendReminders("push")}>
+                      <Smartphone className="h-4 w-4 mr-2" />
+                      Push Notification
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSendReminders("email")}>
+                      <Mail className="h-4 w-4 mr-2" />
+                      Email
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSendReminders("both")}>
+                      <Bell className="h-4 w-4 mr-2" />
+                      Both (Push + Email)
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {canSendReminders && onShareLink && <DropdownMenuSeparator />}
+                {onShareLink && (
+                  <DropdownMenuItem onClick={() => onShareLink()}>
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Share link…
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
