@@ -386,8 +386,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         </div>
       )}
 
-      {/* Event link cards */}
-      {eventIds.length > 0 && (
+      {/* Event link cards - only if showPreviews (otherwise rendered outside bubble via previewsOnly) */}
+      {showPreviews && eventIds.length > 0 && (
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
           {eventIds.map((eventId) => (
             <EventLinkCard key={eventId} eventId={eventId} />
@@ -395,8 +395,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         </div>
       )}
 
-      {/* Poll cards */}
-      {pollIds.length > 0 && (
+      {/* Poll cards - only if showPreviews (otherwise rendered outside bubble via previewsOnly) */}
+      {showPreviews && pollIds.length > 0 && (
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
           {pollIds.map((pollId) => (
             <PollCard key={pollId} pollId={pollId} />
