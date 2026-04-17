@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { DraftTeamBuilder } from "@/components/seasons/DraftTeamBuilder";
 import { SeasonAnalyticsCard } from "@/components/seasons/SeasonAnalyticsCard";
 import { BulkRolloverDialog } from "@/components/seasons/BulkRolloverDialog";
+import { SeasonEoiConfigCard } from "@/components/seasons/SeasonEoiConfigCard";
 import { useClubSeasons } from "@/hooks/useClubSeasons";
 
 export default function SeasonDetailPage() {

@@ -99,6 +99,8 @@ const SeasonsPage = lazy(() => import("./pages/SeasonsPage"));
 const SeasonDetailPage = lazy(() => import("./pages/SeasonDetailPage"));
 const SeasonComparePage = lazy(() => import("./pages/SeasonComparePage"));
 const ShortInviteRedirect = lazy(() => import("./pages/ShortInviteRedirect"));
+const EoiAdminPage = lazy(() => import("./pages/EoiAdminPage"));
+const PublicEoiFormPage = lazy(() => import("./pages/PublicEoiFormPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
@@ -233,6 +235,7 @@ const App = () => {
                 <Route path="/cancellation" element={<CancellationPolicyPage />} />
                 <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
                 <Route path="/share" element={<ShareLinkRedirect />} />
+                <Route path="/eoi/:clubSlug/:seasonSlug" element={<PublicEoiFormPage />} />
 
 
                 {/* Protected routes */}
@@ -299,6 +302,7 @@ const App = () => {
                   <Route path="/clubs/:clubId/seasons" element={<SeasonsPage />} />
                   <Route path="/clubs/:clubId/seasons/compare" element={<SeasonComparePage />} />
                   <Route path="/clubs/:clubId/seasons/:seasonId" element={<SeasonDetailPage />} />
+                  <Route path="/clubs/:clubId/eois" element={<EoiAdminPage />} />
                   <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
                   <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
                 </Route>
