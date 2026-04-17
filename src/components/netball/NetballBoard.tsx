@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, AlertTriangle, Loader2, Trophy, Undo2 } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Loader2, Trophy, Undo2, Repeat } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import NetballQuarterTimer from "./NetballQuarterTimer";
@@ -12,6 +12,7 @@ import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import CentrePassIndicator from "@/components/scoreboard/CentrePassIndicator";
 import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
 import CuesToggle from "@/components/scoreboard/CuesToggle";
+import QuarterAutoSubControlPanel from "@/components/scoreboard/QuarterAutoSubControlPanel";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 
@@ -146,6 +147,19 @@ export default function NetballBoard({
   const [rosterOpen, setRosterOpen] = useState(false);
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // Auto-sub control panel state
+  const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
+  const [autoSubPaused, setAutoSubPaused] = useState(false);
+  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
+  const toggleLockPlayer = useCallback((playerId: string) => {
+    setLockedPlayerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  }, []);
 
   // Auto-open the summary the first time the game ticks over to "finished".
   useEffect(() => {
@@ -229,9 +243,13 @@ export default function NetballBoard({
         )
       );
 
-      if (rotationMode !== "off") {
+      if (rotationMode !== "off" && !autoSubPaused) {
         const upcoming = findNextDueSub(autoSubPlan, quarter, elapsed + 10);
-        if (upcoming && upcoming.time > elapsed) {
+        if (
+          upcoming &&
+          upcoming.time > elapsed &&
+          !lockedPlayerIds.has(upcoming.playerOut.id)
+        ) {
           const key = `${quarter}:${upcoming.time}:${upcoming.playerOut.id}`;
           if (!cuedSubIdsRef.current.has(key)) {
             cuedSubIdsRef.current.add(key);
@@ -239,10 +257,10 @@ export default function NetballBoard({
           }
         }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
-        if (due) executeSub(due);
+        if (due && !lockedPlayerIds.has(due.playerOut.id)) executeSub(due);
       }
     },
-    [autoSubPlan, rotationMode] // executeSub stable via setState callbacks
+    [autoSubPlan, rotationMode, autoSubPaused, lockedPlayerIds] // executeSub stable via setState callbacks
   );
 
   // ---------- Sub execution ----------
@@ -571,6 +589,83 @@ export default function NetballBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, rosterSignature]);
 
+  // ---------- Auto-sub control panel handlers ----------
+  const findUpcomingSub = useCallback(() => {
+    return (
+      autoSubPlan.find(
+        (s) =>
+          !s.executed &&
+          !s.skipped &&
+          s.quarter === timerState.currentQuarter &&
+          s.time >= timerState.elapsedSeconds
+      ) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped && s.quarter > timerState.currentQuarter) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped)
+    );
+  }, [autoSubPlan, timerState.currentQuarter, timerState.elapsedSeconds]);
+
+  const executeNextSubNow = useCallback(() => {
+    const target = findUpcomingSub();
+    if (!target) {
+      toast({ title: "No subs queued" });
+      return;
+    }
+    executeSub(target);
+  }, [findUpcomingSub, executeSub, toast]);
+
+  const skipNextSub = useCallback(() => {
+    const target = findUpcomingSub();
+    if (!target) return;
+    setAutoSubPlan((prev) =>
+      prev.map((s) =>
+        !s.executed && !s.skipped && s.quarter === target.quarter && s.time === target.time
+          ? { ...s, skipped: true }
+          : s
+      )
+    );
+    toast({ title: "Sub skipped" });
+  }, [findUpcomingSub, toast]);
+
+  const cancelAutoSubPlan = useCallback(() => {
+    setAutoSubPlan((prev) => prev.map((s) => (s.executed ? s : { ...s, skipped: true })));
+    toast({ title: "Plan cancelled", description: "All pending auto-subs cleared." });
+  }, [toast]);
+
+  const regenerateAutoSubPlan = useCallback(() => {
+    if (rotationMode === "off") {
+      toast({
+        title: "Rotation is off",
+        description: "Enable a rotation mode in Settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const fresh =
+      rotationMode === "time-based"
+        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter)
+        : generateQuarterBreakRotationPlan(players, 2);
+    const executed = autoSubPlan.filter((s) => s.executed);
+    setAutoSubPlan([
+      ...executed,
+      ...fresh.filter(
+        (f) =>
+          !executed.some(
+            (e) =>
+              e.quarter === f.quarter && e.time === f.time && e.playerOut.id === f.playerOut.id
+          )
+      ),
+    ]);
+    toast({ title: "Plan regenerated" });
+  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, autoSubPlan, toast]);
+
+  const onCourtForPanel = useMemo(
+    () =>
+      players
+        .filter((p) => p.position !== null)
+        .map((p) => ({ id: p.id, name: p.name, number: p.number, position: p.position })),
+    [players]
+  );
+
   // ---------- Derived ----------
   const bench = useMemo(() => getBench(players), [players]);
   const nextSub = useMemo(
@@ -700,6 +795,27 @@ export default function NetballBoard({
         />
       )}
 
+      {!readOnly && rotationMode !== "off" && autoSubPlan.length > 0 && (
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
+          <span className="text-[11px] text-muted-foreground">
+            Auto-subs: {autoSubPlan.filter((s) => s.executed).length}/{autoSubPlan.length}
+            {autoSubPaused && <span className="ml-1.5 text-amber-600 font-medium">· Paused</span>}
+            {lockedPlayerIds.size > 0 && (
+              <span className="ml-1.5 text-amber-600">· {lockedPlayerIds.size} locked</span>
+            )}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1"
+            onClick={() => setAutoSubPanelOpen(true)}
+          >
+            <Repeat className="h-3.5 w-3.5" />
+            Subs Plan
+          </Button>
+        </div>
+      )}
+
       <NetballCourtArea
         players={players}
         selectedPlayerId={selectedPlayerId}
@@ -816,6 +932,26 @@ export default function NetballBoard({
           />
         )}
       </Suspense>
+
+      <QuarterAutoSubControlPanel
+        open={autoSubPanelOpen}
+        onClose={() => setAutoSubPanelOpen(false)}
+        autoSubPlan={autoSubPlan}
+        autoSubPaused={autoSubPaused}
+        onPlayers={onCourtForPanel}
+        lockedPlayerIds={lockedPlayerIds}
+        currentQuarter={timerState.currentQuarter}
+        currentElapsedSeconds={timerState.elapsedSeconds}
+        minutesPerQuarter={timerState.minutesPerQuarter}
+        periodType={timerState.periodType}
+        onTogglePause={toggleAutoSubPaused}
+        onCancelPlan={cancelAutoSubPlan}
+        onSkipNext={skipNextSub}
+        onExecuteNow={executeNextSubNow}
+        onRegeneratePlan={regenerateAutoSubPlan}
+        onToggleLockPlayer={toggleLockPlayer}
+        onEditPlan={() => setLineupPlannerOpen(true)}
+      />
     </div>
   );
 }

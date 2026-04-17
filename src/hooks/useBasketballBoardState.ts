@@ -149,6 +149,18 @@ export function useBasketballBoardState({
     subs: BasketballSubEvent[];
   } | null>(null);
   const [courtView, setCourtView] = useState<BasketballCourtView>("half");
+  // Auto-sub control panel state
+  const [autoSubPaused, setAutoSubPaused] = useState(false);
+  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
+  const toggleLockPlayer = useCallback((playerId: string) => {
+    setLockedPlayerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  }, []);
 
   // Lineup presets (own localStorage key, separate from board state)
   const presetsKey = getBasketballPresetsKey(teamId);
@@ -335,11 +347,14 @@ export function useBasketballBoardState({
             : p
         )
       );
-      if (rotationMode !== "off") {
+      if (rotationMode !== "off" && !autoSubPaused) {
         // Cue the coach ~10s before a sub fires so they have time to react.
         const upcoming = findNextDueSub(autoSubPlan, quarter, elapsed + 10);
-        if (upcoming && upcoming.time > elapsed) {
-          // Stable id per-sub: position + time + outgoing player.
+        if (
+          upcoming &&
+          upcoming.time > elapsed &&
+          !lockedPlayerIds.has(upcoming.playerOut.id)
+        ) {
           const key = `${quarter}:${upcoming.time}:${upcoming.playerOut.id}`;
           if (!cuedSubIdsRef.current.has(key)) {
             cuedSubIdsRef.current.add(key);
@@ -347,10 +362,10 @@ export function useBasketballBoardState({
           }
         }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
-        if (due) executeSub(due);
+        if (due && !lockedPlayerIds.has(due.playerOut.id)) executeSub(due);
       }
     },
-    [autoSubPlan, rotationMode, executeSub]
+    [autoSubPlan, rotationMode, executeSub, autoSubPaused, lockedPlayerIds]
   );
 
   // ---------- Quarter end ----------
@@ -602,6 +617,78 @@ export function useBasketballBoardState({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, rosterSignature]);
+
+  // ---------- Auto-sub control panel handlers ----------
+  /** Execute the next due (or upcoming) sub immediately, regardless of clock. */
+  const executeNextSubNow = useCallback(() => {
+    const target =
+      autoSubPlan.find(
+        (s) =>
+          !s.executed &&
+          !s.skipped &&
+          s.quarter === timerState.currentQuarter &&
+          s.time >= timerState.elapsedSeconds
+      ) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped && s.quarter > timerState.currentQuarter) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped);
+    if (!target) {
+      toast({ title: "No subs queued" });
+      return;
+    }
+    executeSub(target);
+  }, [autoSubPlan, timerState.currentQuarter, timerState.elapsedSeconds, executeSub, toast]);
+
+  /** Mark the next pending sub (or batch at same quarter+time) as skipped. */
+  const skipNextSub = useCallback(() => {
+    const target =
+      autoSubPlan.find(
+        (s) =>
+          !s.executed &&
+          !s.skipped &&
+          s.quarter === timerState.currentQuarter &&
+          s.time >= timerState.elapsedSeconds
+      ) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped && s.quarter > timerState.currentQuarter) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped);
+    if (!target) return;
+    setAutoSubPlan((prev) =>
+      prev.map((s) =>
+        !s.executed && !s.skipped && s.quarter === target.quarter && s.time === target.time
+          ? { ...s, skipped: true }
+          : s
+      )
+    );
+    toast({ title: "Sub skipped" });
+  }, [autoSubPlan, timerState.currentQuarter, timerState.elapsedSeconds, toast]);
+
+  /** Drop the entire pending plan (rotation mode stays on; user can regenerate). */
+  const cancelAutoSubPlan = useCallback(() => {
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (s.executed ? s : { ...s, skipped: true }))
+    );
+    toast({ title: "Plan cancelled", description: "All pending auto-subs cleared." });
+  }, [toast]);
+
+  /** Re-build the plan from current roster + settings (preserves executed history). */
+  const regenerateAutoSubPlan = useCallback(() => {
+    if (rotationMode === "off") {
+      toast({
+        title: "Rotation is off",
+        description: "Enable a rotation mode in Settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const fresh =
+      rotationMode === "time-based"
+        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter)
+        : generateQuarterBreakRotationPlan(players, 3);
+    // Preserve the historical record of executed subs so the timeline still shows them.
+    const executed = autoSubPlan.filter((s) => s.executed);
+    setAutoSubPlan([...executed, ...fresh.filter((f) => !executed.some((e) => e.quarter === f.quarter && e.time === f.time && e.playerOut.id === f.playerOut.id))]);
+    toast({ title: "Plan regenerated" });
+  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, autoSubPlan, toast]);
+
 
   // ---------- Derived ----------
   const bench = useMemo(() => getBench(players), [players]);
@@ -875,5 +962,15 @@ export function useBasketballBoardState({
     // free throws + period type
     addFreeThrows,
     setPeriodType,
+    // auto-sub control panel
+    autoSubPlan,
+    autoSubPaused,
+    lockedPlayerIds,
+    toggleAutoSubPaused,
+    toggleLockPlayer,
+    executeNextSubNow,
+    skipNextSub,
+    cancelAutoSubPlan,
+    regenerateAutoSubPlan,
   };
 }
