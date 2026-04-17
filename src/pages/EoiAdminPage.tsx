@@ -436,10 +436,12 @@ function StatTile({
   icon,
   label,
   value,
+  suffix,
 }: {
   icon?: React.ReactNode;
   label: string;
   value: number;
+  suffix?: string;
 }) {
   return (
     <Card>
@@ -448,7 +450,10 @@ function StatTile({
           {icon}
           {label}
         </div>
-        <p className="text-2xl font-bold mt-1">{value}</p>
+        <p className="text-2xl font-bold mt-1">
+          {value}
+          {suffix ? <span className="text-base font-medium">{suffix}</span> : null}
+        </p>
       </CardContent>
     </Card>
   );
