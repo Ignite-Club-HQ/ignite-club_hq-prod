@@ -158,10 +158,12 @@ export default function SeasonsPage() {
 function SeasonGroup({
   title,
   seasons,
+  teamCounts,
   onClick,
 }: {
   title: string;
   seasons: Season[];
+  teamCounts: Record<string, number>;
   onClick: (s: Season) => void;
 }) {
   return (
@@ -170,14 +172,23 @@ function SeasonGroup({
       {seasons.map((s) => {
         const meta = STATUS_META[s.status];
         const Icon = meta.icon;
+        const count = teamCounts[s.id] ?? 0;
         return (
           <Card key={s.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => onClick(s)}>
             <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 py-4">
               <div className="min-w-0 flex-1">
                 <CardTitle className="text-base truncate">{s.name}</CardTitle>
-                <CardDescription className="text-xs">
-                  {s.start_date ? format(new Date(s.start_date), "MMM yyyy") : "No start date"}
-                  {s.end_date ? ` – ${format(new Date(s.end_date), "MMM yyyy")}` : ""}
+                <CardDescription className="text-xs flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    {count} team{count === 1 ? "" : "s"}
+                  </span>
+                  {s.start_date && (
+                    <span>
+                      · {format(new Date(s.start_date), "MMM yyyy")}
+                      {s.end_date ? ` – ${format(new Date(s.end_date), "MMM yyyy")}` : ""}
+                    </span>
+                  )}
                 </CardDescription>
               </div>
               <Badge variant={meta.variant} className="gap-1 flex-shrink-0">
