@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
+import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +38,7 @@ import { SharePhotoButton } from "@/components/SharePhotoButton";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
+import { usePhotoViewCounts, useRecordPhotoView, usePhotoViewRealtime } from "@/hooks/usePhotoViews";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -531,6 +532,11 @@ export default function MediaPage() {
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
+
+  // Photo view tracking — count, recording, and realtime updates
+  const { data: photoViewCounts } = usePhotoViewCounts(allPhotoIds);
+  const { recordView } = useRecordPhotoView(user?.id);
+  usePhotoViewRealtime(allPhotoIds);
 
   // Stable query key for reactions - include photo count to refetch when more photos load
   const reactionsQueryKey = useMemo(() => ["photo-reactions", user?.id, allPhotoIds.length], [user?.id, allPhotoIds.length]);
@@ -1122,7 +1128,11 @@ export default function MediaPage() {
 {/* Image with lazy loading */}
                 <div 
                   className="relative w-full aspect-square bg-muted overflow-hidden cursor-pointer"
-                  onClick={() => !isDeleting && setLightboxIndex(index)}
+                  onClick={() => {
+                    if (isDeleting) return;
+                    recordView(photo.id);
+                    setLightboxIndex(index);
+                  }}
                 >
                   <LazyImage
                     src={photo.file_url || photo.image_url}
@@ -1157,6 +1167,14 @@ export default function MediaPage() {
                       <MessageCircle className="h-5 w-5" />
                       {comments.length > 0 && <span className="text-xs">{comments.length}</span>}
                     </Button>
+                    <div
+                      className="flex items-center gap-1 text-muted-foreground"
+                      title={`${photoViewCounts?.get(photo.id) || 0} view${(photoViewCounts?.get(photo.id) || 0) === 1 ? "" : "s"}`}
+                      aria-label={`${photoViewCounts?.get(photo.id) || 0} views`}
+                    >
+                      <Eye className="h-5 w-5" />
+                      <span className="text-xs">{photoViewCounts?.get(photo.id) || 0}</span>
+                    </div>
                   </div>
 
                   {photo.title && (
@@ -1299,7 +1317,11 @@ export default function MediaPage() {
         onClose={() => setLightboxIndex(null)}
         photos={photos}
         currentIndex={lightboxIndex ?? 0}
-        onNavigate={setLightboxIndex}
+        onNavigate={(idx) => {
+          const navPhoto = photos[idx];
+          if (navPhoto) recordView(navPhoto.id);
+          setLightboxIndex(idx);
+        }}
         onDelete={(photoId) => {
           setLightboxIndex(null);
           setTimeout(() => setDeletePhotoId(photoId), 100);
