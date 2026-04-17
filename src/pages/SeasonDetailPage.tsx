@@ -330,6 +330,15 @@ export default function SeasonDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {bulkRolloverOpen && priorSeasons.length > 0 && seasonId && (
+        <BulkRolloverDialog
+          open={bulkRolloverOpen}
+          onOpenChange={setBulkRolloverOpen}
+          sourceSeasonId={priorSeasons[0].id}
+          targetSeasonId={seasonId}
+        />
+      )}
     </div>
   );
 }
