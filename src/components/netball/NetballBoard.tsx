@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Zap,
   Loader2,
+  UserCog,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
