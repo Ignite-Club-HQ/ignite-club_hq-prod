@@ -29,6 +29,7 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -113,6 +114,7 @@ export default function ClubChatPage() {
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -1334,6 +1336,8 @@ export default function ClubChatPage() {
               clubId={clubId}
               showEventPicker={true}
               onEventSelect={() => setEventPickerOpen(true)}
+              showPollCreator={true}
+              onPollCreate={() => setPollDialogOpen(true)}
               hasText={!!message.trim()}
             />
             <MentionInput
@@ -1372,6 +1376,18 @@ export default function ClubChatPage() {
             }}
             clubId={clubId}
           />
+          {clubId && (
+            <CreatePollDialog
+              open={pollDialogOpen}
+              onOpenChange={setPollDialogOpen}
+              chatType="club"
+              chatId={clubId}
+              onCreated={(pollId) => {
+                const token = `[poll:${pollId}]`;
+                setMessage(message ? `${message} ${token}` : token);
+              }}
+            />
+          )}
           <p className="text-xs text-muted-foreground mt-1">
             Long-press a message to react • Tap menu to reply
           </p>
