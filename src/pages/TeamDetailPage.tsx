@@ -63,6 +63,7 @@ import { useToast } from "@/hooks/use-toast";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
 const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
+const TeamGameHistoryTab = lazy(() => import("@/components/history/TeamGameHistoryTab"));
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
@@ -1783,6 +1784,28 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
+          {/* Game History - basketball + netball only */}
+          {isMember && (isBasketballClub || isNetballClub) && (
+            <AccordionItem value="game-history" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold">Game History</h2>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pt-2">
+                  <Suspense fallback={<div className="text-xs text-muted-foreground py-4">Loading…</div>}>
+                    <TeamGameHistoryTab
+                      teamId={id!}
+                      teamName={team.name}
+                      canManage={isAdmin || isCoachOrAdmin || isClubAdmin}
+                    />
+                  </Suspense>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
 
           {/* Admin Section - collapsed by default */}
