@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { EventViewMemberRow } from "@/components/EventViewMemberRow";
 
 interface AttendanceCounts {
   going: number;
@@ -77,6 +78,7 @@ export function AttendanceSection({
 }: AttendanceSectionProps) {
   const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
+  const [sendingForUser, setSendingForUser] = useState<string | null>(null);
   const [viewsDialogOpen, setViewsDialogOpen] = useState(false);
 
   // Lightweight view-count fetch; only when admin (others don't need it)
@@ -85,7 +87,7 @@ export function AttendanceSection({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("event_views")
-        .select("user_id")
+        .select("user_id, viewed_at")
         .eq("event_id", eventId);
       if (error) throw error;
       return data || [];
@@ -99,6 +101,16 @@ export function AttendanceSection({
     () => new Set((eventViews || []).map((v: any) => v.user_id)),
     [eventViews],
   );
+  const viewedAtMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (eventViews || []).forEach((v: any) => {
+      if (v.viewed_at) map.set(v.user_id, v.viewed_at);
+    });
+    return map;
+  }, [eventViews]);
+
+  // notRespondedUserIds excludes second parents whose child responded — use as source of truth
+  const notRespondedSet = useMemo(() => new Set(notRespondedUserIds), [notRespondedUserIds]);
 
   const { viewedMembers, notViewedMembers } = useMemo(() => {
     const list = addressableMembers || [];
@@ -110,16 +122,22 @@ export function AttendanceSection({
   const totalResponses = counts.going + counts.maybe + counts.notGoing;
   const noOneInvited = !hasMembers && totalResponses === 0;
 
-  const handleSendReminders = async (channels: "push" | "email" | "both") => {
-    if (notRespondedUserIds.length === 0) return;
-    setIsSending(true);
+  const handleSendReminders = async (
+    channels: "push" | "email" | "both",
+    userIds?: string[],
+  ) => {
+    const targets = userIds && userIds.length > 0 ? userIds : notRespondedUserIds;
+    if (targets.length === 0) return;
+    const isPerUser = !!(userIds && userIds.length === 1);
+    if (isPerUser) setSendingForUser(targets[0]);
+    else setIsSending(true);
     try {
       const { data, error } = await supabase.functions.invoke(
         "send-event-view-reminder",
         {
           body: {
             eventId,
-            userIds: notRespondedUserIds,
+            userIds: targets,
             channels,
           },
         },
@@ -129,18 +147,26 @@ export function AttendanceSection({
       if (data?.emailsSent > 0) parts.push(`${data.emailsSent} email${data.emailsSent === 1 ? "" : "s"}`);
       if (data?.pushSent > 0) parts.push(`${data.pushSent} push notification${data.pushSent === 1 ? "" : "s"}`);
       toast({
-        title: "Reminders sent",
-        description: parts.length ? `Sent ${parts.join(" and ")}.` : "No reminders could be delivered.",
+        title: "Reminder sent",
+        description: parts.length ? `Sent ${parts.join(" and ")}.` : "No reminder could be delivered.",
       });
     } catch (err: any) {
       toast({
-        title: "Failed to send reminders",
+        title: "Failed to send reminder",
         description: err.message,
         variant: "destructive",
       });
     } finally {
-      setIsSending(false);
+      if (isPerUser) setSendingForUser(null);
+      else setIsSending(false);
     }
+  };
+
+  const handleNudgeUser = (_userId: string, displayName: string) => {
+    toast({
+      title: "Nudge sent",
+      description: `${displayName} will be prompted to enable push notifications.`,
+    });
   };
 
   // Sharing a reminder link is always available to admins (no Pro required).
@@ -198,7 +224,39 @@ export function AttendanceSection({
                 <ViewerList members={viewedMembers} emptyText="No one has viewed yet." />
               </TabsContent>
               <TabsContent value="not-viewed" className="flex-1 overflow-y-auto mt-3">
-                <ViewerList members={notViewedMembers} emptyText="Everyone has opened this event." />
+                {notViewedMembers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-6 text-center">
+                    Everyone has opened this event.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {notViewedMembers.map((m) => {
+                      const hasResponded = !notRespondedSet.has(m.id);
+                      return (
+                        <EventViewMemberRow
+                          key={m.id}
+                          member={{
+                            id: m.id,
+                            display_name: m.display_name ?? null,
+                            avatar_url: m.avatar_url ?? null,
+                            hasViewed: false,
+                            hasResponded,
+                          }}
+                          variant="not-viewed"
+                          pushDisabled={false}
+                          noPushSetup={false}
+                          isBusy={sendingForUser === m.id}
+                          onSendReminder={(channels, userIds) =>
+                            handleSendReminders(channels, userIds)
+                          }
+                          onNudge={handleNudgeUser}
+                          onShareLink={onShareLink}
+                          hasResponded={hasResponded}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           )}
