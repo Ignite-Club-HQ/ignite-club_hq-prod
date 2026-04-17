@@ -667,10 +667,10 @@ export function useBasketballBoardState({
             (x) => x.id !== p.id && x.position === last.position
           );
           if (slotTaken) return p;
-          return { ...p, position: last.position };
+          return transitionPosition(p, last.position);
         }
-        if (p.id === last.playerInId) return { ...p, position: null };
-        if (p.id === last.playerOutId) return { ...p, position: last.position };
+        if (p.id === last.playerInId) return transitionPosition(p, null);
+        if (p.id === last.playerOutId) return transitionPosition(p, last.position);
         return p;
       })
     );
