@@ -118,6 +118,23 @@ export interface ScoreEvent {
   playerId?: string;
 }
 
+/** Append-only sub log entry — supports undo + post-game review. */
+export interface SubLogEntry {
+  id: string;
+  quarter: Quarter;
+  /** Seconds elapsed in the quarter when sub fired. */
+  time: number;
+  /** Wall-clock timestamp. */
+  at: number;
+  playerOutId: string;
+  playerOutName: string;
+  playerInId: string;
+  playerInName: string;
+  position: BasketballPosition;
+  /** "auto" = fired by rotation plan; "manual" = coach action. */
+  source: "auto" | "manual";
+}
+
 export interface BasketballTimerState {
   minutesPerQuarter: number;
   currentQuarter: Quarter;
@@ -132,6 +149,10 @@ export interface BasketballTimerState {
   opponentName?: string;
   /** Append-only score log to support undo + per-quarter stats */
   scoreLog?: ScoreEvent[];
+  /** Append-only sub log to support undo + post-game review. */
+  subLog?: SubLogEntry[];
+  /** Coach-selected MVP / Player of the Match (player.id). */
+  mvpPlayerId?: string | null;
 }
 
 export interface BasketballBoardState {

@@ -13,6 +13,7 @@ import {
   RotationMode,
   ValidationMode,
   BasketballSubEvent,
+  SubLogEntry,
   getBasketballStateKey,
   getBasketballTimerKey,
   getBasketballPresetsKey,
@@ -258,6 +259,28 @@ export function useBasketballBoardState({
   useBasketballGameSync(boardState, timerState, !readOnly);
 
   // ---------- Sub execution ----------
+  // Centralised sub log writer — every sub (auto or manual) flows through one
+  // of the appendSubLog calls below so undo + summary stay accurate.
+  const appendSubLog = useCallback(
+    (entry: Omit<SubLogEntry, "id" | "at" | "quarter" | "time">) => {
+      setTimerState((s) => ({
+        ...s,
+        subLog: [
+          ...(s.subLog ?? []),
+          {
+            ...entry,
+            id: crypto.randomUUID(),
+            at: Date.now(),
+            quarter: s.currentQuarter,
+            time: s.elapsedSeconds,
+          },
+        ],
+        lastUpdateTime: Date.now(),
+      }));
+    },
+    []
+  );
+
   const executeSub = useCallback(
     (sub: BasketballSubEvent) => {
       setPlayers((prev) => {
@@ -273,12 +296,20 @@ export function useBasketballBoardState({
       setAutoSubPlan((prev) =>
         prev.map((s) => (s === sub ? { ...s, executed: true } : s))
       );
+      appendSubLog({
+        playerOutId: sub.playerOut.id,
+        playerOutName: sub.playerOut.name,
+        playerInId: sub.playerIn.id,
+        playerInName: sub.playerIn.name,
+        position: sub.position,
+        source: "auto",
+      });
       toast({
         title: "Auto-sub",
         description: `${sub.playerIn.name} ON for ${sub.playerOut.name} at ${sub.position}`,
       });
     },
-    [toast]
+    [toast, appendSubLog]
   );
 
   // ---------- Time tracking ----------
@@ -397,23 +428,66 @@ export function useBasketballBoardState({
   const handleSlotClick = useCallback(
     (position: BasketballPosition) => {
       if (readOnly || !selectedPlayerId) return;
+      let logEntry: {
+        playerOutId: string;
+        playerOutName: string;
+        playerInId: string;
+        playerInName: string;
+        position: BasketballPosition;
+      } | null = null;
+      setPlayers((prev) => {
+        const incoming = prev.find((p) => p.id === selectedPlayerId);
+        if (!incoming) return prev;
+        const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
+        // Only treat it as a sub when the incoming player was on the bench.
+        if (incoming.position === null && displaced) {
+          logEntry = {
+            playerOutId: displaced.id,
+            playerOutName: displaced.name,
+            playerInId: incoming.id,
+            playerInName: incoming.name,
+            position,
+          };
+        }
+        return prev.map((p) => {
+          if (p.id === incoming.id) return { ...p, position };
+          if (p.position === position && p.id !== incoming.id) return { ...p, position: null };
+          return p;
+        });
+      });
+      if (logEntry) appendSubLog({ ...logEntry, source: "manual" });
+      setSelectedPlayerId(null);
+    },
+    [readOnly, selectedPlayerId, appendSubLog]
+  );
+
+  const subOff = useCallback(
+    (playerId: string) => {
+      let outName: string | null = null;
+      let outPos: BasketballPosition | null = null;
       setPlayers((prev) =>
         prev.map((p) => {
-          if (p.id === selectedPlayerId) return { ...p, position };
-          if (p.position === position) return { ...p, position: null };
+          if (p.id === playerId && p.position) {
+            outName = p.name;
+            outPos = p.position;
+            return { ...p, position: null };
+          }
           return p;
         })
       );
-      setSelectedPlayerId(null);
+      if (outName && outPos) {
+        appendSubLog({
+          playerOutId: playerId,
+          playerOutName: outName,
+          playerInId: "",
+          playerInName: "(bench)",
+          position: outPos,
+          source: "manual",
+        });
+      }
     },
-    [readOnly, selectedPlayerId]
+    [appendSubLog]
   );
-
-  const subOff = useCallback((playerId: string) => {
-    setPlayers((prev) =>
-      prev.map((p) => (p.id === playerId ? { ...p, position: null } : p))
-    );
-  }, []);
 
   const toggleInjured = useCallback((playerId: string) => {
     setPlayers((prev) =>
@@ -543,6 +617,55 @@ export function useBasketballBoardState({
     [timerState.currentQuarter]
   );
 
+  // ---------- Undo last sub ----------
+  // Reverts the most recent sub log entry: incoming player back to bench,
+  // outgoing player back to their old slot. We also pop the log itself so
+  // repeated undo walks back through history.
+  const undoLastSub = useCallback(() => {
+    const log = timerState.subLog ?? [];
+    if (log.length === 0) {
+      toast({ title: "Nothing to undo", description: "No subs recorded yet." });
+      return;
+    }
+    const last = log[log.length - 1];
+    setPlayers((prev) =>
+      prev.map((p) => {
+        // Pure sub-off (no incoming) — put player back at their old position
+        // if that slot is still empty.
+        if (last.playerInId === "" && p.id === last.playerOutId) {
+          const slotTaken = prev.some(
+            (x) => x.id !== p.id && x.position === last.position
+          );
+          if (slotTaken) return p;
+          return { ...p, position: last.position };
+        }
+        if (p.id === last.playerInId) return { ...p, position: null };
+        if (p.id === last.playerOutId) return { ...p, position: last.position };
+        return p;
+      })
+    );
+    setTimerState((s) => ({
+      ...s,
+      subLog: (s.subLog ?? []).slice(0, -1),
+      lastUpdateTime: Date.now(),
+    }));
+    toast({
+      title: "Sub undone",
+      description: last.playerInId
+        ? `${last.playerOutName} back ON for ${last.playerInName}`
+        : `${last.playerOutName} back ON`,
+    });
+  }, [timerState.subLog, toast]);
+
+  // ---------- MVP / Player of the Match ----------
+  const setMvp = useCallback((playerId: string | null) => {
+    setTimerState((s) => ({
+      ...s,
+      mvpPlayerId: playerId,
+      lastUpdateTime: Date.now(),
+    }));
+  }, []);
+
   return {
     // state
     players,
@@ -588,5 +711,9 @@ export function useBasketballBoardState({
     addScore,
     undoScore,
     setOpponentName,
+    // post-game
+    undoLastSub,
+    canUndoSub: (timerState.subLog?.length ?? 0) > 0,
+    setMvp,
   };
 }

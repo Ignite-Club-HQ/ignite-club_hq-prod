@@ -1,6 +1,6 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Trophy, Undo2 } from "lucide-react";
 
 import BasketballQuarterTimer from "./BasketballQuarterTimer";
 import BasketballActionBar from "./BasketballActionBar";
@@ -18,6 +18,7 @@ const BasketballQuarterLineupPlanner = lazy(() => import("./BasketballQuarterLin
 const BasketballRosterDialog = lazy(() => import("./BasketballRosterDialog"));
 const BasketballQuickActionSheet = lazy(() => import("./BasketballQuickActionSheet"));
 const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPresetsDialog"));
+const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 
 interface BasketballBoardProps {
   teamId: string;
@@ -64,6 +65,41 @@ export default function BasketballBoard({
   const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+
+  // Auto-open the summary the first time the game ticks over to "finished".
+  useEffect(() => {
+    if (board.timerState.isGameFinished) setSummaryOpen(true);
+  }, [board.timerState.isGameFinished]);
+
+  // Build sport-agnostic player rows for the summary dialog.
+  const summaryPlayers = useMemo(
+    () =>
+      board.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        secondsPlayed: p.minutesPlayed ?? 0,
+        points: p.points ?? 0,
+        fouls: p.fouls ?? 0,
+        isFouledOut: !!p.isFouledOut,
+        isInjured: !!p.isInjured,
+        finalPosition: p.position ?? null,
+      })),
+    [board.players]
+  );
+
+  const perQuarter = useMemo(() => {
+    const log = board.timerState.scoreLog ?? [];
+    return [1, 2, 3, 4].map((q) => ({
+      quarter: q,
+      home: log
+        .filter((e) => e.quarter === q && e.side === "home")
+        .reduce((sum, e) => sum + e.points, 0),
+      away: log
+        .filter((e) => e.quarter === q && e.side === "away")
+        .reduce((sum, e) => sum + e.points, 0),
+    }));
+  }, [board.timerState.scoreLog]);
 
   // Keep the screen awake while a coach is actively running the game.
   useWakeLock(!readOnly && board.timerState.isRunning && !board.timerState.isGameFinished);
@@ -140,6 +176,30 @@ export default function BasketballBoard({
         onPlayerClick={board.handlePlayerClick}
       />
 
+      {!readOnly && (board.canUndoSub || (board.timerState.scoreLog?.length ?? 0) > 0) && (
+        <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={board.undoLastSub}
+            disabled={!board.canUndoSub}
+          >
+            <Undo2 className="h-3.5 w-3.5 mr-1" />
+            Undo last sub
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setSummaryOpen(true)}
+          >
+            <Trophy className="h-3.5 w-3.5 mr-1" />
+            Game summary
+          </Button>
+        </div>
+      )}
+
       <BasketballQuarterBreakDialog
         open={!!board.pendingQuarterSubs}
         quarter={board.pendingQuarterSubs?.quarter ?? null}
@@ -208,6 +268,22 @@ export default function BasketballBoard({
             onAddFoul={() => board.addFoul(board.quickActionPlayer!.id)}
             onClearFoulOut={() => board.clearFoulOut(board.quickActionPlayer!.id)}
             onScore={(pts) => board.addScore("home", pts, board.quickActionPlayer!.id)}
+          />
+        )}
+        {summaryOpen && (
+          <GameSummaryDialog
+            open={summaryOpen}
+            onOpenChange={setSummaryOpen}
+            sport="basketball"
+            homeLabel={teamName}
+            awayLabel={board.timerState.opponentName ?? "Opponent"}
+            homeScore={board.timerState.homeScore ?? 0}
+            awayScore={board.timerState.awayScore ?? 0}
+            perQuarter={perQuarter}
+            players={summaryPlayers}
+            mvpPlayerId={board.timerState.mvpPlayerId ?? null}
+            onSelectMvp={board.setMvp}
+            readOnly={readOnly}
           />
         )}
       </Suspense>

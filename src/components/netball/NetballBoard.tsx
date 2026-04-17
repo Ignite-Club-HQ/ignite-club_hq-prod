@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Loader2, Trophy, Undo2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import NetballQuarterTimer from "./NetballQuarterTimer";
@@ -17,6 +17,7 @@ import {
   NETBALL_POSITIONS,
   NetballBoardState,
   NetballTimerState,
+  NetballSubLogEntry,
   Quarter,
   QuarterLineup,
   RotationMode,
@@ -43,6 +44,7 @@ const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
 const QuarterLineupPlanner = lazy(() => import("./QuarterLineupPlanner"));
 const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
 const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
+const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 
 interface NetballBoardProps {
   teamId: string;
@@ -138,6 +140,33 @@ export default function NetballBoard({
   const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+
+  // Auto-open the summary the first time the game ticks over to "finished".
+  useEffect(() => {
+    if (timerState.isGameFinished) setSummaryOpen(true);
+  }, [timerState.isGameFinished]);
+
+  // ---------- Sub log writer (single funnel for auto + manual subs) ----------
+  const appendSubLog = useCallback(
+    (entry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time">) => {
+      setTimerState((s) => ({
+        ...s,
+        subLog: [
+          ...(s.subLog ?? []),
+          {
+            ...entry,
+            id: crypto.randomUUID(),
+            at: Date.now(),
+            quarter: s.currentQuarter,
+            time: s.elapsedSeconds,
+          },
+        ],
+        lastUpdateTime: Date.now(),
+      }));
+    },
+    []
+  );
 
   // ---------- Aggregated state for persistence + sync ----------
   const boardState: NetballBoardState = useMemo(
@@ -215,12 +244,20 @@ export default function NetballBoard({
         });
       });
       setAutoSubPlan((prev) => prev.map((s) => (s === sub ? { ...s, executed: true } : s)));
+      appendSubLog({
+        playerOutId: sub.playerOut.id,
+        playerOutName: sub.playerOut.name,
+        playerInId: sub.playerIn.id,
+        playerInName: sub.playerIn.name,
+        position: sub.position,
+        source: "auto",
+      });
       toast({
         title: "Auto-sub",
         description: `${sub.playerIn.name} ON for ${sub.playerOut.name} at ${sub.position}`,
       });
     },
-    [toast]
+    [toast, appendSubLog]
   );
 
   // ---------- Quarter end → quarter-break rotations + apply next lineup ----------
@@ -313,22 +350,98 @@ export default function NetballBoard({
   const handleSlotClick = useCallback(
     (position: NetballPosition) => {
       if (readOnly || !selectedPlayerId) return;
-      setPlayers((prev) =>
-        prev.map((p) => (p.id === selectedPlayerId ? { ...p, position } : p))
-      );
+      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
+      setPlayers((prev) => {
+        const incoming = prev.find((p) => p.id === selectedPlayerId);
+        if (!incoming) return prev;
+        const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
+        if (incoming.position === null) {
+          logEntry = {
+            playerOutId: displaced?.id ?? "",
+            playerOutName: displaced?.name ?? "(empty)",
+            playerInId: incoming.id,
+            playerInName: incoming.name,
+            position,
+            source: "manual",
+          };
+        }
+        return prev.map((p) => (p.id === selectedPlayerId ? { ...p, position } : p));
+      });
+      if (logEntry) appendSubLog(logEntry);
       setSelectedPlayerId(null);
     },
-    [readOnly, selectedPlayerId]
+    [readOnly, selectedPlayerId, appendSubLog]
   );
 
-  const subOff = useCallback((playerId: string) => {
-    setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, position: null } : p)));
-  }, []);
+  const subOff = useCallback(
+    (playerId: string) => {
+      let outName: string | null = null;
+      let outPos: NetballPosition | null = null;
+      setPlayers((prev) =>
+        prev.map((p) => {
+          if (p.id === playerId && p.position) {
+            outName = p.name;
+            outPos = p.position;
+            return { ...p, position: null };
+          }
+          return p;
+        })
+      );
+      if (outName && outPos) {
+        appendSubLog({
+          playerOutId: playerId,
+          playerOutName: outName,
+          playerInId: "",
+          playerInName: "(bench)",
+          position: outPos,
+          source: "manual",
+        });
+      }
+    },
+    [appendSubLog]
+  );
 
   const toggleInjured = useCallback((playerId: string) => {
     setPlayers((prev) =>
       prev.map((p) => (p.id === playerId ? { ...p, isInjured: !p.isInjured } : p))
     );
+  }, []);
+
+  // ---------- Undo last sub ----------
+  const undoLastSub = useCallback(() => {
+    const log = timerState.subLog ?? [];
+    if (log.length === 0) {
+      toast({ title: "Nothing to undo", description: "No subs recorded yet." });
+      return;
+    }
+    const last = log[log.length - 1];
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (last.playerInId === "" && p.id === last.playerOutId) {
+          const slotTaken = prev.some((x) => x.id !== p.id && x.position === last.position);
+          if (slotTaken) return p;
+          return { ...p, position: last.position };
+        }
+        if (p.id === last.playerInId) return { ...p, position: null };
+        if (p.id === last.playerOutId) return { ...p, position: last.position };
+        return p;
+      })
+    );
+    setTimerState((s) => ({
+      ...s,
+      subLog: (s.subLog ?? []).slice(0, -1),
+      lastUpdateTime: Date.now(),
+    }));
+    toast({
+      title: "Sub undone",
+      description: last.playerInId
+        ? `${last.playerOutName} back ON for ${last.playerInName}`
+        : `${last.playerOutName} back ON`,
+    });
+  }, [timerState.subLog, toast]);
+
+  const setMvp = useCallback((playerId: string | null) => {
+    setTimerState((s) => ({ ...s, mvpPlayerId: playerId, lastUpdateTime: Date.now() }));
   }, []);
 
   // ---------- Scoring ----------
@@ -408,6 +521,34 @@ export default function NetballBoard({
     () => players.find((p) => p.id === quickActionPlayerId) ?? null,
     [players, quickActionPlayerId]
   );
+
+  // Sport-agnostic player rows for the summary dialog.
+  const summaryPlayers = useMemo(
+    () =>
+      players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        secondsPlayed: p.minutesPlayed ?? 0,
+        isInjured: !!p.isInjured,
+        finalPosition: p.position ?? null,
+      })),
+    [players]
+  );
+
+  const perQuarter = useMemo(() => {
+    const log = timerState.scoreLog ?? [];
+    return [1, 2, 3, 4].map((q) => ({
+      quarter: q,
+      home: log
+        .filter((e) => e.quarter === q && e.side === "home")
+        .reduce((sum, e) => sum + e.points, 0),
+      away: log
+        .filter((e) => e.quarter === q && e.side === "away")
+        .reduce((sum, e) => sum + e.points, 0),
+    }));
+  }, [timerState.scoreLog]);
+
+  const canUndoSub = (timerState.subLog?.length ?? 0) > 0;
 
   const applyNextLineupNow = () => {
     const nextQ = timerState.currentQuarter;
@@ -496,6 +637,30 @@ export default function NetballBoard({
         onPlayerClick={handlePlayerClick}
       />
 
+      {!readOnly && (canUndoSub || (timerState.scoreLog?.length ?? 0) > 0) && (
+        <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={undoLastSub}
+            disabled={!canUndoSub}
+          >
+            <Undo2 className="h-3.5 w-3.5 mr-1" />
+            Undo last sub
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setSummaryOpen(true)}
+          >
+            <Trophy className="h-3.5 w-3.5 mr-1" />
+            Game summary
+          </Button>
+        </div>
+      )}
+
       {validationMode !== "free" && (
         <div className="px-3 py-1 bg-muted/40 border-t flex items-center gap-1.5">
           <AlertTriangle className="h-3 w-3 text-muted-foreground" />
@@ -550,6 +715,22 @@ export default function NetballBoard({
             onSubOff={() => subOff(quickActionPlayer.id)}
             onSubOn={() => setSelectedPlayerId(quickActionPlayer.id)}
             onToggleInjured={() => toggleInjured(quickActionPlayer.id)}
+          />
+        )}
+        {summaryOpen && (
+          <GameSummaryDialog
+            open={summaryOpen}
+            onOpenChange={setSummaryOpen}
+            sport="netball"
+            homeLabel={teamName}
+            awayLabel={timerState.opponentName ?? "Opponent"}
+            homeScore={timerState.homeScore ?? 0}
+            awayScore={timerState.awayScore ?? 0}
+            perQuarter={perQuarter}
+            players={summaryPlayers}
+            mvpPlayerId={timerState.mvpPlayerId ?? null}
+            onSelectMvp={setMvp}
+            readOnly={readOnly}
           />
         )}
       </Suspense>
