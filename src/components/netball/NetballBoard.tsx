@@ -726,7 +726,7 @@ export default function NetballBoard({
   useWakeLock(!readOnly && timerState.isRunning && !timerState.isGameFinished);
 
   // Auto-save the finished game to history (admins/coaches only — RLS guards the rest).
-  const { save: saveGameResult } = useSaveGameResult();
+  const { save: saveGameResult, saved: gameSaved } = useSaveGameResult();
   useEffect(() => {
     if (!readOnly && timerState.isGameFinished) {
       saveGameResult({
@@ -962,6 +962,24 @@ export default function NetballBoard({
             mvpPlayerId={timerState.mvpPlayerId ?? null}
             onSelectMvp={setMvp}
             readOnly={readOnly}
+            isSaved={gameSaved}
+            onSaveNow={() =>
+              saveGameResult(
+                {
+                  teamId,
+                  eventId,
+                  sport: "netball",
+                  homeLabel: teamName,
+                  awayLabel: timerState.opponentName ?? "Opponent",
+                  homeScore: timerState.homeScore ?? 0,
+                  awayScore: timerState.awayScore ?? 0,
+                  perQuarter,
+                  players: summaryPlayers,
+                  mvpPlayerId: timerState.mvpPlayerId ?? null,
+                },
+                { force: true }
+              )
+            }
           />
         )}
       </Suspense>
