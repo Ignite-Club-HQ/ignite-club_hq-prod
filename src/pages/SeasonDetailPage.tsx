@@ -214,6 +214,44 @@ export default function SeasonDetailPage() {
         <DraftTeamBuilder clubId={clubId} seasonId={seasonId} teams={teams} />
       )}
 
+      {isDraft && priorSeasons.length > 0 && teams.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users2 className="h-4 w-4" /> Bulk roll over teams
+            </CardTitle>
+            <CardDescription>
+              Carry players from an earlier season across, team-by-team.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => setBulkRolloverOpen(true)}>
+              <Users2 className="h-4 w-4 mr-2" />
+              Choose teams to roll over
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {(isActive || isArchived) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Bell className="h-4 w-4" /> Notify members
+            </CardTitle>
+            <CardDescription>
+              Send a push reminder about this season to all placed players and their guardians.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => notifyMut.mutate()} disabled={notifyMut.isPending}>
+              <Bell className="h-4 w-4 mr-2" />
+              Send notification
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Teams in this season</CardTitle>
