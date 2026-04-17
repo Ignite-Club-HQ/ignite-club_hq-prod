@@ -2380,7 +2380,7 @@ export default function EventDetailPage() {
         {childrenOnTeam && childrenOnTeam.length > 0 && (
           <div className="pt-2">
             <Separator />
-            <details className="mt-3 rounded-xl border border-border/50 bg-muted/20 group">
+            <details open className="mt-3 rounded-xl border border-border/50 bg-muted/20 group">
               <summary className="flex items-center gap-2 cursor-pointer list-none p-3 [&::-webkit-details-marker]:hidden">
                 <Baby className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-semibold">Children's RSVP</h3>
