@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus, BarChart3 } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
@@ -30,6 +31,7 @@ const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "ima
 export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, hasText = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
@@ -310,9 +312,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     );
   }
 
-  // Show dedicated image and event icons (attachment action group)
+  // Show a single "+" button that opens a popover with image, event, and poll actions
   return (
-    <div className="flex shrink-0 items-center gap-3 self-end pl-2">
+    <div className="flex shrink-0 items-center self-end pl-1">
       <input
         ref={fileInputRef}
         type="file"
@@ -321,41 +323,69 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         className="sr-only"
         disabled={disabled || uploading}
       />
-      <button
-        type="button"
-        onClick={handleImageButtonClick}
-        disabled={disabled || uploading}
-        className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-foreground hover:text-primary transition-colors disabled:opacity-50"
-        aria-label="Upload photo"
-      >
-        {uploading ? (
-          <Loader2 className="h-[22px] w-[22px] animate-spin" />
-        ) : (
-          <ImagePlus className="h-[22px] w-[22px]" strokeWidth={2.25} />
-        )}
-      </button>
-      {showEventPicker && onEventSelect && (
-        <button
-          type="button"
-          onClick={() => onEventSelect("")}
-          disabled={disabled}
-          className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
-          aria-label="Share event"
-        >
-          <CalendarPlus className="h-[22px] w-[22px]" strokeWidth={1.75} />
-        </button>
-      )}
-      {showPollCreator && onPollCreate && (
-        <button
-          type="button"
-          onClick={onPollCreate}
-          disabled={disabled}
-          className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
-          aria-label="Create poll"
-        >
-          <BarChart3 className="h-[22px] w-[22px]" strokeWidth={1.75} />
-        </button>
-      )}
+      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled || uploading}
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-foreground hover:text-primary transition-colors disabled:opacity-50"
+            aria-label="Add attachment"
+          >
+            {uploading ? (
+              <Loader2 className="h-[22px] w-[22px] animate-spin" />
+            ) : (
+              <Plus className="h-[24px] w-[24px]" strokeWidth={2.25} />
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" side="top" className="w-auto p-2">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                setMenuOpen(false);
+                handleImageButtonClick(e);
+              }}
+              disabled={disabled || uploading}
+              className="flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50"
+              aria-label="Upload photo"
+            >
+              <ImagePlus className="h-[22px] w-[22px]" strokeWidth={2} />
+              <span className="text-[11px]">Photo</span>
+            </button>
+            {showEventPicker && onEventSelect && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onEventSelect("");
+                }}
+                disabled={disabled}
+                className="flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50"
+                aria-label="Share event"
+              >
+                <CalendarPlus className="h-[22px] w-[22px]" strokeWidth={1.75} />
+                <span className="text-[11px]">Event</span>
+              </button>
+            )}
+            {showPollCreator && onPollCreate && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onPollCreate();
+                }}
+                disabled={disabled}
+                className="flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50"
+                aria-label="Create poll"
+              >
+                <BarChart3 className="h-[22px] w-[22px]" strokeWidth={1.75} />
+                <span className="text-[11px]">Poll</span>
+              </button>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
