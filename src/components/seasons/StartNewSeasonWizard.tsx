@@ -37,6 +37,8 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
   const [duplicateStructure, setDuplicateStructure] = useState(true);
   const [copyStaff, setCopyStaff] = useState(true);
   const [createdSeasonId, setCreatedSeasonId] = useState<string | null>(null);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  const [carriedOverCount, setCarriedOverCount] = useState<number | null>(null);
   const qc = useQueryClient();
 
   const reset = () => {
@@ -46,6 +48,8 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
     setDuplicateStructure(true);
     setCopyStaff(true);
     setCreatedSeasonId(null);
+    setSelectedPlayerIds(new Set());
+    setCarriedOverCount(null);
   };
 
   const handleClose = (v: boolean) => {
