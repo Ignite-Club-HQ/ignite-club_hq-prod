@@ -52,7 +52,11 @@ export default function EoiAdminPage() {
   const navigate = useNavigate();
   const [seasonId, setSeasonId] = useState<string | "all">("all");
   const [statusFilter, setStatusFilter] = useState<EoiStatus | "all">("all");
+  const [returningFilter, setReturningFilter] = useState<"all" | "new" | "returning">("all");
   const [search, setSearch] = useState("");
+
+  const resendInvite = useResendEoiInvite();
+  const bulkResend = useBulkResendEoiInvites();
 
   const { data: club } = useQuery({
     queryKey: ["club", clubId],
