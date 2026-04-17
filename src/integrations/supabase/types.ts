@@ -6934,6 +6934,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      notify_season_published: { Args: { _season_id: string }; Returns: number }
       notify_team_members: {
         Args: {
           _exclude_user_id: string
