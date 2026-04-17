@@ -713,11 +713,30 @@ export default function ProfilePage() {
                   <div className="text-xs text-muted-foreground">Balance</div>
                 </div>
               </div>
-              {rankData && (
+              {activeClubFilter && seasonsForRank.length > 0 && (
+                <div className="mt-3">
+                  <Select value={selectedSeasonId} onValueChange={setSelectedSeasonId}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All time</SelectItem>
+                      {seasonsForRank.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                          {s.status === "active" ? " · Current" : s.status === "archived" ? " · Archived" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {displayedRank && (
                 <div className="flex items-center justify-center gap-2 mt-3 p-2 bg-primary/10 rounded-lg">
                   <Trophy className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium">
-                    You are <span className="text-primary font-bold">{rankData.rank}{getOrdinalSuffix(rankData.rank)}</span> out of {rankData.total} member{rankData.total !== 1 ? 's' : ''}
+                    You are <span className="text-primary font-bold">{displayedRank.rank}{getOrdinalSuffix(displayedRank.rank)}</span> out of {displayedRank.total} member{displayedRank.total !== 1 ? 's' : ''}
+                    {selectedSeasonId !== "all" && "points" in (displayedRank as any) ? ` · ${(displayedRank as any).points} pts` : ""}
                   </span>
                 </div>
               )}
