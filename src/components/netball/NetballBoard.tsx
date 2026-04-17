@@ -7,6 +7,7 @@ import NetballQuarterTimer from "./NetballQuarterTimer";
 import NetballActionBar from "./NetballActionBar";
 import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
+import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 
 import {
   NetballPlayer,
@@ -319,6 +320,45 @@ export default function NetballBoard({
     );
   }, []);
 
+  // ---------- Scoring ----------
+  const addScore = useCallback((side: "home" | "away", points: number) => {
+    setTimerState((s) => {
+      const event = {
+        id: crypto.randomUUID(),
+        side,
+        points,
+        quarter: s.currentQuarter,
+        at: Date.now(),
+      };
+      return {
+        ...s,
+        homeScore: (s.homeScore ?? 0) + (side === "home" ? points : 0),
+        awayScore: (s.awayScore ?? 0) + (side === "away" ? points : 0),
+        scoreLog: [...(s.scoreLog ?? []), event],
+        lastUpdateTime: Date.now(),
+      };
+    });
+  }, []);
+
+  const undoScore = useCallback(() => {
+    setTimerState((s) => {
+      const log = s.scoreLog ?? [];
+      if (log.length === 0) return s;
+      const last = log[log.length - 1];
+      return {
+        ...s,
+        homeScore: Math.max(0, (s.homeScore ?? 0) - (last.side === "home" ? last.points : 0)),
+        awayScore: Math.max(0, (s.awayScore ?? 0) - (last.side === "away" ? last.points : 0)),
+        scoreLog: log.slice(0, -1),
+        lastUpdateTime: Date.now(),
+      };
+    });
+  }, []);
+
+  const setOpponentName = useCallback((name: string) => {
+    setTimerState((s) => ({ ...s, opponentName: name, lastUpdateTime: Date.now() }));
+  }, []);
+
   // ---------- Generate auto-sub plan when settings change ----------
   useEffect(() => {
     if (rotationMode === "off") {
@@ -382,6 +422,19 @@ export default function NetballBoard({
           readOnly={readOnly}
         />
       </header>
+
+      <GameScoreboard
+        homeLabel={teamName}
+        awayLabel={timerState.opponentName ?? "Opponent"}
+        homeScore={timerState.homeScore ?? 0}
+        awayScore={timerState.awayScore ?? 0}
+        increments={[1]}
+        readOnly={readOnly}
+        onScore={addScore}
+        onUndo={undoScore}
+        onRenameAway={setOpponentName}
+        canUndo={(timerState.scoreLog?.length ?? 0) > 0}
+      />
 
       {!readOnly && (
         <NetballActionBar
