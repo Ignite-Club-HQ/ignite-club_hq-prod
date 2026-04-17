@@ -9,7 +9,11 @@ import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
+import CentrePassIndicator from "@/components/scoreboard/CentrePassIndicator";
+import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
+import CuesToggle from "@/components/scoreboard/CuesToggle";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 
 import {
   NetballPlayer,
@@ -211,6 +215,8 @@ export default function NetballBoard({
   // `delta` is the real elapsed seconds since the last tick. Using a constant
   // `1` here causes drift when the app backgrounds (the timer catches up via
   // wall-clock but per-player minutes wouldn't).
+  // Track sub-cue de-dupe so we don't beep every second.
+  const cuedSubIdsRef = useRef<Set<string>>(new Set());
   const handleTick = useCallback(
     (elapsed: number, quarter: Quarter, delta = 1) => {
       const safeDelta = Math.max(1, Math.floor(delta));
@@ -223,6 +229,14 @@ export default function NetballBoard({
       );
 
       if (rotationMode !== "off") {
+        const upcoming = findNextDueSub(autoSubPlan, quarter, elapsed + 10);
+        if (upcoming && upcoming.time > elapsed) {
+          const key = `${quarter}:${upcoming.time}:${upcoming.playerOut.id}`;
+          if (!cuedSubIdsRef.current.has(key)) {
+            cuedSubIdsRef.current.add(key);
+            cueSubDue();
+          }
+        }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
         if (due) executeSub(due);
       }
@@ -263,6 +277,7 @@ export default function NetballBoard({
   // ---------- Quarter end → quarter-break rotations + apply next lineup ----------
   const handleQuarterEnd = useCallback(
     (endedQuarter: Quarter) => {
+      cueQuarterEnd();
       const nextQuarter = (endedQuarter + 1) as Quarter;
       if (nextQuarter > 4) {
         toast({ title: "Game finished", description: "Q4 complete." });
@@ -445,6 +460,7 @@ export default function NetballBoard({
   }, []);
 
   // ---------- Scoring ----------
+  // After every goal, the centre pass automatically flips to the OTHER side.
   const addScore = useCallback((side: "home" | "away", points: number) => {
     setTimerState((s) => {
       const event = {
@@ -459,6 +475,7 @@ export default function NetballBoard({
         homeScore: (s.homeScore ?? 0) + (side === "home" ? points : 0),
         awayScore: (s.awayScore ?? 0) + (side === "away" ? points : 0),
         scoreLog: [...(s.scoreLog ?? []), event],
+        centrePass: side === "home" ? "away" : "home",
         lastUpdateTime: Date.now(),
       };
     });
@@ -474,9 +491,15 @@ export default function NetballBoard({
         homeScore: Math.max(0, (s.homeScore ?? 0) - (last.side === "home" ? last.points : 0)),
         awayScore: Math.max(0, (s.awayScore ?? 0) - (last.side === "away" ? last.points : 0)),
         scoreLog: log.slice(0, -1),
+        // Flip centre pass back to the team that just had it taken away.
+        centrePass: last.side,
         lastUpdateTime: Date.now(),
       };
     });
+  }, []);
+
+  const setCentrePass = useCallback((side: "home" | "away") => {
+    setTimerState((s) => ({ ...s, centrePass: side, lastUpdateTime: Date.now() }));
   }, []);
 
   const setOpponentName = useCallback((name: string) => {
@@ -580,6 +603,7 @@ export default function NetballBoard({
           <h1 className="font-bold text-sm truncate">{teamName}</h1>
           <p className="text-[10px] text-muted-foreground">Netball Game Board</p>
         </div>
+        <CuesToggle />
         <NetballQuarterTimer
           state={timerState}
           onChange={setTimerState}
@@ -606,6 +630,24 @@ export default function NetballBoard({
       <QuarterScoreStrip
         scoreLog={timerState.scoreLog}
         currentQuarter={timerState.currentQuarter}
+      />
+
+      <CentrePassIndicator
+        homeLabel={teamName}
+        awayLabel={timerState.opponentName ?? "Opponent"}
+        side={timerState.centrePass ?? "home"}
+        readOnly={readOnly}
+        onSwap={() =>
+          setCentrePass((timerState.centrePass ?? "home") === "home" ? "away" : "home")
+        }
+      />
+
+      <BenchFairnessMeter
+        players={players}
+        elapsedSeconds={
+          timerState.elapsedSeconds +
+          (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
+        }
       />
 
       {!readOnly && (

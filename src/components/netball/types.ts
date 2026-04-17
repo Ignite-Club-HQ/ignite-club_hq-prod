@@ -143,6 +143,8 @@ export interface NetballTimerState {
   subLog?: NetballSubLogEntry[];
   /** Coach-selected MVP / Player of the Match (player.id). */
   mvpPlayerId?: string | null;
+  /** Which side has the next centre pass. Auto-flips after each goal. */
+  centrePass?: "home" | "away";
 }
 
 export interface NetballBoardState {

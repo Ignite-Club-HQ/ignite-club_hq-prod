@@ -28,6 +28,7 @@ import {
   safeSave,
 } from "@/components/basketball/basketballHelpers";
 import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
+import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
 
 interface Member {
   id: string;
@@ -131,6 +132,10 @@ export function useBasketballBoardState({
         elapsedSeconds: 0,
         isRunning: false,
         lastUpdateTime: Date.now(),
+        timeoutsPerHalf: 3,
+        homeTimeoutsRemaining: 3,
+        awayTimeoutsRemaining: 3,
+        timeoutsHalfTracked: 1,
       }
   );
 
@@ -316,6 +321,8 @@ export function useBasketballBoardState({
   // `delta` is the number of real seconds elapsed since the last tick — using
   // a hard-coded `1` causes drift after the app backgrounds (the timer keeps
   // ticking via wall-clock but per-player minutes wouldn't catch up).
+  // Track which subs we've already "warned" about so we don't beep every second.
+  const cuedSubIdsRef = useRef<Set<string>>(new Set());
   const handleTick = useCallback(
     (elapsed: number, quarter: Quarter, delta = 1) => {
       const safeDelta = Math.max(1, Math.floor(delta));
@@ -327,6 +334,16 @@ export function useBasketballBoardState({
         )
       );
       if (rotationMode !== "off") {
+        // Cue the coach ~10s before a sub fires so they have time to react.
+        const upcoming = findNextDueSub(autoSubPlan, quarter, elapsed + 10);
+        if (upcoming && upcoming.time > elapsed) {
+          // Stable id per-sub: position + time + outgoing player.
+          const key = `${quarter}:${upcoming.time}:${upcoming.playerOut.id}`;
+          if (!cuedSubIdsRef.current.has(key)) {
+            cuedSubIdsRef.current.add(key);
+            cueSubDue();
+          }
+        }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
         if (due) executeSub(due);
       }
@@ -337,7 +354,18 @@ export function useBasketballBoardState({
   // ---------- Quarter end ----------
   const handleQuarterEnd = useCallback(
     (endedQuarter: Quarter) => {
+      cueQuarterEnd();
       const nextQuarter = (endedQuarter + 1) as Quarter;
+      // Reset half-based timeouts when crossing into the second half (Q3 starts).
+      if (nextQuarter === 3) {
+        setTimerState((s) => ({
+          ...s,
+          homeTimeoutsRemaining: s.timeoutsPerHalf ?? 3,
+          awayTimeoutsRemaining: s.timeoutsPerHalf ?? 3,
+          timeoutsHalfTracked: 2,
+          lastUpdateTime: Date.now(),
+        }));
+      }
       if (nextQuarter > 4) {
         toast({ title: "Game finished", description: "Q4 complete." });
         return;
@@ -666,6 +694,58 @@ export function useBasketballBoardState({
     }));
   }, []);
 
+  // ---------- Timeouts ----------
+  const callTimeout = useCallback(
+    (side: "home" | "away") => {
+      let actuallyCalled = false;
+      setTimerState((s) => {
+        const key = side === "home" ? "homeTimeoutsRemaining" : "awayTimeoutsRemaining";
+        const remaining = s[key] ?? s.timeoutsPerHalf ?? 3;
+        if (remaining <= 0) return s;
+        actuallyCalled = true;
+        return {
+          ...s,
+          [key]: remaining - 1,
+          // Pause the clock — timeouts always stop play.
+          isRunning: false,
+          lastUpdateTime: Date.now(),
+        };
+      });
+      if (actuallyCalled) {
+        cueTimeout();
+        toast({
+          title: "Timeout",
+          description: side === "home" ? "Home timeout called." : "Away timeout called.",
+        });
+      }
+    },
+    [toast]
+  );
+
+  const resetTimeoutsForCurrentHalf = useCallback(() => {
+    setTimerState((s) => {
+      const allowance = s.timeoutsPerHalf ?? 3;
+      return {
+        ...s,
+        homeTimeoutsRemaining: allowance,
+        awayTimeoutsRemaining: allowance,
+        lastUpdateTime: Date.now(),
+      };
+    });
+  }, []);
+
+  const setTimeoutsPerHalf = useCallback((n: number) => {
+    const safe = Math.max(0, Math.min(10, Math.floor(n)));
+    setTimerState((s) => ({
+      ...s,
+      timeoutsPerHalf: safe,
+      // Bump remaining so a coach increasing the allowance mid-half sees the new max.
+      homeTimeoutsRemaining: Math.min(safe, s.homeTimeoutsRemaining ?? safe),
+      awayTimeoutsRemaining: Math.min(safe, s.awayTimeoutsRemaining ?? safe),
+      lastUpdateTime: Date.now(),
+    }));
+  }, []);
+
   return {
     // state
     players,
@@ -715,5 +795,9 @@ export function useBasketballBoardState({
     undoLastSub,
     canUndoSub: (timerState.subLog?.length ?? 0) > 0,
     setMvp,
+    // timeouts
+    callTimeout,
+    resetTimeoutsForCurrentHalf,
+    setTimeoutsPerHalf,
   };
 }
