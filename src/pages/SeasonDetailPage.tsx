@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageLoading } from "@/components/ui/page-loading";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { DraftTeamBuilder } from "@/components/seasons/DraftTeamBuilder";
 
 export default function SeasonDetailPage() {
   const { clubId, seasonId } = useParams<{ clubId: string; seasonId: string }>();
@@ -151,6 +152,10 @@ export default function SeasonDetailPage() {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {isDraft && clubId && seasonId && teams.length > 0 && (
+        <DraftTeamBuilder clubId={clubId} seasonId={seasonId} teams={teams} />
       )}
 
       <Card>
