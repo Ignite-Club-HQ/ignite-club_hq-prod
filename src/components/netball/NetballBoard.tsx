@@ -244,12 +244,20 @@ export default function NetballBoard({
         });
       });
       setAutoSubPlan((prev) => prev.map((s) => (s === sub ? { ...s, executed: true } : s)));
+      appendSubLog({
+        playerOutId: sub.playerOut.id,
+        playerOutName: sub.playerOut.name,
+        playerInId: sub.playerIn.id,
+        playerInName: sub.playerIn.name,
+        position: sub.position,
+        source: "auto",
+      });
       toast({
         title: "Auto-sub",
         description: `${sub.playerIn.name} ON for ${sub.playerOut.name} at ${sub.position}`,
       });
     },
-    [toast]
+    [toast, appendSubLog]
   );
 
   // ---------- Quarter end → quarter-break rotations + apply next lineup ----------
@@ -342,22 +350,98 @@ export default function NetballBoard({
   const handleSlotClick = useCallback(
     (position: NetballPosition) => {
       if (readOnly || !selectedPlayerId) return;
-      setPlayers((prev) =>
-        prev.map((p) => (p.id === selectedPlayerId ? { ...p, position } : p))
-      );
+      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
+      setPlayers((prev) => {
+        const incoming = prev.find((p) => p.id === selectedPlayerId);
+        if (!incoming) return prev;
+        const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
+        if (incoming.position === null) {
+          logEntry = {
+            playerOutId: displaced?.id ?? "",
+            playerOutName: displaced?.name ?? "(empty)",
+            playerInId: incoming.id,
+            playerInName: incoming.name,
+            position,
+            source: "manual",
+          };
+        }
+        return prev.map((p) => (p.id === selectedPlayerId ? { ...p, position } : p));
+      });
+      if (logEntry) appendSubLog(logEntry);
       setSelectedPlayerId(null);
     },
-    [readOnly, selectedPlayerId]
+    [readOnly, selectedPlayerId, appendSubLog]
   );
 
-  const subOff = useCallback((playerId: string) => {
-    setPlayers((prev) => prev.map((p) => (p.id === playerId ? { ...p, position: null } : p)));
-  }, []);
+  const subOff = useCallback(
+    (playerId: string) => {
+      let outName: string | null = null;
+      let outPos: NetballPosition | null = null;
+      setPlayers((prev) =>
+        prev.map((p) => {
+          if (p.id === playerId && p.position) {
+            outName = p.name;
+            outPos = p.position;
+            return { ...p, position: null };
+          }
+          return p;
+        })
+      );
+      if (outName && outPos) {
+        appendSubLog({
+          playerOutId: playerId,
+          playerOutName: outName,
+          playerInId: "",
+          playerInName: "(bench)",
+          position: outPos,
+          source: "manual",
+        });
+      }
+    },
+    [appendSubLog]
+  );
 
   const toggleInjured = useCallback((playerId: string) => {
     setPlayers((prev) =>
       prev.map((p) => (p.id === playerId ? { ...p, isInjured: !p.isInjured } : p))
     );
+  }, []);
+
+  // ---------- Undo last sub ----------
+  const undoLastSub = useCallback(() => {
+    const log = timerState.subLog ?? [];
+    if (log.length === 0) {
+      toast({ title: "Nothing to undo", description: "No subs recorded yet." });
+      return;
+    }
+    const last = log[log.length - 1];
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (last.playerInId === "" && p.id === last.playerOutId) {
+          const slotTaken = prev.some((x) => x.id !== p.id && x.position === last.position);
+          if (slotTaken) return p;
+          return { ...p, position: last.position };
+        }
+        if (p.id === last.playerInId) return { ...p, position: null };
+        if (p.id === last.playerOutId) return { ...p, position: last.position };
+        return p;
+      })
+    );
+    setTimerState((s) => ({
+      ...s,
+      subLog: (s.subLog ?? []).slice(0, -1),
+      lastUpdateTime: Date.now(),
+    }));
+    toast({
+      title: "Sub undone",
+      description: last.playerInId
+        ? `${last.playerOutName} back ON for ${last.playerInName}`
+        : `${last.playerOutName} back ON`,
+    });
+  }, [timerState.subLog, toast]);
+
+  const setMvp = useCallback((playerId: string | null) => {
+    setTimerState((s) => ({ ...s, mvpPlayerId: playerId, lastUpdateTime: Date.now() }));
   }, []);
 
   // ---------- Scoring ----------
