@@ -255,6 +255,8 @@ export default function BasketballBoard({
             onRotationIntervalChange={board.setRotationIntervalMinutes}
             validationMode={board.validationMode}
             onValidationModeChange={board.setValidationMode}
+            timeoutsPerHalf={board.timerState.timeoutsPerHalf ?? 3}
+            onTimeoutsPerHalfChange={board.setTimeoutsPerHalf}
           />
         )}
         {lineupPlannerOpen && (
