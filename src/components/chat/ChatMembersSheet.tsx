@@ -6,11 +6,22 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, Loader2, ChevronRight } from "lucide-react";
+import { Users, Loader2, ChevronRight, UserPlus, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
+import { AddGroupMembersDialog } from "@/components/chat/AddGroupMembersDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface ChatMembersSheetProps {
