@@ -34,6 +34,8 @@ import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages 
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
@@ -695,6 +697,13 @@ export default function DirectMessagePage() {
     setMessage("");
   }, []);
 
+  // Typing indicator
+  const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
+    `dm-${conversationId || ""}`,
+    user?.id,
+    profile?.display_name || user?.email || "Someone"
+  );
+
   const handleSend = () => {
     if (!message.trim()) return;
     if (editingMessage) {
@@ -707,6 +716,7 @@ export default function DirectMessagePage() {
       toast.error("DMs require both users to be members of a Pro club");
       return;
     }
+    stopTyping();
     sendMessageMutation.mutate({
       text: message.trim(),
       imageUrl: null,
@@ -1139,6 +1149,7 @@ export default function DirectMessagePage() {
              className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-2 bg-background z-[51]"
              style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}
            >
+             <TypingIndicator typingUsers={typingUsers} />
              {replyTo && (
                <ReplyPreview
                  replyingTo={{ id: replyTo.id, text: replyTo.text, authorName: replyTo.author?.display_name || null }}
@@ -1149,7 +1160,10 @@ export default function DirectMessagePage() {
                <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
                <MentionInput
                  value={message}
-                 onChange={setMessage}
+                 onChange={(val) => {
+                   setMessage(val);
+                   if (val.trim()) startTyping(); else stopTyping();
+                 }}
                  onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
                  placeholder="Type a message..."
                  disabled={sendMessageMutation.isPending}
