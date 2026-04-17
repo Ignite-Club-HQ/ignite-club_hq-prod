@@ -433,13 +433,14 @@ export function useBasketballBoardState({
             playerName = p.name;
             wasOnCourt = p.position !== null;
             // At 5 fouls (FIBA) → fouled out: bench immediately and lock out
-            // by also marking injured so the auto-sub engine ignores them.
+            // via a dedicated `isFouledOut` flag (NOT isInjured — that was
+            // misleading the UI to show an injury badge).
             const fouledOut = newCount >= 5;
             return {
               ...p,
               fouls: newCount,
               position: fouledOut ? null : p.position,
-              isInjured: fouledOut ? true : p.isInjured,
+              isFouledOut: fouledOut ? true : p.isFouledOut,
             };
           }
           return p;
@@ -449,7 +450,7 @@ export function useBasketballBoardState({
         toast({
           title: "Fouled out",
           description: wasOnCourt
-            ? `${playerName} (${newCount}F) sent to bench. Tap to clear if needed.`
+            ? `${playerName} (${newCount}F) sent to bench.`
             : `${playerName} has ${newCount} fouls and is locked out.`,
           variant: "destructive",
         });
@@ -457,6 +458,15 @@ export function useBasketballBoardState({
     },
     [toast]
   );
+
+  /** Coach override — clear a foul-out flag (e.g. miscount). */
+  const clearFoulOut = useCallback((playerId: string) => {
+    setPlayers((prev) =>
+      prev.map((p) =>
+        p.id === playerId ? { ...p, isFouledOut: false, fouls: Math.min(p.fouls ?? 0, 4) } : p
+      )
+    );
+  }, []);
 
   // ---------- Generate auto-sub plan when settings or roster change ----------
   // Signature changes when bench composition or on-court positions change,
