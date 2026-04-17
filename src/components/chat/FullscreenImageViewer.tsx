@@ -8,6 +8,7 @@ import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { usePinchZoom } from "@/hooks/usePinchZoom";
 import { Capacitor } from "@capacitor/core";
 import { applyStatusBarForViewer, refreshStatusBar } from "@/lib/statusBarControl";
+import { isVideoUrl } from "@/lib/videoUtils";
 
 interface FullscreenImageViewerProps {
   src: string;
@@ -110,18 +111,27 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
       {!loaded && (
         <div className="animate-pulse bg-muted/20 rounded w-64 h-64" />
       )}
-      <img
-        src={effectiveSrc}
-        alt={alt}
-        className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
-        style={{
-          transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
-          touchAction: 'none',
-        }}
-        onClick={(e) => e.stopPropagation()}
-        onLoad={() => setLoaded(true)}
-        draggable={false}
-      />
-    </div>
-  );
-}
+      {isVideoUrl(effectiveSrc) ? (
+        <video
+          src={effectiveSrc}
+          className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
+          controls
+          autoPlay
+          playsInline
+          onClick={(e) => e.stopPropagation()}
+          onLoadedData={() => setLoaded(true)}
+        />
+      ) : (
+        <img
+          src={effectiveSrc}
+          alt={alt}
+          className={`max-w-[95vw] max-h-[90vh] object-contain rounded transition-opacity duration-100 ${loaded ? "opacity-100" : "opacity-0"}`}
+          style={{
+            transform: `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`,
+            touchAction: 'none',
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onLoad={() => setLoaded(true)}
+          draggable={false}
+        />
+      )}
