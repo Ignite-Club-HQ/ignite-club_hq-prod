@@ -190,6 +190,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   if (previewsOnly) {
     return (
       <>
+        {/* Poll cards */}
+        {pollIds.length > 0 && (
+          <div className="space-y-2 min-w-0 max-w-full">
+            {pollIds.map((pollId) => (
+              <PollCard key={pollId} pollId={pollId} />
+            ))}
+          </div>
+        )}
+
         {/* Event link cards */}
         {eventIds.length > 0 && (
           <div className="space-y-2 min-w-0 max-w-full">
