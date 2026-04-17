@@ -272,79 +272,129 @@ export function AttendanceSection({
         </div>
       ) : (
         <>
-          {/* Status summary chips */}
+          {/* Status summary chips — No Response prioritised first */}
           <div className="flex flex-wrap gap-1.5">
-            <AttendanceChip tone="going" label="Going" count={counts.going} />
-            <AttendanceChip tone="maybe" label="Maybe" count={counts.maybe} />
-            <AttendanceChip tone="notGoing" label="Not Going" count={counts.notGoing} />
-            <AttendanceChip tone="noResponse" label="No Response" count={counts.notResponded} />
+            <AttendanceChip
+              tone="noResponse"
+              label="No Response"
+              count={counts.notResponded}
+              emphasised
+              targetId={`attendance-group-noResponse-${eventId}`}
+            />
+            <AttendanceChip
+              tone="going"
+              label="Going"
+              count={counts.going}
+              targetId={`attendance-group-going-${eventId}`}
+            />
+            {counts.maybe > 0 && (
+              <AttendanceChip
+                tone="maybe"
+                label="Maybe"
+                count={counts.maybe}
+                targetId={`attendance-group-maybe-${eventId}`}
+              />
+            )}
+            {counts.notGoing > 0 && (
+              <AttendanceChip
+                tone="notGoing"
+                label="Not Going"
+                count={counts.notGoing}
+                targetId={`attendance-group-notGoing-${eventId}`}
+              />
+            )}
           </div>
 
           {/* Top-level reminder action */}
           {showReminderAction && (
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" disabled={isSending} className="gap-1.5 w-full sm:w-auto">
-                  {isSending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Bell className="h-4 w-4" />
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">
+                {counts.notResponded} {counts.notResponded === 1 ? "player hasn't" : "players haven't"} responded yet
+              </p>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" disabled={isSending} className="gap-1.5 w-full sm:w-auto">
+                    {isSending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Bell className="h-4 w-4" />
+                    )}
+                    Remind all non-responders
+                    <ChevronDown className="h-3 w-3 ml-0.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  {canSendReminders && (
+                    <>
+                      <DropdownMenuItem onClick={() => handleSendReminders("push")}>
+                        <Smartphone className="h-4 w-4 mr-2" />
+                        Push Notification
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSendReminders("email")}>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Email
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSendReminders("both")}>
+                        <Bell className="h-4 w-4 mr-2" />
+                        Both (Push + Email)
+                      </DropdownMenuItem>
+                    </>
                   )}
-                  Remind all non-responders
-                  <ChevronDown className="h-3 w-3 ml-0.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                {canSendReminders && (
-                  <>
-                    <DropdownMenuItem onClick={() => handleSendReminders("push")}>
-                      <Smartphone className="h-4 w-4 mr-2" />
-                      Push Notification
+                  {canSendReminders && onShareLink && <DropdownMenuSeparator />}
+                  {onShareLink && (
+                    <DropdownMenuItem onClick={() => onShareLink()}>
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Share link…
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSendReminders("email")}>
-                      <Mail className="h-4 w-4 mr-2" />
-                      Email
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSendReminders("both")}>
-                      <Bell className="h-4 w-4 mr-2" />
-                      Both (Push + Email)
-                    </DropdownMenuItem>
-                  </>
-                )}
-                {canSendReminders && onShareLink && <DropdownMenuSeparator />}
-                {onShareLink && (
-                  <DropdownMenuItem onClick={() => onShareLink()}>
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Share link…
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
 
-          {/* Full member list — always visible, grouped by status */}
+          {/* Full member list — No Response prioritised first */}
           <div className="space-y-5">
+            {counts.notResponded > 0 && (
+              <AttendanceGroup
+                id={`attendance-group-noResponse-${eventId}`}
+                label="No Response"
+                count={counts.notResponded}
+                tone="noResponse"
+              >
+                {notRespondedContent}
+              </AttendanceGroup>
+            )}
+
             {counts.going > 0 && (
-              <AttendanceGroup label="Going" count={counts.going} tone="going">
+              <AttendanceGroup
+                id={`attendance-group-going-${eventId}`}
+                label="Going"
+                count={counts.going}
+                tone="going"
+              >
                 {goingContent}
               </AttendanceGroup>
             )}
 
             {counts.maybe > 0 && (
-              <AttendanceGroup label="Maybe" count={counts.maybe} tone="maybe">
+              <AttendanceGroup
+                id={`attendance-group-maybe-${eventId}`}
+                label="Maybe"
+                count={counts.maybe}
+                tone="maybe"
+              >
                 {maybeContent}
               </AttendanceGroup>
             )}
 
             {counts.notGoing > 0 && (
-              <AttendanceGroup label="Not Going" count={counts.notGoing} tone="notGoing">
+              <AttendanceGroup
+                id={`attendance-group-notGoing-${eventId}`}
+                label="Not Going"
+                count={counts.notGoing}
+                tone="notGoing"
+              >
                 {notGoingContent}
-              </AttendanceGroup>
-            )}
-
-            {counts.notResponded > 0 && (
-              <AttendanceGroup label="No Response" count={counts.notResponded} tone="noResponse">
-                {notRespondedContent}
               </AttendanceGroup>
             )}
           </div>
