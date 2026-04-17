@@ -6961,6 +6961,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      notify_season_archived: { Args: { _season_id: string }; Returns: number }
       notify_season_published: { Args: { _season_id: string }; Returns: number }
       notify_team_members: {
         Args: {
@@ -7004,6 +7005,16 @@ export type Database = {
       record_push_success: { Args: { p_endpoint: string }; Returns: undefined }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
+      season_orphan_events: {
+        Args: { _club_id: string }
+        Returns: {
+          event_date: string
+          event_id: string
+          team_id: string
+          team_name: string
+          title: string
+        }[]
+      }
       season_player_stats: {
         Args: { _season_id: string; _team_id: string }
         Returns: {
