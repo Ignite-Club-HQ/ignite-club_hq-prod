@@ -617,6 +617,55 @@ export function useBasketballBoardState({
     [timerState.currentQuarter]
   );
 
+  // ---------- Undo last sub ----------
+  // Reverts the most recent sub log entry: incoming player back to bench,
+  // outgoing player back to their old slot. We also pop the log itself so
+  // repeated undo walks back through history.
+  const undoLastSub = useCallback(() => {
+    const log = timerState.subLog ?? [];
+    if (log.length === 0) {
+      toast({ title: "Nothing to undo", description: "No subs recorded yet." });
+      return;
+    }
+    const last = log[log.length - 1];
+    setPlayers((prev) =>
+      prev.map((p) => {
+        // Pure sub-off (no incoming) — put player back at their old position
+        // if that slot is still empty.
+        if (last.playerInId === "" && p.id === last.playerOutId) {
+          const slotTaken = prev.some(
+            (x) => x.id !== p.id && x.position === last.position
+          );
+          if (slotTaken) return p;
+          return { ...p, position: last.position };
+        }
+        if (p.id === last.playerInId) return { ...p, position: null };
+        if (p.id === last.playerOutId) return { ...p, position: last.position };
+        return p;
+      })
+    );
+    setTimerState((s) => ({
+      ...s,
+      subLog: (s.subLog ?? []).slice(0, -1),
+      lastUpdateTime: Date.now(),
+    }));
+    toast({
+      title: "Sub undone",
+      description: last.playerInId
+        ? `${last.playerOutName} back ON for ${last.playerInName}`
+        : `${last.playerOutName} back ON`,
+    });
+  }, [timerState.subLog, toast]);
+
+  // ---------- MVP / Player of the Match ----------
+  const setMvp = useCallback((playerId: string | null) => {
+    setTimerState((s) => ({
+      ...s,
+      mvpPlayerId: playerId,
+      lastUpdateTime: Date.now(),
+    }));
+  }, []);
+
   return {
     // state
     players,
