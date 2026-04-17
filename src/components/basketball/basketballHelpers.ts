@@ -30,7 +30,9 @@ export const pickLikeForLikeBenchPlayer = (
   bench: BasketballPlayer[],
   excludeIds: string[] = []
 ): BasketballPlayer | undefined => {
-  const eligible = bench.filter(p => !p.isInjured && !excludeIds.includes(p.id));
+  const eligible = bench.filter(
+    p => !p.isInjured && !p.isFouledOut && !excludeIds.includes(p.id)
+  );
   if (eligible.length === 0) return undefined;
 
   const preferred = eligible.filter(p => p.preferredPositions?.includes(position));

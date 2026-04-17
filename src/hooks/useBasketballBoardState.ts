@@ -474,7 +474,7 @@ export function useBasketballBoardState({
   const rosterSignature = useMemo(
     () =>
       players
-        .map((p) => `${p.id}:${p.position ?? "bench"}:${p.isInjured ? "x" : "o"}`)
+        .map((p) => `${p.id}:${p.position ?? "bench"}:${p.isInjured || p.isFouledOut ? "x" : "o"}`)
         .sort()
         .join("|"),
     [players]
