@@ -4128,6 +4128,35 @@ export type Database = {
           },
         ]
       }
+      photo_views: {
+        Row: {
+          id: string
+          photo_id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          id?: string
+          photo_id: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          id?: string
+          photo_id?: string
+          user_id?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photo_views_photo_id_fkey"
+            columns: ["photo_id"]
+            isOneToOne: false
+            referencedRelation: "photos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       photos: {
         Row: {
           caption: string | null
