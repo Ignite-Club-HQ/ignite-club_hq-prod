@@ -962,5 +962,15 @@ export function useBasketballBoardState({
     // free throws + period type
     addFreeThrows,
     setPeriodType,
+    // auto-sub control panel
+    autoSubPlan,
+    autoSubPaused,
+    lockedPlayerIds,
+    toggleAutoSubPaused,
+    toggleLockPlayer,
+    executeNextSubNow,
+    skipNextSub,
+    cancelAutoSubPlan,
+    regenerateAutoSubPlan,
   };
 }
