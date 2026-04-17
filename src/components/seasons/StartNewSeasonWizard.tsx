@@ -90,6 +90,8 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
     mutationFn: async (id: string) => {
       const { error } = await supabase.rpc("publish_season", { _season_id: id });
       if (error) throw error;
+      // Fan out push notifications to placed players. Failure is non-blocking.
+      await supabase.rpc("notify_season_published", { _season_id: id });
     },
   });
 

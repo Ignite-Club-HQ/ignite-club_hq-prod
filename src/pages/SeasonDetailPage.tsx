@@ -94,9 +94,25 @@ export default function SeasonDetailPage() {
     mutationFn: async () => {
       const { error } = await supabase.rpc("publish_season", { _season_id: seasonId! });
       if (error) throw error;
+      // Fan out push notifications to all placed players (and guardians of children).
+      // Failure here should not block the publish — surface as a soft warning instead.
+      const { data: notified, error: notifyError } = await supabase.rpc(
+        "notify_season_published",
+        { _season_id: seasonId! },
+      );
+      return { notified: notified ?? 0, notifyError };
     },
-    onSuccess: () => {
-      toast.success("Season published — it is now active");
+    onSuccess: ({ notified, notifyError }) => {
+      if (notifyError) {
+        toast.success("Season published");
+        toast.warning("Could not send all member notifications");
+      } else {
+        toast.success(
+          notified > 0
+            ? `Season published — ${notified} member${notified === 1 ? "" : "s"} notified`
+            : "Season published — it is now active",
+        );
+      }
       qc.invalidateQueries({ queryKey: ["season", seasonId] });
       qc.invalidateQueries({ queryKey: ["club-seasons", clubId] });
       qc.invalidateQueries({ queryKey: ["season-teams", seasonId] });
