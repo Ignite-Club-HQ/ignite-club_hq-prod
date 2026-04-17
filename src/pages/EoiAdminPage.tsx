@@ -275,6 +275,17 @@ export default function EoiAdminPage() {
             label="New players"
             value={Number(stats.new_players ?? 0)}
           />
+          <StatTile label="Returning" value={Number(stats.returning_players ?? 0)} />
+          <StatTile label="Form views" value={Number(stats.views ?? 0)} />
+          <StatTile
+            label="Conversion"
+            value={Number(stats.conversion_rate ?? 0)}
+            suffix="%"
+          />
+          <StatTile
+            label="Confirmed"
+            value={Number(stats.confirmed ?? 0)}
+          />
         </div>
       )}
 
