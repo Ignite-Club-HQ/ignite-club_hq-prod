@@ -4479,6 +4479,7 @@ export type Database = {
           created_by: string | null
           description: string
           id: string
+          season_id: string | null
           source_id: string | null
           source_type: string
           user_id: string | null
@@ -4492,6 +4493,7 @@ export type Database = {
           created_by?: string | null
           description: string
           id?: string
+          season_id?: string | null
           source_id?: string | null
           source_type: string
           user_id?: string | null
@@ -4505,6 +4507,7 @@ export type Database = {
           created_by?: string | null
           description?: string
           id?: string
+          season_id?: string | null
           source_id?: string | null
           source_type?: string
           user_id?: string | null
@@ -4536,6 +4539,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_history_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
           {
@@ -6639,6 +6649,15 @@ export type Database = {
         }
         Returns: string
       }
+      create_season_from_template: {
+        Args: {
+          _end_date: string
+          _new_name: string
+          _source_season_id: string
+          _start_date: string
+        }
+        Returns: string
+      }
       decrypt_sensitive_data: {
         Args: { encrypted_data: string }
         Returns: string
@@ -6817,6 +6836,14 @@ export type Database = {
       get_user_leaderboard_rank: {
         Args: { _club_id: string; _user_id: string }
         Returns: number
+      }
+      get_user_leaderboard_rank_seasoned: {
+        Args: { _club_id: string; _season_id: string; _user_id: string }
+        Returns: {
+          points: number
+          rank: number
+          total: number
+        }[]
       }
       has_role: {
         Args: {
