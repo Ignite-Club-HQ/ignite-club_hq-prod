@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Trophy, Undo2 } from "lucide-react";
+import { ArrowLeft, Loader2, Repeat, Trophy, Undo2 } from "lucide-react";
 
 import BasketballQuarterTimer from "./BasketballQuarterTimer";
 import BasketballActionBar from "./BasketballActionBar";
@@ -23,6 +23,7 @@ const BasketballQuickActionSheet = lazy(() => import("./BasketballQuickActionShe
 const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPresetsDialog"));
 const FreeThrowDialog = lazy(() => import("./FreeThrowDialog"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
+const QuarterAutoSubControlPanel = lazy(() => import("@/components/scoreboard/QuarterAutoSubControlPanel"));
 
 interface BasketballBoardProps {
   teamId: string;
@@ -70,6 +71,7 @@ export default function BasketballBoard({
   const [rosterOpen, setRosterOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [freeThrowSession, setFreeThrowSession] = useState<{
     playerId: string;
     playerName: string;
@@ -361,6 +363,26 @@ export default function BasketballBoard({
             mvpPlayerId={board.timerState.mvpPlayerId ?? null}
             onSelectMvp={board.setMvp}
             readOnly={readOnly}
+          />
+        )}
+        {autoSubPanelOpen && (
+          <QuarterAutoSubControlPanel
+            open={autoSubPanelOpen}
+            onClose={() => setAutoSubPanelOpen(false)}
+            autoSubPlan={board.autoSubPlan}
+            onPlayers={board.players.filter((p) => p.position !== null) as any}
+            currentQuarter={board.timerState.currentQuarter}
+            currentElapsedSeconds={board.timerState.elapsedSeconds}
+            minutesPerQuarter={board.timerState.minutesPerQuarter}
+            periodType={board.timerState.periodType ?? "quarters"}
+            autoSubPaused={board.autoSubPaused}
+            lockedPlayerIds={board.lockedPlayerIds}
+            onTogglePause={board.toggleAutoSubPaused}
+            onExecuteNow={board.executeNextSubNow}
+            onSkipNext={board.skipNextSub}
+            onCancelPlan={board.cancelAutoSubPlan}
+            onRegeneratePlan={board.regenerateAutoSubPlan}
+            onToggleLockPlayer={board.toggleLockPlayer}
           />
         )}
       </Suspense>
