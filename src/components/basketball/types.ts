@@ -72,6 +72,10 @@ export interface BasketballPlayer {
   preferredPositions?: BasketballPosition[];
   /** Foul count (0-5/6 depending on league — we just track the number). */
   fouls?: number;
+  /** Locked out via foul-out (≥5 fouls FIBA / ≥6 NBA). Distinct from injury. */
+  isFouledOut?: boolean;
+  /** Total points scored by this player across the game. */
+  points?: number;
 }
 
 export type Quarter = 1 | 2 | 3 | 4;
@@ -110,6 +114,8 @@ export interface ScoreEvent {
   points: number;
   quarter: Quarter;
   at: number;
+  /** Player credited with the basket (home side only). */
+  playerId?: string;
 }
 
 export interface BasketballTimerState {
@@ -155,8 +161,12 @@ export interface BasketballLineupPreset {
 export type BasketballCourtView = "half" | "full";
 
 export const BASKETBALL_STATE_KEY_BASE = "ignite-basketball-board-state-team";
-export const getBasketballStateKey = (teamId: string) => `${BASKETBALL_STATE_KEY_BASE}-${teamId}`;
+/** Optionally scope by eventId so each game keeps its own slate (no collision across matches). */
+export const getBasketballStateKey = (teamId: string, eventId?: string | null) =>
+  eventId ? `${BASKETBALL_STATE_KEY_BASE}-${teamId}-event-${eventId}` : `${BASKETBALL_STATE_KEY_BASE}-${teamId}`;
 export const BASKETBALL_TIMER_KEY_BASE = "ignite-basketball-timer-state-team";
-export const getBasketballTimerKey = (teamId: string) => `${BASKETBALL_TIMER_KEY_BASE}-${teamId}`;
+export const getBasketballTimerKey = (teamId: string, eventId?: string | null) =>
+  eventId ? `${BASKETBALL_TIMER_KEY_BASE}-${teamId}-event-${eventId}` : `${BASKETBALL_TIMER_KEY_BASE}-${teamId}`;
 export const BASKETBALL_PRESETS_KEY_BASE = "ignite-basketball-presets-team";
+/** Presets are coach-level templates → keyed by team only (shared across matches). */
 export const getBasketballPresetsKey = (teamId: string) => `${BASKETBALL_PRESETS_KEY_BASE}-${teamId}`;
