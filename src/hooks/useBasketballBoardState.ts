@@ -428,23 +428,66 @@ export function useBasketballBoardState({
   const handleSlotClick = useCallback(
     (position: BasketballPosition) => {
       if (readOnly || !selectedPlayerId) return;
+      let logEntry: {
+        playerOutId: string;
+        playerOutName: string;
+        playerInId: string;
+        playerInName: string;
+        position: BasketballPosition;
+      } | null = null;
+      setPlayers((prev) => {
+        const incoming = prev.find((p) => p.id === selectedPlayerId);
+        if (!incoming) return prev;
+        const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
+        // Only treat it as a sub when the incoming player was on the bench.
+        if (incoming.position === null && displaced) {
+          logEntry = {
+            playerOutId: displaced.id,
+            playerOutName: displaced.name,
+            playerInId: incoming.id,
+            playerInName: incoming.name,
+            position,
+          };
+        }
+        return prev.map((p) => {
+          if (p.id === incoming.id) return { ...p, position };
+          if (p.position === position && p.id !== incoming.id) return { ...p, position: null };
+          return p;
+        });
+      });
+      if (logEntry) appendSubLog({ ...logEntry, source: "manual" });
+      setSelectedPlayerId(null);
+    },
+    [readOnly, selectedPlayerId, appendSubLog]
+  );
+
+  const subOff = useCallback(
+    (playerId: string) => {
+      let outName: string | null = null;
+      let outPos: BasketballPosition | null = null;
       setPlayers((prev) =>
         prev.map((p) => {
-          if (p.id === selectedPlayerId) return { ...p, position };
-          if (p.position === position) return { ...p, position: null };
+          if (p.id === playerId && p.position) {
+            outName = p.name;
+            outPos = p.position;
+            return { ...p, position: null };
+          }
           return p;
         })
       );
-      setSelectedPlayerId(null);
+      if (outName && outPos) {
+        appendSubLog({
+          playerOutId: playerId,
+          playerOutName: outName,
+          playerInId: "",
+          playerInName: "(bench)",
+          position: outPos,
+          source: "manual",
+        });
+      }
     },
-    [readOnly, selectedPlayerId]
+    [appendSubLog]
   );
-
-  const subOff = useCallback((playerId: string) => {
-    setPlayers((prev) =>
-      prev.map((p) => (p.id === playerId ? { ...p, position: null } : p))
-    );
-  }, []);
 
   const toggleInjured = useCallback((playerId: string) => {
     setPlayers((prev) =>
