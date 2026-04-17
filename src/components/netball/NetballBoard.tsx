@@ -174,11 +174,17 @@ export default function NetballBoard({
   useNetballGameSync(boardState, timerState, !readOnly);
 
   // ---------- Time tracking ----------
+  // `delta` is the real elapsed seconds since the last tick. Using a constant
+  // `1` here causes drift when the app backgrounds (the timer catches up via
+  // wall-clock but per-player minutes wouldn't).
   const handleTick = useCallback(
-    (elapsed: number, quarter: Quarter) => {
+    (elapsed: number, quarter: Quarter, delta = 1) => {
+      const safeDelta = Math.max(1, Math.floor(delta));
       setPlayers((prev) =>
         prev.map((p) =>
-          p.position !== null ? { ...p, minutesPlayed: (p.minutesPlayed ?? 0) + 1 } : p
+          p.position !== null
+            ? { ...p, minutesPlayed: (p.minutesPlayed ?? 0) + safeDelta }
+            : p
         )
       );
 

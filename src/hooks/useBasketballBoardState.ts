@@ -236,11 +236,17 @@ export function useBasketballBoardState({
   );
 
   // ---------- Time tracking ----------
+  // `delta` is the number of real seconds elapsed since the last tick — using
+  // a hard-coded `1` causes drift after the app backgrounds (the timer keeps
+  // ticking via wall-clock but per-player minutes wouldn't catch up).
   const handleTick = useCallback(
-    (elapsed: number, quarter: Quarter) => {
+    (elapsed: number, quarter: Quarter, delta = 1) => {
+      const safeDelta = Math.max(1, Math.floor(delta));
       setPlayers((prev) =>
         prev.map((p) =>
-          p.position !== null ? { ...p, minutesPlayed: (p.minutesPlayed ?? 0) + 1 } : p
+          p.position !== null
+            ? { ...p, minutesPlayed: (p.minutesPlayed ?? 0) + safeDelta }
+            : p
         )
       );
       if (rotationMode !== "off") {
