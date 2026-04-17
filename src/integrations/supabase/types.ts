@@ -6613,6 +6613,14 @@ export type Database = {
         Args: { _mini_league_id: string; _user_id: string }
         Returns: boolean
       }
+      carry_over_players: {
+        Args: {
+          _club_player_ids: string[]
+          _source_season_id: string
+          _target_season_id: string
+        }
+        Returns: number
+      }
       check_password_reset_rate_limit: {
         Args: { p_email: string }
         Returns: boolean
@@ -6750,6 +6758,18 @@ export type Database = {
           last_failure_reason: string
           last_success_at: string
           platform: string
+        }[]
+      }
+      get_returning_players: {
+        Args: { _source_season_id: string }
+        Returns: {
+          age_years: number
+          club_player_id: string
+          date_of_birth: string
+          display_name: string
+          membership_role: Database["public"]["Enums"]["team_membership_role"]
+          previous_team_id: string
+          previous_team_name: string
         }[]
       }
       get_team_children_for_pitch_board: {
