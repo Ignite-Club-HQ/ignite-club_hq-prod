@@ -148,6 +148,18 @@ export default function PublicEoiFormPage() {
     }
 
     setSubmitting(false);
+
+    // Custom thank-you redirect if club configured one
+    if (config.thank_you_redirect_url) {
+      try {
+        const url = new URL(config.thank_you_redirect_url);
+        window.location.href = url.toString();
+        return;
+      } catch {
+        // invalid URL — fall through to default thank-you screen
+      }
+    }
+
     setSubmitted(true);
   };
 
