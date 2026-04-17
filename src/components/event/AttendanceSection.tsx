@@ -1,12 +1,13 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Loader2, Eye, Smartphone, Mail, ChevronDown } from "lucide-react";
+import { Bell, Loader2, Eye, Smartphone, Mail, ChevronDown, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +38,8 @@ interface AttendanceSectionProps {
   canSendReminders: boolean;
   /** Total members who could view this event (used to compute "X viewed") */
   trackableMembersCount?: number;
+  /** Optional: open the native/web share sheet with a copyable RSVP link */
+  onShareLink?: () => void;
 }
 
 export function AttendanceSection({
@@ -51,6 +54,7 @@ export function AttendanceSection({
   notRespondedUserIds,
   canSendReminders,
   trackableMembersCount,
+  onShareLink,
 }: AttendanceSectionProps) {
   const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
@@ -108,8 +112,10 @@ export function AttendanceSection({
     }
   };
 
-  const showReminderAction =
-    isAdmin && canSendReminders && counts.notResponded > 0 && notRespondedUserIds.length > 0;
+  // Sharing a reminder link is always available to admins (no Pro required).
+  // Push/email reminders require Pro (canSendReminders).
+  const hasNonResponders = counts.notResponded > 0 && notRespondedUserIds.length > 0;
+  const showReminderAction = isAdmin && hasNonResponders && (canSendReminders || !!onShareLink);
 
   return (
     <section className="space-y-4">
@@ -155,19 +161,30 @@ export function AttendanceSection({
                   <ChevronDown className="h-3 w-3 ml-0.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={() => handleSendReminders("push")}>
-                  <Smartphone className="h-4 w-4 mr-2" />
-                  Push Notification
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSendReminders("email")}>
-                  <Mail className="h-4 w-4 mr-2" />
-                  Email
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSendReminders("both")}>
-                  <Bell className="h-4 w-4 mr-2" />
-                  Both (Push + Email)
-                </DropdownMenuItem>
+              <DropdownMenuContent align="start" className="w-56">
+                {canSendReminders && (
+                  <>
+                    <DropdownMenuItem onClick={() => handleSendReminders("push")}>
+                      <Smartphone className="h-4 w-4 mr-2" />
+                      Push Notification
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSendReminders("email")}>
+                      <Mail className="h-4 w-4 mr-2" />
+                      Email
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSendReminders("both")}>
+                      <Bell className="h-4 w-4 mr-2" />
+                      Both (Push + Email)
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {canSendReminders && onShareLink && <DropdownMenuSeparator />}
+                {onShareLink && (
+                  <DropdownMenuItem onClick={() => onShareLink()}>
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Share link…
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
