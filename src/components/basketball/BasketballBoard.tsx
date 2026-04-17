@@ -21,6 +21,7 @@ const BasketballQuarterLineupPlanner = lazy(() => import("./BasketballQuarterLin
 const BasketballRosterDialog = lazy(() => import("./BasketballRosterDialog"));
 const BasketballQuickActionSheet = lazy(() => import("./BasketballQuickActionSheet"));
 const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPresetsDialog"));
+const FreeThrowDialog = lazy(() => import("./FreeThrowDialog"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 
 interface BasketballBoardProps {
@@ -69,6 +70,11 @@ export default function BasketballBoard({
   const [rosterOpen, setRosterOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [freeThrowSession, setFreeThrowSession] = useState<{
+    playerId: string;
+    playerName: string;
+    attempts: 1 | 2 | 3;
+  } | null>(null);
 
   // Auto-open the summary the first time the game ticks over to "finished".
   useEffect(() => {
@@ -298,6 +304,24 @@ export default function BasketballBoard({
             onAddFoul={() => board.addFoul(board.quickActionPlayer!.id)}
             onClearFoulOut={() => board.clearFoulOut(board.quickActionPlayer!.id)}
             onScore={(pts) => board.addScore("home", pts, board.quickActionPlayer!.id)}
+            onFreeThrows={(attempts) =>
+              setFreeThrowSession({
+                playerId: board.quickActionPlayer!.id,
+                playerName: board.quickActionPlayer!.name,
+                attempts,
+              })
+            }
+          />
+        )}
+        {freeThrowSession && (
+          <FreeThrowDialog
+            open={!!freeThrowSession}
+            onOpenChange={(o) => !o && setFreeThrowSession(null)}
+            playerName={freeThrowSession.playerName}
+            attempts={freeThrowSession.attempts}
+            onComplete={(made, attempted) =>
+              board.addFreeThrows(freeThrowSession.playerId, made, attempted)
+            }
           />
         )}
         {summaryOpen && (
