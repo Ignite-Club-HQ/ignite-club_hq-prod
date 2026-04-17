@@ -95,6 +95,17 @@ export function AttendanceSection({
   });
 
   const viewedCount = eventViews?.length ?? 0;
+  const viewedUserIds = useMemo(
+    () => new Set((eventViews || []).map((v: any) => v.user_id)),
+    [eventViews],
+  );
+
+  const { viewedMembers, notViewedMembers } = useMemo(() => {
+    const list = addressableMembers || [];
+    const viewed = list.filter((m) => viewedUserIds.has(m.id));
+    const notViewed = list.filter((m) => !viewedUserIds.has(m.id));
+    return { viewedMembers: viewed, notViewedMembers: notViewed };
+  }, [addressableMembers, viewedUserIds]);
 
   const totalResponses = counts.going + counts.maybe + counts.notGoing;
   const noOneInvited = !hasMembers && totalResponses === 0;
