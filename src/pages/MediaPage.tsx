@@ -72,6 +72,10 @@ function PhotoSkeleton() {
   );
 }
 
+// Photo view tracking launched 2026-04-17. Photos uploaded before this date
+// don't show a view count since their views were never recorded.
+const PHOTO_VIEWS_FEATURE_LAUNCH = new Date("2026-04-17T11:26:42Z");
+
 export default function MediaPage() {
   const { user } = useAuth();
   usePageTitle("Media");
