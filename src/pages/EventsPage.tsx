@@ -24,6 +24,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { supabase } from "@/integrations/supabase/client";
+import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, startOfDay, isSameDay, subHours } from "date-fns";
@@ -259,18 +260,29 @@ export default function EventsPage() {
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
+  const eventsScopeKey = useMemo(
+    () => `${user?.id || "anon"}_${filter}_${teamFilter || "all"}_${clubFilter || "all"}`,
+    [user?.id, filter, teamFilter, clubFilter]
+  );
+
   const { data: events, isLoading, isFetching } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       if (!userMemberships) return [];
-      
+
       const { teamIds, clubIds, miniLeagueIds } = userMemberships;
       if (teamIds.length === 0 && clubIds.length === 0) return [];
-      
+
+      // Offline fallback: serve cached events list
+      if (!navigator.onLine) {
+        const cached = getCachedEventsList(eventsScopeKey);
+        if (cached) return cached as Event[];
+      }
+
       // Only fetch events from the last 30 days onward to avoid pulling entire history
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
+
       let query = supabase
         .from("events")
         .select(`
@@ -300,40 +312,30 @@ export default function EventsPage() {
         .gte("event_date", thirtyDaysAgo.toISOString().split('T')[0])
         .order("event_date", { ascending: true });
 
-      if (filter !== "all") {
-        query = query.eq("type", filter);
-      }
-
-      if (clubFilter) {
-        query = query.eq("club_id", clubFilter);
-      }
-
-      if (teamFilter) {
-        query = query.eq("team_id", teamFilter);
-      }
+      if (filter !== "all") query = query.eq("type", filter);
+      if (clubFilter) query = query.eq("club_id", clubFilter);
+      if (teamFilter) query = query.eq("team_id", teamFilter);
 
       const { data, error } = await query;
-      if (error) throw error;
-      
-      // Filter out cancelled events older than 48 hours
+      if (error) {
+        // Network failed — try cache as fallback
+        const cached = getCachedEventsList(eventsScopeKey);
+        if (cached) return cached as Event[];
+        throw error;
+      }
+
       const cutoffTime = subHours(new Date(), 48);
       let filteredData = (data as (Event & { updated_at: string; mini_league_id: string | null })[]).filter(event => {
         if (!event.is_cancelled) return true;
-        // Keep cancelled events if they were cancelled within the last 48 hours
         const updatedAt = new Date(event.updated_at);
         return updatedAt > cutoffTime;
       });
-      
-      // Filter to only show events user is invited to:
-      // - Team events: user must be a member of that team (club admins only see via team filter)
-      // - Mini League events: user must be a league admin or have a player in that league
-      // - Club-wide events (no team_id, no mini_league_id): user must be a member of that club
+
       const { clubAdminClubIds } = userMemberships;
       filteredData = filteredData.filter(event => {
         if (event.mini_league_id) {
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
-          // If navigated with a specific team filter, club admins can see that team's events
           if (teamFilter && teamFilter === event.team_id && clubAdminClubIds.includes(event.club_id)) {
             return true;
           }
@@ -342,14 +344,18 @@ export default function EventsPage() {
           return clubIds.includes(event.club_id);
         }
       });
-      
-      // Limit recurring series to next 3 upcoming occurrences
+
       const { filterRecurringEvents } = await import("@/lib/filterRecurringEvents");
-      return filterRecurringEvents(filteredData) as Event[];
+      const finalEvents = filterRecurringEvents(filteredData) as Event[];
+
+      // Cache for offline use
+      cacheEventsList(eventsScopeKey, finalEvents);
+
+      return finalEvents;
     },
     enabled: !!user && !!userMemberships,
     staleTime: 3 * 60 * 1000, // Cache for 3 minutes to reduce refetches
-    placeholderData: (prev) => prev, // Keep previous data while refetching
+    placeholderData: (prev) => prev,
   });
 
   // Check if user is app admin

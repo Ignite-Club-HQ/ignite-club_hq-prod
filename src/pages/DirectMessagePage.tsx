@@ -31,6 +31,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
+import { queueMessage } from "@/lib/messageQueue";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
@@ -558,6 +559,28 @@ export default function DirectMessagePage() {
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async ({ text, imageUrl, replyToId }: { text: string; imageUrl?: string | null; replyToId?: string | null }) => {
+      // Offline path: queue the message instead of failing
+      if (!navigator.onLine) {
+        const queued = queueMessage({
+          type: "dm",
+          targetId: conversationId!,
+          authorId: user!.id,
+          text,
+          imageUrl: imageUrl || null,
+          replyToId: replyToId || null,
+          createdAt: new Date().toISOString(),
+        });
+        return {
+          id: queued.id,
+          text,
+          image_url: imageUrl || null,
+          conversation_id: conversationId!,
+          author_id: user!.id,
+          reply_to_id: replyToId || null,
+          created_at: queued.createdAt,
+          __queued: true,
+        } as any;
+      }
       const { data, error } = await supabase
         .from("direct_messages")
         .insert({

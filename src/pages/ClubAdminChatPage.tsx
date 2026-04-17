@@ -28,6 +28,7 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
+import { queueMessage } from "@/lib/messageQueue";
 import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { Capacitor } from "@capacitor/core";
@@ -294,6 +295,28 @@ export default function ClubAdminChatPage() {
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async ({ text, replyToId }: { text: string; replyToId?: string | null }) => {
+      // Offline path: queue the message instead of failing
+      if (!navigator.onLine) {
+        const queued = queueMessage({
+          type: "club_admin",
+          targetId: conversationId!,
+          authorId: user!.id,
+          text,
+          imageUrl: null,
+          replyToId: replyToId || null,
+          createdAt: new Date().toISOString(),
+        });
+        return {
+          id: queued.id,
+          text,
+          image_url: null,
+          conversation_id: conversationId!,
+          author_id: user!.id,
+          reply_to_id: replyToId || null,
+          created_at: queued.createdAt,
+          __queued: true,
+        } as any;
+      }
       const { data, error } = await supabase
         .from("club_admin_messages")
         .insert({

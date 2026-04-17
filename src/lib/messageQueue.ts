@@ -1,9 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export type QueuedMessageType = "team" | "club" | "group" | "broadcast" | "dm" | "club_admin";
+
 export interface QueuedMessage {
   id: string;
-  type: "team" | "club" | "group" | "broadcast";
-  targetId: string; // team_id, club_id, group_id
+  type: QueuedMessageType;
+  targetId: string; // team_id, club_id, group_id, conversation_id, etc.
   authorId: string;
   text: string;
   imageUrl: string | null;
@@ -56,7 +58,7 @@ export function removeFromQueue(id: string) {
 }
 
 // Get queued messages for a specific target
-export function getQueuedMessagesForTarget(type: QueuedMessage["type"], targetId: string): QueuedMessage[] {
+export function getQueuedMessagesForTarget(type: QueuedMessageType, targetId: string): QueuedMessage[] {
   return getQueuedMessages().filter((m) => m.type === type && m.targetId === targetId);
 }
 
@@ -95,6 +97,24 @@ async function sendQueuedMessage(message: QueuedMessage): Promise<boolean> {
         break;
       case "broadcast":
         ({ error } = await supabase.from("broadcast_messages").insert({
+          author_id: message.authorId,
+          text: message.text,
+          image_url: message.imageUrl,
+          reply_to_id: message.replyToId,
+        }));
+        break;
+      case "dm":
+        ({ error } = await supabase.from("direct_messages").insert({
+          conversation_id: message.targetId,
+          author_id: message.authorId,
+          text: message.text,
+          image_url: message.imageUrl,
+          reply_to_id: message.replyToId,
+        }));
+        break;
+      case "club_admin":
+        ({ error } = await supabase.from("club_admin_messages").insert({
+          conversation_id: message.targetId,
           author_id: message.authorId,
           text: message.text,
           image_url: message.imageUrl,
