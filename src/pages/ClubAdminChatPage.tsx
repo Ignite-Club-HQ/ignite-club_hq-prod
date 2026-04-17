@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Loader2, Users, Search, BarChart3 } from "lucide-react";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
+import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -71,6 +72,7 @@ export default function ClubAdminChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
+  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const profileRef = useRef(profile);
@@ -382,17 +384,22 @@ export default function ClubAdminChatPage() {
   }, []);
 
   const handleSend = () => {
-    if (!message.trim()) return;
+    if (!message.trim() && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
+    const baseText = message.trim();
+    const finalText = pendingPollId
+      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
+      : baseText;
     sendMessageMutation.mutate({
-      text: message.trim(),
+      text: finalText,
       replyToId: replyTo?.id || null,
     });
     setMessage("");
     setReplyTo(null);
+    setPendingPollId(null);
   };
 
   // Real-time subscription
@@ -657,6 +664,13 @@ export default function ClubAdminChatPage() {
           />
         )}
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
+        {pendingPollId && !editingMessage && (
+          <PollAttachmentPreview
+            pollId={pendingPollId}
+            onRemove={() => setPendingPollId(null)}
+            disabled={sendMessageMutation.isPending}
+          />
+        )}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
           <button
             type="button"
@@ -675,7 +689,7 @@ export default function ClubAdminChatPage() {
           />
           <button
             onClick={handleSend}
-            disabled={!message.trim() || sendMessageMutation.isPending}
+            disabled={(!message.trim() && !pendingPollId) || sendMessageMutation.isPending}
             className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
           >
             {sendMessageMutation.isPending ? (
@@ -691,10 +705,7 @@ export default function ClubAdminChatPage() {
             onOpenChange={setPollDialogOpen}
             chatType="club_admin"
             chatId={conversationId}
-            onCreated={(pollId) => {
-              const token = `[poll:${pollId}]`;
-              setMessage(message ? `${message} ${token}` : token);
-            }}
+            onCreated={(pollId) => setPendingPollId(pollId)}
           />
         )}
       </div>
