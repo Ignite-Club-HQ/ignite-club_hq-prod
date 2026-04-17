@@ -376,8 +376,8 @@ export function MediaCommentSheet({
         style={{ height: 'var(--safe-area-top, env(safe-area-inset-top, 0px))' }}
       />
 
-      {/* Header bar — visually clean, vertically centered like iOS system apps */}
-      <div className="flex items-center gap-2 px-2 py-2.5 border-b border-border flex-shrink-0">
+      {/* Header bar — compact single-line title with inline count */}
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/70 flex-shrink-0">
         <Button
           variant="ghost"
           size="icon"
@@ -386,12 +386,9 @@ export function MediaCommentSheet({
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate">Comments</p>
-          <p className="text-[11px] text-muted-foreground leading-tight">
-            {comments.length} {comments.length === 1 ? "comment" : "comments"}
-          </p>
-        </div>
+        <p className="flex-1 min-w-0 text-sm font-semibold truncate">
+          Comments <span className="text-muted-foreground font-normal">({comments.length})</span>
+        </p>
       </div>
 
       {/* Sticky image preview — always visible */}
