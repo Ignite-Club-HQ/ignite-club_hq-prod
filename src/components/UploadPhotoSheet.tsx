@@ -800,16 +800,38 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                 <div className="space-y-4">
                   {/* Photo Grid */}
                   <div className="grid grid-cols-3 gap-2">
-                    {selectedPhotos.map((photo) => (
+                    {selectedPhotos.map((photo) => {
+                      const isVideo = isVideoFile(photo.originalFile);
+                      return (
                       <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden bg-muted">
-                        <img 
-                          src={photo.previewUrl} 
-                          alt="Preview" 
-                          className={cn(
-                            "w-full h-full object-cover transition-opacity",
-                            photo.status === 'success' && "opacity-75"
-                          )}
-                        />
+                        {isVideo ? (
+                          <>
+                            <video
+                              src={photo.previewUrl}
+                              className={cn(
+                                "w-full h-full object-cover transition-opacity",
+                                photo.status === 'success' && "opacity-75"
+                              )}
+                              muted
+                              playsInline
+                              preload="metadata"
+                            />
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                              <div className="rounded-full bg-black/60 p-2">
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-white"><path d="M8 5v14l11-7z" /></svg>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <img
+                            src={photo.previewUrl}
+                            alt="Preview"
+                            className={cn(
+                              "w-full h-full object-cover transition-opacity",
+                              photo.status === 'success' && "opacity-75"
+                            )}
+                          />
+                        )}
                         
                         {/* Status Overlay */}
                         {photo.status === 'compressing' && (
