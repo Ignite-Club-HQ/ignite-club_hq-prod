@@ -72,6 +72,50 @@ export function ChatMembersSheet({
   const [selectedMember, setSelectedMember] = useState<SelectedMemberDetail | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
 
+  // Personal group management state
+  const [addPeopleOpen, setAddPeopleOpen] = useState(false);
+  const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
+
+  // Is this a personal group (no team/club/league binding)?
+  const isPersonalGroupChat = chatType === "group" && !teamId && !clubId;
+
+  // Fetch the group creator so we can show creator-only controls
+  const { data: groupCreatorId } = useQuery({
+    queryKey: ["chat-group-creator", chatId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chat_groups")
+        .select("created_by")
+        .eq("id", chatId)
+        .maybeSingle();
+      return data?.created_by ?? null;
+    },
+    enabled: open && isPersonalGroupChat,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isGroupCreator = !!user && !!groupCreatorId && groupCreatorId === user.id;
+
+  // Remove a member from a personal group (creator only — enforced by RLS)
+  const removeMemberMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("group_members")
+        .delete()
+        .eq("group_id", chatId)
+        .eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: (_data, userId) => {
+      toast.success("Member removed");
+      queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
+      setRemoveMemberConfirm(null);
+    },
+    onError: (err: any) => {
+      toast.error("Failed to remove member: " + (err?.message || "Unknown error"));
+    },
+  });
+
   // Resolve the effective team ID for role management
   const effectiveTeamId = chatType === "team" ? chatId : teamId;
 
