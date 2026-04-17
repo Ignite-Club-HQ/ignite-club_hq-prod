@@ -136,6 +136,7 @@ export function useBasketballBoardState({
         homeTimeoutsRemaining: 3,
         awayTimeoutsRemaining: 3,
         timeoutsHalfTracked: 1,
+        periodType: "quarters",
       }
   );
 
