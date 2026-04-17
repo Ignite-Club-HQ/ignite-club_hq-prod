@@ -58,6 +58,7 @@ export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   usePageTitle("Schedule");
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
   const teamFilter = searchParams.get("team");
