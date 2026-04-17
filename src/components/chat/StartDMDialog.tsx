@@ -60,6 +60,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
   const [internalOpen, setInternalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
+  const [groupName, setGroupName] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
 
