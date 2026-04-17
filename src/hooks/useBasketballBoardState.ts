@@ -510,5 +510,9 @@ export function useBasketballBoardState({
     applyPreset,
     courtView,
     toggleCourtView,
+    // scoring
+    addScore,
+    undoScore,
+    setOpponentName,
   };
 }
