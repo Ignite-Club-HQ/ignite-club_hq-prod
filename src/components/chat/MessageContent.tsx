@@ -263,8 +263,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         />
       )}
 
-      {/* Text content - hide entirely when message contains event or poll cards */}
-      {text && eventIds.length === 0 && pollIds.length === 0 && (
+      {/* Text content - render caption text; poll/event tokens render as empty spans inline */}
+      {text && parts.some(p => (p.type === "text" || p.type === "link" || p.type === "markdown-link" || p.type === "mention") && p.content && p.content.trim()) && (
         <div
           className="min-w-0 max-w-full whitespace-pre-wrap"
           style={{
