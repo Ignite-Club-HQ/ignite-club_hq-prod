@@ -24,6 +24,7 @@ import {
   NetballBoardState,
   NetballTimerState,
   NetballSubLogEntry,
+  NetballLineupPreset,
   Quarter,
   QuarterLineup,
   RotationMode,
@@ -31,6 +32,7 @@ import {
   NetballSubEvent,
   getNetballStateKey,
   getNetballTimerKey,
+  getNetballPresetsKey,
 } from "./types";
 import {
   getBench,
@@ -49,9 +51,11 @@ import { useNetballGameSync } from "@/hooks/useNetballGameSync";
 // Lazy-load secondary dialogs
 const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
 const QuarterLineupPlanner = lazy(() => import("./QuarterLineupPlanner"));
+const NetballLineupPresetsDialog = lazy(() => import("./NetballLineupPresetsDialog"));
 const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
 const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
+import PreTipoffHint from "@/components/scoreboard/PreTipoffHint";
 
 interface NetballBoardProps {
   teamId: string;
@@ -145,7 +149,34 @@ export default function NetballBoard({
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
+
+  // Lineup presets — own localStorage key, scoped by team (shared across matches).
+  const presetsKey = getNetballPresetsKey(teamId);
+  const [lineupPresets, setLineupPresetsState] = useState<NetballLineupPreset[]>(
+    () => safeLoad<NetballLineupPreset[]>(presetsKey) ?? []
+  );
+  const setLineupPresets = useCallback(
+    (next: NetballLineupPreset[]) => {
+      setLineupPresetsState(next);
+      safeSave(presetsKey, next);
+    },
+    [presetsKey]
+  );
+  const applyPreset = useCallback(
+    (preset: NetballLineupPreset) => {
+      setPlayers((prev) =>
+        applyLineup(prev, {
+          quarter: timerState.currentQuarter,
+          assignments: preset.assignments,
+          createdAt: preset.createdAt,
+        })
+      );
+      toast({ title: `"${preset.name}" applied` });
+    },
+    [timerState.currentQuarter, toast]
+  );
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   // Auto-sub control panel state
@@ -820,6 +851,7 @@ export default function NetballBoard({
         <NetballActionBar
           onOpenSquad={() => setRosterOpen(true)}
           onOpenLineups={() => setLineupPlannerOpen(true)}
+          onOpenPresets={() => setPresetsOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onApplyLineup={applyNextLineupNow}
           currentQuarter={timerState.currentQuarter}
@@ -827,6 +859,21 @@ export default function NetballBoard({
           rotationIntervalMinutes={rotationIntervalMinutes}
         />
       )}
+
+      {/* Pre-tipoff nudge: only before the very first whistle. */}
+      {!readOnly &&
+        timerState.currentQuarter === 1 &&
+        timerState.elapsedSeconds === 0 &&
+        !timerState.isRunning &&
+        !timerState.isGameFinished && (
+          <PreTipoffHint
+            required={7}
+            currentOnCourt={getOnCourt(players).length}
+            onOpenPlanner={() => setLineupPlannerOpen(true)}
+            onOpenPresets={() => setPresetsOpen(true)}
+            hasPresets={lineupPresets.length > 0}
+          />
+        )}
 
       {!readOnly && rotationMode !== "off" && autoSubPlan.length > 0 && (
         <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
@@ -927,6 +974,16 @@ export default function NetballBoard({
             players={players}
             lineups={quarterLineups}
             onSave={setQuarterLineups}
+          />
+        )}
+        {presetsOpen && (
+          <NetballLineupPresetsDialog
+            open={presetsOpen}
+            onOpenChange={setPresetsOpen}
+            players={players}
+            presets={lineupPresets}
+            onSave={setLineupPresets}
+            onApply={applyPreset}
           />
         )}
         {rosterOpen && (
