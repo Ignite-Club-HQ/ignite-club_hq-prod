@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { SummaryPlayerStat, PerQuarterScore } from "@/components/scoreboard/GameSummaryDialog";
@@ -7,12 +7,6 @@ import type { SummaryPlayerStat, PerQuarterScore } from "@/components/scoreboard
  * Cross-sport hook for persisting a completed game to `game_results`.
  * Designed for basketball + netball boards. Soccer keeps its own
  * `game_summaries` flow.
- *
- * Behaviour:
- * - Uses upsert on `event_id` so re-finishing the same event won't duplicate.
- * - Falls back to a no-op if the user lacks admin/coach role (RLS rejects).
- * - Surfaces a toast on first save only — silent for re-saves so timer ticks
- *   don't spam the coach during a finished period.
  */
 export interface SaveGameResultInput {
   teamId: string;
@@ -31,12 +25,13 @@ export function useSaveGameResult() {
   const { toast } = useToast();
   const savedKeyRef = useRef<string | null>(null);
   const inFlightRef = useRef(false);
+  const [saved, setSaved] = useState(false);
 
   const save = useCallback(
-    async (input: SaveGameResultInput, opts?: { silent?: boolean }) => {
-      // De-dupe within a session: don't re-POST the same finished game.
+    async (input: SaveGameResultInput, opts?: { silent?: boolean; force?: boolean }) => {
       const key = `${input.teamId}:${input.eventId ?? "no-event"}:${input.sport}`;
-      if (savedKeyRef.current === key || inFlightRef.current) return;
+      // De-dupe within a session, unless caller explicitly forces (e.g. MVP changed).
+      if (!opts?.force && (savedKeyRef.current === key || inFlightRef.current)) return;
       inFlightRef.current = true;
 
       try {
@@ -63,7 +58,6 @@ export function useSaveGameResult() {
           saved_by: uid,
         };
 
-        // If we have an event_id, prefer upsert to keep one row per event.
         const query = input.eventId
           ? supabase
               .from("game_results")
@@ -72,15 +66,24 @@ export function useSaveGameResult() {
 
         const { error } = await query;
         if (error) {
-          // RLS rejection is expected for non-admins — stay quiet.
           if (!/row-level security/i.test(error.message)) {
             // eslint-disable-next-line no-console
             console.warn("[useSaveGameResult] insert failed", error);
+          }
+          if (!opts?.silent) {
+            toast({
+              title: "Could not save game",
+              description: /row-level security/i.test(error.message)
+                ? "Only team admins or coaches can save games."
+                : error.message,
+              variant: "destructive",
+            });
           }
           return;
         }
 
         savedKeyRef.current = key;
+        setSaved(true);
         if (!opts?.silent) {
           toast({
             title: "Game saved",
@@ -94,5 +97,5 @@ export function useSaveGameResult() {
     [toast]
   );
 
-  return { save };
+  return { save, saved };
 }

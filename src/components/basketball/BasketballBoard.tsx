@@ -79,7 +79,7 @@ export default function BasketballBoard({
     attempts: 1 | 2 | 3;
   } | null>(null);
 
-  const { save: saveGameResult } = useSaveGameResult();
+  const { save: saveGameResult, saved: gameSaved } = useSaveGameResult();
 
   // Auto-open the summary the first time the game ticks over to "finished".
   useEffect(() => {
@@ -397,6 +397,24 @@ export default function BasketballBoard({
             mvpPlayerId={board.timerState.mvpPlayerId ?? null}
             onSelectMvp={board.setMvp}
             readOnly={readOnly}
+            isSaved={gameSaved}
+            onSaveNow={() =>
+              saveGameResult(
+                {
+                  teamId,
+                  eventId,
+                  sport: "basketball",
+                  homeLabel: teamName,
+                  awayLabel: board.timerState.opponentName ?? "Opponent",
+                  homeScore: board.timerState.homeScore ?? 0,
+                  awayScore: board.timerState.awayScore ?? 0,
+                  perQuarter,
+                  players: summaryPlayers,
+                  mvpPlayerId: board.timerState.mvpPlayerId ?? null,
+                },
+                { force: true }
+              )
+            }
           />
         )}
         {autoSubPanelOpen && (

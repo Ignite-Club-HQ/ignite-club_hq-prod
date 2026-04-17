@@ -90,6 +90,7 @@ import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide"
 import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { AttendanceStatsView } from "@/components/AttendanceStatsView";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
+import ClubRecentGames from "@/components/history/ClubRecentGames";
 
 type ClubRole = "club_admin";
 
@@ -1127,6 +1128,9 @@ export default function ClubDetailPage() {
       {isAdmin && club?.class_mode_enabled && (
         <TodaysClassesDashboard clubId={id!} />
       )}
+
+      {/* Recent Games — basketball + netball only, hides itself if empty */}
+      {!isSoccerClub && <ClubRecentGames clubId={id!} />}
 
       {/* Primary Sponsor Display */}
       {club?.primary_sponsor_id && (

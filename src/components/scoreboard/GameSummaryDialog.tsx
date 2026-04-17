@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trophy, Download, Share2, Star } from "lucide-react";
+import { Trophy, Download, Share2, Star, Save, Check, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -51,6 +51,10 @@ export interface GameSummaryProps {
   onSelectMvp?: (playerId: string | null) => void;
   /** Read-only mode hides MVP edit + sharing. */
   readOnly?: boolean;
+  /** Optional manual save-to-history callback. When provided, a "Save to history" button appears. */
+  onSaveNow?: () => Promise<void> | void;
+  /** When true, the save button shows a "Saved" check state (parent controls). */
+  isSaved?: boolean;
 }
 
 const fmtTime = (secs: number) => {
@@ -72,10 +76,13 @@ export default function GameSummaryDialog({
   mvpPlayerId,
   onSelectMvp,
   readOnly = false,
+  onSaveNow,
+  isSaved = false,
 }: GameSummaryProps) {
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const result = useMemo(() => {
     if (homeScore > awayScore) return "WIN";
@@ -355,15 +362,42 @@ export default function GameSummaryDialog({
           )}
         </ScrollArea>
 
-        <div className="flex gap-2 px-4 pb-4 pt-1 border-t">
-          <Button variant="outline" className="flex-1" onClick={handleDownload} disabled={busy}>
-            <Download className="h-4 w-4 mr-1.5" />
-            Download
-          </Button>
-          <Button className="flex-1" onClick={handleShare} disabled={busy}>
-            <Share2 className="h-4 w-4 mr-1.5" />
-            Share
-          </Button>
+        <div className="flex flex-col gap-2 px-4 pb-4 pt-1 border-t">
+          {!readOnly && onSaveNow && (
+            <Button
+              variant={isSaved ? "secondary" : "default"}
+              className="w-full"
+              onClick={async () => {
+                if (saving || isSaved) return;
+                setSaving(true);
+                try {
+                  await onSaveNow();
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving || busy}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : isSaved ? (
+                <Check className="h-4 w-4 mr-1.5" />
+              ) : (
+                <Save className="h-4 w-4 mr-1.5" />
+              )}
+              {isSaved ? "Saved to history" : "Save to history"}
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={handleDownload} disabled={busy}>
+              <Download className="h-4 w-4 mr-1.5" />
+              Download
+            </Button>
+            <Button className="flex-1" onClick={handleShare} disabled={busy}>
+              <Share2 className="h-4 w-4 mr-1.5" />
+              Share
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
