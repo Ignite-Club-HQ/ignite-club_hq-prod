@@ -576,6 +576,7 @@ export function useBasketballBoardState({
     subOff,
     toggleInjured,
     addFoul,
+    clearFoulOut,
     applyNextLineupNow,
     // presets + view
     lineupPresets,
