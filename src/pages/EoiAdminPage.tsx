@@ -375,6 +375,18 @@ export default function EoiAdminPage() {
                       ))}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
+                        onClick={() => resendInvite.mutate(r.id)}
+                        disabled={resendInvite.isPending}
+                      >
+                        <RotateCw className="h-3.5 w-3.5 mr-2" />
+                        Resend invite
+                        {r.invite_sent_count > 0 && (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            ×{r.invite_sent_count}
+                          </span>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         className="text-destructive"
                         onClick={() => {
                           if (confirm("Delete this submission?")) deleteEoi.mutate(r.id);
