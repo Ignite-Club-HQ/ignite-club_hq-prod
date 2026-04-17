@@ -406,25 +406,29 @@ export function AttendanceSection({
 
 type Tone = "going" | "maybe" | "notGoing" | "noResponse";
 
-const toneStyles: Record<Tone, { chip: string; header: string; icon: string }> = {
+const toneStyles: Record<Tone, { chip: string; chipEmphasised: string; header: string; icon: string }> = {
   going: {
-    chip: "bg-primary/10 text-primary border-primary/20",
+    chip: "bg-primary/5 text-primary border-primary/15",
+    chipEmphasised: "bg-primary/15 text-primary border-primary/30",
     header: "text-primary",
     icon: "✅",
   },
   maybe: {
-    chip: "bg-warning/10 text-warning border-warning/20",
+    chip: "bg-warning/5 text-warning border-warning/15",
+    chipEmphasised: "bg-warning/15 text-warning border-warning/30",
     header: "text-warning",
     icon: "🤔",
   },
   notGoing: {
-    chip: "bg-destructive/10 text-destructive border-destructive/20",
+    chip: "bg-destructive/5 text-destructive border-destructive/15",
+    chipEmphasised: "bg-destructive/15 text-destructive border-destructive/30",
     header: "text-destructive",
     icon: "❌",
   },
   noResponse: {
-    chip: "bg-muted text-muted-foreground border-border",
-    header: "text-muted-foreground",
+    chip: "bg-muted/60 text-muted-foreground border-border/60",
+    chipEmphasised: "bg-foreground/10 text-foreground border-foreground/20 font-semibold",
+    header: "text-foreground",
     icon: "⏳",
   },
 };
@@ -433,17 +437,30 @@ function AttendanceChip({
   tone,
   label,
   count,
+  emphasised,
+  targetId,
 }: {
   tone: Tone;
   label: string;
   count: number;
+  emphasised?: boolean;
+  targetId?: string;
 }) {
-  return (
+  const handleClick = () => {
+    if (!targetId) return;
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const badge = (
     <Badge
       variant="outline"
       className={cn(
-        "rounded-full px-2.5 py-0.5 text-xs font-medium gap-1",
-        toneStyles[tone].chip,
+        "rounded-full px-2 py-0.5 text-xs font-medium gap-1 transition-colors",
+        emphasised ? toneStyles[tone].chipEmphasised : toneStyles[tone].chip,
+        targetId && "cursor-pointer hover:opacity-80 active:opacity-70",
       )}
     >
       <span aria-hidden>{toneStyles[tone].icon}</span>
@@ -451,21 +468,36 @@ function AttendanceChip({
       <span className="font-semibold">{count}</span>
     </Badge>
   );
+
+  if (!targetId) return badge;
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+      aria-label={`Jump to ${label} (${count})`}
+    >
+      {badge}
+    </button>
+  );
 }
 
 function AttendanceGroup({
+  id,
   label,
   count,
   tone,
   children,
 }: {
+  id?: string;
   label: string;
   count: number;
   tone: Tone;
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-2">
+    <div id={id} className="space-y-2 scroll-mt-20">
       <div
         className={cn(
           "flex items-center gap-2 text-sm font-semibold",
