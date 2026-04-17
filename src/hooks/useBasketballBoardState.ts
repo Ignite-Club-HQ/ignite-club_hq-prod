@@ -313,12 +313,22 @@ export function useBasketballBoardState({
     (playerId: string) => {
       let newCount = 0;
       let playerName = "";
+      let wasOnCourt = false;
       setPlayers((prev) =>
         prev.map((p) => {
           if (p.id === playerId) {
             newCount = Math.min(6, (p.fouls ?? 0) + 1);
             playerName = p.name;
-            return { ...p, fouls: newCount };
+            wasOnCourt = p.position !== null;
+            // At 5 fouls (FIBA) → fouled out: bench immediately and lock out
+            // by also marking injured so the auto-sub engine ignores them.
+            const fouledOut = newCount >= 5;
+            return {
+              ...p,
+              fouls: newCount,
+              position: fouledOut ? null : p.position,
+              isInjured: fouledOut ? true : p.isInjured,
+            };
           }
           return p;
         })
@@ -326,7 +336,9 @@ export function useBasketballBoardState({
       if (newCount >= 5) {
         toast({
           title: "Fouled out",
-          description: `${playerName} has ${newCount} fouls.`,
+          description: wasOnCourt
+            ? `${playerName} (${newCount}F) sent to bench. Tap to clear if needed.`
+            : `${playerName} has ${newCount} fouls and is locked out.`,
           variant: "destructive",
         });
       }
