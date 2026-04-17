@@ -98,6 +98,8 @@ export default function EoiAdminPage() {
   const filtered = useMemo(() => {
     let rows = submissions;
     if (statusFilter !== "all") rows = rows.filter((r) => r.status === statusFilter);
+    if (returningFilter === "new") rows = rows.filter((r) => !r.returning_player);
+    if (returningFilter === "returning") rows = rows.filter((r) => r.returning_player);
     const q = search.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
@@ -108,12 +110,47 @@ export default function EoiAdminPage() {
       );
     }
     return rows;
-  }, [submissions, statusFilter, search]);
+  }, [submissions, statusFilter, returningFilter, search]);
 
-  const teamsMap = useMemo(() => {
+  const seasonNameById = useMemo(() => {
     const m = new Map<string, string>();
+    seasons.forEach((s) => m.set(s.id, s.name));
     return m;
-  }, []);
+  }, [seasons]);
+
+  const pendingInviteIds = useMemo(
+    () =>
+      submissions
+        .filter((r) => r.status === "submitted" && !r.parent_confirmed_at)
+        .map((r) => r.id),
+    [submissions],
+  );
+
+  const handleExport = () => {
+    if (!club) return;
+    if (filtered.length === 0) {
+      toast.info("Nothing to export");
+      return;
+    }
+    exportEoisCSV(filtered, seasonNameById, club.name);
+    toast.success(`Exported ${filtered.length} row${filtered.length === 1 ? "" : "s"}`);
+  };
+
+  const handleBulkRemind = () => {
+    if (pendingInviteIds.length === 0) {
+      toast.info("No pending invites to remind");
+      return;
+    }
+    if (
+      confirm(
+        `Resend the magic-link invite to ${pendingInviteIds.length} parent${
+          pendingInviteIds.length === 1 ? "" : "s"
+        } who haven't completed yet?`,
+      )
+    ) {
+      bulkResend.mutate(pendingInviteIds);
+    }
+  };
 
   if (!clubId) return null;
   if (isLoading && !submissions.length) return <PageLoading />;
