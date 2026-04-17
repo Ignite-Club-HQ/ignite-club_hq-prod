@@ -149,6 +149,18 @@ export function useBasketballBoardState({
     subs: BasketballSubEvent[];
   } | null>(null);
   const [courtView, setCourtView] = useState<BasketballCourtView>("half");
+  // Auto-sub control panel state
+  const [autoSubPaused, setAutoSubPaused] = useState(false);
+  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
+  const toggleLockPlayer = useCallback((playerId: string) => {
+    setLockedPlayerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  }, []);
 
   // Lineup presets (own localStorage key, separate from board state)
   const presetsKey = getBasketballPresetsKey(teamId);
