@@ -567,6 +567,9 @@ export default function ProfilePage() {
       {/* Points & Rewards Card */}
       <RewardRedemptionCard />
 
+      {/* Team history — current + past teams from season memberships */}
+      <ProfileTeamHistory profileId={user?.id} />
+
       {/* My Clubs and Teams Section */}
       <Collapsible open={myClubsTeamsOpen} onOpenChange={setMyClubsTeamsOpen}>
         <Card>
