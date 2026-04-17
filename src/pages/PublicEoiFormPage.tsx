@@ -22,6 +22,7 @@ type EoiConfig = {
   closes_at: string | null;
   welcome_message: string | null;
   thank_you_message: string | null;
+  thank_you_redirect_url: string | null;
   require_dob: boolean;
   require_gender: boolean;
   ask_preferences: boolean;
