@@ -402,6 +402,26 @@ export default function ProfilePage() {
     enabled: !!user && hasProAccess === true,
   });
 
+  // Season-scoped rank (only when a specific season is selected within a filtered club)
+  const { data: seasonRankData } = useQuery({
+    queryKey: ["points-rank-seasoned", user?.id, activeClubFilter, selectedSeasonId],
+    queryFn: async () => {
+      if (!user?.id || !activeClubFilter || selectedSeasonId === "all") return null;
+      const { data, error } = await supabase.rpc("get_user_leaderboard_rank_seasoned", {
+        _user_id: user.id,
+        _club_id: activeClubFilter,
+        _season_id: selectedSeasonId,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row || !row.rank) return null;
+      return { rank: row.rank as number, total: row.total as number, points: row.points as number };
+    },
+    enabled: !!user && hasProAccess === true && !!activeClubFilter && selectedSeasonId !== "all",
+  });
+
+  const displayedRank = selectedSeasonId !== "all" ? seasonRankData : rankData;
+
   const { data: upgradableClubs } = useQuery({
     queryKey: ["upgradable-clubs", user?.id, activeClubFilter],
     queryFn: async () => {
