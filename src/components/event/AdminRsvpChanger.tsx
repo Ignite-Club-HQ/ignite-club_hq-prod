@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -23,7 +23,7 @@ const statusConfig: Record<RsvpStatus, { label: string; icon: string; badgeClass
     badgeClass: "border-warning/40 bg-warning/10 text-warning",
   },
   not_going: {
-    label: "Can't Go",
+    label: "Not Going",
     icon: "❌",
     badgeClass: "border-destructive/40 bg-destructive/10 text-destructive",
   },
@@ -39,9 +39,8 @@ interface AdminRsvpChangerProps {
 }
 
 /**
- * Displays current RSVP status with a "Change" action that opens a bottom sheet.
- * For "not responded" entries, shows a "Set Status" button instead.
- * Makes it clear the admin is editing another person's response.
+ * Icon-only edit action that opens a bottom sheet with RSVP status options.
+ * Used by admins to set or change another person's RSVP response.
  */
 export function AdminRsvpChanger({
   currentStatus,
@@ -56,74 +55,35 @@ export function AdminRsvpChanger({
     setOpen(false);
   };
 
-  // No current status — show "Change" button (same as having a status)
-  if (!currentStatus) {
-    return (
-      <Drawer open={open} onOpenChange={setOpen}>
-        <DrawerTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs h-8 px-3"
-            disabled={isPending}
-          >
-            {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Change"}
-          </Button>
-        </DrawerTrigger>
-        <DrawerContent>
-          <DrawerHeader className="pb-2">
-            <DrawerTitle className="text-base">
-              Set RSVP for {playerName}
-            </DrawerTitle>
-            <p className="text-sm text-muted-foreground">
-              You are setting this response as an admin
-            </p>
-          </DrawerHeader>
-          <div className="px-4 pb-6 space-y-2">
-            {allStatuses.map((status) => {
-              const config = statusConfig[status];
-              return (
-                <Button
-                  key={status}
-                  variant="outline"
-                  className="w-full justify-start gap-3 h-12 text-base"
-                  onClick={() => handleSelect(status)}
-                  disabled={isPending}
-                >
-                  <span className="text-lg">{config.icon}</span>
-                  {config.label}
-                </Button>
-              );
-            })}
-          </div>
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-
-  // Has current status — show status badge + "Change" button
-  const config = statusConfig[currentStatus];
+  const titlePrefix = currentStatus ? "Change RSVP for" : "Set RSVP for";
+  const subtitle = currentStatus
+    ? "You are editing this response as an admin"
+    : "You are setting this response as an admin";
 
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
         <Button
-          variant="outline"
-          size="sm"
-          className="text-xs h-8 px-3"
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
           disabled={isPending}
+          aria-label={`${titlePrefix} ${playerName}`}
+          title={`${titlePrefix} ${playerName}`}
         >
-          {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Change"}
+          {isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Pencil className="h-4 w-4" />
+          )}
         </Button>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader className="pb-2">
           <DrawerTitle className="text-base">
-            Change RSVP for {playerName}
+            {titlePrefix} {playerName}
           </DrawerTitle>
-          <p className="text-sm text-muted-foreground">
-            You are editing this response as an admin
-          </p>
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
         </DrawerHeader>
         <div className="px-4 pb-6 space-y-2">
           {allStatuses.map((status) => {
