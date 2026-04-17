@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
@@ -18,6 +18,8 @@ interface ChatImageInputProps {
   teamId?: string;
   onEventSelect?: (eventId: string) => void;
   showEventPicker?: boolean;
+  onPollCreate?: () => void;
+  showPollCreator?: boolean;
   /** When true, the action icons are hidden and only the image preview (if any) is shown */
   hasText?: boolean;
 }
@@ -25,7 +27,7 @@ interface ChatImageInputProps {
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, hasText = false }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, hasText = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -341,6 +343,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           aria-label="Share event"
         >
           <CalendarPlus className="h-[22px] w-[22px]" strokeWidth={1.75} />
+        </button>
+      )}
+      {showPollCreator && onPollCreate && (
+        <button
+          type="button"
+          onClick={onPollCreate}
+          disabled={disabled}
+          className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
+          aria-label="Create poll"
+        >
+          <BarChart3 className="h-[22px] w-[22px]" strokeWidth={1.75} />
         </button>
       )}
     </div>
