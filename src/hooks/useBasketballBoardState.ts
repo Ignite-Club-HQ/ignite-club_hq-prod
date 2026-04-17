@@ -40,6 +40,9 @@ interface UseBasketballBoardStateArgs {
   members: Member[];
   readOnly: boolean;
   initialMinutesPerQuarter: number;
+  /** When provided, board state is scoped per-event so multiple matches
+   *  on the same team don't share/overwrite state. */
+  eventId?: string | null;
 }
 
 /**
@@ -51,10 +54,11 @@ export function useBasketballBoardState({
   members,
   readOnly,
   initialMinutesPerQuarter,
+  eventId = null,
 }: UseBasketballBoardStateArgs) {
   const { toast } = useToast();
-  const stateKey = getBasketballStateKey(teamId);
-  const timerKey = getBasketballTimerKey(teamId);
+  const stateKey = getBasketballStateKey(teamId, eventId);
+  const timerKey = getBasketballTimerKey(teamId, eventId);
 
   // ---------- One-time load of saved state ----------
   const savedStateRef = useRef<BasketballBoardState | null>(null);
@@ -68,17 +72,36 @@ export function useBasketballBoardState({
 
   const buildInitialPlayers = (): BasketballPlayer[] => {
     if (savedStateRef.current?.players?.length) return savedStateRef.current.players;
-    return members
+    // ROSTER SEEDING: only `player` role gets auto-placed on court. Parents
+    // and coaches are still in the pool (so coaches can sub them in if a
+    // junior team is short) but always START on the bench.
+    const sorted = [...members].sort((a, b) => {
+      const order = (r: string) => (r === "player" ? 0 : r === "parent" ? 1 : 2);
+      return order(a.role) - order(b.role);
+    });
+    return sorted
       .filter((m) => m.role === "player" || m.role === "parent" || m.role === "coach")
       .slice(0, 12)
-      .map((m, idx) => ({
-        id: m.id,
-        name: m.profiles?.display_name?.trim() || `Player ${idx + 1}`,
-        position: idx < 5 ? BASKETBALL_POSITIONS[idx] : null,
-        minutesPlayed: 0,
-        fouls: 0,
-        preferredPositions: [],
-      }));
+      .map((m, idx) => {
+        const isPlayer = m.role === "player";
+        // Only seed the first 5 *players* into court positions.
+        const playerOrder = sorted
+          .filter((x) => x.role === "player")
+          .findIndex((x) => x.id === m.id);
+        const position =
+          isPlayer && playerOrder >= 0 && playerOrder < 5
+            ? BASKETBALL_POSITIONS[playerOrder]
+            : null;
+        return {
+          id: m.id,
+          name: m.profiles?.display_name?.trim() || `Player ${idx + 1}`,
+          position,
+          minutesPlayed: 0,
+          fouls: 0,
+          points: 0,
+          preferredPositions: [],
+        };
+      });
   };
 
   // ---------- Core state ----------
