@@ -176,6 +176,30 @@ export default function BasketballBoard({
         onPlayerClick={board.handlePlayerClick}
       />
 
+      {!readOnly && (board.canUndoSub || (board.timerState.scoreLog?.length ?? 0) > 0) && (
+        <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={board.undoLastSub}
+            disabled={!board.canUndoSub}
+          >
+            <Undo2 className="h-3.5 w-3.5 mr-1" />
+            Undo last sub
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setSummaryOpen(true)}
+          >
+            <Trophy className="h-3.5 w-3.5 mr-1" />
+            Game summary
+          </Button>
+        </div>
+      )}
+
       <BasketballQuarterBreakDialog
         open={!!board.pendingQuarterSubs}
         quarter={board.pendingQuarterSubs?.quarter ?? null}
@@ -244,6 +268,22 @@ export default function BasketballBoard({
             onAddFoul={() => board.addFoul(board.quickActionPlayer!.id)}
             onClearFoulOut={() => board.clearFoulOut(board.quickActionPlayer!.id)}
             onScore={(pts) => board.addScore("home", pts, board.quickActionPlayer!.id)}
+          />
+        )}
+        {summaryOpen && (
+          <GameSummaryDialog
+            open={summaryOpen}
+            onOpenChange={setSummaryOpen}
+            sport="basketball"
+            homeLabel={teamName}
+            awayLabel={board.timerState.opponentName ?? "Opponent"}
+            homeScore={board.timerState.homeScore ?? 0}
+            awayScore={board.timerState.awayScore ?? 0}
+            perQuarter={perQuarter}
+            players={summaryPlayers}
+            mvpPlayerId={board.timerState.mvpPlayerId ?? null}
+            onSelectMvp={board.setMvp}
+            readOnly={readOnly}
           />
         )}
       </Suspense>
