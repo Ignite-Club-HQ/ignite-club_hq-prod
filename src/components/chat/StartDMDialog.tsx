@@ -436,7 +436,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
       startDMMutation.mutate(selectedUsers[0].id);
     } else {
       // Multiple users - create group chat
-      startGroupDMMutation.mutate(selectedUsers);
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
     }
   };
 
