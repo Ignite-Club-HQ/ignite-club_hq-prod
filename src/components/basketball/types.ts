@@ -38,6 +38,18 @@ export const POSITION_SLOTS: Record<BasketballPosition, { x: number; y: number }
   C:  { x: 50, y: 18 },
 };
 
+/**
+ * Full-court slot positions (100x100 viewBox). Players are clustered in the
+ * top half (offensive end) so the bottom half stays visually clear.
+ */
+export const POSITION_SLOTS_FULL: Record<BasketballPosition, { x: number; y: number }> = {
+  PG: { x: 50, y: 42 },
+  SG: { x: 75, y: 32 },
+  SF: { x: 25, y: 32 },
+  PF: { x: 65, y: 18 },
+  C:  { x: 50, y: 12 },
+};
+
 export const POSITION_COLORS: Record<BasketballPosition, { bg: string; text: string; border: string }> = {
   PG: { bg: "bg-amber-500/30",   text: "text-amber-700 dark:text-amber-200",   border: "border-amber-500" },
   SG: { bg: "bg-orange-500/30",  text: "text-orange-700 dark:text-orange-200", border: "border-orange-500" },
