@@ -11,6 +11,9 @@ import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import CentrePassIndicator from "@/components/scoreboard/CentrePassIndicator";
 import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
+import MomentumStrip from "@/components/scoreboard/MomentumStrip";
+import FoulFatigueWatchlist from "@/components/scoreboard/FoulFatigueWatchlist";
+import SmartSubSuggestion from "@/components/scoreboard/SmartSubSuggestion";
 import CuesToggle from "@/components/scoreboard/CuesToggle";
 import QuarterAutoSubControlPanel from "@/components/scoreboard/QuarterAutoSubControlPanel";
 import { useWakeLock } from "@/hooks/useWakeLock";
@@ -846,6 +849,31 @@ export default function NetballBoard({
           (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
         }
       />
+
+      <MomentumStrip scoreLog={timerState.scoreLog} />
+
+      <FoulFatigueWatchlist
+        sport="netball"
+        players={players}
+        currentQuarter={timerState.currentQuarter}
+        totalElapsedSeconds={
+          timerState.elapsedSeconds +
+          (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
+        }
+        minutesPerQuarter={timerState.minutesPerQuarter}
+      />
+
+      {!readOnly && (
+        <SmartSubSuggestion
+          players={players}
+          totalElapsedSeconds={
+            timerState.elapsedSeconds +
+            (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
+          }
+          isRunning={timerState.isRunning && !timerState.isGameFinished}
+          onApplySub={(outId, inId) => performSwap(outId, inId)}
+        />
+      )}
 
       {!readOnly && (
         <NetballActionBar

@@ -11,6 +11,9 @@ import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import TimeoutsPanel from "@/components/scoreboard/TimeoutsPanel";
 import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
+import MomentumStrip from "@/components/scoreboard/MomentumStrip";
+import FoulFatigueWatchlist from "@/components/scoreboard/FoulFatigueWatchlist";
+import SmartSubSuggestion from "@/components/scoreboard/SmartSubSuggestion";
 import CuesToggle from "@/components/scoreboard/CuesToggle";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
@@ -213,6 +216,31 @@ export default function BasketballBoard({
           (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
         }
       />
+
+      <MomentumStrip scoreLog={board.timerState.scoreLog} />
+
+      <FoulFatigueWatchlist
+        sport="basketball"
+        players={board.players}
+        currentQuarter={board.timerState.currentQuarter}
+        totalElapsedSeconds={
+          board.timerState.elapsedSeconds +
+          (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
+        }
+        minutesPerQuarter={board.timerState.minutesPerQuarter}
+      />
+
+      {!readOnly && (
+        <SmartSubSuggestion
+          players={board.players}
+          totalElapsedSeconds={
+            board.timerState.elapsedSeconds +
+            (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
+          }
+          isRunning={board.timerState.isRunning && !board.timerState.isGameFinished}
+          onApplySub={(outId, inId) => board.performSwap(outId, inId)}
+        />
+      )}
 
       {!readOnly && (
         <BasketballActionBar
