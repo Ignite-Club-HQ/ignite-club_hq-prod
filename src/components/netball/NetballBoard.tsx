@@ -603,6 +603,7 @@ export default function NetballBoard({
           <h1 className="font-bold text-sm truncate">{teamName}</h1>
           <p className="text-[10px] text-muted-foreground">Netball Game Board</p>
         </div>
+        <CuesToggle />
         <NetballQuarterTimer
           state={timerState}
           onChange={setTimerState}
@@ -629,6 +630,24 @@ export default function NetballBoard({
       <QuarterScoreStrip
         scoreLog={timerState.scoreLog}
         currentQuarter={timerState.currentQuarter}
+      />
+
+      <CentrePassIndicator
+        homeLabel={teamName}
+        awayLabel={timerState.opponentName ?? "Opponent"}
+        side={timerState.centrePass ?? "home"}
+        readOnly={readOnly}
+        onSwap={() =>
+          setCentrePass((timerState.centrePass ?? "home") === "home" ? "away" : "home")
+        }
+      />
+
+      <BenchFairnessMeter
+        players={players}
+        elapsedSeconds={
+          timerState.elapsedSeconds +
+          (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
+        }
       />
 
       {!readOnly && (
