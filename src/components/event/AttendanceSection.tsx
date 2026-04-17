@@ -1,24 +1,14 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Eye, Bell, Loader2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Bell, Loader2, Eye, Smartphone, Mail, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerDescription,
-} from "@/components/ui/drawer";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Smartphone, Mail, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -45,7 +35,7 @@ interface AttendanceSectionProps {
   /** IDs of members who have NOT responded — used to send batched reminders */
   notRespondedUserIds: string[];
   canSendReminders: boolean;
-  /** Total members who could view this event (used to compute "X viewed · Y not opened") */
+  /** Total members who could view this event (used to compute "X viewed") */
   trackableMembersCount?: number;
 }
 
@@ -63,7 +53,6 @@ export function AttendanceSection({
   trackableMembersCount,
 }: AttendanceSectionProps) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
   // Lightweight view-count fetch; only when admin (others don't need it)
@@ -82,13 +71,8 @@ export function AttendanceSection({
   });
 
   const viewedCount = eventViews?.length ?? 0;
-  const notViewedCount = useMemo(() => {
-    if (typeof trackableMembersCount !== "number") return 0;
-    return Math.max(trackableMembersCount - viewedCount, 0);
-  }, [trackableMembersCount, viewedCount]);
 
   const totalResponses = counts.going + counts.maybe + counts.notGoing;
-  const allResponded = hasMembers && counts.notResponded === 0;
   const noOneInvited = !hasMembers && totalResponses === 0;
 
   const handleSendReminders = async (channels: "push" | "email" | "both") => {
@@ -124,162 +108,98 @@ export function AttendanceSection({
     }
   };
 
+  const showReminderAction =
+    isAdmin && canSendReminders && counts.notResponded > 0 && notRespondedUserIds.length > 0;
+
   return (
-    <section className="space-y-2">
-      <Card
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setOpen(true);
-          }
-        }}
-        className="cursor-pointer transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Attendance</h2>
-            <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+    <section className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Team Attendance</h2>
+        {isAdmin && viewedCount > 0 && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Eye className="h-3 w-3" />
+            {viewedCount} viewed
+          </span>
+        )}
+      </div>
+
+      {noOneInvited ? (
+        <div className="rounded-md border border-dashed p-4 text-center">
+          <p className="text-sm font-medium">No responses yet</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Invite members or send a reminder
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Status summary chips */}
+          <div className="flex flex-wrap gap-1.5">
+            <AttendanceChip tone="going" label="Going" count={counts.going} />
+            <AttendanceChip tone="maybe" label="Maybe" count={counts.maybe} />
+            <AttendanceChip tone="notGoing" label="Not Going" count={counts.notGoing} />
+            <AttendanceChip tone="noResponse" label="No Response" count={counts.notResponded} />
           </div>
 
-          {noOneInvited ? (
-            <div>
-              <p className="text-sm font-medium">No responses yet</p>
-              <p className="text-xs text-muted-foreground">Invite members or send a reminder</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-wrap gap-1.5">
-                <AttendanceChip tone="going" label="Going" count={counts.going} />
-                <AttendanceChip tone="maybe" label="Maybe" count={counts.maybe} />
-                <AttendanceChip tone="notGoing" label="Not Going" count={counts.notGoing} />
-                {counts.notResponded > 0 && (
-                  <AttendanceChip tone="noResponse" label="No Response" count={counts.notResponded} />
-                )}
-              </div>
-
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">
-                  {allResponded
-                    ? "Everyone has responded"
-                    : isAdmin
-                      ? "View all & send reminders"
-                      : "Tap to view all"}
-                </p>
-                {isAdmin && viewedCount > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Eye className="h-3 w-3" />
-                    {viewedCount} viewed
-                  </span>
-                )}
-              </div>
-            </>
+          {/* Top-level reminder action */}
+          {showReminderAction && (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" disabled={isSending} className="gap-1.5 w-full sm:w-auto">
+                  {isSending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Bell className="h-4 w-4" />
+                  )}
+                  Remind all non-responders
+                  <ChevronDown className="h-3 w-3 ml-0.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => handleSendReminders("push")}>
+                  <Smartphone className="h-4 w-4 mr-2" />
+                  Push Notification
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSendReminders("email")}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Email
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSendReminders("both")}>
+                  <Bell className="h-4 w-4 mr-2" />
+                  Both (Push + Email)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
-        </CardContent>
-      </Card>
 
-      <Drawer open={open} onOpenChange={setOpen}>
-        <DrawerContent className="max-h-[90vh]">
-          <DrawerHeader className="text-left pb-2">
-            <DrawerTitle>Attendance</DrawerTitle>
-            <DrawerDescription>
-              {totalResponses} response{totalResponses === 1 ? "" : "s"}
-              {counts.notResponded > 0 && ` · ${counts.notResponded} not yet responded`}
-            </DrawerDescription>
-          </DrawerHeader>
-
-          <div className="overflow-y-auto px-4 pb-6 space-y-5">
-            {/* Reminder actions — only show when there are non-responders an admin can nudge */}
-            {isAdmin && canSendReminders && counts.notResponded > 0 && notRespondedUserIds.length > 0 && (
-              <div className="flex items-center gap-2 sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 py-2 -mx-4 px-4 border-b z-10">
-                <DropdownMenu modal={false}>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" disabled={isSending} className="gap-1.5 flex-1 sm:flex-none">
-                      {isSending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Bell className="h-4 w-4" />
-                      )}
-                      Remind non-responders
-                      <ChevronDown className="h-3 w-3 ml-0.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuItem onClick={() => handleSendReminders("push")}>
-                      <Smartphone className="h-4 w-4 mr-2" />
-                      Push Notification
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSendReminders("email")}>
-                      <Mail className="h-4 w-4 mr-2" />
-                      Email
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSendReminders("both")}>
-                      <Bell className="h-4 w-4 mr-2" />
-                      Both (Push + Email)
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+          {/* Full member list — always visible, grouped by status */}
+          <div className="space-y-5">
+            {counts.going > 0 && (
+              <AttendanceGroup label="Going" count={counts.going} tone="going">
+                {goingContent}
+              </AttendanceGroup>
             )}
 
-            {/* Going */}
-            <AttendanceGroup
-              icon="✅"
-              label="Going"
-              count={counts.going}
-              tone="going"
-              emptyHint="No one yet"
-            >
-              {goingContent}
-            </AttendanceGroup>
-
             {counts.maybe > 0 && (
-              <>
-                <Separator />
-                <AttendanceGroup icon="🤔" label="Maybe" count={counts.maybe} tone="maybe">
-                  {maybeContent}
-                </AttendanceGroup>
-              </>
+              <AttendanceGroup label="Maybe" count={counts.maybe} tone="maybe">
+                {maybeContent}
+              </AttendanceGroup>
             )}
 
             {counts.notGoing > 0 && (
-              <>
-                <Separator />
-                <AttendanceGroup icon="❌" label="Not Going" count={counts.notGoing} tone="notGoing">
-                  {notGoingContent}
-                </AttendanceGroup>
-              </>
+              <AttendanceGroup label="Not Going" count={counts.notGoing} tone="notGoing">
+                {notGoingContent}
+              </AttendanceGroup>
             )}
 
             {counts.notResponded > 0 && (
-              <>
-                <Separator />
-                <AttendanceGroup
-                  icon="⏳"
-                  label="No Response"
-                  count={counts.notResponded}
-                  tone="noResponse"
-                >
-                  {notRespondedContent}
-                </AttendanceGroup>
-              </>
-            )}
-
-            {/* De-prioritised view stats */}
-            {isAdmin && (viewedCount > 0 || notViewedCount > 0) && (
-              <>
-                <Separator />
-                <p className="text-xs text-muted-foreground">
-                  {viewedCount} viewed
-                  {notViewedCount > 0 && ` · ${notViewedCount} not opened`}
-                </p>
-              </>
+              <AttendanceGroup label="No Response" count={counts.notResponded} tone="noResponse">
+                {notRespondedContent}
+              </AttendanceGroup>
             )}
           </div>
-        </DrawerContent>
-      </Drawer>
+        </>
+      )}
     </section>
   );
 }
@@ -334,33 +254,30 @@ function AttendanceChip({
 }
 
 function AttendanceGroup({
-  icon,
   label,
   count,
   tone,
-  emptyHint,
   children,
 }: {
-  icon: string;
   label: string;
   count: number;
   tone: Tone;
-  emptyHint?: string;
   children: ReactNode;
 }) {
   return (
     <div className="space-y-2">
-      <div className={cn("flex items-center gap-2 text-sm font-semibold", toneStyles[tone].header)}>
-        <span aria-hidden>{icon}</span>
+      <div
+        className={cn(
+          "flex items-center gap-2 text-sm font-semibold",
+          toneStyles[tone].header,
+        )}
+      >
+        <span aria-hidden>{toneStyles[tone].icon}</span>
         <span>
           {label} ({count})
         </span>
       </div>
-      {count === 0 && emptyHint ? (
-        <p className="text-muted-foreground text-sm pl-6">{emptyHint}</p>
-      ) : (
-        <div className="pl-1">{children}</div>
-      )}
+      <div>{children}</div>
     </div>
   );
 }
