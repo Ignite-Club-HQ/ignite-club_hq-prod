@@ -272,79 +272,129 @@ export function AttendanceSection({
         </div>
       ) : (
         <>
-          {/* Status summary chips */}
+          {/* Status summary chips — No Response prioritised first */}
           <div className="flex flex-wrap gap-1.5">
-            <AttendanceChip tone="going" label="Going" count={counts.going} />
-            <AttendanceChip tone="maybe" label="Maybe" count={counts.maybe} />
-            <AttendanceChip tone="notGoing" label="Not Going" count={counts.notGoing} />
-            <AttendanceChip tone="noResponse" label="No Response" count={counts.notResponded} />
+            <AttendanceChip
+              tone="noResponse"
+              label="No Response"
+              count={counts.notResponded}
+              emphasised
+              targetId={`attendance-group-noResponse-${eventId}`}
+            />
+            <AttendanceChip
+              tone="going"
+              label="Going"
+              count={counts.going}
+              targetId={`attendance-group-going-${eventId}`}
+            />
+            {counts.maybe > 0 && (
+              <AttendanceChip
+                tone="maybe"
+                label="Maybe"
+                count={counts.maybe}
+                targetId={`attendance-group-maybe-${eventId}`}
+              />
+            )}
+            {counts.notGoing > 0 && (
+              <AttendanceChip
+                tone="notGoing"
+                label="Not Going"
+                count={counts.notGoing}
+                targetId={`attendance-group-notGoing-${eventId}`}
+              />
+            )}
           </div>
 
           {/* Top-level reminder action */}
           {showReminderAction && (
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" disabled={isSending} className="gap-1.5 w-full sm:w-auto">
-                  {isSending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Bell className="h-4 w-4" />
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">
+                {counts.notResponded} {counts.notResponded === 1 ? "player hasn't" : "players haven't"} responded yet
+              </p>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" disabled={isSending} className="gap-1.5 w-full sm:w-auto">
+                    {isSending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Bell className="h-4 w-4" />
+                    )}
+                    Remind all non-responders
+                    <ChevronDown className="h-3 w-3 ml-0.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  {canSendReminders && (
+                    <>
+                      <DropdownMenuItem onClick={() => handleSendReminders("push")}>
+                        <Smartphone className="h-4 w-4 mr-2" />
+                        Push Notification
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSendReminders("email")}>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Email
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSendReminders("both")}>
+                        <Bell className="h-4 w-4 mr-2" />
+                        Both (Push + Email)
+                      </DropdownMenuItem>
+                    </>
                   )}
-                  Remind all non-responders
-                  <ChevronDown className="h-3 w-3 ml-0.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                {canSendReminders && (
-                  <>
-                    <DropdownMenuItem onClick={() => handleSendReminders("push")}>
-                      <Smartphone className="h-4 w-4 mr-2" />
-                      Push Notification
+                  {canSendReminders && onShareLink && <DropdownMenuSeparator />}
+                  {onShareLink && (
+                    <DropdownMenuItem onClick={() => onShareLink()}>
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Share link…
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSendReminders("email")}>
-                      <Mail className="h-4 w-4 mr-2" />
-                      Email
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleSendReminders("both")}>
-                      <Bell className="h-4 w-4 mr-2" />
-                      Both (Push + Email)
-                    </DropdownMenuItem>
-                  </>
-                )}
-                {canSendReminders && onShareLink && <DropdownMenuSeparator />}
-                {onShareLink && (
-                  <DropdownMenuItem onClick={() => onShareLink()}>
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Share link…
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
 
-          {/* Full member list — always visible, grouped by status */}
+          {/* Full member list — No Response prioritised first */}
           <div className="space-y-5">
+            {counts.notResponded > 0 && (
+              <AttendanceGroup
+                id={`attendance-group-noResponse-${eventId}`}
+                label="No Response"
+                count={counts.notResponded}
+                tone="noResponse"
+              >
+                {notRespondedContent}
+              </AttendanceGroup>
+            )}
+
             {counts.going > 0 && (
-              <AttendanceGroup label="Going" count={counts.going} tone="going">
+              <AttendanceGroup
+                id={`attendance-group-going-${eventId}`}
+                label="Going"
+                count={counts.going}
+                tone="going"
+              >
                 {goingContent}
               </AttendanceGroup>
             )}
 
             {counts.maybe > 0 && (
-              <AttendanceGroup label="Maybe" count={counts.maybe} tone="maybe">
+              <AttendanceGroup
+                id={`attendance-group-maybe-${eventId}`}
+                label="Maybe"
+                count={counts.maybe}
+                tone="maybe"
+              >
                 {maybeContent}
               </AttendanceGroup>
             )}
 
             {counts.notGoing > 0 && (
-              <AttendanceGroup label="Not Going" count={counts.notGoing} tone="notGoing">
+              <AttendanceGroup
+                id={`attendance-group-notGoing-${eventId}`}
+                label="Not Going"
+                count={counts.notGoing}
+                tone="notGoing"
+              >
                 {notGoingContent}
-              </AttendanceGroup>
-            )}
-
-            {counts.notResponded > 0 && (
-              <AttendanceGroup label="No Response" count={counts.notResponded} tone="noResponse">
-                {notRespondedContent}
               </AttendanceGroup>
             )}
           </div>
@@ -356,25 +406,29 @@ export function AttendanceSection({
 
 type Tone = "going" | "maybe" | "notGoing" | "noResponse";
 
-const toneStyles: Record<Tone, { chip: string; header: string; icon: string }> = {
+const toneStyles: Record<Tone, { chip: string; chipEmphasised: string; header: string; icon: string }> = {
   going: {
-    chip: "bg-primary/10 text-primary border-primary/20",
+    chip: "bg-primary/5 text-primary border-primary/15",
+    chipEmphasised: "bg-primary/15 text-primary border-primary/30",
     header: "text-primary",
     icon: "✅",
   },
   maybe: {
-    chip: "bg-warning/10 text-warning border-warning/20",
+    chip: "bg-warning/5 text-warning border-warning/15",
+    chipEmphasised: "bg-warning/15 text-warning border-warning/30",
     header: "text-warning",
     icon: "🤔",
   },
   notGoing: {
-    chip: "bg-destructive/10 text-destructive border-destructive/20",
+    chip: "bg-destructive/5 text-destructive border-destructive/15",
+    chipEmphasised: "bg-destructive/15 text-destructive border-destructive/30",
     header: "text-destructive",
     icon: "❌",
   },
   noResponse: {
-    chip: "bg-muted text-muted-foreground border-border",
-    header: "text-muted-foreground",
+    chip: "bg-muted/60 text-muted-foreground border-border/60",
+    chipEmphasised: "bg-foreground/10 text-foreground border-foreground/20 font-semibold",
+    header: "text-foreground",
     icon: "⏳",
   },
 };
@@ -383,17 +437,30 @@ function AttendanceChip({
   tone,
   label,
   count,
+  emphasised,
+  targetId,
 }: {
   tone: Tone;
   label: string;
   count: number;
+  emphasised?: boolean;
+  targetId?: string;
 }) {
-  return (
+  const handleClick = () => {
+    if (!targetId) return;
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const badge = (
     <Badge
       variant="outline"
       className={cn(
-        "rounded-full px-2.5 py-0.5 text-xs font-medium gap-1",
-        toneStyles[tone].chip,
+        "rounded-full px-2 py-0.5 text-xs font-medium gap-1 transition-colors",
+        emphasised ? toneStyles[tone].chipEmphasised : toneStyles[tone].chip,
+        targetId && "cursor-pointer hover:opacity-80 active:opacity-70",
       )}
     >
       <span aria-hidden>{toneStyles[tone].icon}</span>
@@ -401,21 +468,36 @@ function AttendanceChip({
       <span className="font-semibold">{count}</span>
     </Badge>
   );
+
+  if (!targetId) return badge;
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+      aria-label={`Jump to ${label} (${count})`}
+    >
+      {badge}
+    </button>
+  );
 }
 
 function AttendanceGroup({
+  id,
   label,
   count,
   tone,
   children,
 }: {
+  id?: string;
   label: string;
   count: number;
   tone: Tone;
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-2">
+    <div id={id} className="space-y-2 scroll-mt-20">
       <div
         className={cn(
           "flex items-center gap-2 text-sm font-semibold",
