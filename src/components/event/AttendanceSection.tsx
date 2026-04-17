@@ -54,6 +54,7 @@ export function AttendanceSection({
   notRespondedUserIds,
   canSendReminders,
   trackableMembersCount,
+  onShareLink,
 }: AttendanceSectionProps) {
   const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
