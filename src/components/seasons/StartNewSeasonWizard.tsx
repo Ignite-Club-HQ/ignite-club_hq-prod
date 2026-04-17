@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Season } from "@/hooks/useClubSeasons";
+import { ReturningMembersStep } from "./ReturningMembersStep";
 
 interface Props {
   clubId: string;
@@ -27,7 +28,7 @@ interface Props {
   onComplete: () => void;
 }
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason, onComplete }: Props) {
   const [step, setStep] = useState<Step>(1);
@@ -36,6 +37,8 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
   const [duplicateStructure, setDuplicateStructure] = useState(true);
   const [copyStaff, setCopyStaff] = useState(true);
   const [createdSeasonId, setCreatedSeasonId] = useState<string | null>(null);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  const [carriedOverCount, setCarriedOverCount] = useState<number | null>(null);
   const qc = useQueryClient();
 
   const reset = () => {
@@ -45,6 +48,8 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
     setDuplicateStructure(true);
     setCopyStaff(true);
     setCreatedSeasonId(null);
+    setSelectedPlayerIds(new Set());
+    setCarriedOverCount(null);
   };
 
   const handleClose = (v: boolean) => {
@@ -88,6 +93,19 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
     },
   });
 
+  const carryOverMut = useMutation({
+    mutationFn: async ({ targetId, ids }: { targetId: string; ids: string[] }): Promise<number> => {
+      if (!currentSeason || ids.length === 0) return 0;
+      const { data, error } = await supabase.rpc("carry_over_players", {
+        _source_season_id: currentSeason.id,
+        _target_season_id: targetId,
+        _club_player_ids: ids,
+      });
+      if (error) throw error;
+      return (data as number) ?? 0;
+    },
+  });
+
   const goNext = async () => {
     try {
       if (step === 1) {
@@ -106,8 +124,21 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
         toast.success("Draft season created");
         setStep(3);
       } else if (step === 3) {
+        // Carry over selected players
+        if (createdSeasonId && selectedPlayerIds.size > 0) {
+          const count = await carryOverMut.mutateAsync({
+            targetId: createdSeasonId,
+            ids: Array.from(selectedPlayerIds),
+          });
+          setCarriedOverCount(count);
+          if (count > 0) toast.success(`${count} player${count === 1 ? "" : "s"} carried over`);
+        } else {
+          setCarriedOverCount(0);
+        }
         setStep(4);
-      } else if (step === 4 && createdSeasonId) {
+      } else if (step === 4) {
+        setStep(5);
+      } else if (step === 5 && createdSeasonId) {
         await publishMut.mutateAsync(createdSeasonId);
         toast.success("New season is live!");
         qc.invalidateQueries({ queryKey: ["club-seasons", clubId] });
@@ -124,7 +155,7 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
     if (step > 1 && !createdSeasonId) setStep((step - 1) as Step);
   };
 
-  const busy = archiveMut.isPending || createMut.isPending || publishMut.isPending;
+  const busy = archiveMut.isPending || createMut.isPending || publishMut.isPending || carryOverMut.isPending;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -133,10 +164,10 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" /> Start new season
           </DialogTitle>
-          <DialogDescription>Step {step} of 4</DialogDescription>
+          <DialogDescription>Step {step} of 5</DialogDescription>
         </DialogHeader>
 
-        <Progress value={(step / 4) * 100} className="h-1" />
+        <Progress value={(step / 5) * 100} className="h-1" />
 
         <div className="py-4 space-y-4">
           {step === 1 && (
@@ -187,7 +218,7 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
                     <div className="flex-1">
                       <Label htmlFor="dup" className="cursor-pointer">Duplicate structure from {currentSeason.name}</Label>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Copies team names. Players are NOT carried over.
+                        Copies team names. You'll choose which players to carry over next.
                       </p>
                     </div>
                   </div>
@@ -210,13 +241,27 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
           )}
 
           {step === 3 && (
+            currentSeason ? (
+              <ReturningMembersStep
+                sourceSeasonId={currentSeason.id}
+                selectedIds={selectedPlayerIds}
+                onChange={setSelectedPlayerIds}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                No previous season — skip to review.
+              </p>
+            )
+          )}
+
+          {step === 4 && (
             <div className="space-y-3">
               <div className="flex items-start gap-2">
                 <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
                 <div>
-                  <h3 className="font-semibold">Draft season created</h3>
+                  <h3 className="font-semibold">Review</h3>
                   <p className="text-sm text-muted-foreground">
-                    Your new season is in <strong>draft</strong> mode. You can review and adjust teams before going live.
+                    Your new season is in <strong>draft</strong> mode. Confirm the details below.
                   </p>
                 </div>
               </div>
@@ -226,14 +271,25 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
                 {duplicateStructure && currentSeason && (
                   <p><span className="text-muted-foreground">Structure:</span> Cloned from {currentSeason.name}{copyStaff ? " (with staff)" : ""}</p>
                 )}
+                {carriedOverCount !== null && (
+                  <p>
+                    <span className="text-muted-foreground">Players carried over:</span>{" "}
+                    <strong>{carriedOverCount}</strong>
+                    {selectedPlayerIds.size > carriedOverCount && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        ({selectedPlayerIds.size - carriedOverCount} need manual assignment)
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Tip: After publishing, you can assign players to teams from each team page.
+                Tip: You can adjust team rosters from each team page after publishing.
               </p>
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div className="space-y-3">
               <div className="flex items-start gap-2">
                 <Rocket className="h-5 w-5 text-primary mt-0.5" />
@@ -253,7 +309,7 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
           <Button onClick={goNext} disabled={busy}>
-            {step === 4 ? <><Rocket className="h-4 w-4 mr-1" /> Publish</> : <>Next <ArrowRight className="h-4 w-4 ml-1" /></>}
+            {step === 5 ? <><Rocket className="h-4 w-4 mr-1" /> Publish</> : <>Next <ArrowRight className="h-4 w-4 ml-1" /></>}
           </Button>
         </DialogFooter>
       </DialogContent>
