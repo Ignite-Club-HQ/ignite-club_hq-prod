@@ -2028,6 +2028,52 @@ export type Database = {
         }
         Relationships: []
       }
+      eoi_form_views: {
+        Row: {
+          club_id: string
+          id: string
+          season_id: string
+          source: string
+          viewed_at: string
+        }
+        Insert: {
+          club_id: string
+          id?: string
+          season_id: string
+          source?: string
+          viewed_at?: string
+        }
+        Update: {
+          club_id?: string
+          id?: string
+          season_id?: string
+          source?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eoi_form_views_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_form_views_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_form_views_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eoi_submissions: {
         Row: {
           age_group: string | null
@@ -5367,6 +5413,7 @@ export type Database = {
           eoi_require_gender: boolean
           eoi_slug: string | null
           eoi_thank_you_message: string | null
+          eoi_thank_you_redirect_url: string | null
           eoi_webhook_token: string | null
           eoi_welcome_message: string | null
           id: string
@@ -5393,6 +5440,7 @@ export type Database = {
           eoi_require_gender?: boolean
           eoi_slug?: string | null
           eoi_thank_you_message?: string | null
+          eoi_thank_you_redirect_url?: string | null
           eoi_webhook_token?: string | null
           eoi_welcome_message?: string | null
           id?: string
@@ -5419,6 +5467,7 @@ export type Database = {
           eoi_require_gender?: boolean
           eoi_slug?: string | null
           eoi_thank_you_message?: string | null
+          eoi_thank_you_redirect_url?: string | null
           eoi_webhook_token?: string | null
           eoi_welcome_message?: string | null
           id?: string
@@ -7085,15 +7134,13 @@ export type Database = {
         Returns: {
           allocated: number
           confirmed: number
+          conversion_rate: number
           new_players: number
-          preferences_completed: number
           registered: number
           returning_players: number
-          source_admin: number
-          source_app: number
-          source_website: number
           submitted: number
           total: number
+          views: number
           withdrawn: number
         }[]
       }
@@ -7225,6 +7272,7 @@ export type Database = {
           season_id: string
           season_name: string
           thank_you_message: string
+          thank_you_redirect_url: string
           welcome_message: string
         }[]
       }
