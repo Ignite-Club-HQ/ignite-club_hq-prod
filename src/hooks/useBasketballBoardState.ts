@@ -412,7 +412,18 @@ export function useBasketballBoardState({
     [toast]
   );
 
-  // ---------- Generate auto-sub plan when settings change ----------
+  // ---------- Generate auto-sub plan when settings or roster change ----------
+  // Signature changes when bench composition or on-court positions change,
+  // so manual swaps + roster edits trigger a fresh plan (no stale closure).
+  const rosterSignature = useMemo(
+    () =>
+      players
+        .map((p) => `${p.id}:${p.position ?? "bench"}:${p.isInjured ? "x" : "o"}`)
+        .sort()
+        .join("|"),
+    [players]
+  );
+
   useEffect(() => {
     if (rotationMode === "off") {
       setAutoSubPlan([]);
@@ -430,7 +441,7 @@ export function useBasketballBoardState({
       setAutoSubPlan(generateQuarterBreakRotationPlan(players, 3));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter]);
+  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, rosterSignature]);
 
   // ---------- Derived ----------
   const bench = useMemo(() => getBench(players), [players]);
