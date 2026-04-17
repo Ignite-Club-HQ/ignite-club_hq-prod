@@ -717,6 +717,22 @@ export default function NetballBoard({
             onToggleInjured={() => toggleInjured(quickActionPlayer.id)}
           />
         )}
+        {summaryOpen && (
+          <GameSummaryDialog
+            open={summaryOpen}
+            onOpenChange={setSummaryOpen}
+            sport="netball"
+            homeLabel={teamName}
+            awayLabel={timerState.opponentName ?? "Opponent"}
+            homeScore={timerState.homeScore ?? 0}
+            awayScore={timerState.awayScore ?? 0}
+            perQuarter={perQuarter}
+            players={summaryPlayers}
+            mvpPlayerId={timerState.mvpPlayerId ?? null}
+            onSelectMvp={setMvp}
+            readOnly={readOnly}
+          />
+        )}
       </Suspense>
     </div>
   );
