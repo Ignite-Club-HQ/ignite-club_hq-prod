@@ -362,15 +362,42 @@ export default function GameSummaryDialog({
           )}
         </ScrollArea>
 
-        <div className="flex gap-2 px-4 pb-4 pt-1 border-t">
-          <Button variant="outline" className="flex-1" onClick={handleDownload} disabled={busy}>
-            <Download className="h-4 w-4 mr-1.5" />
-            Download
-          </Button>
-          <Button className="flex-1" onClick={handleShare} disabled={busy}>
-            <Share2 className="h-4 w-4 mr-1.5" />
-            Share
-          </Button>
+        <div className="flex flex-col gap-2 px-4 pb-4 pt-1 border-t">
+          {!readOnly && onSaveNow && (
+            <Button
+              variant={isSaved ? "secondary" : "default"}
+              className="w-full"
+              onClick={async () => {
+                if (saving || isSaved) return;
+                setSaving(true);
+                try {
+                  await onSaveNow();
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving || busy}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : isSaved ? (
+                <Check className="h-4 w-4 mr-1.5" />
+              ) : (
+                <Save className="h-4 w-4 mr-1.5" />
+              )}
+              {isSaved ? "Saved to history" : "Save to history"}
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={handleDownload} disabled={busy}>
+              <Download className="h-4 w-4 mr-1.5" />
+              Download
+            </Button>
+            <Button className="flex-1" onClick={handleShare} disabled={busy}>
+              <Share2 className="h-4 w-4 mr-1.5" />
+              Share
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
