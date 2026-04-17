@@ -7,7 +7,8 @@ import { detectGameBoardKind, GameBoardKind } from "@/lib/sportDetection";
  *
  * Renders the correct sport-specific board based on the club's sport:
  *  - "soccer" / "football" / "futsal" → existing PitchBoard (unchanged)
- *  - "netball"                       → new NetballBoard
+ *  - "netball"                       → NetballBoard
+ *  - "basketball"                    → BasketballBoard
  *
  * The soccer pitch board is intentionally untouched; this component
  * simply chooses which sibling to lazy-load.
@@ -15,6 +16,7 @@ import { detectGameBoardKind, GameBoardKind } from "@/lib/sportDetection";
 
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
+const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
 
 interface GameBoardProps {
   /** Club sport string from `clubs.sport`. If unknown, falls back to soccer. */
@@ -28,11 +30,16 @@ interface GameBoardProps {
     profiles: { display_name: string | null; avatar_url: string | null } | null;
   }>;
   onClose: () => void;
-  /** Soccer-only props are forwarded as-is; netball ignores them. */
+  /** Soccer-only props are forwarded as-is; others ignore them. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   soccerProps?: Record<string, any>;
-  /** Netball-only props are forwarded as-is; soccer ignores them. */
+  /** Netball-only props. */
   netballProps?: {
+    initialMinutesPerQuarter?: number;
+    readOnly?: boolean;
+  };
+  /** Basketball-only props. */
+  basketballProps?: {
     initialMinutesPerQuarter?: number;
     readOnly?: boolean;
   };
@@ -52,12 +59,21 @@ export default function GameBoard({
   onClose,
   soccerProps = {},
   netballProps = {},
+  basketballProps = {},
 }: GameBoardProps) {
   const kind: GameBoardKind = detectGameBoardKind(sport);
 
   return (
     <Suspense fallback={<Loading />}>
-      {kind === "netball" ? (
+      {kind === "basketball" ? (
+        <BasketballBoard
+          teamId={teamId}
+          teamName={teamName}
+          members={members}
+          onClose={onClose}
+          {...basketballProps}
+        />
+      ) : kind === "netball" ? (
         <NetballBoard
           teamId={teamId}
           teamName={teamName}

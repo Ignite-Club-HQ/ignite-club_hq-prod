@@ -62,7 +62,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
-import { isNetballSport } from "@/lib/sportDetection";
+const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
+import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
@@ -151,6 +152,7 @@ export default function TeamDetailPage() {
     team.clubs.sport.toLowerCase().includes(keyword)
   );
   const isNetballClub = isNetballSport(team?.clubs?.sport);
+  const isBasketballClub = isBasketballSport(team?.clubs?.sport);
 
   const isClassMode = !!team?.clubs?.class_mode_enabled;
 
@@ -2292,6 +2294,33 @@ export default function TeamDetailPage() {
         }>
           <div className="fixed inset-0 z-[9999] bg-background">
             <NetballBoard
+              teamId={id!}
+              teamName={team.name}
+              members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
+              onClose={() => {
+                setShowPitchBoard(false);
+                setLinkedEventId(null);
+                setPitchBoardMembersOverride([]);
+              }}
+              readOnly={!canEditPitchBoard && !isSubsManager}
+            />
+          </div>
+        </Suspense>,
+        document.body
+      )}
+
+      {/* Game Board Modal — basketball */}
+      {showPitchBoard && isBasketballClub && createPortal(
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading Game Board…</p>
+            </div>
+          </div>
+        }>
+          <div className="fixed inset-0 z-[9999] bg-background">
+            <BasketballBoard
               teamId={id!}
               teamName={team.name}
               members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}

@@ -1,0 +1,122 @@
+/**
+ * Basketball game board types.
+ * Fully isolated from soccer (`pitch/types.ts`) and netball (`netball/types.ts`)
+ * so the existing boards remain untouched.
+ *
+ * Positions are SOFT roles: any player can occupy any slot. Validation modes
+ * exist only for "Structured Mode" coaches who want one player per role.
+ */
+
+export type BasketballPosition = "PG" | "SG" | "SF" | "PF" | "C";
+
+export const BASKETBALL_POSITIONS: BasketballPosition[] = ["PG", "SG", "SF", "PF", "C"];
+
+export const BASKETBALL_POSITION_LABELS: Record<BasketballPosition, string> = {
+  PG: "Point Guard",
+  SG: "Shooting Guard",
+  SF: "Small Forward",
+  PF: "Power Forward",
+  C: "Centre",
+};
+
+/**
+ * Default visual slot positions on a half-court SVG (100x140 viewBox, portrait).
+ * These are visual hints only — players may be moved freely between slots.
+ *
+ * Layout (top of court = hoop end):
+ *   PG = top of the key (ball handler)
+ *   SG = right wing
+ *   SF = left wing
+ *   PF = right block
+ *   C  = under the basket
+ */
+export const POSITION_SLOTS: Record<BasketballPosition, { x: number; y: number }> = {
+  PG: { x: 50, y: 75 },
+  SG: { x: 78, y: 55 },
+  SF: { x: 22, y: 55 },
+  PF: { x: 70, y: 28 },
+  C:  { x: 50, y: 18 },
+};
+
+export const POSITION_COLORS: Record<BasketballPosition, { bg: string; text: string; border: string }> = {
+  PG: { bg: "bg-amber-500/30",   text: "text-amber-700 dark:text-amber-200",   border: "border-amber-500" },
+  SG: { bg: "bg-orange-500/30",  text: "text-orange-700 dark:text-orange-200", border: "border-orange-500" },
+  SF: { bg: "bg-emerald-500/30", text: "text-emerald-700 dark:text-emerald-200", border: "border-emerald-500" },
+  PF: { bg: "bg-sky-500/30",     text: "text-sky-700 dark:text-sky-200",         border: "border-sky-500" },
+  C:  { bg: "bg-violet-500/30",  text: "text-violet-700 dark:text-violet-200",   border: "border-violet-500" },
+};
+
+export interface BasketballPlayer {
+  id: string;
+  name: string;
+  number?: number;
+  /** Position currently occupied on court, or null if on bench. */
+  position: BasketballPosition | null;
+  /** Total seconds played (across all quarters). */
+  minutesPlayed?: number;
+  isInjured?: boolean;
+  isFillIn?: boolean;
+  /** Coach-set preferred positions for like-for-like rotations / structured mode. */
+  preferredPositions?: BasketballPosition[];
+  /** Foul count (0-5/6 depending on league — we just track the number). */
+  fouls?: number;
+}
+
+export type Quarter = 1 | 2 | 3 | 4;
+
+export type RotationMode = "time-based" | "quarter-break" | "off";
+
+/**
+ * Basketball is intentionally permissive:
+ *  - "free" → no checks at all (default, esp. juniors / positionless ball)
+ *  - "structured" → warn when two players share the same role
+ */
+export type ValidationMode = "free" | "structured";
+
+export interface BasketballSubEvent {
+  quarter: Quarter;
+  /** Seconds elapsed in the quarter when sub fires. 0 = start of quarter. */
+  time: number;
+  playerOut: BasketballPlayer;
+  playerIn: BasketballPlayer;
+  position: BasketballPosition;
+  executed?: boolean;
+  skipped?: boolean;
+}
+
+/** A pre-planned 5-player snapshot for one quarter. */
+export interface QuarterLineup {
+  quarter: Quarter;
+  /** Map of position -> player.id */
+  assignments: Partial<Record<BasketballPosition, string>>;
+  createdAt: number;
+}
+
+export interface BasketballTimerState {
+  minutesPerQuarter: number;
+  currentQuarter: Quarter;
+  elapsedSeconds: number;
+  isRunning: boolean;
+  lastUpdateTime: number;
+  isGameFinished?: boolean;
+}
+
+export interface BasketballBoardState {
+  teamId: string;
+  players: BasketballPlayer[];
+  currentQuarter: Quarter;
+  rotationMode: RotationMode;
+  rotationIntervalMinutes: number;
+  validationMode: ValidationMode;
+  autoSubPlan: BasketballSubEvent[];
+  autoSubActive: boolean;
+  autoSubPaused: boolean;
+  quarterLineups: QuarterLineup[];
+  lastUpdateTime: number;
+  linkedEventId?: string | null;
+}
+
+export const BASKETBALL_STATE_KEY_BASE = "ignite-basketball-board-state-team";
+export const getBasketballStateKey = (teamId: string) => `${BASKETBALL_STATE_KEY_BASE}-${teamId}`;
+export const BASKETBALL_TIMER_KEY_BASE = "ignite-basketball-timer-state-team";
+export const getBasketballTimerKey = (teamId: string) => `${BASKETBALL_TIMER_KEY_BASE}-${teamId}`;

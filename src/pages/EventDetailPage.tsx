@@ -79,7 +79,8 @@ import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPro
 // Lazy load PitchBoard for game events
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
-import { isNetballSport } from "@/lib/sportDetection";
+const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
+import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 
 type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";
@@ -477,11 +478,13 @@ export default function EventDetailPage() {
   const isSoccerClub = event?.clubs?.sport?.toLowerCase().includes('soccer') || 
                        event?.clubs?.sport?.toLowerCase().includes('football');
   const isNetballClub = isNetballSport(event?.clubs?.sport);
+  const isBasketballClub = isBasketballSport(event?.clubs?.sport);
 
-  // Check if user can access pitch board (coach/admin) - requires Pro Football for soccer; netball is open
+  // Check if user can access pitch board (coach/admin) - requires Pro Football for soccer; netball + basketball are open
   const canAccessSoccerBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
   const canAccessNetballBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isNetballClub;
-  const canAccessPitchBoard = canAccessSoccerBoard || canAccessNetballBoard;
+  const canAccessBasketballBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isBasketballClub;
+  const canAccessPitchBoard = canAccessSoccerBoard || canAccessNetballBoard || canAccessBasketballBoard;
 
   // Check if user is a team member (for read-only pitch board access)
   const { data: isTeamMember } = useQuery({
@@ -2953,6 +2956,30 @@ export default function EventDetailPage() {
         }>
           <div className="fixed inset-0 z-[999999] bg-background">
             <NetballBoard
+              teamId={event.team_id}
+              teamName={event.teams?.name || "Team"}
+              members={teamMembers.map(m => ({
+                id: m.user_id,
+                user_id: m.user_id,
+                role: m.role,
+                profiles: m.profiles
+              }))}
+              onClose={() => setShowPitchBoard(false)}
+            />
+          </div>
+        </Suspense>,
+        document.body
+      )}
+
+      {/* Game Board Modal — basketball */}
+      {showPitchBoard && isBasketballClub && canAccessBasketballBoard && teamMembers && event?.team_id && createPortal(
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-background">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        }>
+          <div className="fixed inset-0 z-[999999] bg-background">
+            <BasketballBoard
               teamId={event.team_id}
               teamName={event.teams?.name || "Team"}
               members={teamMembers.map(m => ({
