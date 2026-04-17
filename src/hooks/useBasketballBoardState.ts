@@ -26,6 +26,7 @@ import {
   findNextDueSub,
   safeLoad,
   safeSave,
+  transitionPosition,
 } from "@/components/basketball/basketballHelpers";
 import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
 import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
@@ -294,8 +295,8 @@ export function useBasketballBoardState({
         const inP = prev.find((p) => p.id === sub.playerIn.id);
         if (!out?.position || !inP || inP.position !== null) return prev;
         return prev.map((p) => {
-          if (p.id === out.id) return { ...p, position: null };
-          if (p.id === inP.id) return { ...p, position: sub.position };
+          if (p.id === out.id) return transitionPosition(p, null);
+          if (p.id === inP.id) return transitionPosition(p, sub.position);
           return p;
         });
       });
@@ -428,8 +429,8 @@ export function useBasketballBoardState({
           });
         }
         return prev.map((p) => {
-          if (p.id === a.id) return { ...p, position: b.position };
-          if (p.id === b.id) return { ...p, position: a.position };
+          if (p.id === a.id) return transitionPosition(p, b.position);
+          if (p.id === b.id) return transitionPosition(p, a.position);
           return p;
         });
       });
@@ -479,8 +480,8 @@ export function useBasketballBoardState({
           };
         }
         return prev.map((p) => {
-          if (p.id === incoming.id) return { ...p, position };
-          if (p.position === position && p.id !== incoming.id) return { ...p, position: null };
+          if (p.id === incoming.id) return transitionPosition(p, position);
+          if (p.position === position && p.id !== incoming.id) return transitionPosition(p, null);
           return p;
         });
       });
@@ -499,7 +500,7 @@ export function useBasketballBoardState({
           if (p.id === playerId && p.position) {
             outName = p.name;
             outPos = p.position;
-            return { ...p, position: null };
+            return transitionPosition(p, null);
           }
           return p;
         })
@@ -539,10 +540,10 @@ export function useBasketballBoardState({
             // via a dedicated `isFouledOut` flag (NOT isInjured — that was
             // misleading the UI to show an injury badge).
             const fouledOut = newCount >= 5;
+            const next = transitionPosition(p, fouledOut ? null : p.position);
             return {
-              ...p,
+              ...next,
               fouls: newCount,
-              position: fouledOut ? null : p.position,
               isFouledOut: fouledOut ? true : p.isFouledOut,
             };
           }
