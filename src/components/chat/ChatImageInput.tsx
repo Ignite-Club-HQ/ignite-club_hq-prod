@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -10,6 +10,13 @@ import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
+import {
+  isVideoFile,
+  isVideoUrl,
+  validateVideo,
+  videoMimeToExtension,
+  MAX_VIDEO_SIZE_BYTES,
+} from "@/lib/videoUtils";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
