@@ -39,6 +39,7 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -174,6 +175,7 @@ export default function GroupChatPage() {
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -1674,6 +1676,8 @@ export default function GroupChatPage() {
             teamId={group?.team_id || undefined}
             showEventPicker={true}
             onEventSelect={() => setEventPickerOpen(true)}
+            showPollCreator={true}
+            onPollCreate={() => setPollDialogOpen(true)}
             hasText={!!message.trim()}
           />
           <MentionInput
@@ -1716,6 +1720,18 @@ export default function GroupChatPage() {
           teamId={group?.team_id || undefined}
           clubId={group?.club_id || undefined}
         />
+        {groupId && (
+          <CreatePollDialog
+            open={pollDialogOpen}
+            onOpenChange={setPollDialogOpen}
+            chatType="group"
+            chatId={groupId}
+            onCreated={(pollId) => {
+              const token = `[poll:${pollId}]`;
+              setMessage(message ? `${message} ${token}` : token);
+            }}
+          />
+        )}
       </div>
 
       {/* Edit Group Dialog */}

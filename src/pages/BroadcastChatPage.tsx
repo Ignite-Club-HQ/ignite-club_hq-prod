@@ -27,6 +27,9 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
+
+const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -91,6 +94,7 @@ export default function BroadcastChatPage() {
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -1043,6 +1047,8 @@ export default function BroadcastChatPage() {
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
               disabled={sendMutation.isPending}
+              showPollCreator={true}
+              onPollCreate={() => setPollDialogOpen(true)}
               hasText={!!message.trim()}
             />
             <MentionInput
@@ -1071,6 +1077,16 @@ export default function BroadcastChatPage() {
               )}
             </button>
           </div>
+          <CreatePollDialog
+            open={pollDialogOpen}
+            onOpenChange={setPollDialogOpen}
+            chatType="broadcast"
+            chatId={BROADCAST_CHAT_ID}
+            onCreated={(pollId) => {
+              const token = `[poll:${pollId}]`;
+              setMessage(message ? `${message} ${token}` : token);
+            }}
+          />
         </div>
         </>
       )}

@@ -11,7 +11,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Users, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Users, Search, BarChart3 } from "lucide-react";
+import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -69,6 +70,7 @@ export default function ClubAdminChatPage() {
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const profileRef = useRef(profile);
@@ -656,6 +658,14 @@ export default function ClubAdminChatPage() {
         )}
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
+          <button
+            type="button"
+            onClick={() => setPollDialogOpen(true)}
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors"
+            aria-label="Create poll"
+          >
+            <BarChart3 className="h-[22px] w-[22px]" strokeWidth={1.75} />
+          </button>
           <MentionInput
             value={message}
             onChange={setMessage}
@@ -675,6 +685,18 @@ export default function ClubAdminChatPage() {
             )}
           </button>
         </div>
+        {conversationId && (
+          <CreatePollDialog
+            open={pollDialogOpen}
+            onOpenChange={setPollDialogOpen}
+            chatType="club_admin"
+            chatId={conversationId}
+            onCreated={(pollId) => {
+              const token = `[poll:${pollId}]`;
+              setMessage(message ? `${message} ${token}` : token);
+            }}
+          />
+        )}
       </div>
     </div>
   );
