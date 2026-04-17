@@ -177,7 +177,7 @@ export default function EoiAdminPage() {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Select value={seasonId} onValueChange={(v) => setSeasonId(v as any)}>
           <SelectTrigger>
             <SelectValue placeholder="All seasons" />
@@ -206,6 +206,41 @@ export default function EoiAdminPage() {
             ))}
           </SelectContent>
         </Select>
+
+        <Select value={returningFilter} onValueChange={(v) => setReturningFilter(v as any)}>
+          <SelectTrigger>
+            <SelectValue placeholder="All players" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All players</SelectItem>
+            <SelectItem value="new">New only</SelectItem>
+            <SelectItem value="returning">Returning only</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Bulk actions */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExport}
+          disabled={filtered.length === 0}
+        >
+          <Download className="h-4 w-4 mr-1.5" />
+          Export CSV ({filtered.length})
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleBulkRemind}
+          disabled={pendingInviteIds.length === 0 || bulkResend.isPending}
+        >
+          <Send className="h-4 w-4 mr-1.5" />
+          {bulkResend.isPending
+            ? "Sending…"
+            : `Remind pending (${pendingInviteIds.length})`}
+        </Button>
       </div>
 
       {publicUrl && (
