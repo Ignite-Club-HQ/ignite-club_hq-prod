@@ -16,6 +16,8 @@ interface BasketballSettingsDialogProps {
   onRotationIntervalChange: (n: number) => void;
   validationMode: ValidationMode;
   onValidationModeChange: (m: ValidationMode) => void;
+  timeoutsPerHalf: number;
+  onTimeoutsPerHalfChange: (n: number) => void;
 }
 
 export default function BasketballSettingsDialog({
@@ -29,6 +31,8 @@ export default function BasketballSettingsDialog({
   onRotationIntervalChange,
   validationMode,
   onValidationModeChange,
+  timeoutsPerHalf,
+  onTimeoutsPerHalfChange,
 }: BasketballSettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,6 +79,20 @@ export default function BasketballSettingsDialog({
               />
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label>Timeouts per half: {timeoutsPerHalf}</Label>
+            <Slider
+              min={0}
+              max={5}
+              step={1}
+              value={[timeoutsPerHalf]}
+              onValueChange={(v) => onTimeoutsPerHalfChange(v[0])}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              FIBA: 2 in H1, 3 in H2 (set to 3 to keep it simple). Auto-resets at Q3.
+            </p>
+          </div>
 
           <div className="space-y-2">
             <Label>Position style</Label>
