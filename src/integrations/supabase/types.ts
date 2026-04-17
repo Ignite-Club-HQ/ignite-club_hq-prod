@@ -6945,6 +6945,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      profile_team_history: {
+        Args: { _profile_id: string }
+        Returns: {
+          club_id: string
+          club_name: string
+          joined_at: string
+          membership_id: string
+          season_end_date: string
+          season_id: string
+          season_name: string
+          season_start_date: string
+          season_status: Database["public"]["Enums"]["season_status"]
+          team_id: string
+          team_level_age: string
+          team_name: string
+        }[]
+      }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       reconcile_pending_invites: {
         Args: { _club_id?: string; _team_id?: string }
@@ -6960,6 +6977,27 @@ export type Database = {
       record_push_success: { Args: { p_endpoint: string }; Returns: undefined }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
+      season_player_stats: {
+        Args: { _season_id: string; _team_id: string }
+        Returns: {
+          attendance_pct: number
+          club_player_id: string
+          events_attended: number
+          events_total: number
+          games_played: number
+          player_name: string
+        }[]
+      }
+      season_team_summary: {
+        Args: { _season_id: string }
+        Returns: {
+          avg_attendance_pct: number
+          events_count: number
+          roster_size: number
+          team_id: string
+          team_name: string
+        }[]
+      }
       send_duty_notification_email: {
         Args: {
           p_club_logo_url: string

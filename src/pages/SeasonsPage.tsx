@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Archive, CheckCircle2, Clock, Lock, Users } from "lucide-react";
+import { ArrowLeft, Plus, Archive, CheckCircle2, Clock, Lock, Users, GitCompare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -118,6 +118,18 @@ export default function SeasonsPage() {
           Start new season
         </Button>
       </div>
+
+      {seasons.length >= 2 && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => navigate(`/clubs/${clubId}/seasons/compare`)}
+        >
+          <GitCompare className="h-4 w-4 mr-2" />
+          Compare seasons
+        </Button>
+      )}
 
       {grouped.active.length > 0 && (
         <SeasonGroup title="Current season" seasons={grouped.active} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
