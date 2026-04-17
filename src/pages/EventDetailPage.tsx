@@ -1650,33 +1650,52 @@ export default function EventDetailPage() {
     },
   });
 
-  // Individual remind mutation - sends reminder to a single member
+  // Individual remind mutation - sends reminder to a single member or all guardians of a child
   const individualRemindMutation = useMutation({
-    mutationFn: async ({ userId, displayName }: { userId: string; displayName: string }) => {
-      // Check if already reminded
-      const { data: existing } = await supabase
-        .from("notifications")
-        .select("id")
-        .eq("type", "event_reminder")
-        .eq("related_id", id!)
-        .eq("user_id", userId)
-        .maybeSingle();
+    mutationFn: async ({ userId, displayName, childId }: { userId: string; displayName: string; childId?: string }) => {
+      // Resolve recipient list: if childId is provided, include all linked guardians
+      let recipientIds: string[] = [userId];
 
-      if (existing) {
-        throw new Error(`${displayName} has already been reminded`);
+      if (childId) {
+        const { data: guardians } = await supabase
+          .from("child_guardians")
+          .select("guardian_id")
+          .eq("child_id", childId);
+        const guardianIds = (guardians?.map((g) => g.guardian_id).filter(Boolean) as string[]) || [];
+        recipientIds = Array.from(new Set([userId, ...guardianIds]));
       }
 
-      const { error } = await supabase.from("notifications").insert({
-        user_id: userId,
-        type: "event_reminder",
-        message: `Reminder: Please RSVP for "${event?.title}"`,
-        related_id: id,
-      });
+      // Check who has already been reminded
+      const { data: existing } = await supabase
+        .from("notifications")
+        .select("user_id")
+        .eq("type", "event_reminder")
+        .eq("related_id", id!)
+        .in("user_id", recipientIds);
+
+      const alreadyReminded = new Set((existing || []).map((r: any) => r.user_id));
+      const toRemind = recipientIds.filter((uid) => !alreadyReminded.has(uid));
+
+      if (toRemind.length === 0) {
+        throw new Error(`${displayName}'s parent${recipientIds.length > 1 ? "s have" : " has"} already been reminded`);
+      }
+
+      const { error } = await supabase.from("notifications").insert(
+        toRemind.map((uid) => ({
+          user_id: uid,
+          type: "event_reminder",
+          message: `Reminder: Please RSVP for "${event?.title}"`,
+          related_id: id,
+        }))
+      );
       if (error) throw error;
-      return displayName;
+      return { displayName, count: toRemind.length, isChild: !!childId };
     },
-    onSuccess: (displayName) => {
-      toast({ title: "Reminder sent", description: `${displayName} has been reminded to RSVP` });
+    onSuccess: ({ displayName, count, isChild }) => {
+      const description = isChild
+        ? `${count} parent${count !== 1 ? "s" : ""} of ${displayName} ${count !== 1 ? "have" : "has"} been reminded to RSVP`
+        : `${displayName} has been reminded to RSVP`;
+      toast({ title: "Reminder sent", description });
     },
     onError: (error: Error) => {
       toast({ title: error.message || "Failed to send reminder", variant: "destructive" });
