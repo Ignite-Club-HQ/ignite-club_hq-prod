@@ -13,6 +13,7 @@ import {
   RotationMode,
   ValidationMode,
   BasketballSubEvent,
+  SubLogEntry,
   getBasketballStateKey,
   getBasketballTimerKey,
   getBasketballPresetsKey,
