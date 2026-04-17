@@ -61,6 +61,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
+import { isNetballSport } from "@/lib/sportDetection";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
