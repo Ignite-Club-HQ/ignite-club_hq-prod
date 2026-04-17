@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Season } from "@/hooks/useClubSeasons";
+import { ReturningMembersStep } from "./ReturningMembersStep";
 
 interface Props {
   clubId: string;
@@ -27,7 +28,7 @@ interface Props {
   onComplete: () => void;
 }
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason, onComplete }: Props) {
   const [step, setStep] = useState<Step>(1);
