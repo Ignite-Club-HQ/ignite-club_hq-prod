@@ -8,6 +8,8 @@ import NetballActionBar from "./NetballActionBar";
 import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
+import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
+import { useWakeLock } from "@/hooks/useWakeLock";
 
 import {
   NetballPlayer,
