@@ -31,6 +31,8 @@ interface BasketballQuickActionSheetProps {
   onClearFoulOut?: () => void;
   /** Attribute a basket to this player (home side). */
   onScore?: (points: 1 | 2 | 3) => void;
+  /** Open the free-throw flow for this player (1, 2, or 3 attempts). */
+  onFreeThrows?: (attempts: 1 | 2 | 3) => void;
 }
 
 export default function BasketballQuickActionSheet({
@@ -44,6 +46,7 @@ export default function BasketballQuickActionSheet({
   onAddFoul,
   onClearFoulOut,
   onScore,
+  onFreeThrows,
 }: BasketballQuickActionSheetProps) {
   if (!player) return null;
   const onCourt = player.position !== null;
@@ -124,6 +127,37 @@ export default function BasketballQuickActionSheet({
                   }}
                 >
                   <Target className="h-4 w-4 mr-1" />+{pts}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Free throws — separate row so the coach taps the count first, then make/miss in dialog */}
+        {onFreeThrows && !fouledOut && (
+          <div className="pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
+              Free throws
+              {(player.ftAttempted ?? 0) > 0 && (
+                <span className="ml-2 normal-case text-muted-foreground/80">
+                  · {player.ftMade ?? 0}/{player.ftAttempted ?? 0} (
+                  {Math.round(((player.ftMade ?? 0) / Math.max(1, player.ftAttempted ?? 0)) * 100)}%)
+                </span>
+              )}
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {([1, 2, 3] as const).map((n) => (
+                <Button
+                  key={n}
+                  variant="outline"
+                  size="lg"
+                  className="h-11"
+                  onClick={() => {
+                    onFreeThrows(n);
+                    onOpenChange(false);
+                  }}
+                >
+                  {n} FT
                 </Button>
               ))}
             </div>
