@@ -485,6 +485,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
       setOpen(open);
       if (!open) {
         setSelectedUsers([]);
+        setGroupName("");
         setSearchQuery("");
         setSelectedClubId(activeClubFilter || "all");
         setSelectedTeamId("all");
