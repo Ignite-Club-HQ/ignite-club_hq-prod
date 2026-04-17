@@ -101,6 +101,7 @@ const SeasonComparePage = lazy(() => import("./pages/SeasonComparePage"));
 const ShortInviteRedirect = lazy(() => import("./pages/ShortInviteRedirect"));
 const EoiAdminPage = lazy(() => import("./pages/EoiAdminPage"));
 const PublicEoiFormPage = lazy(() => import("./pages/PublicEoiFormPage"));
+const EoiCompletePage = lazy(() => import("./pages/EoiCompletePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
@@ -236,6 +237,7 @@ const App = () => {
                 <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
                 <Route path="/share" element={<ShareLinkRedirect />} />
                 <Route path="/eoi/:clubSlug/:seasonSlug" element={<PublicEoiFormPage />} />
+                <Route path="/eoi-complete/:token" element={<EoiCompletePage />} />
 
 
                 {/* Protected routes */}

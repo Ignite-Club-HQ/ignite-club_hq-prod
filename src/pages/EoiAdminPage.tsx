@@ -33,6 +33,7 @@ import {
   type EoiStatus,
 } from "@/hooks/useEoiAdmin";
 import { EOI_STATUS_LABELS, calculateAgeGroup, buildPublicEoiUrl } from "@/lib/eoiUtils";
+import { EoiTeamSuggestions } from "@/components/eoi/EoiTeamSuggestions";
 
 export default function EoiAdminPage() {
   const { clubId } = useParams<{ clubId: string }>();
@@ -189,7 +190,11 @@ export default function EoiAdminPage() {
         </div>
       )}
 
-      {/* Search */}
+      {clubId && activeSeasonId && (
+        <EoiTeamSuggestions clubId={clubId} seasonId={activeSeasonId} />
+      )}
+
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input

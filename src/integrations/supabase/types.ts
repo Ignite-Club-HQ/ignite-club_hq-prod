@@ -2039,9 +2039,13 @@ export type Database = {
           club_id: string
           confirmed_at: string | null
           created_at: string
+          extra_notes: string | null
           game_days: string[]
           id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
           notes: string | null
+          parent_confirmed_at: string | null
           parent_email: string
           parent_mobile: string | null
           parent_name: string
@@ -2072,9 +2076,13 @@ export type Database = {
           club_id: string
           confirmed_at?: string | null
           created_at?: string
+          extra_notes?: string | null
           game_days?: string[]
           id?: string
+          invite_sent_at?: string | null
+          invite_sent_count?: number
           notes?: string | null
+          parent_confirmed_at?: string | null
           parent_email: string
           parent_mobile?: string | null
           parent_name: string
@@ -2105,9 +2113,13 @@ export type Database = {
           club_id?: string
           confirmed_at?: string | null
           created_at?: string
+          extra_notes?: string | null
           game_days?: string[]
           id?: string
+          invite_sent_at?: string | null
+          invite_sent_count?: number
           notes?: string | null
+          parent_confirmed_at?: string | null
           parent_email?: string
           parent_mobile?: string | null
           parent_name?: string
@@ -6742,6 +6754,52 @@ export type Database = {
         }
         Returns: undefined
       }
+      allocate_eoi_to_team: {
+        Args: { _submission_id: string; _team_id: string }
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       approve_role_request: {
         Args: { p_request_id: string }
         Returns: undefined
@@ -6822,9 +6880,13 @@ export type Database = {
           club_id: string
           confirmed_at: string | null
           created_at: string
+          extra_notes: string | null
           game_days: string[]
           id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
           notes: string | null
+          parent_confirmed_at: string | null
           parent_email: string
           parent_mobile: string | null
           parent_name: string
@@ -6857,6 +6919,52 @@ export type Database = {
         Returns: undefined
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      confirm_eoi_placement: {
+        Args: { _submission_id: string }
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_child_for_parent_on_team: {
         Args: {
           p_name: string
@@ -6932,9 +7040,13 @@ export type Database = {
           club_id: string
           confirmed_at: string | null
           created_at: string
+          extra_notes: string | null
           game_days: string[]
           id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
           notes: string | null
+          parent_confirmed_at: string | null
           parent_email: string
           parent_mobile: string | null
           parent_name: string
@@ -6999,6 +7111,52 @@ export type Database = {
           has_push: boolean
           user_id: string
         }[]
+      }
+      get_my_pending_eois: {
+        Args: never
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_or_create_club_admin_conversation: {
         Args: { p_club_id: string }
@@ -7176,6 +7334,7 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: boolean
       }
+      is_club_admin_for: { Args: { _club_id: string }; Returns: boolean }
       is_club_chat_author_visible: {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
@@ -7375,6 +7534,15 @@ export type Database = {
       shares_team_or_club_with: {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
+      }
+      suggest_eoi_teams: {
+        Args: { _season_id: string }
+        Returns: {
+          age_group: string
+          avg_skill: number
+          player_count: number
+          submission_ids: string[]
+        }[]
       }
       team_has_club_pro_access: { Args: { _team_id: string }; Returns: boolean }
       team_has_club_pro_football_access: {

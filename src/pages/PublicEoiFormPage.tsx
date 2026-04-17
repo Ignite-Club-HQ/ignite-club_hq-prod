@@ -95,31 +95,44 @@ export default function PublicEoiFormPage() {
     }
 
     setSubmitting(true);
-    const { error } = await supabase.from("eoi_submissions").insert({
-      club_id: config.club_id,
-      season_id: config.season_id,
-      parent_name: parentName.trim(),
-      parent_email: parentEmail.trim().toLowerCase(),
-      parent_mobile: parentMobile.trim() || null,
-      player_name: playerName.trim(),
-      player_dob: playerDob || null,
-      player_gender: playerGender || null,
-      preferred_teammates: preferredTeammates.trim() || null,
-      preferred_position: preferredPosition.trim() || null,
-      skill_level: skillLevel,
-      training_days: trainingDays,
-      game_days: gameDays,
-      notes: notes.trim() || null,
-      source: "website",
-      status: "submitted",
-    });
+    const { data: inserted, error } = await supabase
+      .from("eoi_submissions")
+      .insert({
+        club_id: config.club_id,
+        season_id: config.season_id,
+        parent_name: parentName.trim(),
+        parent_email: parentEmail.trim().toLowerCase(),
+        parent_mobile: parentMobile.trim() || null,
+        player_name: playerName.trim(),
+        player_dob: playerDob || null,
+        player_gender: playerGender || null,
+        preferred_teammates: preferredTeammates.trim() || null,
+        preferred_position: preferredPosition.trim() || null,
+        skill_level: skillLevel,
+        training_days: trainingDays,
+        game_days: gameDays,
+        notes: notes.trim() || null,
+        source: "website",
+        status: "submitted",
+      })
+      .select("id")
+      .single();
 
-    setSubmitting(false);
     if (error) {
+      setSubmitting(false);
       console.error(error);
       toast.error("Submission failed. Please try again.");
       return;
     }
+
+    // Fire the magic-link invite — best effort, don't block the thank-you screen.
+    if (inserted?.id) {
+      supabase.functions
+        .invoke("send-eoi-invite", { body: { submission_id: inserted.id } })
+        .catch((e) => console.warn("[eoi] invite send failed", e));
+    }
+
+    setSubmitting(false);
     setSubmitted(true);
   };
 
