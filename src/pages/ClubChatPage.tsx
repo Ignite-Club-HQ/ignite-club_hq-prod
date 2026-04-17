@@ -29,6 +29,8 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
+import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -113,6 +115,8 @@ export default function ClubChatPage() {
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
+  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -1000,6 +1004,7 @@ export default function ClubChatPage() {
       setMessage("");
       setImageUrl(null);
       setReplyingTo(null);
+      setPendingPollId(null);
       
       // Scroll to bottom to show new message
       scrollToBottom();
@@ -1063,12 +1068,16 @@ export default function ClubChatPage() {
   });
 
   const handleSend = () => {
-    if (!message.trim() && !imageUrl) return;
+    if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
-    sendMutation.mutate({ text: message.trim(), image_url: imageUrl, reply_to_id: replyingTo?.id || null });
+    const baseText = message.trim();
+    const finalText = pendingPollId
+      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
+      : baseText;
+    sendMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
   };
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
@@ -1326,6 +1335,13 @@ export default function ClubChatPage() {
           <TypingIndicator typingUsers={typingUsers} />
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
+          {pendingPollId && !editingMessage && (
+            <PollAttachmentPreview
+              pollId={pendingPollId}
+              onRemove={() => setPendingPollId(null)}
+              disabled={sendMutation.isPending}
+            />
+          )}
           <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
             <ChatImageInput
               imageUrl={imageUrl}
@@ -1334,6 +1350,8 @@ export default function ClubChatPage() {
               clubId={clubId}
               showEventPicker={true}
               onEventSelect={() => setEventPickerOpen(true)}
+              showPollCreator={true}
+              onPollCreate={() => setPollDialogOpen(true)}
               hasText={!!message.trim()}
             />
             <MentionInput
@@ -1353,7 +1371,7 @@ export default function ClubChatPage() {
                 stopTyping();
                 handleSend();
               }}
-              disabled={(!message.trim() && !imageUrl) || sendMutation.isPending}
+              disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMutation.isPending}
               className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
             >
               {sendMutation.isPending ? (
@@ -1372,6 +1390,15 @@ export default function ClubChatPage() {
             }}
             clubId={clubId}
           />
+          {clubId && (
+            <CreatePollDialog
+              open={pollDialogOpen}
+              onOpenChange={setPollDialogOpen}
+              chatType="club"
+              chatId={clubId}
+              onCreated={(pollId) => setPendingPollId(pollId)}
+            />
+          )}
           <p className="text-xs text-muted-foreground mt-1">
             Long-press a message to react • Tap menu to reply
           </p>

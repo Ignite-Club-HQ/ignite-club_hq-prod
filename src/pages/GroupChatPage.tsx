@@ -39,6 +39,8 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
+import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -174,6 +176,8 @@ export default function GroupChatPage() {
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
+  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -1071,6 +1075,7 @@ export default function GroupChatPage() {
       setMessage("");
       setImageUrl(null);
       setReplyTo(null);
+      setPendingPollId(null);
       
       // Scroll to bottom to show new message
       scrollToBottom();
@@ -1390,12 +1395,16 @@ export default function GroupChatPage() {
   });
 
   const handleSend = () => {
-    if ((!message.trim() && !imageUrl) || !user) return;
+    if ((!message.trim() && !imageUrl && !pendingPollId) || !user) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
     } else {
+      const baseText = message.trim();
+      const finalText = pendingPollId
+        ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
+        : (baseText || (imageUrl ? "📷 Image" : ""));
       sendMessageMutation.mutate({
-        text: message.trim() || (imageUrl ? "📷 Image" : ""),
+        text: finalText,
         image_url: imageUrl,
         reply_to_id: replyTo?.id || null,
       });
@@ -1666,6 +1675,13 @@ export default function GroupChatPage() {
             </Button>
           </div>
         )}
+        {pendingPollId && !editingMessage && (
+          <PollAttachmentPreview
+            pollId={pendingPollId}
+            onRemove={() => setPendingPollId(null)}
+            disabled={sendMessageMutation.isPending}
+          />
+        )}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
@@ -1674,6 +1690,8 @@ export default function GroupChatPage() {
             teamId={group?.team_id || undefined}
             showEventPicker={true}
             onEventSelect={() => setEventPickerOpen(true)}
+            showPollCreator={true}
+            onPollCreate={() => setPollDialogOpen(true)}
             hasText={!!message.trim()}
           />
           <MentionInput
@@ -1700,7 +1718,7 @@ export default function GroupChatPage() {
               stopTyping();
               handleSend();
             }} 
-            disabled={!message.trim() && !imageUrl}
+            disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMessageMutation.isPending}
             className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
           >
             <Send className="h-5 w-5" />
@@ -1716,6 +1734,15 @@ export default function GroupChatPage() {
           teamId={group?.team_id || undefined}
           clubId={group?.club_id || undefined}
         />
+        {groupId && (
+          <CreatePollDialog
+            open={pollDialogOpen}
+            onOpenChange={setPollDialogOpen}
+            chatType="group"
+            chatId={groupId}
+            onCreated={(pollId) => setPendingPollId(pollId)}
+          />
+        )}
       </div>
 
       {/* Edit Group Dialog */}

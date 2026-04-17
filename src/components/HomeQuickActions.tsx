@@ -39,13 +39,14 @@ export function HomeQuickActions({ onCreateTeam, onInvite, onJoinTeam, hasTeams 
         {actions.map((action) => (
           <button
             key={action.label}
+            type="button"
             onClick={action.onClick}
-            className="flex flex-col items-center gap-2 py-3.5 px-2 rounded-xl border border-border bg-card hover:bg-accent/50 transition-all text-center min-h-[80px]"
+            className="flex flex-col items-center gap-2 py-3.5 px-2 rounded-xl border border-border bg-card hover:bg-accent/50 active:bg-accent active:scale-[0.98] transition-all text-center min-h-[80px] touch-manipulation select-none cursor-pointer"
           >
-            <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-muted">
+            <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 bg-muted pointer-events-none">
               <action.icon className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 pointer-events-none">
               <p className="text-xs font-medium text-foreground leading-tight">
                 {action.label}
               </p>

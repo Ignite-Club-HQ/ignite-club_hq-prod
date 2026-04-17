@@ -11,7 +11,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Users, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Users, Search, BarChart3 } from "lucide-react";
+import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
+import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -30,6 +32,8 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { Capacitor } from "@capacitor/core";
 import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { TypingIndicator } from "@/components/chat/TypingIndicator";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -69,6 +73,8 @@ export default function ClubAdminChatPage() {
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
+  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const profileRef = useRef(profile);
@@ -379,18 +385,31 @@ export default function ClubAdminChatPage() {
     setMessage("");
   }, []);
 
+  // Typing indicator
+  const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
+    `club-admin-${conversationId || ""}`,
+    user?.id,
+    profile?.display_name || user?.email || "Someone"
+  );
+
   const handleSend = () => {
-    if (!message.trim()) return;
+    if (!message.trim() && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
+    stopTyping();
+    const baseText = message.trim();
+    const finalText = pendingPollId
+      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
+      : baseText;
     sendMessageMutation.mutate({
-      text: message.trim(),
+      text: finalText,
       replyToId: replyTo?.id || null,
     });
     setMessage("");
     setReplyTo(null);
+    setPendingPollId(null);
   };
 
   // Real-time subscription
@@ -648,6 +667,7 @@ export default function ClubAdminChatPage() {
       {/* Input area */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
       <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview
             replyingTo={{ id: replyTo.id, text: replyTo.text, authorName: replyTo.author?.display_name || null }}
@@ -655,17 +675,35 @@ export default function ClubAdminChatPage() {
           />
         )}
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
+        {pendingPollId && !editingMessage && (
+          <PollAttachmentPreview
+            pollId={pendingPollId}
+            onRemove={() => setPendingPollId(null)}
+            disabled={sendMessageMutation.isPending}
+          />
+        )}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
+          <button
+            type="button"
+            onClick={() => setPollDialogOpen(true)}
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors"
+            aria-label="Create poll"
+          >
+            <BarChart3 className="h-[22px] w-[22px]" strokeWidth={1.75} />
+          </button>
           <MentionInput
             value={message}
-            onChange={setMessage}
+            onChange={(val) => {
+              setMessage(val);
+              if (val.trim()) startTyping(); else stopTyping();
+            }}
             onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
             placeholder="Type a message..."
             disabled={sendMessageMutation.isPending}
           />
           <button
             onClick={handleSend}
-            disabled={!message.trim() || sendMessageMutation.isPending}
+            disabled={(!message.trim() && !pendingPollId) || sendMessageMutation.isPending}
             className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
           >
             {sendMessageMutation.isPending ? (
@@ -675,6 +713,15 @@ export default function ClubAdminChatPage() {
             )}
           </button>
         </div>
+        {conversationId && (
+          <CreatePollDialog
+            open={pollDialogOpen}
+            onOpenChange={setPollDialogOpen}
+            chatType="club_admin"
+            chatId={conversationId}
+            onCreated={(pollId) => setPendingPollId(pollId)}
+          />
+        )}
       </div>
     </div>
   );

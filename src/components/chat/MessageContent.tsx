@@ -3,6 +3,7 @@ import { LinkPreview } from "./LinkPreview";
 import { YouTubeEmbed, extractYouTubeId } from "./YouTubeEmbed";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { EventLinkCard } from "./EventLinkCard";
+import { PollCard } from "./PollCard";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
@@ -30,6 +31,8 @@ const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
 const EVENT_LINK_REGEX = /\[event:([0-9a-f-]{36})\]/gi;
 // Event URL pattern - matches /events/uuid in URLs
 const EVENT_URL_REGEX = /(?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})/gi;
+// Poll token pattern [poll:uuid]
+const POLL_LINK_REGEX = /\[poll:([0-9a-f-]{36})\]/gi;
 
 // Ensure URL has protocol for href
 const ensureProtocol = (url: string): string => {
@@ -77,12 +80,11 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const parts = useMemo(() => {
     if (!text) return [];
     
-    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link"; content: string; userId?: string; linkText?: string }[] = [];
+    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link" | "poll-link"; content: string; userId?: string; linkText?: string }[] = [];
     let lastIndex = 0;
     
-    // Combined regex to find event tokens, markdown links, plain URLs, mentions, and event URLs
-    // Order matters: event tokens first, then markdown links, then full event URLs, then plain URLs, then mentions
-    const combinedRegex = /(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
+    // Combined regex. Order: poll tokens, event tokens, markdown links, event URLs, plain URLs, mentions
+    const combinedRegex = /(\[poll:([0-9a-f-]{36})\])|(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
     let match;
     
     while ((match = combinedRegex.exec(text)) !== null) {
@@ -95,27 +97,30 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       }
       
       if (match[1]) {
-        // Event token: [event:uuid] - match[2] is the event ID
-        result.push({ type: "event-link", content: match[2] || "" });
+        // Poll token: [poll:uuid] - match[2] is the poll ID
+        result.push({ type: "poll-link", content: match[2] || "" });
       } else if (match[3]) {
-        // Markdown link match: [text](url) - match[4] is text, match[5] is URL
+        // Event token: [event:uuid] - match[4] is the event ID
+        result.push({ type: "event-link", content: match[4] || "" });
+      } else if (match[5]) {
+        // Markdown link match: [text](url) - match[6] is text, match[7] is URL
         result.push({ 
           type: "markdown-link", 
-          content: match[5] || "", 
-          linkText: match[4] || "" 
+          content: match[7] || "", 
+          linkText: match[6] || "" 
         });
-      } else if (match[6]) {
-        // Event URL match: /events/uuid - match[7] is the event ID
-        result.push({ type: "event-link", content: match[7] || "" });
       } else if (match[8]) {
+        // Event URL match: /events/uuid - match[9] is the event ID
+        result.push({ type: "event-link", content: match[9] || "" });
+      } else if (match[10]) {
         // Plain URL match
-        result.push({ type: "link", content: match[8] });
-      } else if (match[9]) {
-        // Mention match - match[10] is display name, match[11] is userId
+        result.push({ type: "link", content: match[10] });
+      } else if (match[11]) {
+        // Mention match - match[12] is display name, match[13] is userId
         result.push({ 
           type: "mention", 
-          content: match[10] || "", 
-          userId: match[11] || "" 
+          content: match[12] || "", 
+          userId: match[13] || "" 
         });
       }
       
@@ -135,11 +140,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, [text]);
 
   // Extract URLs and categorize them
-  const { youtubeUrls, otherUrls, eventIds } = useMemo(() => {
+  const { youtubeUrls, otherUrls, eventIds, pollIds } = useMemo(() => {
     const urls = [...new Set(parts.filter(p => p.type === "link").map(p => p.content))];
     const youtube: { url: string; videoId: string }[] = [];
     const other: string[] = [];
     const events = [...new Set(parts.filter(p => p.type === "event-link").map(p => p.content))];
+    const polls = [...new Set(parts.filter(p => p.type === "poll-link").map(p => p.content))];
 
     for (const url of urls) {
       const videoId = extractYouTubeId(url);
@@ -154,6 +160,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       youtubeUrls: youtube.slice(0, 2),
       otherUrls: other.slice(0, 2),
       eventIds: events.slice(0, 3),
+      pollIds: polls.slice(0, 3),
     };
   }, [parts]);
 
@@ -183,6 +190,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   if (previewsOnly) {
     return (
       <>
+        {/* Poll cards */}
+        {pollIds.length > 0 && (
+          <div className="space-y-2 min-w-0 max-w-full">
+            {pollIds.map((pollId) => (
+              <PollCard key={pollId} pollId={pollId} />
+            ))}
+          </div>
+        )}
+
         {/* Event link cards */}
         {eventIds.length > 0 && (
           <div className="space-y-2 min-w-0 max-w-full">
@@ -247,8 +263,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         />
       )}
 
-      {/* Text content - hide entirely when message contains event cards */}
-      {text && eventIds.length === 0 && (
+      {/* Text content - render caption text; poll/event tokens render as empty spans inline */}
+      {text && parts.some(p => (p.type === "text" || p.type === "link" || p.type === "markdown-link" || p.type === "mention") && p.content && p.content.trim()) && (
         <div
           className="min-w-0 max-w-full whitespace-pre-wrap"
           style={{
@@ -290,6 +306,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                }
               if (part.type === "event-link") {
                 // Event links are rendered as empty spans inline; the card is shown below
+                return <span key={index} />;
+              }
+              if (part.type === "poll-link") {
+                // Poll tokens render as empty spans; the card is shown below
                 return <span key={index} />;
               }
               if (part.type === "link") {
@@ -366,11 +386,20 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         </div>
       )}
 
-      {/* Event link cards */}
-      {eventIds.length > 0 && (
+      {/* Event link cards - only if showPreviews (otherwise rendered outside bubble via previewsOnly) */}
+      {showPreviews && eventIds.length > 0 && (
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
           {eventIds.map((eventId) => (
             <EventLinkCard key={eventId} eventId={eventId} />
+          ))}
+        </div>
+      )}
+
+      {/* Poll cards - only if showPreviews (otherwise rendered outside bubble via previewsOnly) */}
+      {showPreviews && pollIds.length > 0 && (
+        <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {pollIds.map((pollId) => (
+            <PollCard key={pollId} pollId={pollId} />
           ))}
         </div>
       )}

@@ -33,6 +33,8 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
+import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -129,6 +131,8 @@ export default function TeamChatPage() {
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [pollDialogOpen, setPollDialogOpen] = useState(false);
+  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1123,6 +1127,7 @@ export default function TeamChatPage() {
       setMessage("");
       setImageUrl(null);
       setReplyingTo(null);
+      setPendingPollId(null);
       
       // Scroll to bottom to show new message
       scrollToBottom();
@@ -1184,12 +1189,16 @@ export default function TeamChatPage() {
   });
 
   const handleSend = () => {
-    if (!message.trim() && !imageUrl) return;
+    if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
-    sendMessageMutation.mutate({ text: message.trim(), image_url: imageUrl, reply_to_id: replyingTo?.id || null });
+    const baseText = message.trim();
+    const finalText = pendingPollId
+      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
+      : baseText;
+    sendMessageMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
   };
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
@@ -1435,6 +1444,13 @@ export default function TeamChatPage() {
         <TypingIndicator typingUsers={typingUsers} />
         <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
         {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
+        {pendingPollId && !editingMessage && (
+          <PollAttachmentPreview
+            pollId={pendingPollId}
+            onRemove={() => setPendingPollId(null)}
+            disabled={sendMessageMutation.isPending}
+          />
+        )}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible pt-1 pb-2 px-2">
           <ChatImageInput
             imageUrl={imageUrl}
@@ -1444,6 +1460,8 @@ export default function TeamChatPage() {
             teamId={teamId}
             showEventPicker={true}
             onEventSelect={() => setEventPickerOpen(true)}
+            showPollCreator={true}
+            onPollCreate={() => setPollDialogOpen(true)}
             hasText={!!message.trim()}
           />
           <MentionInput
@@ -1464,7 +1482,7 @@ export default function TeamChatPage() {
               stopTyping();
               handleSend();
             }}
-            disabled={(!message.trim() && !imageUrl) || sendMessageMutation.isPending}
+            disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMessageMutation.isPending}
             className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
           >
             {sendMessageMutation.isPending ? (
@@ -1484,6 +1502,15 @@ export default function TeamChatPage() {
           teamId={teamId}
           clubId={team?.club_id}
         />
+        {teamId && (
+          <CreatePollDialog
+            open={pollDialogOpen}
+            onOpenChange={setPollDialogOpen}
+            chatType="team"
+            chatId={teamId}
+            onCreated={(pollId) => setPendingPollId(pollId)}
+          />
+        )}
       </div>
 
       {selectedMember && teamId && team && (

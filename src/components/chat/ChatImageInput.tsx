@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
@@ -18,6 +19,8 @@ interface ChatImageInputProps {
   teamId?: string;
   onEventSelect?: (eventId: string) => void;
   showEventPicker?: boolean;
+  onPollCreate?: () => void;
+  showPollCreator?: boolean;
   /** When true, the action icons are hidden and only the image preview (if any) is shown */
   hasText?: boolean;
 }
@@ -25,9 +28,10 @@ interface ChatImageInputProps {
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, hasText = false }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, hasText = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
@@ -308,9 +312,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     );
   }
 
-  // Show dedicated image and event icons
+  // Show photo button inline; event + poll behind a "+" popover
+  const hasExtraActions = (showEventPicker && onEventSelect) || (showPollCreator && onPollCreate);
+
   return (
-    <div className="flex shrink-0 items-center self-end">
+    <div className="flex shrink-0 items-center gap-2 self-end pl-2">
       <input
         ref={fileInputRef}
         type="file"
@@ -323,25 +329,73 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         type="button"
         onClick={handleImageButtonClick}
         disabled={disabled || uploading}
-        className="flex items-center justify-center h-[44px] w-[40px] shrink-0 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-foreground hover:text-primary transition-colors disabled:opacity-50"
         aria-label="Upload photo"
       >
         {uploading ? (
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-[22px] w-[22px] animate-spin" />
         ) : (
-          <ImagePlus className="h-5 w-5" />
+          <ImagePlus className="h-[22px] w-[22px]" strokeWidth={2.25} />
         )}
       </button>
-      {showEventPicker && onEventSelect && (
-        <button
-          type="button"
-          onClick={() => onEventSelect("")}
-          disabled={disabled}
-          className="flex items-center justify-center h-[44px] w-[40px] shrink-0 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          aria-label="Share event"
-        >
-          <CalendarPlus className="h-5 w-5" />
-        </button>
+      {hasExtraActions && (
+        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              disabled={disabled}
+              className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
+              aria-label="More actions"
+            >
+              <Plus className="h-[22px] w-[22px]" strokeWidth={2.25} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            side="top"
+            sideOffset={8}
+            className="w-60 p-2"
+          >
+            <div className="flex flex-col gap-1">
+              {showEventPicker && onEventSelect && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onEventSelect("");
+                  }}
+                  disabled={disabled}
+                  className="flex items-center gap-3 w-full px-3 py-3 rounded-md bg-primary/10 hover:bg-primary/15 text-primary transition-colors disabled:opacity-50 min-h-[52px]"
+                  aria-label="Share event"
+                >
+                  <CalendarPlus className="h-5 w-5 shrink-0" strokeWidth={2} />
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className="text-sm font-semibold">Share Event</span>
+                    <span className="text-[11px] text-primary/70">Training, game or social</span>
+                  </div>
+                </button>
+              )}
+              {showPollCreator && onPollCreate && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onPollCreate();
+                  }}
+                  disabled={disabled}
+                  className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
+                  aria-label="Create poll"
+                >
+                  <BarChart3 className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className="text-sm font-medium">Create Poll</span>
+                    <span className="text-[11px] text-muted-foreground">Ask the group a question</span>
+                  </div>
+                </button>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   );
