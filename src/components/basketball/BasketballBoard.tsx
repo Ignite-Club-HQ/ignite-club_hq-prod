@@ -31,6 +31,8 @@ interface BasketballBoardProps {
   onClose: () => void;
   readOnly?: boolean;
   initialMinutesPerQuarter?: number;
+  /** When provided, board state is scoped to this event (no collisions across matches). */
+  eventId?: string | null;
 }
 
 const DialogLoader = () => (
@@ -46,12 +48,14 @@ export default function BasketballBoard({
   onClose,
   readOnly = false,
   initialMinutesPerQuarter = 10,
+  eventId = null,
 }: BasketballBoardProps) {
   const board = useBasketballBoardState({
     teamId,
     members,
     readOnly,
     initialMinutesPerQuarter,
+    eventId,
   });
 
   // Local UI-only state for which secondary dialog is open.
@@ -202,6 +206,8 @@ export default function BasketballBoard({
             onSubOn={() => board.setSelectedPlayerId(board.quickActionPlayer!.id)}
             onToggleInjured={() => board.toggleInjured(board.quickActionPlayer!.id)}
             onAddFoul={() => board.addFoul(board.quickActionPlayer!.id)}
+            onClearFoulOut={() => board.clearFoulOut(board.quickActionPlayer!.id)}
+            onScore={(pts) => board.addScore("home", pts, board.quickActionPlayer!.id)}
           />
         )}
       </Suspense>
