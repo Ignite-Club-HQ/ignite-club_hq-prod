@@ -30,6 +30,13 @@ interface AttendanceCounts {
   notResponded: number;
 }
 
+interface AddressableMember {
+  id: string;
+  display_name?: string | null;
+  avatar_url?: string | null;
+  roles?: string[] | null;
+}
+
 interface AttendanceSectionProps {
   eventId: string;
   isAdmin: boolean;
@@ -47,6 +54,8 @@ interface AttendanceSectionProps {
   canSendReminders: boolean;
   /** Total members who could view this event (used to compute "X viewed") */
   trackableMembersCount?: number;
+  /** Full addressable member list — enables "viewed/not viewed" breakdown dialog */
+  addressableMembers?: AddressableMember[];
   /** Optional: open the native/web share sheet with a copyable RSVP link */
   onShareLink?: () => void;
 }
