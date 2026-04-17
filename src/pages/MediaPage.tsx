@@ -374,7 +374,7 @@ export default function MediaPage() {
     queryFn: async ({ pageParam = 0 }) => {
       const { data, error } = await supabase
         .from("photos")
-        .select("id, file_url, image_url, title, created_at, club_id, team_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
         .eq("show_in_feed", true)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -388,6 +388,7 @@ export default function MediaPage() {
           id: p.id,
           file_url: p.file_url || p.image_url,
           title: p.title,
+          caption: p.caption,
           created_at: p.created_at,
           uploader_id: p.uploader_id,
           team_id: p.team_id,
@@ -1050,6 +1051,7 @@ export default function MediaPage() {
             const isExpanded = expandedComments.has(photo.id);
             const commentInput = commentInputs[photo.id] || "";
             const isHighlighted = highlightedPhotoId === photo.id;
+            const photoText = photo.title || photo.caption;
 
             const isDeleting = deletingPhotoId === photo.id;
             
@@ -1093,7 +1095,7 @@ export default function MediaPage() {
                       <SharePhotoButton 
                         photoId={photo.id}
                         imageUrl={photo.file_url || photo.image_url} 
-                        title={photo.title}
+                        title={photoText}
                         clubName={photo.teams?.clubs?.name || photo.clubs?.name}
                         teamName={photo.teams?.name}
                       />
@@ -1140,7 +1142,7 @@ export default function MediaPage() {
                 >
                   <LazyImage
                     src={photo.file_url || photo.image_url}
-                    alt={photo.title || "Photo"}
+                    alt={photoText || "Photo"}
                     priority={index < 2}
                   />
                   {isDeleting && (
@@ -1183,10 +1185,10 @@ export default function MediaPage() {
                     )}
                   </div>
 
-                  {photo.title && (
+                  {photoText && (
                     <p className="text-sm">
                       <span className="font-medium">{displayName}</span>{" "}
-                      {photo.title}
+                      {photoText}
                     </p>
                   )}
 

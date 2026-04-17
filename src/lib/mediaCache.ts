@@ -6,6 +6,7 @@ export interface CachedPhoto {
   id: string;
   file_url: string;
   title: string | null;
+  caption?: string | null;
   created_at: string;
   uploader_id: string;
   team_id: string | null;
@@ -163,6 +164,7 @@ export function cachePhotos(
     id: string;
     file_url: string;
     title: string | null;
+    caption?: string | null;
     created_at: string;
     uploader_id: string;
     team_id: string | null;
@@ -191,6 +193,7 @@ export function addPhotoToCache(
     id: string;
     file_url: string;
     title: string | null;
+    caption?: string | null;
     created_at: string;
     uploader_id: string;
     team_id: string | null;
@@ -309,7 +312,7 @@ export async function backgroundRefreshPhotos(
   try {
     let query = supabase
       .from("photos")
-      .select("id, file_url, title, created_at, uploader_id, team_id, club_id, folder_id")
+      .select("id, file_url, title, caption, created_at, uploader_id, team_id, club_id, folder_id")
       .eq("show_in_feed", true)
       .order("created_at", { ascending: false })
       .limit(limit);
