@@ -192,6 +192,27 @@ export default function BasketballBoard({
         />
       )}
 
+      {!readOnly && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
+          <span className="text-[11px] text-muted-foreground">
+            Auto-subs: {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
+            {board.autoSubPaused && <span className="ml-1.5 text-amber-600 font-medium">· Paused</span>}
+            {board.lockedPlayerIds.size > 0 && (
+              <span className="ml-1.5 text-amber-600">· {board.lockedPlayerIds.size} locked</span>
+            )}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1"
+            onClick={() => setAutoSubPanelOpen(true)}
+          >
+            <Repeat className="h-3.5 w-3.5" />
+            Subs Plan
+          </Button>
+        </div>
+      )}
+
       <BasketballCourtArea
         players={board.players}
         selectedPlayerId={board.selectedPlayerId}

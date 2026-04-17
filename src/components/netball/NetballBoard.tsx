@@ -795,6 +795,27 @@ export default function NetballBoard({
         />
       )}
 
+      {!readOnly && rotationMode !== "off" && autoSubPlan.length > 0 && (
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
+          <span className="text-[11px] text-muted-foreground">
+            Auto-subs: {autoSubPlan.filter((s) => s.executed).length}/{autoSubPlan.length}
+            {autoSubPaused && <span className="ml-1.5 text-amber-600 font-medium">· Paused</span>}
+            {lockedPlayerIds.size > 0 && (
+              <span className="ml-1.5 text-amber-600">· {lockedPlayerIds.size} locked</span>
+            )}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1"
+            onClick={() => setAutoSubPanelOpen(true)}
+          >
+            <Repeat className="h-3.5 w-3.5" />
+            Subs Plan
+          </Button>
+        </div>
+      )}
+
       <NetballCourtArea
         players={players}
         selectedPlayerId={selectedPlayerId}
@@ -911,6 +932,26 @@ export default function NetballBoard({
           />
         )}
       </Suspense>
+
+      <QuarterAutoSubControlPanel
+        open={autoSubPanelOpen}
+        onClose={() => setAutoSubPanelOpen(false)}
+        autoSubPlan={autoSubPlan}
+        autoSubPaused={autoSubPaused}
+        onPlayers={onCourtForPanel}
+        lockedPlayerIds={lockedPlayerIds}
+        currentQuarter={timerState.currentQuarter}
+        currentElapsedSeconds={timerState.elapsedSeconds}
+        minutesPerQuarter={timerState.minutesPerQuarter}
+        periodType={timerState.periodType}
+        onTogglePause={toggleAutoSubPaused}
+        onCancelPlan={cancelAutoSubPlan}
+        onSkipNext={skipNextSub}
+        onExecuteNow={executeNextSubNow}
+        onRegeneratePlan={regenerateAutoSubPlan}
+        onToggleLockPlayer={toggleLockPlayer}
+        onEditPlan={() => setLineupPlannerOpen(true)}
+      />
     </div>
   );
 }
