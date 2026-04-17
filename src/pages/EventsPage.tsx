@@ -69,6 +69,7 @@ export default function EventsPage() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">(savedViewMode || "list");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [showFilters, setShowFilters] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   
   // Track if filters are active
   const hasActiveFilters = clubFilter !== null || teamFilter !== null;
