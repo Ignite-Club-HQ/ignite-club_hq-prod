@@ -368,21 +368,21 @@ export default function BasketballBoard({
         {autoSubPanelOpen && (
           <QuarterAutoSubControlPanel
             open={autoSubPanelOpen}
-            onOpenChange={setAutoSubPanelOpen}
-            plan={board.autoSubPlan}
-            players={board.players}
+            onClose={() => setAutoSubPanelOpen(false)}
+            autoSubPlan={board.autoSubPlan}
+            onPlayers={board.players.filter((p) => p.position !== null) as any}
             currentQuarter={board.timerState.currentQuarter}
-            elapsedSeconds={board.timerState.elapsedSeconds}
-            minutesPerPeriod={board.timerState.minutesPerQuarter}
+            currentElapsedSeconds={board.timerState.elapsedSeconds}
+            minutesPerQuarter={board.timerState.minutesPerQuarter}
             periodType={board.timerState.periodType ?? "quarters"}
-            paused={board.autoSubPaused}
+            autoSubPaused={board.autoSubPaused}
             lockedPlayerIds={board.lockedPlayerIds}
             onTogglePause={board.toggleAutoSubPaused}
-            onExecuteNext={board.executeNextSubNow}
+            onExecuteNow={board.executeNextSubNow}
             onSkipNext={board.skipNextSub}
-            onCancel={board.cancelAutoSubPlan}
-            onRegenerate={board.regenerateAutoSubPlan}
-            onToggleLock={board.togglePlayerLock}
+            onCancelPlan={board.cancelAutoSubPlan}
+            onRegeneratePlan={board.regenerateAutoSubPlan}
+            onToggleLockPlayer={board.toggleLockPlayer}
           />
         )}
       </Suspense>
