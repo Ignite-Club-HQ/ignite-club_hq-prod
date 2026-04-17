@@ -1,10 +1,17 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus, CalendarPlus2 } from "lucide-react";
 import { exportEventsIcs } from "@/lib/icsExport";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +58,7 @@ export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   usePageTitle("Schedule");
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
   const teamFilter = searchParams.get("team");
@@ -62,6 +70,7 @@ export default function EventsPage() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">(savedViewMode || "list");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [showFilters, setShowFilters] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   
   // Track if filters are active
   const hasActiveFilters = clubFilter !== null || teamFilter !== null;
@@ -434,14 +443,15 @@ export default function EventsPage() {
     <div className="py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Schedule</h1>
-        <div className="flex items-center gap-6">
-          {/* Filter button - only show if there are filters to display */}
+        <div className="flex items-center gap-2">
+          {/* Filter button - secondary action, only show if there are filters to display */}
           {((userClubs?.length || 0) > 1 || (userTeams?.length || 0) > 0) && (
-            <Button 
-              variant={hasActiveFilters ? "default" : "outline"} 
+            <Button
+              variant={hasActiveFilters ? "default" : "outline"}
               size="icon"
               onClick={() => setShowFilters(!showFilters)}
               className="relative"
+              aria-label="Filter"
             >
               <Filter className="h-4 w-4" />
               {hasActiveFilters && (
@@ -449,68 +459,148 @@ export default function EventsPage() {
               )}
             </Button>
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="outline"
-                disabled={!upcomingEvents?.length}
-                onClick={async () => {
-                  if (!upcomingEvents?.length) return;
-                  try {
-                    await exportEventsIcs(
-                      upcomingEvents.map((e: any) => ({
-                        id: e.id,
-                        title: e.title,
-                        type: e.type,
-                        event_date: e.event_date,
-                        start_time: e.start_time,
-                        end_time: e.end_time,
-                        description: e.description,
-                        location_name: e.location_name,
-                        address: e.address,
-                        suburb: e.suburb,
-                        state: e.state,
-                        postcode: e.postcode,
-                        is_cancelled: e.is_cancelled,
-                        updated_at: e.updated_at,
-                        url: `${window.location.origin}/events/${e.id}`,
-                      })),
-                      "Ignite Schedule",
-                      "ignite-schedule",
-                    );
-                    toast({ title: "Schedule exported", description: `Open the file to add ${upcomingEvents.length} event${upcomingEvents.length === 1 ? "" : "s"} to your calendar.` });
-                  } catch (err) {
-                    toast({ title: "Couldn't export schedule", description: (err as Error).message, variant: "destructive" });
-                  }
-                }}
-              >
-                <CalendarPlus className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Add to your calendar</TooltipContent>
-          </Tooltip>
-          {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link to="/events/import">
-                  <Button size="icon" variant="outline">
-                    <FileSpreadsheet className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent>Import Fixtures</TooltipContent>
-            </Tooltip>
-          )}
-          {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
-            <Link to="/events/new">
-              <Button size="icon" variant="default">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </Link>
-          )}
+
+          {/* Primary action: + opens an action menu */}
+          <Button
+            size="icon"
+            variant="default"
+            onClick={() => {
+              const canCreate =
+                isAppAdmin ||
+                userRoles?.some((r) =>
+                  ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role),
+                );
+              // If the user can't create, jump straight to add-to-calendar export.
+              if (!canCreate) {
+                // Trigger the same export flow inline
+                const evts = upcomingEvents || [];
+                if (!evts.length) {
+                  toast({ title: "No upcoming events to export" });
+                  return;
+                }
+                exportEventsIcs(
+                  evts.map((e: any) => ({
+                    id: e.id,
+                    title: e.title,
+                    type: e.type,
+                    event_date: e.event_date,
+                    start_time: e.start_time,
+                    end_time: e.end_time,
+                    description: e.description,
+                    location_name: e.location_name,
+                    address: e.address,
+                    suburb: e.suburb,
+                    state: e.state,
+                    postcode: e.postcode,
+                    is_cancelled: e.is_cancelled,
+                    updated_at: e.updated_at,
+                    url: `${window.location.origin}/events/${e.id}`,
+                  })),
+                  "Ignite Schedule",
+                  "ignite-schedule",
+                ).then(() => {
+                  toast({ title: "Schedule exported" });
+                }).catch((err) => {
+                  toast({ title: "Couldn't export", description: (err as Error).message, variant: "destructive" });
+                });
+                return;
+              }
+              setCreateMenuOpen(true);
+            }}
+            aria-label="Create"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
       </div>
+
+      {/* Action sheet — primary "+" menu */}
+      <Sheet open={createMenuOpen} onOpenChange={setCreateMenuOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl pb-8">
+          <SheetHeader className="text-left">
+            <SheetTitle>Schedule actions</SheetTitle>
+            <SheetDescription>Create or import events, or export to your calendar.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 flex flex-col gap-2">
+            <Button
+              variant="default"
+              className="w-full justify-start h-12 gap-3"
+              onClick={() => {
+                setCreateMenuOpen(false);
+                navigate("/events/new");
+              }}
+            >
+              <Plus className="h-5 w-5" />
+              <div className="flex flex-col items-start">
+                <span className="text-sm font-semibold">Create Event</span>
+                <span className="text-[11px] opacity-80">Training, game or social</span>
+              </div>
+            </Button>
+
+            {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (
+              <Button
+                variant="outline"
+                className="w-full justify-start h-12 gap-3"
+                onClick={() => {
+                  setCreateMenuOpen(false);
+                  navigate("/events/import");
+                }}
+              >
+                <FileSpreadsheet className="h-5 w-5" />
+                <div className="flex flex-col items-start">
+                  <span className="text-sm font-semibold">Import Fixtures</span>
+                  <span className="text-[11px] text-muted-foreground">From CSV or Excel</span>
+                </div>
+              </Button>
+            )}
+
+            <Button
+              variant="outline"
+              className="w-full justify-start h-12 gap-3"
+              disabled={!upcomingEvents?.length}
+              onClick={async () => {
+                setCreateMenuOpen(false);
+                if (!upcomingEvents?.length) return;
+                try {
+                  await exportEventsIcs(
+                    upcomingEvents.map((e: any) => ({
+                      id: e.id,
+                      title: e.title,
+                      type: e.type,
+                      event_date: e.event_date,
+                      start_time: e.start_time,
+                      end_time: e.end_time,
+                      description: e.description,
+                      location_name: e.location_name,
+                      address: e.address,
+                      suburb: e.suburb,
+                      state: e.state,
+                      postcode: e.postcode,
+                      is_cancelled: e.is_cancelled,
+                      updated_at: e.updated_at,
+                      url: `${window.location.origin}/events/${e.id}`,
+                    })),
+                    "Ignite Schedule",
+                    "ignite-schedule",
+                  );
+                  toast({
+                    title: "Schedule exported",
+                    description: `Open the file to add ${upcomingEvents.length} event${upcomingEvents.length === 1 ? "" : "s"} to your calendar.`,
+                  });
+                } catch (err) {
+                  toast({ title: "Couldn't export schedule", description: (err as Error).message, variant: "destructive" });
+                }
+              }}
+            >
+              <CalendarPlus className="h-5 w-5" />
+              <div className="flex flex-col items-start">
+                <span className="text-sm font-semibold">Add to your calendar</span>
+                <span className="text-[11px] text-muted-foreground">Export upcoming events as .ics</span>
+              </div>
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Collapsible Filter Panel */}
       <Collapsible open={showFilters}>
