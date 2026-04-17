@@ -220,10 +220,26 @@ function SeasonGroup({
                   )}
                 </CardDescription>
               </div>
-              <Badge variant={meta.variant} className="gap-1 flex-shrink-0">
-                <Icon className="h-3 w-3" />
-                {meta.label}
-              </Badge>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Badge variant={meta.variant} className="gap-1">
+                  <Icon className="h-3 w-3" />
+                  {meta.label}
+                </Badge>
+                {onTemplate && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTemplate(s);
+                    }}
+                    title="Use as template"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
             </CardHeader>
           </Card>
         );
