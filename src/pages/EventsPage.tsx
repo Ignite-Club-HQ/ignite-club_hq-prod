@@ -553,51 +553,6 @@ export default function EventsPage() {
                 </div>
               </Button>
             )}
-
-            <Button
-              variant="outline"
-              className="w-full justify-start h-12 gap-3"
-              disabled={!upcomingEvents?.length}
-              onClick={async () => {
-                setCreateMenuOpen(false);
-                if (!upcomingEvents?.length) return;
-                try {
-                  await exportEventsIcs(
-                    upcomingEvents.map((e: any) => ({
-                      id: e.id,
-                      title: e.title,
-                      type: e.type,
-                      event_date: e.event_date,
-                      start_time: e.start_time,
-                      end_time: e.end_time,
-                      description: e.description,
-                      location_name: e.location_name,
-                      address: e.address,
-                      suburb: e.suburb,
-                      state: e.state,
-                      postcode: e.postcode,
-                      is_cancelled: e.is_cancelled,
-                      updated_at: e.updated_at,
-                      url: `${window.location.origin}/events/${e.id}`,
-                    })),
-                    "Ignite Schedule",
-                    "ignite-schedule",
-                  );
-                  toast({
-                    title: "Schedule exported",
-                    description: `Open the file to add ${upcomingEvents.length} event${upcomingEvents.length === 1 ? "" : "s"} to your calendar.`,
-                  });
-                } catch (err) {
-                  toast({ title: "Couldn't export schedule", description: (err as Error).message, variant: "destructive" });
-                }
-              }}
-            >
-              <CalendarPlus className="h-5 w-5" />
-              <div className="flex flex-col items-start">
-                <span className="text-sm font-semibold">Add to your calendar</span>
-                <span className="text-[11px] text-muted-foreground">Export upcoming events as .ics</span>
-              </div>
-            </Button>
           </div>
         </SheetContent>
       </Sheet>
@@ -624,34 +579,81 @@ export default function EventsPage() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* View Toggle - Full width tabs */}
-      <div className="flex rounded-lg bg-muted p-1 gap-1">
-        <button
-          onClick={() => handleViewModeChange("list")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
-            viewMode === "list"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          aria-label="List view"
-          aria-pressed={viewMode === "list"}
+      {/* View Toggle + Add to calendar */}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 rounded-lg bg-muted p-1 gap-1">
+          <button
+            onClick={() => handleViewModeChange("list")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+              viewMode === "list"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            aria-label="List view"
+            aria-pressed={viewMode === "list"}
+          >
+            <List className="h-4 w-4" />
+            List
+          </button>
+          <button
+            onClick={() => handleViewModeChange("calendar")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
+              viewMode === "calendar"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            aria-label="Calendar view"
+            aria-pressed={viewMode === "calendar"}
+          >
+            <CalendarDays className="h-4 w-4" />
+            Calendar
+          </button>
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          className="shrink-0"
+          disabled={!upcomingEvents?.length}
+          aria-label="Add upcoming events to your calendar"
+          title="Add to your calendar"
+          onClick={async () => {
+            if (!upcomingEvents?.length) {
+              toast({ title: "No upcoming events to export" });
+              return;
+            }
+            try {
+              await exportEventsIcs(
+                upcomingEvents.map((e: any) => ({
+                  id: e.id,
+                  title: e.title,
+                  type: e.type,
+                  event_date: e.event_date,
+                  start_time: e.start_time,
+                  end_time: e.end_time,
+                  description: e.description,
+                  location_name: e.location_name,
+                  address: e.address,
+                  suburb: e.suburb,
+                  state: e.state,
+                  postcode: e.postcode,
+                  is_cancelled: e.is_cancelled,
+                  updated_at: e.updated_at,
+                  url: `${window.location.origin}/events/${e.id}`,
+                })),
+                "Ignite Schedule",
+                "ignite-schedule",
+              );
+              toast({
+                title: "Schedule exported",
+                description: `Open the file to add ${upcomingEvents.length} event${upcomingEvents.length === 1 ? "" : "s"} to your calendar.`,
+              });
+            } catch (err) {
+              toast({ title: "Couldn't export schedule", description: (err as Error).message, variant: "destructive" });
+            }
+          }}
         >
-          <List className="h-4 w-4" />
-          List
-        </button>
-        <button
-          onClick={() => handleViewModeChange("calendar")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-colors ${
-            viewMode === "calendar"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          aria-label="Calendar view"
-          aria-pressed={viewMode === "calendar"}
-        >
-          <CalendarDays className="h-4 w-4" />
-          Calendar
-        </button>
+          <CalendarPlus className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Filter Pills */}
