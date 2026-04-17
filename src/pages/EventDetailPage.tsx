@@ -2483,6 +2483,24 @@ export default function EventDetailPage() {
           ? notRespondedChildren.length
           : notResponded.length + notRespondedChildren.length;
 
+        // Always derive non-responder IDs from ALL members (not filtered by "Show all roles")
+        // so admins can always send reminders, regardless of the visible roster filter.
+        const allNotRespondedForReminders = isMiniLeagueEvent
+          ? []
+          : (members?.filter((m: any) =>
+              !respondedUserIds.has(m.id) &&
+              !(new Set<string>([
+                ...((allChildrenOnTeam || [])
+                  .filter((c: any) => respondedChildIds.has(c.id))
+                  .map((c: any) => c.parent_id)
+                  .filter(Boolean)),
+                ...((childGuardiansOnTeam || [])
+                  .filter((cg: any) => respondedChildIds.has(cg.child_id))
+                  .map((cg: any) => cg.guardian_id)
+                  .filter(Boolean)),
+              ])).has(m.id)
+            ) || []);
+
         const renderBucket = (rsvpList: any[], status: RsvpStatus, includeGuests = false) => (
           <div className="divide-y divide-border/50">
             {rsvpList.map((rsvp: any) => (
