@@ -79,6 +79,17 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
           <Pin className="h-3 w-3" />
         </span>
       )}
+      {player.number !== undefined && (
+        <span
+          className={cn(
+            "absolute -top-1 -left-1 z-10 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-background border border-border text-[10px] font-bold text-foreground shadow-sm",
+            player.isFillIn && "left-auto -right-1"
+          )}
+          aria-hidden
+        >
+          {player.number}
+        </span>
+      )}
       <div className="relative">
         <Avatar
           className={cn(

@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Zap,
   Loader2,
+  UserCog,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,8 @@ import {
 // Lazy-load secondary dialogs
 const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
 const QuarterLineupPlanner = lazy(() => import("./QuarterLineupPlanner"));
+const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
+const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
 
 interface NetballBoardProps {
   teamId: string;
@@ -144,6 +147,10 @@ export default function NetballBoard({
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
+  const [pendingSubOnId, setPendingSubOnId] = useState<string | null>(null);
+
 
   // ---------- Persistence ----------
   useEffect(() => {
@@ -245,23 +252,12 @@ export default function NetballBoard({
   }, [autoSubPlan, executeSub, quarterLineups, rotationMode, toast]);
 
   // ---------- Manual swap / sub interactions ----------
-  const handlePlayerClick = useCallback((playerId: string) => {
-    if (readOnly) return;
-    if (!selectedPlayerId) {
-      setSelectedPlayerId(playerId);
-      return;
-    }
-    if (selectedPlayerId === playerId) {
-      setSelectedPlayerId(null);
-      return;
-    }
-    // Two players selected → swap or sub
+  const performSwap = useCallback((aId: string, bId: string) => {
     setPlayers(prev => {
-      const a = prev.find(p => p.id === selectedPlayerId);
-      const b = prev.find(p => p.id === playerId);
+      const a = prev.find(p => p.id === aId);
+      const b = prev.find(p => p.id === bId);
       if (!a || !b) return prev;
 
-      // Validation
       const enforce = (who: NetballPlayer, pos: NetballPosition | null): boolean => {
         if (!pos) return true;
         if (validationMode === "free") return true;
@@ -270,9 +266,8 @@ export default function NetballBoard({
           toast({
             title: "Position warning",
             description: `${who.name} isn't a preferred ${pos}.`,
-            variant: "default",
           });
-          return true; // warn but allow
+          return true;
         }
         if (!ok && validationMode === "strict") {
           toast({
@@ -285,19 +280,50 @@ export default function NetballBoard({
         return true;
       };
 
-      const aOK = enforce(a, b.position);
-      const bOK = enforce(b, a.position);
-      if (!aOK || !bOK) return prev;
+      if (!enforce(a, b.position) || !enforce(b, a.position)) return prev;
 
-      // Swap their positions
       return prev.map(p => {
         if (p.id === a.id) return { ...p, position: b.position };
         if (p.id === b.id) return { ...p, position: a.position };
         return p;
       });
     });
-    setSelectedPlayerId(null);
-  }, [selectedPlayerId, validationMode, toast, readOnly]);
+  }, [validationMode, toast]);
+
+  const handlePlayerClick = useCallback((playerId: string) => {
+    if (readOnly) return;
+    // Swap-mode: a player has been selected as "swap with…"
+    if (selectedPlayerId) {
+      if (selectedPlayerId === playerId) {
+        setSelectedPlayerId(null);
+        return;
+      }
+      performSwap(selectedPlayerId, playerId);
+      setSelectedPlayerId(null);
+      return;
+    }
+    // Sub-on mode: bench player is being placed into an empty slot
+    // (handled inline by the slot button below). For player taps,
+    // open the quick-action sheet.
+    setQuickActionPlayerId(playerId);
+  }, [selectedPlayerId, performSwap, readOnly]);
+
+  const quickActionPlayer = useMemo(
+    () => players.find(p => p.id === quickActionPlayerId) ?? null,
+    [players, quickActionPlayerId]
+  );
+
+  const subOff = useCallback((playerId: string) => {
+    setPlayers(prev =>
+      prev.map(p => (p.id === playerId ? { ...p, position: null } : p))
+    );
+  }, []);
+
+  const toggleInjured = useCallback((playerId: string) => {
+    setPlayers(prev =>
+      prev.map(p => (p.id === playerId ? { ...p, isInjured: !p.isInjured } : p))
+    );
+  }, []);
 
   // ---------- Generate auto-sub plan when settings change ----------
   useEffect(() => {
@@ -363,6 +389,9 @@ export default function NetballBoard({
       {/* Action bar */}
       {!readOnly && (
         <div className="flex items-center gap-1.5 px-2 py-1.5 border-b bg-muted/30 overflow-x-auto">
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setRosterOpen(true)}>
+            <UserCog className="h-3.5 w-3.5 mr-1" /> Squad
+          </Button>
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLineupPlannerOpen(true)}>
             <Calendar className="h-3.5 w-3.5 mr-1" /> Lineups
           </Button>
@@ -504,6 +533,25 @@ export default function NetballBoard({
             players={players}
             lineups={quarterLineups}
             onSave={setQuarterLineups}
+          />
+        )}
+        {rosterOpen && (
+          <NetballRosterDialog
+            open={rosterOpen}
+            onOpenChange={setRosterOpen}
+            players={players}
+            onSave={setPlayers}
+          />
+        )}
+        {quickActionPlayerId && quickActionPlayer && (
+          <NetballQuickActionSheet
+            open={!!quickActionPlayerId}
+            onOpenChange={(o) => !o && setQuickActionPlayerId(null)}
+            player={quickActionPlayer}
+            onStartSwap={() => setSelectedPlayerId(quickActionPlayer.id)}
+            onSubOff={() => subOff(quickActionPlayer.id)}
+            onSubOn={() => setSelectedPlayerId(quickActionPlayer.id)}
+            onToggleInjured={() => toggleInjured(quickActionPlayer.id)}
           />
         )}
       </Suspense>
