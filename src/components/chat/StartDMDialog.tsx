@@ -404,6 +404,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
     onSuccess: (groupId) => {
       setOpen(false);
       setSelectedUsers([]);
+      setGroupName("");
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
       navigate(`/groups/${groupId}`);
       toast.success("Group chat created!");
