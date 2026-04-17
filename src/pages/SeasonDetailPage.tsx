@@ -20,6 +20,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { DraftTeamBuilder } from "@/components/seasons/DraftTeamBuilder";
+import { SeasonAnalyticsCard } from "@/components/seasons/SeasonAnalyticsCard";
 
 export default function SeasonDetailPage() {
   const { clubId, seasonId } = useParams<{ clubId: string; seasonId: string }>();
@@ -206,6 +207,8 @@ export default function SeasonDetailPage() {
           })}
         </CardContent>
       </Card>
+
+      {(isActive || isArchived) && seasonId && <SeasonAnalyticsCard seasonId={seasonId} />}
 
       {isActive && (
         <Card>
