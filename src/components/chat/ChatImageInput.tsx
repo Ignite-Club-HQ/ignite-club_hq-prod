@@ -292,6 +292,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
               <ImagePlus className="h-5 w-5 text-muted-foreground" />
             </div>
+          ) : isVideoUrl(displayUrl) ? (
+            <div className="relative h-10 w-10 rounded overflow-hidden bg-black">
+              <video
+                src={displayUrl}
+                className="h-10 w-10 object-cover"
+                muted
+                playsInline
+                preload="metadata"
+                onError={() => setPreviewFailed(true)}
+              />
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
+                <Play className="h-3.5 w-3.5 fill-white text-white" />
+              </div>
+            </div>
           ) : (
             <img
               src={displayUrl}
@@ -310,7 +324,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
             onClick={handleRemoveImage}
             disabled={disabled}
-            aria-label="Remove image"
+            aria-label="Remove attachment"
           >
             <X className="h-2.5 w-2.5" />
           </button>
