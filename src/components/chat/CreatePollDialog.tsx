@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
@@ -17,6 +17,7 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
+import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
 export type PollChatType = Database["public"]["Enums"]["poll_chat_type"];
@@ -31,49 +32,97 @@ interface CreatePollDialogProps {
 
 const MAX_OPTIONS = 10;
 const MIN_OPTIONS = 2;
+const CLIENT_VALIDATION_MESSAGES = new Set([
+  "Question is required",
+  `Add at least ${MIN_OPTIONS} options`,
+  "Options must be unique",
+  "Invalid close time",
+  "Close time must be in the future",
+]);
+
+const normalizeOption = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
+function validatePoll(question: string, options: string[]) {
+  const cleanQuestion = question.trim();
+  const trimmedOptions = options.map((option) => option.trim());
+  const cleanOptions = trimmedOptions.filter(Boolean);
+  const optionCounts = new Map<string, number>();
+  const duplicateOptionIndexes = new Set<number>();
+
+  trimmedOptions.forEach((option) => {
+    if (!option) return;
+    const normalized = normalizeOption(option);
+    optionCounts.set(normalized, (optionCounts.get(normalized) ?? 0) + 1);
+  });
+
+  trimmedOptions.forEach((option, index) => {
+    if (!option) return;
+    if ((optionCounts.get(normalizeOption(option)) ?? 0) > 1) {
+      duplicateOptionIndexes.add(index);
+    }
+  });
+
+  return {
+    cleanQuestion,
+    cleanOptions,
+    duplicateOptionIndexes,
+    questionError: cleanQuestion ? null : "Question is required",
+    optionsError:
+      cleanOptions.length < MIN_OPTIONS
+        ? `Add at least ${MIN_OPTIONS} options`
+        : duplicateOptionIndexes.size > 0
+          ? "Options must be unique"
+          : null,
+  };
+}
 
 export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreated }: CreatePollDialogProps) {
   const { user } = useAuth();
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState<string[]>(["", ""]);
   const [allowMultiple, setAllowMultiple] = useState(false);
-  const [closesAt, setClosesAt] = useState<string>(""); // datetime-local string
+  const [closesAt, setClosesAt] = useState<string>("");
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   const reset = () => {
     setQuestion("");
     setOptions(["", ""]);
     setAllowMultiple(false);
     setClosesAt("");
+    setSubmitAttempted(false);
   };
 
   const addOption = () => {
     if (options.length >= MAX_OPTIONS) return;
     setOptions([...options, ""]);
   };
+
   const removeOption = (idx: number) => {
     if (options.length <= MIN_OPTIONS) return;
     setOptions(options.filter((_, i) => i !== idx));
   };
-  const updateOption = (idx: number, val: string) =>
-    setOptions(options.map((o, i) => (i === idx ? val : o)));
+
+  const updateOption = (idx: number, val: string) => {
+    setOptions(options.map((option, i) => (i === idx ? val : option)));
+  };
+
+  const validation = useMemo(() => validatePoll(question, options), [question, options]);
+  const showErrors = submitAttempted || question.length > 0 || options.some((option) => option.length > 0);
 
   const create = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not signed in");
-      const cleanQuestion = question.trim();
-      if (!cleanQuestion) throw new Error("Question is required");
-      const cleanOptions = options.map(o => o.trim()).filter(Boolean);
-      if (cleanOptions.length < MIN_OPTIONS) throw new Error(`Add at least ${MIN_OPTIONS} options`);
-      if (new Set(cleanOptions.map(o => o.toLowerCase())).size !== cleanOptions.length) {
-        throw new Error("Options must be unique");
-      }
+
+      const currentValidation = validatePoll(question, options);
+      if (currentValidation.questionError) throw new Error(currentValidation.questionError);
+      if (currentValidation.optionsError) throw new Error(currentValidation.optionsError);
 
       let closesAtIso: string | null = null;
       if (closesAt) {
-        const t = new Date(closesAt);
-        if (Number.isNaN(t.getTime())) throw new Error("Invalid close time");
-        if (t.getTime() <= Date.now()) throw new Error("Close time must be in the future");
-        closesAtIso = t.toISOString();
+        const time = new Date(closesAt);
+        if (Number.isNaN(time.getTime())) throw new Error("Invalid close time");
+        if (time.getTime() <= Date.now()) throw new Error("Close time must be in the future");
+        closesAtIso = time.toISOString();
       }
 
       const { data: poll, error: pollErr } = await supabase
@@ -82,22 +131,23 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
           chat_type: chatType,
           chat_id: chatId,
           created_by: user.id,
-          question: cleanQuestion,
+          question: currentValidation.cleanQuestion,
           allow_multiple: allowMultiple,
           closes_at: closesAtIso,
         })
         .select("id")
         .single();
+
       if (pollErr || !poll) throw pollErr || new Error("Failed to create poll");
 
-      const optionRows = cleanOptions.map((label, i) => ({
+      const optionRows = currentValidation.cleanOptions.map((label, index) => ({
         poll_id: poll.id,
         label,
-        position: i,
+        position: index,
       }));
+
       const { error: optErr } = await supabase.from("poll_options").insert(optionRows);
       if (optErr) {
-        // best-effort cleanup
         await supabase.from("polls").delete().eq("id", poll.id);
         throw optErr;
       }
@@ -109,17 +159,27 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
       reset();
       onOpenChange(false);
     },
-    onError: (e: any) => toast.error(e?.message || "Failed to create poll"),
+    onError: (error: any) => {
+      const message = error?.message || "Failed to create poll";
+      if (CLIENT_VALIDATION_MESSAGES.has(message)) return;
+      toast.error(message);
+    },
   });
+
+  const handleCreate = () => {
+    setSubmitAttempted(true);
+    if (validation.questionError || validation.optionsError) return;
+    create.mutate();
+  };
 
   const minDateTime = format(new Date(Date.now() + 5 * 60 * 1000), "yyyy-MM-dd'T'HH:mm");
 
   return (
     <ResponsiveDialog
       open={open}
-      onOpenChange={(v) => {
-        if (!v && !create.isPending) reset();
-        onOpenChange(v);
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !create.isPending) reset();
+        onOpenChange(nextOpen);
       }}
     >
       <ResponsiveDialogContent className="max-w-md">
@@ -138,37 +198,58 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
             <Label htmlFor="poll-question">Question</Label>
             <Input
               id="poll-question"
+              name="poll-question"
               value={question}
               onChange={(e) => setQuestion(e.target.value.slice(0, 300))}
               placeholder="e.g. What time should we train Saturday?"
               maxLength={300}
+              autoComplete="off"
+              autoCapitalize="sentences"
+              aria-invalid={showErrors && !!validation.questionError}
+              className={cn(showErrors && validation.questionError && "border-destructive focus-visible:ring-destructive")}
             />
+            {showErrors && validation.questionError && (
+              <p className="mt-1 text-xs text-destructive">{validation.questionError}</p>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label>Options</Label>
-            {options.map((opt, idx) => (
-              <div key={idx} className="flex gap-2">
-                <Input
-                  value={opt}
-                  onChange={(e) => updateOption(idx, e.target.value.slice(0, 200))}
-                  placeholder={`Option ${idx + 1}`}
-                  maxLength={200}
-                />
-                {options.length > MIN_OPTIONS && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeOption(idx)}
-                    aria-label={`Remove option ${idx + 1}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
+            {options.map((option, idx) => {
+              const isDuplicate = showErrors && validation.duplicateOptionIndexes.has(idx);
+
+              return (
+                <div key={idx} className="flex gap-2">
+                  <Input
+                    name={`poll-option-${idx + 1}`}
+                    value={option}
+                    onChange={(e) => updateOption(idx, e.target.value.slice(0, 200))}
+                    placeholder={`Option ${idx + 1}`}
+                    maxLength={200}
+                    autoComplete="off"
+                    autoCapitalize="sentences"
+                    aria-invalid={isDuplicate || (showErrors && !!validation.optionsError)}
+                    className={cn(isDuplicate && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {options.length > MIN_OPTIONS && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeOption(idx)}
+                      aria-label={`Remove option ${idx + 1}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {showErrors && validation.optionsError && (
+              <p className="text-xs text-destructive">{validation.optionsError}</p>
+            )}
             {options.length < MAX_OPTIONS && (
-              <Button variant="outline" size="sm" onClick={addOption} className="w-full">
+              <Button type="button" variant="outline" size="sm" onClick={addOption} className="w-full">
                 <Plus className="h-4 w-4 mr-1" /> Add option
               </Button>
             )}
@@ -186,23 +267,21 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
             <Label htmlFor="poll-closes">Close time (optional)</Label>
             <Input
               id="poll-closes"
+              name="poll-closes"
               type="datetime-local"
               value={closesAt}
               onChange={(e) => setClosesAt(e.target.value)}
               min={minDateTime}
+              autoComplete="off"
             />
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="mt-1 text-xs text-muted-foreground">
               Leave empty to keep the poll open until you close it manually.
             </p>
           </div>
         </div>
 
         <ResponsiveDialogFooter>
-          <Button
-            className="w-full"
-            onClick={() => create.mutate()}
-            disabled={create.isPending}
-          >
+          <Button className="w-full" onClick={handleCreate} disabled={create.isPending}>
             {create.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
