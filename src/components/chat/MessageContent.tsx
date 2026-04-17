@@ -1,4 +1,5 @@
 import { useMemo, memo, useState, useCallback, useRef, useEffect } from "react";
+import { Play } from "lucide-react";
 import { LinkPreview } from "./LinkPreview";
 import { YouTubeEmbed, extractYouTubeId } from "./YouTubeEmbed";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
@@ -8,6 +9,7 @@ import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { isVideoUrl } from "@/lib/videoUtils";
 
 interface MessageContentProps {
   text: string;
@@ -231,22 +233,44 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
   return (
     <div className="space-y-2 min-w-0 max-w-full">
-      {/* Image attachment */}
+      {/* Image / video attachment */}
       {imageUrl && !imageError && (
         <div className="rounded-lg overflow-hidden max-w-xs">
           {(!imageLoaded || isLoadingSignedUrl) && (
             <Skeleton className="w-48 h-32" />
           )}
           {!isLoadingSignedUrl && effectiveImageUrl && (
-            <img
-              ref={imgRef}
-              src={effectiveImageUrl}
-              alt="Attachment"
-              className={`w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity ${!imageLoaded ? 'hidden' : ''}`}
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-              onClick={handleImageClick}
-            />
+            isVideoUrl(effectiveImageUrl) ? (
+              <div
+                className={`relative cursor-pointer ${!imageLoaded ? 'hidden' : ''}`}
+                onClick={handleImageClick}
+              >
+                <video
+                  src={effectiveImageUrl}
+                  className="w-full h-auto max-h-64 object-cover"
+                  preload="metadata"
+                  playsInline
+                  muted
+                  onLoadedData={handleImageLoad}
+                  onError={handleImageError}
+                />
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                  <div className="rounded-full bg-black/60 p-3">
+                    <Play className="h-6 w-6 fill-white text-white" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <img
+                ref={imgRef}
+                src={effectiveImageUrl}
+                alt="Attachment"
+                className={`w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity ${!imageLoaded ? 'hidden' : ''}`}
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                onClick={handleImageClick}
+              />
+            )
           )}
         </div>
       )}
