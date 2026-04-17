@@ -33,6 +33,7 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
@@ -1462,6 +1463,8 @@ export default function TeamChatPage() {
             onEventSelect={() => setEventPickerOpen(true)}
             showPollCreator={true}
             onPollCreate={() => setPollDialogOpen(true)}
+            showBoardPicker={true}
+            onBoardPick={() => setBoardPickerOpen(true)}
             hasText={!!message.trim()}
           />
           <MentionInput
@@ -1501,6 +1504,14 @@ export default function TeamChatPage() {
           }}
           teamId={teamId}
           clubId={team?.club_id}
+        />
+        <BoardPickerSheet
+          open={boardPickerOpen}
+          onOpenChange={setBoardPickerOpen}
+          onSelectBoard={(gameId) => {
+            const token = `[board:${gameId}]`;
+            setMessage(message ? `${message} ${token}` : token);
+          }}
         />
         {teamId && (
           <CreatePollDialog
