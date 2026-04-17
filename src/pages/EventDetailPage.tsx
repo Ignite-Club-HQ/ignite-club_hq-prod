@@ -2629,18 +2629,19 @@ export default function EventDetailPage() {
                 </div>
                 {(isAdmin || isAppAdmin) && canSendReminders && (
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-warning"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2.5 shrink-0 gap-1.5"
                     onClick={() => individualRemindMutation.mutate({ userId: member.id, displayName: member.display_name || "Unknown" })}
                     disabled={individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id}
                     title="Send reminder"
                   >
                     {individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <Bell className="h-4 w-4" />
+                      <Bell className="h-3.5 w-3.5" />
                     )}
+                    <span className="text-xs">Remind</span>
                   </Button>
                 )}
                 {(isAdmin || isAppAdmin) && (
