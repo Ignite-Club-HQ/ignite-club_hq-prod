@@ -555,6 +555,21 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                 </div>
               )}
 
+              {/* Optional group name when 2+ users selected */}
+              {selectedUsers.length > 1 && (
+                <div className="space-y-1">
+                  <Input
+                    placeholder="Group name (optional)"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    maxLength={60}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank to use member names
+                  </p>
+                </div>
+              )}
+
               {/* Filters */}
               <div className="flex gap-2">
                 <Select value={selectedClubId} onValueChange={handleClubChange} disabled={isClubFilterLocked}>
