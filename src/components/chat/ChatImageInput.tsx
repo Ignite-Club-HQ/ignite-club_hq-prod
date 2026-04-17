@@ -350,8 +350,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
               <Plus className="h-[22px] w-[22px]" strokeWidth={2.25} />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="start" side="top" className="w-auto p-2">
-            <div className="flex items-center gap-1">
+          <PopoverContent
+            align="end"
+            side="top"
+            sideOffset={8}
+            className="w-60 p-2"
+          >
+            <div className="flex flex-col gap-1">
               {showEventPicker && onEventSelect && (
                 <button
                   type="button"
@@ -360,11 +365,14 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     onEventSelect("");
                   }}
                   disabled={disabled}
-                  className="flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50"
-                  aria-label="Share event"
+                  className="flex items-center gap-3 w-full px-3 py-3 rounded-md bg-primary/10 hover:bg-primary/15 text-primary transition-colors disabled:opacity-50 min-h-[52px]"
+                  aria-label="Create event"
                 >
-                  <CalendarPlus className="h-[22px] w-[22px]" strokeWidth={1.75} />
-                  <span className="text-[11px]">Event</span>
+                  <CalendarPlus className="h-5 w-5 shrink-0" strokeWidth={2} />
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className="text-sm font-semibold">Create Event</span>
+                    <span className="text-[11px] text-primary/70">Training, game or social</span>
+                  </div>
                 </button>
               )}
               {showPollCreator && onPollCreate && (
@@ -375,13 +383,36 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                     onPollCreate();
                   }}
                   disabled={disabled}
-                  className="flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50"
-                  aria-label="Create poll"
+                  className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
+                  aria-label="Create quick RSVP"
                 >
-                  <BarChart3 className="h-[22px] w-[22px]" strokeWidth={1.75} />
-                  <span className="text-[11px]">Poll</span>
+                  <BarChart3 className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className="text-sm font-medium">Quick RSVP</span>
+                    <span className="text-[11px] text-muted-foreground">Check availability</span>
+                  </div>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  if (shouldUseNativePicker()) {
+                    void handleNativePhotoPick();
+                  } else {
+                    fileInputRef.current?.click();
+                  }
+                }}
+                disabled={disabled || uploading}
+                className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
+                aria-label="Share photo"
+              >
+                <ImagePlus className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
+                <div className="flex flex-col items-start leading-tight">
+                  <span className="text-sm font-medium">Share Photo</span>
+                  <span className="text-[11px] text-muted-foreground">Upload from device</span>
+                </div>
+              </button>
             </div>
           </PopoverContent>
         </Popover>
