@@ -9,6 +9,9 @@ import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
+import TimeoutsPanel from "@/components/scoreboard/TimeoutsPanel";
+import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
+import CuesToggle from "@/components/scoreboard/CuesToggle";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 
