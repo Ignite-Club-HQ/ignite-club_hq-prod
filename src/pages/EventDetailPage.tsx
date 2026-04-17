@@ -1690,9 +1690,14 @@ export default function EventDetailPage() {
         }))
       );
       if (error) throw error;
-      return { displayName, count: toRemind.length, isChild: !!childId };
+      return { displayName, count: toRemind.length, isChild: !!childId, recipientKey: userId };
     },
-    onSuccess: ({ displayName, count, isChild }) => {
+    onSuccess: ({ displayName, count, isChild, recipientKey }) => {
+      setRecentlyReminded((prev) => {
+        const next = new Set(prev);
+        next.add(recipientKey);
+        return next;
+      });
       const description = isChild
         ? `${count} parent${count !== 1 ? "s" : ""} of ${displayName} ${count !== 1 ? "have" : "has"} been reminded to RSVP`
         : `${displayName} has been reminded to RSVP`;
