@@ -87,15 +87,48 @@ export default function SeasonDetailPage() {
     mutationFn: async () => {
       const { error } = await supabase.rpc("archive_season", { _season_id: seasonId! });
       if (error) throw error;
+      const { data: notified, error: notifyError } = await supabase.rpc(
+        "notify_season_archived",
+        { _season_id: seasonId! },
+      );
+      return { notified: notified ?? 0, notifyError };
     },
-    onSuccess: () => {
-      toast.success("Season archived");
+    onSuccess: ({ notified, notifyError }) => {
+      if (notifyError) {
+        toast.success("Season archived");
+        toast.warning("Could not send all member notifications");
+      } else {
+        toast.success(
+          notified > 0
+            ? `Season archived — ${notified} member${notified === 1 ? "" : "s"} notified`
+            : "Season archived",
+        );
+      }
       qc.invalidateQueries({ queryKey: ["season", seasonId] });
       qc.invalidateQueries({ queryKey: ["club-seasons", clubId] });
       qc.invalidateQueries({ queryKey: ["season-teams", seasonId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const notifyMut = useMutation({
+    mutationFn: async () => {
+      const rpc = season?.status === "active" ? "notify_season_published" : "notify_season_archived";
+      const { data, error } = await supabase.rpc(rpc as any, { _season_id: seasonId! });
+      if (error) throw error;
+      return data ?? 0;
+    },
+    onSuccess: (count) => {
+      toast.success(
+        count > 0
+          ? `Notified ${count} member${count === 1 ? "" : "s"}`
+          : "No members to notify",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const priorSeasons = allSeasons.filter((s) => s.id !== seasonId && (s.status === "closed" || s.status === "archived" || s.status === "active"));
 
   const publishMut = useMutation({
     mutationFn: async () => {
