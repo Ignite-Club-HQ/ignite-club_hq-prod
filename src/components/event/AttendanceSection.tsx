@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { EventViewMemberRow } from "@/components/EventViewMemberRow";
 
 interface AttendanceCounts {
   going: number;
