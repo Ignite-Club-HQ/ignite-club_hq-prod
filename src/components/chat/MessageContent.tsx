@@ -216,6 +216,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           </div>
         )}
 
+        {/* Board link cards (live game boards) */}
+        {boardIds.length > 0 && (
+          <div className="space-y-2 min-w-0 max-w-full">
+            {boardIds.map((boardId) => (
+              <BoardLinkCard key={boardId} gameId={boardId} />
+            ))}
+          </div>
+        )}
+
         {/* YouTube embeds */}
         {youtubeUrls.length > 0 && (
           <div className="space-y-2 min-w-0 max-w-full">
@@ -336,6 +345,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                }
               if (part.type === "event-link") {
                 // Event links are rendered as empty spans inline; the card is shown below
+                return <span key={index} />;
+              }
+              if (part.type === "board-link") {
+                // Board links render inline as empty; the card is shown below
                 return <span key={index} />;
               }
               if (part.type === "poll-link") {
