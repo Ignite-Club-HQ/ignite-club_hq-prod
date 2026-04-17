@@ -165,7 +165,7 @@ export function ReturningMembersStep({ sourceSeasonId, selectedIds, onChange }: 
                           </Badge>
                         )}
                         {ageFlag && (
-                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                          <AlertTriangle className="h-3.5 w-3.5 text-warning" />
                         )}
                       </label>
                     );
