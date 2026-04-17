@@ -154,6 +154,10 @@ export default function SeasonDetailPage() {
         </Card>
       )}
 
+      {isDraft && clubId && seasonId && teams.length > 0 && (
+        <DraftTeamBuilder clubId={clubId} seasonId={seasonId} teams={teams} />
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Teams in this season</CardTitle>
