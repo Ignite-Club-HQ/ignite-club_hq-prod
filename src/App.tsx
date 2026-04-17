@@ -20,6 +20,7 @@ import { PWAPendingInviteHandler } from "@/components/PWAPendingInviteHandler";
 import { NativeAppUpdatePrompt } from "@/components/NativeAppUpdatePrompt";
 
 import { StatusBarManager } from "@/components/StatusBarManager";
+import { IcsPreviewFallbackDialog } from "@/components/IcsPreviewFallbackDialog";
 import { Loader2 } from "lucide-react";
 
 // OAuth callback capture is now handled in main.tsx (runs earlier)
@@ -208,6 +209,7 @@ const App = () => {
           <TooltipProvider>
           <Toaster />
           <Sonner />
+          <IcsPreviewFallbackDialog />
           <BrowserRouter>
             <ScrollToTop />
             <PWAPendingInviteHandler />
