@@ -410,6 +410,9 @@ export default function NetballBoard({
     toast({ title: `Q${nextQ} lineup applied` });
   };
 
+  // Keep the screen awake while a coach is actively running the game.
+  useWakeLock(!readOnly && timerState.isRunning && !timerState.isGameFinished);
+
   // ---------- Render ----------
   return (
     <div className="flex flex-col h-full bg-background">
@@ -438,10 +441,16 @@ export default function NetballBoard({
         awayScore={timerState.awayScore ?? 0}
         increments={[1]}
         readOnly={readOnly}
+        disabled={!!timerState.isGameFinished}
         onScore={addScore}
         onUndo={undoScore}
         onRenameAway={setOpponentName}
         canUndo={(timerState.scoreLog?.length ?? 0) > 0}
+      />
+
+      <QuarterScoreStrip
+        scoreLog={timerState.scoreLog}
+        currentQuarter={timerState.currentQuarter}
       />
 
       {!readOnly && (
