@@ -29,6 +29,9 @@ export default function SeasonDetailPage() {
   const { clubId, seasonId } = useParams<{ clubId: string; seasonId: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [bulkRolloverOpen, setBulkRolloverOpen] = useState(false);
+
+  const { data: allSeasons = [] } = useClubSeasons(clubId);
 
   const { data: season, isLoading: seasonLoading } = useQuery({
     queryKey: ["season", seasonId],
