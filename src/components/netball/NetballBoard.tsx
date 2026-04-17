@@ -535,6 +535,25 @@ export default function NetballBoard({
             onSave={setQuarterLineups}
           />
         )}
+        {rosterOpen && (
+          <NetballRosterDialog
+            open={rosterOpen}
+            onOpenChange={setRosterOpen}
+            players={players}
+            onSave={setPlayers}
+          />
+        )}
+        {quickActionPlayerId && quickActionPlayer && (
+          <NetballQuickActionSheet
+            open={!!quickActionPlayerId}
+            onOpenChange={(o) => !o && setQuickActionPlayerId(null)}
+            player={quickActionPlayer}
+            onStartSwap={() => setSelectedPlayerId(quickActionPlayer.id)}
+            onSubOff={() => subOff(quickActionPlayer.id)}
+            onSubOn={() => setSelectedPlayerId(quickActionPlayer.id)}
+            onToggleInjured={() => toggleInjured(quickActionPlayer.id)}
+          />
+        )}
       </Suspense>
     </div>
   );
