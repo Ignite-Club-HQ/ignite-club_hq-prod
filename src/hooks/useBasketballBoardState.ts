@@ -936,6 +936,7 @@ export function useBasketballBoardState({
     handleQuarterEnd,
     handlePlayerClick,
     handleSlotClick,
+    performSwap,
     subOff,
     toggleInjured,
     addFoul,
