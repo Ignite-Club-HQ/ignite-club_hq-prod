@@ -263,8 +263,8 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         />
       )}
 
-      {/* Text content - hide entirely when message contains event cards */}
-      {text && eventIds.length === 0 && (
+      {/* Text content - hide entirely when message contains event or poll cards */}
+      {text && eventIds.length === 0 && pollIds.length === 0 && (
         <div
           className="min-w-0 max-w-full whitespace-pre-wrap"
           style={{
