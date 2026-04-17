@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
+import { isVideoUrl } from "@/lib/videoUtils";
 
 interface LazyImageProps {
   src: string;
@@ -81,15 +82,17 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
     return () => observer.disconnect();
   }, [priority, src, isLoadingSignedUrl]); // Re-run when signed URL resolves so we can observe the now-mounted img
 
+  const showAsVideo = isVideoUrl(src);
+
   return (
     <>
       {/* Base placeholder - show while loading signed URL or image */}
       {(!isLoaded && !lqipLoaded) || isLoadingSignedUrl ? (
         <div className="absolute inset-0 bg-muted animate-pulse" />
       ) : null}
-      
-      {/* LQIP blurred placeholder */}
-      {hasLqip && isInView && !isLoaded && !isLoadingSignedUrl && (
+
+      {/* LQIP blurred placeholder (images only) */}
+      {!showAsVideo && hasLqip && isInView && !isLoaded && !isLoadingSignedUrl && (
         <img
           src={lqipUrl}
           alt=""
@@ -98,9 +101,9 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
           onLoad={() => setLqipLoaded(true)}
         />
       )}
-      
-      {/* Full quality image */}
-      {!isLoadingSignedUrl && (
+
+      {/* Full quality image OR video first-frame thumbnail */}
+      {!isLoadingSignedUrl && !showAsVideo && (
         <img
           ref={imgRef}
           src={isInView ? effectiveSrc : undefined}
@@ -110,6 +113,28 @@ export function LazyImage({ src, alt, className = "", priority = false }: LazyIm
           } ${className}`}
           onLoad={() => setIsLoaded(true)}
         />
+      )}
+      {!isLoadingSignedUrl && showAsVideo && (
+        <>
+          <video
+            ref={imgRef as unknown as React.RefObject<HTMLVideoElement>}
+            src={isInView ? effectiveSrc : undefined}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+              isLoaded ? "opacity-100" : "opacity-0"
+            } ${className}`}
+            preload="metadata"
+            muted
+            playsInline
+            onLoadedData={() => setIsLoaded(true)}
+          />
+          {isLoaded && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="rounded-full bg-black/60 p-3">
+                <svg viewBox="0 0 24 24" className="h-6 w-6 fill-white"><path d="M8 5v14l11-7z" /></svg>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </>
   );
