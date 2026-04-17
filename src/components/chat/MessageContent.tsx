@@ -438,6 +438,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         </div>
       )}
 
+      {/* Board link cards (live game boards) */}
+      {showPreviews && boardIds.length > 0 && (
+        <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {boardIds.map((boardId) => (
+            <BoardLinkCard key={boardId} gameId={boardId} />
+          ))}
+        </div>
+      )}
+
       {/* Poll cards - only if showPreviews (otherwise rendered outside bubble via previewsOnly) */}
       {showPreviews && pollIds.length > 0 && (
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
