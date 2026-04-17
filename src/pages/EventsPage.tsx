@@ -49,6 +49,7 @@ interface Event {
 
 export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
+  const { toast } = useToast();
   usePageTitle("Schedule");
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
