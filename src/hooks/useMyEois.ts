@@ -37,11 +37,20 @@ export function useConfirmEoi() {
   });
 }
 
+/**
+ * Links an EOI submission to the current signed-in user by its claim token.
+ * Uses a direct update — RLS (auto-claim trigger also catches this on signup).
+ */
 export function useClaimEoi() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (token: string) => {
-      const { data, error } = await supabase.rpc("claim_eoi", { _token: token });
+      const { data, error } = await supabase
+        .from("eoi_submissions")
+        .update({ claimed_at: new Date().toISOString() })
+        .eq("claim_token", token)
+        .select()
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
