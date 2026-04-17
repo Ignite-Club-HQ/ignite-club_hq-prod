@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -10,6 +10,13 @@ import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
+import {
+  isVideoFile,
+  isVideoUrl,
+  validateVideo,
+  videoMimeToExtension,
+  MAX_VIDEO_SIZE_BYTES,
+} from "@/lib/videoUtils";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -50,17 +57,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     recoveryCleanupRef.current = scheduleIOSNativeOverlayRecovery();
   };
 
-  const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
-    const { skipCompression = false } = options ?? {};
+  const uploadBlob = async (
+    blob: Blob,
+    options?: { skipCompression?: boolean; isVideo?: boolean; fileName?: string },
+  ) => {
+    const { skipCompression = false, isVideo = false } = options ?? {};
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const originalMimeType = blob.type || "image/jpeg";
+    const originalMimeType = blob.type || (isVideo ? "video/mp4" : "image/jpeg");
     let fileToUpload: Blob | File = blob;
     let contentType = originalMimeType;
 
-    if (!skipCompression) {
+    if (!isVideo && !skipCompression) {
       const sourceFile = blob instanceof File
         ? blob
         : new File([blob], `photo.${mimeToExtension(originalMimeType)}`, { type: originalMimeType });
@@ -76,7 +86,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
     }
 
-    const extension = mimeToExtension(contentType);
+    const extension = isVideo
+      ? videoMimeToExtension(contentType)
+      : mimeToExtension(contentType);
 
     const timestamp = Date.now();
     let fileName: string;
@@ -164,12 +176,21 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
+    const isVideo = isVideoFile(file);
+
+    if (!isVideo && !file.type.startsWith("image/")) {
+      toast.error("Please select an image or video file");
       return;
     }
 
-    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    if (isVideo) {
+      const validation = await validateVideo(file);
+      if (!validation.ok) {
+        toast.error(validation.reason || "Video is not valid");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    } else if (file.size > MAX_UPLOAD_SIZE_BYTES) {
       toast.error("Image must be less than 10MB");
       return;
     }
@@ -185,13 +206,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setUploading(true);
 
     try {
-      const storageUrl = await uploadBlob(file);
+      const storageUrl = await uploadBlob(file, { isVideo });
       URL.revokeObjectURL(localUrl);
       setLocalPreview(null);
       onImageUploaded(storageUrl);
     } catch (error) {
       console.error("Upload error:", error);
-      toast.error("Failed to upload image");
+      toast.error(isVideo ? "Failed to upload video" : "Failed to upload image");
       URL.revokeObjectURL(localUrl);
       setLocalPreview(null);
     } finally {
@@ -261,7 +282,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           onChange={handleFileSelect}
           className="sr-only"
           disabled={disabled || uploading}
@@ -270,6 +291,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           {previewFailed ? (
             <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
               <ImagePlus className="h-5 w-5 text-muted-foreground" />
+            </div>
+          ) : isVideoUrl(displayUrl) ? (
+            <div className="relative h-10 w-10 rounded overflow-hidden bg-black">
+              <video
+                src={displayUrl}
+                className="h-10 w-10 object-cover"
+                muted
+                playsInline
+                preload="metadata"
+                onError={() => setPreviewFailed(true)}
+              />
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
+                <Play className="h-3.5 w-3.5 fill-white text-white" />
+              </div>
             </div>
           ) : (
             <img
@@ -289,7 +324,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
             onClick={handleRemoveImage}
             disabled={disabled}
-            aria-label="Remove image"
+            aria-label="Remove attachment"
           >
             <X className="h-2.5 w-2.5" />
           </button>
@@ -304,7 +339,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         onChange={handleFileSelect}
         className="sr-only"
         disabled={disabled || uploading}
@@ -320,7 +355,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         onChange={handleFileSelect}
         className="sr-only"
         disabled={disabled || uploading}

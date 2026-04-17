@@ -2,6 +2,8 @@
 // Replaces raw tokens like @[Name](id), [event:uuid], [poll:uuid] with
 // human-readable text so previews never expose internal IDs.
 
+import { isVideoUrl } from "./videoUtils";
+
 const MENTION_RE = /@\[([^\]]+)\]\(([^)]+)\)/g;
 const EVENT_TOKEN_RE = /\[event:[0-9a-f-]{36}\]/gi;
 const POLL_TOKEN_RE = /\[poll:[0-9a-f-]{36}\]/gi;
@@ -47,6 +49,6 @@ export function getMessagePreviewText(
 ): string {
   const formatted = formatMessagePreview(text);
   if (formatted) return formatted;
-  if (imageUrl) return "Image";
+  if (imageUrl) return isVideoUrl(imageUrl) ? "🎬 Video" : "Image";
   return "";
 }

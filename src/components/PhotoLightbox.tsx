@@ -7,6 +7,7 @@ import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePinchZoom } from "@/hooks/usePinchZoom";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { ReportPhotoDialog } from "@/components/ReportPhotoDialog";
+import { isVideoUrl } from "@/lib/videoUtils";
 
 interface PhotoLightboxProps {
   isOpen: boolean;
@@ -18,25 +19,38 @@ interface PhotoLightboxProps {
   canDelete?: boolean;
 }
 
-function LightboxImage({ 
-  src, 
-  alt, 
-  scale, 
-  translateX, 
-  translateY 
-}: { 
-  src: string; 
-  alt: string; 
-  scale: number; 
-  translateX: number; 
+function LightboxImage({
+  src,
+  alt,
+  scale,
+  translateX,
+  translateY,
+}: {
+  src: string;
+  alt: string;
+  scale: number;
+  translateX: number;
   translateY: number;
 }) {
   const { signedUrl, isLoading } = useSignedPhotoUrl(src);
   const effectiveSrc = signedUrl || src;
+  const showAsVideo = isVideoUrl(effectiveSrc);
 
   if (isLoading) {
     return (
       <div className="w-16 h-16 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+    );
+  }
+
+  if (showAsVideo) {
+    return (
+      <video
+        src={effectiveSrc}
+        className="max-w-[100vw] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] object-contain"
+        controls
+        autoPlay
+        playsInline
+      />
     );
   }
 

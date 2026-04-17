@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { compressImage, formatFileSize } from "@/lib/imageCompression";
+import { isVideoFile, validateVideo } from "@/lib/videoUtils";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
@@ -470,21 +471,36 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const addPhotosToSelection = async (files: File[]) => {
     if (files.length === 0) return;
 
-    // Create initial photos with compressing status
-    const newPhotos: SelectedPhoto[] = files.map(file => ({
+    // Validate videos up-front (size + duration); skip invalid ones with a toast
+    const acceptedFiles: File[] = [];
+    for (const file of files) {
+      if (isVideoFile(file)) {
+        const validation = await validateVideo(file);
+        if (!validation.ok) {
+          toast.error(`${file.name}: ${validation.reason || "Video is not valid"}`);
+          continue;
+        }
+      }
+      acceptedFiles.push(file);
+    }
+    if (acceptedFiles.length === 0) return;
+
+    // Create initial entries; videos go straight to 'pending' (no client compression)
+    const newPhotos: SelectedPhoto[] = acceptedFiles.map(file => ({
       id: `${Date.now()}-${Math.random().toString(36).substring(7)}`,
       file,
       originalFile: file,
       previewUrl: URL.createObjectURL(file),
-      status: 'compressing' as const,
+      status: isVideoFile(file) ? ('pending' as const) : ('compressing' as const),
       originalSize: file.size,
       compressedSize: file.size,
     }));
 
     setSelectedPhotos(prev => [...prev, ...newPhotos]);
 
-    // Compress each photo
+    // Compress only image entries
     for (const photo of newPhotos) {
+      if (isVideoFile(photo.originalFile)) continue;
       try {
         const result = await compressImage(photo.originalFile);
         setSelectedPhotos(prev => prev.map(p =>
@@ -784,16 +800,38 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                 <div className="space-y-4">
                   {/* Photo Grid */}
                   <div className="grid grid-cols-3 gap-2">
-                    {selectedPhotos.map((photo) => (
+                    {selectedPhotos.map((photo) => {
+                      const isVideo = isVideoFile(photo.originalFile);
+                      return (
                       <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden bg-muted">
-                        <img 
-                          src={photo.previewUrl} 
-                          alt="Preview" 
-                          className={cn(
-                            "w-full h-full object-cover transition-opacity",
-                            photo.status === 'success' && "opacity-75"
-                          )}
-                        />
+                        {isVideo ? (
+                          <>
+                            <video
+                              src={photo.previewUrl}
+                              className={cn(
+                                "w-full h-full object-cover transition-opacity",
+                                photo.status === 'success' && "opacity-75"
+                              )}
+                              muted
+                              playsInline
+                              preload="metadata"
+                            />
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                              <div className="rounded-full bg-black/60 p-2">
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-white"><path d="M8 5v14l11-7z" /></svg>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <img
+                            src={photo.previewUrl}
+                            alt="Preview"
+                            className={cn(
+                              "w-full h-full object-cover transition-opacity",
+                              photo.status === 'success' && "opacity-75"
+                            )}
+                          />
+                        )}
                         
                         {/* Status Overlay */}
                         {photo.status === 'compressing' && (
@@ -841,7 +879,8 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           </Button>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                     
                     {/* Add More Button */}
                     {!uploading && (
