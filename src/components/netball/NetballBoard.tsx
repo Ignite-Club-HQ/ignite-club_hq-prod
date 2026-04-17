@@ -367,7 +367,18 @@ export default function NetballBoard({
     setTimerState((s) => ({ ...s, opponentName: name, lastUpdateTime: Date.now() }));
   }, []);
 
-  // ---------- Generate auto-sub plan when settings change ----------
+  // ---------- Generate auto-sub plan when settings or roster change ----------
+  // A roster signature ensures manual swaps & roster edits regenerate the plan
+  // — without it, a stale closure used the original on-court 7 forever.
+  const rosterSignature = useMemo(
+    () =>
+      players
+        .map((p) => `${p.id}:${p.position ?? "bench"}:${p.isInjured ? "x" : "o"}`)
+        .sort()
+        .join("|"),
+    [players]
+  );
+
   useEffect(() => {
     if (rotationMode === "off") {
       setAutoSubPlan([]);
@@ -381,7 +392,7 @@ export default function NetballBoard({
       setAutoSubPlan(generateQuarterBreakRotationPlan(players, 2));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter]);
+  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, rosterSignature]);
 
   // ---------- Derived ----------
   const bench = useMemo(() => getBench(players), [players]);
@@ -477,6 +488,7 @@ export default function NetballBoard({
       <NetballBench
         bench={bench}
         selectedPlayerId={selectedPlayerId}
+        nextSubInId={nextSub?.playerIn.id ?? null}
         readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
       />

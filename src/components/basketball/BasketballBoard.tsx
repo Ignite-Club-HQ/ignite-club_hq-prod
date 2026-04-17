@@ -131,6 +131,7 @@ export default function BasketballBoard({
       <BasketballBench
         bench={board.bench}
         selectedPlayerId={board.selectedPlayerId}
+        nextSubInId={board.nextSub?.playerIn.id ?? null}
         readOnly={readOnly}
         onPlayerClick={board.handlePlayerClick}
       />
