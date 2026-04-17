@@ -366,6 +366,26 @@ export default function NetballBoard({
   const handleSlotClick = useCallback(
     (position: NetballPosition) => {
       if (readOnly || !selectedPlayerId) return;
+      // Position lock: in strict/warn mode, validate against preferredPositions
+      const incoming = players.find((p) => p.id === selectedPlayerId);
+      if (incoming && validationMode !== "free") {
+        const ok = isPositionAllowedForPlayer(incoming, position);
+        if (!ok) {
+          if (validationMode === "strict") {
+            toast({
+              title: "Move blocked",
+              description: `${incoming.name} can't play ${position} in strict mode.`,
+              variant: "destructive",
+            });
+            setSelectedPlayerId(null);
+            return;
+          }
+          toast({
+            title: "Position warning",
+            description: `${incoming.name} isn't a preferred ${position}.`,
+          });
+        }
+      }
       let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
       setPlayers((prev) => {
         const incoming = prev.find((p) => p.id === selectedPlayerId);
@@ -386,7 +406,7 @@ export default function NetballBoard({
       if (logEntry) appendSubLog(logEntry);
       setSelectedPlayerId(null);
     },
-    [readOnly, selectedPlayerId, appendSubLog]
+    [readOnly, selectedPlayerId, appendSubLog, players, validationMode, toast]
   );
 
   const subOff = useCallback(
@@ -505,6 +525,23 @@ export default function NetballBoard({
 
   const setOpponentName = useCallback((name: string) => {
     setTimerState((s) => ({ ...s, opponentName: name, lastUpdateTime: Date.now() }));
+  }, []);
+
+  // ---------- Period type (quarters vs halves) ----------
+  const setPeriodType = useCallback((next: "quarters" | "halves") => {
+    setTimerState((s) => {
+      const prev = s.periodType ?? "quarters";
+      if (prev === next) return s;
+      const baseline =
+        prev === "halves" ? Math.max(5, Math.round(s.minutesPerQuarter / 2)) : s.minutesPerQuarter;
+      const newMinutes = next === "halves" ? baseline * 2 : baseline;
+      return {
+        ...s,
+        periodType: next,
+        minutesPerQuarter: newMinutes,
+        lastUpdateTime: Date.now(),
+      };
+    });
   }, []);
 
   // ---------- Generate auto-sub plan when settings or roster change ----------
