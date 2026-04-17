@@ -661,6 +661,40 @@ export function ChatMembersSheet({
           }}
         />
       )}
+
+      {/* Add people to a personal group */}
+      {isPersonalGroupChat && (
+        <AddGroupMembersDialog
+          open={addPeopleOpen}
+          onOpenChange={setAddPeopleOpen}
+          groupId={chatId}
+          existingMemberIds={memberIds}
+        />
+      )}
+
+      {/* Confirm member removal (creator only) */}
+      <AlertDialog
+        open={!!removeMemberConfirm}
+        onOpenChange={(o) => { if (!o) setRemoveMemberConfirm(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeMemberConfirm?.name} will no longer be able to see or post in this group.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => removeMemberConfirm && removeMemberMutation.mutate(removeMemberConfirm.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
