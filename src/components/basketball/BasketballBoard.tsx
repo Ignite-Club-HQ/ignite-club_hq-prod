@@ -65,6 +65,41 @@ export default function BasketballBoard({
   const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+
+  // Auto-open the summary the first time the game ticks over to "finished".
+  useEffect(() => {
+    if (board.timerState.isGameFinished) setSummaryOpen(true);
+  }, [board.timerState.isGameFinished]);
+
+  // Build sport-agnostic player rows for the summary dialog.
+  const summaryPlayers = useMemo(
+    () =>
+      board.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        secondsPlayed: p.minutesPlayed ?? 0,
+        points: p.points ?? 0,
+        fouls: p.fouls ?? 0,
+        isFouledOut: !!p.isFouledOut,
+        isInjured: !!p.isInjured,
+        finalPosition: p.position ?? null,
+      })),
+    [board.players]
+  );
+
+  const perQuarter = useMemo(() => {
+    const log = board.timerState.scoreLog ?? [];
+    return [1, 2, 3, 4].map((q) => ({
+      quarter: q,
+      home: log
+        .filter((e) => e.quarter === q && e.side === "home")
+        .reduce((sum, e) => sum + e.points, 0),
+      away: log
+        .filter((e) => e.quarter === q && e.side === "away")
+        .reduce((sum, e) => sum + e.points, 0),
+    }));
+  }, [board.timerState.scoreLog]);
 
   // Keep the screen awake while a coach is actively running the game.
   useWakeLock(!readOnly && board.timerState.isRunning && !board.timerState.isGameFinished);
