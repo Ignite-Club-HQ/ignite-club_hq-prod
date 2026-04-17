@@ -4431,6 +4431,116 @@ export type Database = {
           },
         ]
       }
+      poll_options: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          poll_id: string
+          position: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          poll_id: string
+          position: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          poll_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poll_options_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poll_votes: {
+        Row: {
+          created_at: string
+          id: string
+          option_id: string
+          poll_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          option_id: string
+          poll_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          option_id?: string
+          poll_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poll_votes_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "poll_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "poll_votes_poll_id_fkey"
+            columns: ["poll_id"]
+            isOneToOne: false
+            referencedRelation: "polls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      polls: {
+        Row: {
+          allow_multiple: boolean
+          chat_id: string
+          chat_type: Database["public"]["Enums"]["poll_chat_type"]
+          closed_at: string | null
+          closes_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          question: string
+          updated_at: string
+        }
+        Insert: {
+          allow_multiple?: boolean
+          chat_id: string
+          chat_type: Database["public"]["Enums"]["poll_chat_type"]
+          closed_at?: string | null
+          closes_at?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          question: string
+          updated_at?: string
+        }
+        Update: {
+          allow_multiple?: boolean
+          chat_id?: string
+          chat_type?: Database["public"]["Enums"]["poll_chat_type"]
+          closed_at?: string | null
+          closes_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          question?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           active_club_theme_id: string | null
@@ -6211,6 +6321,14 @@ export type Database = {
         Args: { _mini_league_id: string; _user_id: string }
         Returns: boolean
       }
+      can_access_poll_chat: {
+        Args: {
+          _chat_id: string
+          _chat_type: Database["public"]["Enums"]["poll_chat_type"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       can_admin_view_child: {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
@@ -6651,6 +6769,7 @@ export type Database = {
       enrolment_status: "enrolled" | "waitlisted" | "withdrawn"
       event_type: "game" | "training" | "social" | "mini_league"
       feedback_status: "open" | "in_progress" | "resolved"
+      poll_chat_type: "team" | "club" | "group" | "broadcast" | "club_admin"
       role_request_status: "pending" | "approved" | "denied"
       rsvp_status: "going" | "maybe" | "not_going"
       sponsor_tier: "platinum" | "gold" | "silver" | "bronze"
@@ -6797,6 +6916,7 @@ export const Constants = {
       enrolment_status: ["enrolled", "waitlisted", "withdrawn"],
       event_type: ["game", "training", "social", "mini_league"],
       feedback_status: ["open", "in_progress", "resolved"],
+      poll_chat_type: ["team", "club", "group", "broadcast", "club_admin"],
       role_request_status: ["pending", "approved", "denied"],
       rsvp_status: ["going", "maybe", "not_going"],
       sponsor_tier: ["platinum", "gold", "silver", "bronze"],
