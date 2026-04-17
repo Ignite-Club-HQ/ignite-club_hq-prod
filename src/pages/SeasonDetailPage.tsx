@@ -51,6 +51,30 @@ export default function SeasonDetailPage() {
     enabled: !!seasonId,
   });
 
+  const teamIds = teams.map((t) => t.id);
+  const { data: playerCounts = {} } = useQuery({
+    queryKey: ["season-team-player-counts", seasonId, teamIds.join(",")],
+    queryFn: async (): Promise<Record<string, number>> => {
+      if (teamIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("team_memberships")
+        .select("team_id")
+        .eq("season_id", seasonId!)
+        .eq("status", "active")
+        .eq("role", "player")
+        .in("team_id", teamIds);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((row: any) => {
+        counts[row.team_id] = (counts[row.team_id] ?? 0) + 1;
+      });
+      return counts;
+    },
+    enabled: teamIds.length > 0,
+  });
+
+  const totalPlayers = Object.values(playerCounts).reduce((a, b) => a + b, 0);
+
   const archiveMut = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.rpc("archive_season", { _season_id: seasonId! });
