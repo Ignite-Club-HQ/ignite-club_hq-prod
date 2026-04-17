@@ -522,6 +522,34 @@ export default function NetballBoard({
     [players, quickActionPlayerId]
   );
 
+  // Sport-agnostic player rows for the summary dialog.
+  const summaryPlayers = useMemo(
+    () =>
+      players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        secondsPlayed: p.minutesPlayed ?? 0,
+        isInjured: !!p.isInjured,
+        finalPosition: p.position ?? null,
+      })),
+    [players]
+  );
+
+  const perQuarter = useMemo(() => {
+    const log = timerState.scoreLog ?? [];
+    return [1, 2, 3, 4].map((q) => ({
+      quarter: q,
+      home: log
+        .filter((e) => e.quarter === q && e.side === "home")
+        .reduce((sum, e) => sum + e.points, 0),
+      away: log
+        .filter((e) => e.quarter === q && e.side === "away")
+        .reduce((sum, e) => sum + e.points, 0),
+    }));
+  }, [timerState.scoreLog]);
+
+  const canUndoSub = (timerState.subLog?.length ?? 0) > 0;
+
   const applyNextLineupNow = () => {
     const nextQ = timerState.currentQuarter;
     const lineup = quarterLineups.find((l) => l.quarter === nextQ);
@@ -608,6 +636,30 @@ export default function NetballBoard({
         readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
       />
+
+      {!readOnly && (canUndoSub || (timerState.scoreLog?.length ?? 0) > 0) && (
+        <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={undoLastSub}
+            disabled={!canUndoSub}
+          >
+            <Undo2 className="h-3.5 w-3.5 mr-1" />
+            Undo last sub
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setSummaryOpen(true)}
+          >
+            <Trophy className="h-3.5 w-3.5 mr-1" />
+            Game summary
+          </Button>
+        </div>
+      )}
 
       {validationMode !== "free" && (
         <div className="px-3 py-1 bg-muted/40 border-t flex items-center gap-1.5">
