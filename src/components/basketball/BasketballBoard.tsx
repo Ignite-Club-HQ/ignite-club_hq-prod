@@ -7,6 +7,7 @@ import BasketballActionBar from "./BasketballActionBar";
 import BasketballCourtArea from "./BasketballCourtArea";
 import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
+import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 
 // Lazy-load secondary dialogs
@@ -77,6 +78,19 @@ export default function BasketballBoard({
           readOnly={readOnly}
         />
       </header>
+
+      <GameScoreboard
+        homeLabel={teamName}
+        awayLabel={board.timerState.opponentName ?? "Opponent"}
+        homeScore={board.timerState.homeScore ?? 0}
+        awayScore={board.timerState.awayScore ?? 0}
+        increments={[1, 2, 3]}
+        readOnly={readOnly}
+        onScore={board.addScore}
+        onUndo={board.undoScore}
+        onRenameAway={board.setOpponentName}
+        canUndo={(board.timerState.scoreLog?.length ?? 0) > 0}
+      />
 
       {!readOnly && (
         <BasketballActionBar

@@ -103,6 +103,14 @@ export interface QuarterLineup {
   createdAt: number;
 }
 
+export interface NetballScoreEvent {
+  id: string;
+  side: "home" | "away";
+  points: number;
+  quarter: Quarter;
+  at: number;
+}
+
 export interface NetballTimerState {
   minutesPerQuarter: number;
   currentQuarter: Quarter;
@@ -110,6 +118,13 @@ export interface NetballTimerState {
   isRunning: boolean;
   lastUpdateTime: number;
   isGameFinished?: boolean;
+  /** Live score (denormalised totals) */
+  homeScore?: number;
+  awayScore?: number;
+  /** Opponent display name (defaults to "Opponent") */
+  opponentName?: string;
+  /** Append-only score log to support undo + per-quarter stats */
+  scoreLog?: NetballScoreEvent[];
 }
 
 export interface NetballBoardState {
