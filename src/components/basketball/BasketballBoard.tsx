@@ -1,6 +1,6 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Trophy, Undo2 } from "lucide-react";
 
 import BasketballQuarterTimer from "./BasketballQuarterTimer";
 import BasketballActionBar from "./BasketballActionBar";
@@ -18,6 +18,7 @@ const BasketballQuarterLineupPlanner = lazy(() => import("./BasketballQuarterLin
 const BasketballRosterDialog = lazy(() => import("./BasketballRosterDialog"));
 const BasketballQuickActionSheet = lazy(() => import("./BasketballQuickActionSheet"));
 const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPresetsDialog"));
+const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 
 interface BasketballBoardProps {
   teamId: string;
