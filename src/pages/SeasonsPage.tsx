@@ -55,6 +55,26 @@ export default function SeasonsPage() {
 
   const { data: seasons = [], isLoading: seasonsLoading, refetch } = useClubSeasons(clubId);
 
+  const seasonIds = useMemo(() => seasons.map((s) => s.id), [seasons]);
+
+  const { data: teamCounts = {} } = useQuery({
+    queryKey: ["season-team-counts", clubId, seasonIds.join(",")],
+    queryFn: async (): Promise<Record<string, number>> => {
+      if (seasonIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("teams")
+        .select("season_id")
+        .in("season_id", seasonIds);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((row: any) => {
+        if (row.season_id) counts[row.season_id] = (counts[row.season_id] ?? 0) + 1;
+      });
+      return counts;
+    },
+    enabled: seasonIds.length > 0,
+  });
+
   const grouped = useMemo(() => {
     const active: Season[] = [];
     const draft: Season[] = [];
