@@ -2589,9 +2589,9 @@ export default function EventDetailPage() {
                     variant="outline"
                     size="sm"
                     className="h-8 px-2.5 shrink-0 gap-1.5"
-                    onClick={() => individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown" })}
+                    onClick={() => individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id })}
                     disabled={individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id}
-                    title="Remind parent"
+                    title="Remind all parents"
                   >
                     {individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
