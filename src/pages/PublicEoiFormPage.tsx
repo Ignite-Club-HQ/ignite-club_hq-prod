@@ -22,6 +22,7 @@ type EoiConfig = {
   closes_at: string | null;
   welcome_message: string | null;
   thank_you_message: string | null;
+  thank_you_redirect_url: string | null;
   require_dob: boolean;
   require_gender: boolean;
   ask_preferences: boolean;
@@ -69,7 +70,21 @@ export default function PublicEoiFormPage() {
       }
       const row = (data as EoiConfig[] | null)?.[0] ?? null;
       setConfig(row);
-      if (row) document.title = `EOI · ${row.club_name}`;
+      if (row) {
+        document.title = `EOI · ${row.club_name}`;
+        // Fire-and-forget view tracking (best effort)
+        const isEmbed = typeof window !== "undefined" && window.parent !== window;
+        supabase
+          .from("eoi_form_views")
+          .insert({
+            season_id: row.season_id,
+            club_id: row.club_id,
+            source: isEmbed ? "embed" : "website",
+          })
+          .then(({ error: viewErr }) => {
+            if (viewErr) console.warn("[eoi] view tracking failed", viewErr);
+          });
+      }
       setLoading(false);
     })();
   }, [clubSlug, seasonSlug]);
@@ -133,6 +148,18 @@ export default function PublicEoiFormPage() {
     }
 
     setSubmitting(false);
+
+    // Custom thank-you redirect if club configured one
+    if (config.thank_you_redirect_url) {
+      try {
+        const url = new URL(config.thank_you_redirect_url);
+        window.location.href = url.toString();
+        return;
+      } catch {
+        // invalid URL — fall through to default thank-you screen
+      }
+    }
+
     setSubmitted(true);
   };
 

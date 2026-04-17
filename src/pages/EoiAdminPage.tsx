@@ -1,7 +1,17 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Search, Users, UserPlus, ClipboardList, ExternalLink } from "lucide-react";
+import {
+  ArrowLeft,
+  Search,
+  Users,
+  UserPlus,
+  ClipboardList,
+  ExternalLink,
+  Download,
+  Send,
+  RotateCw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,15 +42,21 @@ import {
   useDeleteEoi,
   type EoiStatus,
 } from "@/hooks/useEoiAdmin";
+import { useResendEoiInvite, useBulkResendEoiInvites } from "@/hooks/useEoiPolish";
 import { EOI_STATUS_LABELS, calculateAgeGroup, buildPublicEoiUrl } from "@/lib/eoiUtils";
 import { EoiTeamSuggestions } from "@/components/eoi/EoiTeamSuggestions";
+import { exportEoisCSV } from "@/lib/exportEois";
 
 export default function EoiAdminPage() {
   const { clubId } = useParams<{ clubId: string }>();
   const navigate = useNavigate();
   const [seasonId, setSeasonId] = useState<string | "all">("all");
   const [statusFilter, setStatusFilter] = useState<EoiStatus | "all">("all");
+  const [returningFilter, setReturningFilter] = useState<"all" | "new" | "returning">("all");
   const [search, setSearch] = useState("");
+
+  const resendInvite = useResendEoiInvite();
+  const bulkResend = useBulkResendEoiInvites();
 
   const { data: club } = useQuery({
     queryKey: ["club", clubId],
@@ -82,6 +98,8 @@ export default function EoiAdminPage() {
   const filtered = useMemo(() => {
     let rows = submissions;
     if (statusFilter !== "all") rows = rows.filter((r) => r.status === statusFilter);
+    if (returningFilter === "new") rows = rows.filter((r) => !r.returning_player);
+    if (returningFilter === "returning") rows = rows.filter((r) => r.returning_player);
     const q = search.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
@@ -92,12 +110,47 @@ export default function EoiAdminPage() {
       );
     }
     return rows;
-  }, [submissions, statusFilter, search]);
+  }, [submissions, statusFilter, returningFilter, search]);
 
-  const teamsMap = useMemo(() => {
+  const seasonNameById = useMemo(() => {
     const m = new Map<string, string>();
+    seasons.forEach((s) => m.set(s.id, s.name));
     return m;
-  }, []);
+  }, [seasons]);
+
+  const pendingInviteIds = useMemo(
+    () =>
+      submissions
+        .filter((r) => r.status === "submitted" && !r.parent_confirmed_at)
+        .map((r) => r.id),
+    [submissions],
+  );
+
+  const handleExport = () => {
+    if (!club) return;
+    if (filtered.length === 0) {
+      toast.info("Nothing to export");
+      return;
+    }
+    exportEoisCSV(filtered, seasonNameById, club.name);
+    toast.success(`Exported ${filtered.length} row${filtered.length === 1 ? "" : "s"}`);
+  };
+
+  const handleBulkRemind = () => {
+    if (pendingInviteIds.length === 0) {
+      toast.info("No pending invites to remind");
+      return;
+    }
+    if (
+      confirm(
+        `Resend the magic-link invite to ${pendingInviteIds.length} parent${
+          pendingInviteIds.length === 1 ? "" : "s"
+        } who haven't completed yet?`,
+      )
+    ) {
+      bulkResend.mutate(pendingInviteIds);
+    }
+  };
 
   if (!clubId) return null;
   if (isLoading && !submissions.length) return <PageLoading />;
@@ -124,7 +177,7 @@ export default function EoiAdminPage() {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Select value={seasonId} onValueChange={(v) => setSeasonId(v as any)}>
           <SelectTrigger>
             <SelectValue placeholder="All seasons" />
@@ -153,6 +206,41 @@ export default function EoiAdminPage() {
             ))}
           </SelectContent>
         </Select>
+
+        <Select value={returningFilter} onValueChange={(v) => setReturningFilter(v as any)}>
+          <SelectTrigger>
+            <SelectValue placeholder="All players" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All players</SelectItem>
+            <SelectItem value="new">New only</SelectItem>
+            <SelectItem value="returning">Returning only</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Bulk actions */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExport}
+          disabled={filtered.length === 0}
+        >
+          <Download className="h-4 w-4 mr-1.5" />
+          Export CSV ({filtered.length})
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleBulkRemind}
+          disabled={pendingInviteIds.length === 0 || bulkResend.isPending}
+        >
+          <Send className="h-4 w-4 mr-1.5" />
+          {bulkResend.isPending
+            ? "Sending…"
+            : `Remind pending (${pendingInviteIds.length})`}
+        </Button>
       </div>
 
       {publicUrl && (
@@ -186,6 +274,17 @@ export default function EoiAdminPage() {
             icon={<UserPlus className="h-4 w-4" />}
             label="New players"
             value={Number(stats.new_players ?? 0)}
+          />
+          <StatTile label="Returning" value={Number(stats.returning_players ?? 0)} />
+          <StatTile label="Form views" value={Number(stats.views ?? 0)} />
+          <StatTile
+            label="Conversion"
+            value={Number(stats.conversion_rate ?? 0)}
+            suffix="%"
+          />
+          <StatTile
+            label="Confirmed"
+            value={Number(stats.confirmed ?? 0)}
           />
         </div>
       )}
@@ -276,6 +375,18 @@ export default function EoiAdminPage() {
                       ))}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
+                        onClick={() => resendInvite.mutate(r.id)}
+                        disabled={resendInvite.isPending}
+                      >
+                        <RotateCw className="h-3.5 w-3.5 mr-2" />
+                        Resend invite
+                        {r.invite_sent_count > 0 && (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            ×{r.invite_sent_count}
+                          </span>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         className="text-destructive"
                         onClick={() => {
                           if (confirm("Delete this submission?")) deleteEoi.mutate(r.id);
@@ -337,10 +448,12 @@ function StatTile({
   icon,
   label,
   value,
+  suffix,
 }: {
   icon?: React.ReactNode;
   label: string;
   value: number;
+  suffix?: string;
 }) {
   return (
     <Card>
@@ -349,7 +462,10 @@ function StatTile({
           {icon}
           {label}
         </div>
-        <p className="text-2xl font-bold mt-1">{value}</p>
+        <p className="text-2xl font-bold mt-1">
+          {value}
+          {suffix ? <span className="text-base font-medium">{suffix}</span> : null}
+        </p>
       </CardContent>
     </Card>
   );
