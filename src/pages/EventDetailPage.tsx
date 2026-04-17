@@ -2694,6 +2694,7 @@ export default function EventDetailPage() {
               notRespondedUserIds={allNotRespondedForReminders.map((m: any) => m.id)}
               canSendReminders={canSendReminders}
               trackableMembersCount={trackableMembers}
+              addressableMembers={members}
               onShareLink={handleShareReminderLink}
             />
           </div>

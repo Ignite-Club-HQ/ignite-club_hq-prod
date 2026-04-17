@@ -1,8 +1,17 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Loader2, Eye, Smartphone, Mail, ChevronDown, Share2 } from "lucide-react";
+import { Bell, Loader2, Eye, Smartphone, Mail, ChevronDown, Share2, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +28,13 @@ interface AttendanceCounts {
   maybe: number;
   notGoing: number;
   notResponded: number;
+}
+
+interface AddressableMember {
+  id: string;
+  display_name?: string | null;
+  avatar_url?: string | null;
+  roles?: string[] | null;
 }
 
 interface AttendanceSectionProps {
@@ -38,6 +54,8 @@ interface AttendanceSectionProps {
   canSendReminders: boolean;
   /** Total members who could view this event (used to compute "X viewed") */
   trackableMembersCount?: number;
+  /** Full addressable member list — enables "viewed/not viewed" breakdown dialog */
+  addressableMembers?: AddressableMember[];
   /** Optional: open the native/web share sheet with a copyable RSVP link */
   onShareLink?: () => void;
 }
@@ -54,10 +72,12 @@ export function AttendanceSection({
   notRespondedUserIds,
   canSendReminders,
   trackableMembersCount,
+  addressableMembers,
   onShareLink,
 }: AttendanceSectionProps) {
   const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
+  const [viewsDialogOpen, setViewsDialogOpen] = useState(false);
 
   // Lightweight view-count fetch; only when admin (others don't need it)
   const { data: eventViews } = useQuery({
@@ -75,6 +95,17 @@ export function AttendanceSection({
   });
 
   const viewedCount = eventViews?.length ?? 0;
+  const viewedUserIds = useMemo(
+    () => new Set((eventViews || []).map((v: any) => v.user_id)),
+    [eventViews],
+  );
+
+  const { viewedMembers, notViewedMembers } = useMemo(() => {
+    const list = addressableMembers || [];
+    const viewed = list.filter((m) => viewedUserIds.has(m.id));
+    const notViewed = list.filter((m) => !viewedUserIds.has(m.id));
+    return { viewedMembers: viewed, notViewedMembers: notViewed };
+  }, [addressableMembers, viewedUserIds]);
 
   const totalResponses = counts.going + counts.maybe + counts.notGoing;
   const noOneInvited = !hasMembers && totalResponses === 0;
@@ -122,13 +153,57 @@ export function AttendanceSection({
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold">Team Attendance</h2>
-        {isAdmin && viewedCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+        {isAdmin && (viewedCount > 0 || (addressableMembers?.length ?? 0) > 0) && (
+          <button
+            type="button"
+            onClick={() => setViewsDialogOpen(true)}
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground rounded-md px-1.5 py-1 -mx-1.5 -my-1 hover:bg-muted/60 active:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`See who viewed this event: ${viewedCount} viewed`}
+          >
             <Eye className="h-3 w-3" />
-            {viewedCount} viewed
-          </span>
+            <span>{viewedCount} viewed</span>
+            <ChevronDown className="h-3 w-3" />
+          </button>
         )}
       </div>
+
+      {/* Viewed / Not viewed breakdown */}
+      <Dialog open={viewsDialogOpen} onOpenChange={setViewsDialogOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader className="text-left">
+            <DialogTitle>Event views</DialogTitle>
+            <DialogDescription>
+              Who has opened this event in the app.
+            </DialogDescription>
+          </DialogHeader>
+          {(addressableMembers?.length ?? 0) === 0 ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              {viewedCount > 0
+                ? `${viewedCount} member${viewedCount === 1 ? "" : "s"} viewed this event.`
+                : "No views yet."}
+            </div>
+          ) : (
+            <Tabs defaultValue={notViewedMembers.length > 0 ? "not-viewed" : "viewed"} className="flex-1 min-h-0 flex flex-col">
+              <TabsList className="grid grid-cols-2">
+                <TabsTrigger value="viewed" className="gap-1.5">
+                  <Eye className="h-3.5 w-3.5" />
+                  Viewed ({viewedMembers.length})
+                </TabsTrigger>
+                <TabsTrigger value="not-viewed" className="gap-1.5">
+                  <EyeOff className="h-3.5 w-3.5" />
+                  Not opened ({notViewedMembers.length})
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="viewed" className="flex-1 overflow-y-auto mt-3">
+                <ViewerList members={viewedMembers} emptyText="No one has viewed yet." />
+              </TabsContent>
+              <TabsContent value="not-viewed" className="flex-1 overflow-y-auto mt-3">
+                <ViewerList members={notViewedMembers} emptyText="Everyone has opened this event." />
+              </TabsContent>
+            </Tabs>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {noOneInvited ? (
         <div className="rounded-md border border-dashed p-4 text-center">
@@ -296,5 +371,43 @@ function AttendanceGroup({
       </div>
       <div>{children}</div>
     </div>
+  );
+}
+
+function ViewerList({
+  members,
+  emptyText,
+}: {
+  members: AddressableMember[];
+  emptyText: string;
+}) {
+  if (members.length === 0) {
+    return <p className="text-sm text-muted-foreground py-6 text-center">{emptyText}</p>;
+  }
+  return (
+    <ul className="divide-y divide-border/50">
+      {members.map((m) => {
+        const initial = m.display_name?.charAt(0)?.toUpperCase() || "?";
+        const role = m.roles?.[0];
+        return (
+          <li key={m.id} className="flex items-center gap-3 py-2.5">
+            <Avatar className="h-9 w-9 shrink-0">
+              <AvatarImage src={m.avatar_url || undefined} />
+              <AvatarFallback className="text-xs bg-muted">{initial}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <span className="text-sm font-medium truncate">
+                {m.display_name || "Unknown"}
+              </span>
+              {role && (
+                <Badge variant="outline" className="capitalize text-[10px] h-5 px-1.5">
+                  {role}
+                </Badge>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
