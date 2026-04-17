@@ -6,6 +6,7 @@ import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Clock, MapPin, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Dialog,
   DialogContent,
