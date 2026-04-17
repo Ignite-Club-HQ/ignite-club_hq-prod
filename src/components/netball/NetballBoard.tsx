@@ -53,6 +53,8 @@ import {
 // Lazy-load secondary dialogs
 const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
 const QuarterLineupPlanner = lazy(() => import("./QuarterLineupPlanner"));
+const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
+const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
 
 interface NetballBoardProps {
   teamId: string;
@@ -145,6 +147,10 @@ export default function NetballBoard({
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
+  const [pendingSubOnId, setPendingSubOnId] = useState<string | null>(null);
+
 
   // ---------- Persistence ----------
   useEffect(() => {
