@@ -5360,12 +5360,14 @@ export type Database = {
           eoi_ask_preferences: boolean
           eoi_ask_skill_level: boolean
           eoi_closes_at: string | null
+          eoi_embed_code: string | null
           eoi_enabled: boolean
           eoi_opens_at: string | null
           eoi_require_dob: boolean
           eoi_require_gender: boolean
           eoi_slug: string | null
           eoi_thank_you_message: string | null
+          eoi_webhook_token: string | null
           eoi_welcome_message: string | null
           id: string
           name: string
@@ -5384,12 +5386,14 @@ export type Database = {
           eoi_ask_preferences?: boolean
           eoi_ask_skill_level?: boolean
           eoi_closes_at?: string | null
+          eoi_embed_code?: string | null
           eoi_enabled?: boolean
           eoi_opens_at?: string | null
           eoi_require_dob?: boolean
           eoi_require_gender?: boolean
           eoi_slug?: string | null
           eoi_thank_you_message?: string | null
+          eoi_webhook_token?: string | null
           eoi_welcome_message?: string | null
           id?: string
           name: string
@@ -5408,12 +5412,14 @@ export type Database = {
           eoi_ask_preferences?: boolean
           eoi_ask_skill_level?: boolean
           eoi_closes_at?: string | null
+          eoi_embed_code?: string | null
           eoi_enabled?: boolean
           eoi_opens_at?: string | null
           eoi_require_dob?: boolean
           eoi_require_gender?: boolean
           eoi_slug?: string | null
           eoi_thank_you_message?: string | null
+          eoi_webhook_token?: string | null
           eoi_welcome_message?: string | null
           id?: string
           name?: string
@@ -7572,6 +7578,10 @@ export type Database = {
       }
       user_email_matches_invite: {
         Args: { _invited_email: string; _user_id: string }
+        Returns: boolean
+      }
+      validate_eoi_webhook_token: {
+        Args: { _club_id: string; _token: string }
         Returns: boolean
       }
       validate_promo_code: {

@@ -24,6 +24,7 @@ import { DraftTeamBuilder } from "@/components/seasons/DraftTeamBuilder";
 import { SeasonAnalyticsCard } from "@/components/seasons/SeasonAnalyticsCard";
 import { BulkRolloverDialog } from "@/components/seasons/BulkRolloverDialog";
 import { SeasonEoiConfigCard } from "@/components/seasons/SeasonEoiConfigCard";
+import { EoiEmbedCard } from "@/components/eoi/EoiEmbedCard";
 import { useClubSeasons } from "@/hooks/useClubSeasons";
 
 export default function SeasonDetailPage() {
@@ -45,8 +46,8 @@ export default function SeasonDetailPage() {
     enabled: !!seasonId,
   });
 
-  const { data: club } = useQuery({
-    queryKey: ["club-name", clubId],
+const { data: club } = useQuery({
+    queryKey: ["club-detail", clubId],
     queryFn: async () => {
       if (!clubId) return null;
       const { data } = await supabase.from("clubs").select("id, name").eq("id", clubId).maybeSingle();
@@ -298,8 +299,18 @@ export default function SeasonDetailPage() {
 
       {(isActive || isArchived) && seasonId && <SeasonAnalyticsCard seasonId={seasonId} />}
 
-      {seasonId && club && season && (
-        <SeasonEoiConfigCard seasonId={seasonId} clubName={club.name} season={season as any} />
+{seasonId && club && season && (
+        <>
+          <SeasonEoiConfigCard seasonId={seasonId} clubName={club.name} season={season as any} />
+{seasonId && club && season && season.eoi_enabled && (
+            <EoiEmbedCard 
+              clubId={club.id} 
+              seasonId={seasonId} 
+              seasonSlug={season.eoi_slug || season.id} 
+              clubSlug={club.id}
+            />
+          )}
+        </>
       )}
 
       {isActive && (
