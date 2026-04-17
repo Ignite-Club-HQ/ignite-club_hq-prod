@@ -3,8 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 
-const stripMentionFormatting = (text: string): string =>
-  text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1');
+import { formatMessagePreview as stripMentionFormatting } from "@/lib/messagePreview";
 
 interface TeamChatPreviewProps {
   teamId: string;

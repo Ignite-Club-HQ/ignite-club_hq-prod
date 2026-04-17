@@ -18,6 +18,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview } from "@/lib/messagePreview";
 
 const MESSAGES_PER_PAGE = 15;
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
@@ -63,17 +64,6 @@ function MessageSkeleton() {
   );
 }
 
-// Helper to strip mention formatting: @[Name](id) -> @Name
-const stripMentionFormatting = (text: string): string => {
-  return text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1');
-};
-
-// Helper to get message preview text - shows "Image" if message is only an image
-const getMessagePreview = (text: string | undefined, imageUrl?: string | null): string => {
-  if (text && text.trim()) return stripMentionFormatting(text);
-  if (imageUrl) return "Image";
-  return "";
-};
 
 // Helper to get first name only from a display name
 const getFirstName = (fullName: string | undefined): string => {

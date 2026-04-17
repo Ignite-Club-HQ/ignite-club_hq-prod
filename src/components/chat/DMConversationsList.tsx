@@ -12,6 +12,7 @@ import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { toast } from "sonner";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { formatMessagePreview as stripMentionFormatting } from "@/lib/messagePreview";
 
 interface DMConversation {
   id: string;
@@ -50,10 +51,6 @@ function DMSkeleton() {
   );
 }
 
-// Helper to strip mention formatting: @[Name](id) -> @Name
-const stripMentionFormatting = (text: string): string => {
-  return text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1');
-};
 
 // Message preview component
 const MessagePreview = ({ 
