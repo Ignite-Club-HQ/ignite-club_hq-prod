@@ -9,7 +9,11 @@ import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
+import CentrePassIndicator from "@/components/scoreboard/CentrePassIndicator";
+import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
+import CuesToggle from "@/components/scoreboard/CuesToggle";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 
 import {
   NetballPlayer,
