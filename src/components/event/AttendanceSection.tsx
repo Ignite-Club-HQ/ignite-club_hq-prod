@@ -72,10 +72,12 @@ export function AttendanceSection({
   notRespondedUserIds,
   canSendReminders,
   trackableMembersCount,
+  addressableMembers,
   onShareLink,
 }: AttendanceSectionProps) {
   const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
+  const [viewsDialogOpen, setViewsDialogOpen] = useState(false);
 
   // Lightweight view-count fetch; only when admin (others don't need it)
   const { data: eventViews } = useQuery({
