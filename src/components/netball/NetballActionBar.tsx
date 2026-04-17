@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import {
+  Bookmark,
   Calendar,
   Settings,
   UserCog,
@@ -10,6 +11,7 @@ import { Quarter, RotationMode } from "./types";
 interface NetballActionBarProps {
   onOpenSquad: () => void;
   onOpenLineups: () => void;
+  onOpenPresets: () => void;
   onOpenSettings: () => void;
   onApplyLineup: () => void;
   currentQuarter: Quarter;
@@ -20,6 +22,7 @@ interface NetballActionBarProps {
 export default function NetballActionBar({
   onOpenSquad,
   onOpenLineups,
+  onOpenPresets,
   onOpenSettings,
   onApplyLineup,
   currentQuarter,
@@ -33,6 +36,9 @@ export default function NetballActionBar({
       </Button>
       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onOpenLineups}>
         <Calendar className="h-3.5 w-3.5 mr-1" /> Lineups
+      </Button>
+      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onOpenPresets}>
+        <Bookmark className="h-3.5 w-3.5 mr-1" /> Presets
       </Button>
       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onApplyLineup}>
         <Zap className="h-3.5 w-3.5 mr-1" /> Apply Q{currentQuarter}

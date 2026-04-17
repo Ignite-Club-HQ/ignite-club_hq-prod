@@ -170,6 +170,15 @@ export interface NetballBoardState {
   linkedEventId?: string | null;
 }
 
+/** A reusable, named 7-player unit (e.g. "Starting 7", "Defensive set"). */
+export interface NetballLineupPreset {
+  id: string;
+  name: string;
+  /** Map of position -> player.id */
+  assignments: Partial<Record<NetballPosition, string>>;
+  createdAt: number;
+}
+
 export const NETBALL_STATE_KEY_BASE = "ignite-netball-board-state-team";
 /** Optionally scope by eventId so each game keeps its own slate (no collision across matches). */
 export const getNetballStateKey = (teamId: string, eventId?: string | null) =>
@@ -177,3 +186,6 @@ export const getNetballStateKey = (teamId: string, eventId?: string | null) =>
 export const NETBALL_TIMER_KEY_BASE = "ignite-netball-timer-state-team";
 export const getNetballTimerKey = (teamId: string, eventId?: string | null) =>
   eventId ? `${NETBALL_TIMER_KEY_BASE}-${teamId}-event-${eventId}` : `${NETBALL_TIMER_KEY_BASE}-${teamId}`;
+export const NETBALL_PRESETS_KEY_BASE = "ignite-netball-presets-team";
+/** Presets are coach-level templates → keyed by team only (shared across matches). */
+export const getNetballPresetsKey = (teamId: string) => `${NETBALL_PRESETS_KEY_BASE}-${teamId}`;
