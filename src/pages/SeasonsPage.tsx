@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Archive, CheckCircle2, Clock, Lock, Users, GitCompare } from "lucide-react";
+import { ArrowLeft, Plus, Archive, CheckCircle2, Clock, Lock, Users, GitCompare, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageLoading } from "@/components/ui/page-loading";
 import { useClubSeasons, type Season, type SeasonStatus } from "@/hooks/useClubSeasons";
 import { StartNewSeasonWizard } from "@/components/seasons/StartNewSeasonWizard";
+import { SeasonTemplateDialog } from "@/components/seasons/SeasonTemplateDialog";
+import { OrphanEventsCard } from "@/components/seasons/OrphanEventsCard";
 import { format } from "date-fns";
 
 const STATUS_META: Record<SeasonStatus, { label: string; icon: typeof Clock; variant: "default" | "secondary" | "outline" }> = {
