@@ -313,8 +313,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   }
 
   // Show a single "+" button that opens a popover with image, event, and poll actions
-  const [menuOpen, setMenuOpen] = useState(false);
-
   return (
     <div className="flex shrink-0 items-center self-end pl-1">
       <input
