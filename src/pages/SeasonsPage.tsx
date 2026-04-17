@@ -26,6 +26,7 @@ export default function SeasonsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [templateSource, setTemplateSource] = useState<Season | null>(null);
 
   const { data: club, isLoading: clubLoading } = useQuery({
     queryKey: ["club-basic", clubId],
