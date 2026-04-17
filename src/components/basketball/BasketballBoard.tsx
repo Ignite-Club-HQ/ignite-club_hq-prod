@@ -14,6 +14,7 @@ const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog")
 const BasketballQuarterLineupPlanner = lazy(() => import("./BasketballQuarterLineupPlanner"));
 const BasketballRosterDialog = lazy(() => import("./BasketballRosterDialog"));
 const BasketballQuickActionSheet = lazy(() => import("./BasketballQuickActionSheet"));
+const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPresetsDialog"));
 
 interface BasketballBoardProps {
   teamId: string;
@@ -55,6 +56,7 @@ export default function BasketballBoard({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -81,10 +83,13 @@ export default function BasketballBoard({
           onOpenSquad={() => setRosterOpen(true)}
           onOpenLineups={() => setLineupPlannerOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenPresets={() => setPresetsOpen(true)}
           onApplyLineup={board.applyNextLineupNow}
+          onToggleCourtView={board.toggleCourtView}
           currentQuarter={board.timerState.currentQuarter}
           rotationMode={board.rotationMode}
           rotationIntervalMinutes={board.rotationIntervalMinutes}
+          courtView={board.courtView}
         />
       )}
 
@@ -93,6 +98,7 @@ export default function BasketballBoard({
         selectedPlayerId={board.selectedPlayerId}
         nextSubOutId={board.nextSub?.playerOut.id ?? null}
         readOnly={readOnly}
+        courtView={board.courtView}
         onPlayerClick={board.handlePlayerClick}
         onSlotClick={board.handleSlotClick}
       />
