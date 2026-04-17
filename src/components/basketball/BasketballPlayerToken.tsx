@@ -2,7 +2,7 @@ import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BasketballPlayer, BasketballPosition, POSITION_COLORS } from "./types";
-import { Pin, AlertTriangle } from "lucide-react";
+import { Pin, AlertTriangle, Ban } from "lucide-react";
 
 interface BasketballPlayerTokenProps {
   player: BasketballPlayer;
@@ -49,7 +49,9 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
   const pos = position ?? player.position;
   const colors = pos ? POSITION_COLORS[pos] : null;
   const minutes = Math.floor((player.minutesPlayed ?? 0) / 60);
-  const fouled = (player.fouls ?? 0) >= 5;
+  const fouled = !!player.isFouledOut;
+  const fouls = player.fouls ?? 0;
+  const points = player.points ?? 0;
 
   return (
     <button
@@ -60,7 +62,7 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       onDragEnd={onDragEnd}
       onTouchStart={onTouchStart}
       style={style}
-      aria-label={`${player.name}${pos ? ` at ${pos}` : " on bench"}`}
+      aria-label={`${player.name}${pos ? ` at ${pos}` : " on bench"}${points > 0 ? `, ${points} points` : ""}`}
       className={cn(
         "relative flex flex-col items-center gap-1 transition-all touch-manipulation select-none",
         variant === "court" ? "w-14" : "w-12",
@@ -73,16 +75,23 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         readOnly && "pointer-events-none"
       )}
     >
-      {player.isInjured && (
+      {/* Foul-out (red Ban) takes priority over injury (yellow triangle) */}
+      {fouled ? (
+        <span
+          className="absolute -top-1 -right-1 z-10 bg-destructive text-destructive-foreground rounded-full p-0.5"
+          title="Fouled out"
+        >
+          <Ban className="h-3 w-3" />
+        </span>
+      ) : player.isInjured ? (
         <span className="absolute -top-1 -right-1 z-10 bg-destructive text-destructive-foreground rounded-full p-0.5">
           <AlertTriangle className="h-3 w-3" />
         </span>
-      )}
-      {player.isFillIn && !player.isInjured && (
+      ) : player.isFillIn ? (
         <span className="absolute -top-1 -right-1 z-10 bg-amber-500 text-white rounded-full p-0.5">
           <Pin className="h-3 w-3" />
         </span>
-      )}
+      ) : null}
       {player.number !== undefined && (
         <span
           className="absolute -top-1 -left-1 z-10 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-background border border-border text-[10px] font-bold text-foreground shadow-sm"
@@ -96,7 +105,7 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
           className={cn(
             "border-2 shadow-md",
             variant === "court" ? "h-11 w-11" : "h-10 w-10",
-            fouled ? "border-destructive" : (colors?.border ?? "border-border")
+            fouled ? "border-destructive opacity-70" : (colors?.border ?? "border-border")
           )}
         >
           <AvatarFallback className={cn("text-xs font-bold", colors?.bg, colors?.text)}>
@@ -115,12 +124,25 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
             {pos}
           </span>
         )}
+        {points > 0 && (
+          <span
+            className="absolute -bottom-1 -right-1 z-10 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-sm"
+            aria-hidden
+          >
+            {points}
+          </span>
+        )}
       </div>
       <span className="text-[10px] font-medium text-foreground/90 leading-tight text-center max-w-full truncate">
         {player.name.split(" ")[0]}
       </span>
       <span className="text-[9px] text-muted-foreground leading-none">
-        {minutes}m{(player.fouls ?? 0) > 0 ? ` · ${player.fouls}F` : ""}
+        {minutes}m
+        {fouls > 0 && (
+          <span className={cn("ml-1", fouled && "text-destructive font-semibold")}>
+            · {fouls}F
+          </span>
+        )}
       </span>
     </button>
   );

@@ -2958,6 +2958,7 @@ export default function EventDetailPage() {
             <NetballBoard
               teamId={event.team_id}
               teamName={event.teams?.name || "Team"}
+              eventId={id}
               members={teamMembers.map(m => ({
                 id: m.user_id,
                 user_id: m.user_id,
@@ -2982,6 +2983,7 @@ export default function EventDetailPage() {
             <BasketballBoard
               teamId={event.team_id}
               teamName={event.teams?.name || "Team"}
+              eventId={id}
               members={teamMembers.map(m => ({
                 id: m.user_id,
                 user_id: m.user_id,

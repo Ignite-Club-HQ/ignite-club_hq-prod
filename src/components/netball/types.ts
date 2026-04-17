@@ -143,6 +143,9 @@ export interface NetballBoardState {
 }
 
 export const NETBALL_STATE_KEY_BASE = "ignite-netball-board-state-team";
-export const getNetballStateKey = (teamId: string) => `${NETBALL_STATE_KEY_BASE}-${teamId}`;
+/** Optionally scope by eventId so each game keeps its own slate (no collision across matches). */
+export const getNetballStateKey = (teamId: string, eventId?: string | null) =>
+  eventId ? `${NETBALL_STATE_KEY_BASE}-${teamId}-event-${eventId}` : `${NETBALL_STATE_KEY_BASE}-${teamId}`;
 export const NETBALL_TIMER_KEY_BASE = "ignite-netball-timer-state-team";
-export const getNetballTimerKey = (teamId: string) => `${NETBALL_TIMER_KEY_BASE}-${teamId}`;
+export const getNetballTimerKey = (teamId: string, eventId?: string | null) =>
+  eventId ? `${NETBALL_TIMER_KEY_BASE}-${teamId}-event-${eventId}` : `${NETBALL_TIMER_KEY_BASE}-${teamId}`;

@@ -56,6 +56,8 @@ interface NetballBoardProps {
   onClose: () => void;
   readOnly?: boolean;
   initialMinutesPerQuarter?: number;
+  /** When provided, board state is scoped to this event. */
+  eventId?: string | null;
 }
 
 const DialogLoader = () => (
@@ -71,10 +73,11 @@ export default function NetballBoard({
   onClose,
   readOnly = false,
   initialMinutesPerQuarter = 15,
+  eventId = null,
 }: NetballBoardProps) {
   const { toast } = useToast();
-  const stateKey = getNetballStateKey(teamId);
-  const timerKey = getNetballTimerKey(teamId);
+  const stateKey = getNetballStateKey(teamId, eventId);
+  const timerKey = getNetballTimerKey(teamId, eventId);
 
   // ---------- Initial state ----------
   const savedStateRef = useRef<NetballBoardState | null>(null);

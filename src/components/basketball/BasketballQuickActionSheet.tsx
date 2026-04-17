@@ -12,8 +12,11 @@ import {
   AlertTriangle,
   X,
   Plus,
+  Target,
+  Undo2,
 } from "lucide-react";
 import { BasketballPlayer, BASKETBALL_POSITION_LABELS } from "./types";
+import { cn } from "@/lib/utils";
 
 interface BasketballQuickActionSheetProps {
   open: boolean;
@@ -24,6 +27,10 @@ interface BasketballQuickActionSheetProps {
   onSubOn: () => void;
   onToggleInjured: () => void;
   onAddFoul: () => void;
+  /** Clear a fouled-out flag (coach override). */
+  onClearFoulOut?: () => void;
+  /** Attribute a basket to this player (home side). */
+  onScore?: (points: 1 | 2 | 3) => void;
 }
 
 export default function BasketballQuickActionSheet({
@@ -35,10 +42,12 @@ export default function BasketballQuickActionSheet({
   onSubOn,
   onToggleInjured,
   onAddFoul,
+  onClearFoulOut,
+  onScore,
 }: BasketballQuickActionSheetProps) {
   if (!player) return null;
   const onCourt = player.position !== null;
-  const fouledOut = (player.fouls ?? 0) >= 5;
+  const fouledOut = !!player.isFouledOut;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -56,13 +65,70 @@ export default function BasketballQuickActionSheet({
                 · {BASKETBALL_POSITION_LABELS[player.position]}
               </span>
             )}
-            {(player.fouls ?? 0) > 0 && (
-              <span className="text-xs font-medium text-destructive ml-auto">
-                {player.fouls}F
-              </span>
-            )}
+            <div className="ml-auto flex items-center gap-1.5 text-xs">
+              {(player.points ?? 0) > 0 && (
+                <span className="font-semibold text-primary">{player.points} pts</span>
+              )}
+              {(player.fouls ?? 0) > 0 && (
+                <span
+                  className={cn(
+                    "font-medium",
+                    fouledOut ? "text-destructive" : "text-muted-foreground"
+                  )}
+                >
+                  {player.fouls}F
+                </span>
+              )}
+            </div>
           </SheetTitle>
+          {/* Foul pips: ●●●○○ for visual fouls (FIBA = 5) */}
+          {!fouledOut && (
+            <div
+              className="flex items-center gap-1 pt-1"
+              role="img"
+              aria-label={`${player.fouls ?? 0} of 5 fouls`}
+            >
+              {Array.from({ length: 5 }).map((_, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "w-2 h-2 rounded-full",
+                    i < (player.fouls ?? 0)
+                      ? (player.fouls ?? 0) >= 4
+                        ? "bg-destructive"
+                        : "bg-muted-foreground"
+                      : "bg-muted"
+                  )}
+                />
+              ))}
+            </div>
+          )}
         </SheetHeader>
+
+        {/* Per-player score attribution — only when on court & game-side actions enabled */}
+        {onScore && onCourt && !fouledOut && (
+          <div className="pt-3 pb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mb-1.5">
+              Score for {player.name.split(" ")[0]}
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {([1, 2, 3] as const).map((pts) => (
+                <Button
+                  key={pts}
+                  variant="default"
+                  size="lg"
+                  className="h-12 text-base font-bold"
+                  onClick={() => {
+                    onScore(pts);
+                    onOpenChange(false);
+                  }}
+                >
+                  <Target className="h-4 w-4 mr-1" />+{pts}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2 py-4">
           <Button
@@ -118,17 +184,31 @@ export default function BasketballQuickActionSheet({
             <span className="text-xs">Add foul</span>
           </Button>
 
-          <Button
-            variant={player.isInjured ? "destructive" : "outline"}
-            className="h-14 flex-col gap-1"
-            onClick={() => {
-              onToggleInjured();
-              onOpenChange(false);
-            }}
-          >
-            <AlertTriangle className="h-5 w-5" />
-            <span className="text-xs">{player.isInjured ? "Mark fit" : "Mark injured"}</span>
-          </Button>
+          {fouledOut && onClearFoulOut ? (
+            <Button
+              variant="outline"
+              className="h-14 flex-col gap-1"
+              onClick={() => {
+                onClearFoulOut();
+                onOpenChange(false);
+              }}
+            >
+              <Undo2 className="h-5 w-5" />
+              <span className="text-xs">Clear foul-out</span>
+            </Button>
+          ) : (
+            <Button
+              variant={player.isInjured ? "destructive" : "outline"}
+              className="h-14 flex-col gap-1"
+              onClick={() => {
+                onToggleInjured();
+                onOpenChange(false);
+              }}
+            >
+              <AlertTriangle className="h-5 w-5" />
+              <span className="text-xs">{player.isInjured ? "Mark fit" : "Mark injured"}</span>
+            </Button>
+          )}
 
           <Button
             variant="ghost"
