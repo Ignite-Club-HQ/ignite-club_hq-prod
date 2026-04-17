@@ -12,6 +12,7 @@ import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { toast } from "sonner";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { formatMessagePreview as stripMentionFormatting } from "@/lib/messagePreview";
 
 interface DMConversation {
   id: string;
@@ -50,7 +51,6 @@ function DMSkeleton() {
   );
 }
 
-import { formatMessagePreview as stripMentionFormatting } from "@/lib/messagePreview";
 
 // Message preview component
 const MessagePreview = ({ 
