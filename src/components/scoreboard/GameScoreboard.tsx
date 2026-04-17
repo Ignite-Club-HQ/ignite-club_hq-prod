@@ -30,6 +30,8 @@ interface GameScoreboardProps {
   onUndo: () => void;
   onRenameAway: (name: string) => void;
   canUndo: boolean;
+  /** When true, scoring (+N) buttons are disabled. Undo + rename remain available. */
+  disabled?: boolean;
   className?: string;
 }
 
