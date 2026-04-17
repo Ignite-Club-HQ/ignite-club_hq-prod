@@ -618,6 +618,78 @@ export function useBasketballBoardState({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, rosterSignature]);
 
+  // ---------- Auto-sub control panel handlers ----------
+  /** Execute the next due (or upcoming) sub immediately, regardless of clock. */
+  const executeNextSubNow = useCallback(() => {
+    const target =
+      autoSubPlan.find(
+        (s) =>
+          !s.executed &&
+          !s.skipped &&
+          s.quarter === timerState.currentQuarter &&
+          s.time >= timerState.elapsedSeconds
+      ) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped && s.quarter > timerState.currentQuarter) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped);
+    if (!target) {
+      toast({ title: "No subs queued" });
+      return;
+    }
+    executeSub(target);
+  }, [autoSubPlan, timerState.currentQuarter, timerState.elapsedSeconds, executeSub, toast]);
+
+  /** Mark the next pending sub (or batch at same quarter+time) as skipped. */
+  const skipNextSub = useCallback(() => {
+    const target =
+      autoSubPlan.find(
+        (s) =>
+          !s.executed &&
+          !s.skipped &&
+          s.quarter === timerState.currentQuarter &&
+          s.time >= timerState.elapsedSeconds
+      ) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped && s.quarter > timerState.currentQuarter) ||
+      autoSubPlan.find((s) => !s.executed && !s.skipped);
+    if (!target) return;
+    setAutoSubPlan((prev) =>
+      prev.map((s) =>
+        !s.executed && !s.skipped && s.quarter === target.quarter && s.time === target.time
+          ? { ...s, skipped: true }
+          : s
+      )
+    );
+    toast({ title: "Sub skipped" });
+  }, [autoSubPlan, timerState.currentQuarter, timerState.elapsedSeconds, toast]);
+
+  /** Drop the entire pending plan (rotation mode stays on; user can regenerate). */
+  const cancelAutoSubPlan = useCallback(() => {
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (s.executed ? s : { ...s, skipped: true }))
+    );
+    toast({ title: "Plan cancelled", description: "All pending auto-subs cleared." });
+  }, [toast]);
+
+  /** Re-build the plan from current roster + settings (preserves executed history). */
+  const regenerateAutoSubPlan = useCallback(() => {
+    if (rotationMode === "off") {
+      toast({
+        title: "Rotation is off",
+        description: "Enable a rotation mode in Settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const fresh =
+      rotationMode === "time-based"
+        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter)
+        : generateQuarterBreakRotationPlan(players, 3);
+    // Preserve the historical record of executed subs so the timeline still shows them.
+    const executed = autoSubPlan.filter((s) => s.executed);
+    setAutoSubPlan([...executed, ...fresh.filter((f) => !executed.some((e) => e.quarter === f.quarter && e.time === f.time && e.playerOut.id === f.playerOut.id))]);
+    toast({ title: "Plan regenerated" });
+  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, autoSubPlan, toast]);
+
+
   // ---------- Derived ----------
   const bench = useMemo(() => getBench(players), [players]);
   const nextSub = useMemo(
