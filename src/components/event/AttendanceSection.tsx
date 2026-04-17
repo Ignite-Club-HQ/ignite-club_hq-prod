@@ -373,3 +373,41 @@ function AttendanceGroup({
     </div>
   );
 }
+
+function ViewerList({
+  members,
+  emptyText,
+}: {
+  members: AddressableMember[];
+  emptyText: string;
+}) {
+  if (members.length === 0) {
+    return <p className="text-sm text-muted-foreground py-6 text-center">{emptyText}</p>;
+  }
+  return (
+    <ul className="divide-y divide-border/50">
+      {members.map((m) => {
+        const initial = m.display_name?.charAt(0)?.toUpperCase() || "?";
+        const role = m.roles?.[0];
+        return (
+          <li key={m.id} className="flex items-center gap-3 py-2.5">
+            <Avatar className="h-9 w-9 shrink-0">
+              <AvatarImage src={m.avatar_url || undefined} />
+              <AvatarFallback className="text-xs bg-muted">{initial}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <span className="text-sm font-medium truncate">
+                {m.display_name || "Unknown"}
+              </span>
+              {role && (
+                <Badge variant="outline" className="capitalize text-[10px] h-5 px-1.5">
+                  {role}
+                </Badge>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
