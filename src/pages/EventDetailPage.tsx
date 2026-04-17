@@ -222,6 +222,7 @@ export default function EventDetailPage() {
   const [playerOverrides, setPlayerOverrides] = useState<Record<string, boolean>>({});
   const isSharingEventRef = useRef(false);
   const [showPostRsvpNudge, setShowPostRsvpNudge] = useState(false);
+  const [recentlyReminded, setRecentlyReminded] = useState<Set<string>>(new Set());
   const notificationNudge = useNotificationNudge(user?.id, "event");
 
   // Track when user views this event
