@@ -533,6 +533,11 @@ export default function MediaPage() {
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
 
+  // Photo view tracking — count, recording, and realtime updates
+  const { data: photoViewCounts } = usePhotoViewCounts(allPhotoIds);
+  const { recordView } = useRecordPhotoView(user?.id);
+  usePhotoViewRealtime(allPhotoIds);
+
   // Stable query key for reactions - include photo count to refetch when more photos load
   const reactionsQueryKey = useMemo(() => ["photo-reactions", user?.id, allPhotoIds.length], [user?.id, allPhotoIds.length]);
   
