@@ -72,6 +72,10 @@ function PhotoSkeleton() {
   );
 }
 
+// Photo view tracking launched 2026-04-17. Photos uploaded before this date
+// don't show a view count since their views were never recorded.
+const PHOTO_VIEWS_FEATURE_LAUNCH = new Date("2026-04-17T11:26:42Z");
+
 export default function MediaPage() {
   const { user } = useAuth();
   usePageTitle("Media");
@@ -1167,14 +1171,16 @@ export default function MediaPage() {
                       <MessageCircle className="h-5 w-5" />
                       {comments.length > 0 && <span className="text-xs">{comments.length}</span>}
                     </Button>
-                    <div
-                      className="flex items-center gap-1 text-muted-foreground"
-                      title={`${photoViewCounts?.get(photo.id) || 0} view${(photoViewCounts?.get(photo.id) || 0) === 1 ? "" : "s"}`}
-                      aria-label={`${photoViewCounts?.get(photo.id) || 0} views`}
-                    >
-                      <Eye className="h-5 w-5" />
-                      <span className="text-xs">{photoViewCounts?.get(photo.id) || 0}</span>
-                    </div>
+                    {new Date(photo.created_at) >= PHOTO_VIEWS_FEATURE_LAUNCH && (
+                      <div
+                        className="flex items-center gap-1 text-muted-foreground"
+                        title={`${photoViewCounts?.get(photo.id) || 0} view${(photoViewCounts?.get(photo.id) || 0) === 1 ? "" : "s"}`}
+                        aria-label={`${photoViewCounts?.get(photo.id) || 0} views`}
+                      >
+                        <Eye className="h-5 w-5" />
+                        <span className="text-xs">{photoViewCounts?.get(photo.id) || 0}</span>
+                      </div>
+                    )}
                   </div>
 
                   {photo.title && (
