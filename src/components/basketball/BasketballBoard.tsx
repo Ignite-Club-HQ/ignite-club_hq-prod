@@ -118,6 +118,7 @@ export default function BasketballBoard({
           <h1 className="font-bold text-sm truncate">{teamName}</h1>
           <p className="text-[10px] text-muted-foreground">Basketball Game Board</p>
         </div>
+        <CuesToggle />
         <BasketballQuarterTimer
           state={board.timerState}
           onChange={board.setTimerState}
@@ -144,6 +145,30 @@ export default function BasketballBoard({
       <QuarterScoreStrip
         scoreLog={board.timerState.scoreLog}
         currentQuarter={board.timerState.currentQuarter}
+      />
+
+      <TimeoutsPanel
+        homeLabel={teamName}
+        awayLabel={board.timerState.opponentName ?? "Opponent"}
+        homeRemaining={
+          board.timerState.homeTimeoutsRemaining ?? board.timerState.timeoutsPerHalf ?? 3
+        }
+        awayRemaining={
+          board.timerState.awayTimeoutsRemaining ?? board.timerState.timeoutsPerHalf ?? 3
+        }
+        perHalf={board.timerState.timeoutsPerHalf ?? 3}
+        half={board.timerState.currentQuarter <= 2 ? 1 : 2}
+        readOnly={readOnly}
+        onCall={board.callTimeout}
+        onResetHalf={board.resetTimeoutsForCurrentHalf}
+      />
+
+      <BenchFairnessMeter
+        players={board.players}
+        elapsedSeconds={
+          board.timerState.elapsedSeconds +
+          (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
+        }
       />
 
       {!readOnly && (
