@@ -308,6 +308,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                 // Event links are rendered as empty spans inline; the card is shown below
                 return <span key={index} />;
               }
+              if (part.type === "poll-link") {
+                // Poll tokens render as empty spans; the card is shown below
+                return <span key={index} />;
+              }
               if (part.type === "link") {
                 const videoId = extractYouTubeId(part.content);
                 if (videoId) {
@@ -387,6 +391,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
           {eventIds.map((eventId) => (
             <EventLinkCard key={eventId} eventId={eventId} />
+          ))}
+        </div>
+      )}
+
+      {/* Poll cards */}
+      {pollIds.length > 0 && (
+        <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {pollIds.map((pollId) => (
+            <PollCard key={pollId} pollId={pollId} />
           ))}
         </div>
       )}
