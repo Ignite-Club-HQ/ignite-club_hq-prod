@@ -14,6 +14,7 @@ import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
 import CuesToggle from "@/components/scoreboard/CuesToggle";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 
 // Lazy-load secondary dialogs
 const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
@@ -77,6 +78,8 @@ export default function BasketballBoard({
     playerName: string;
     attempts: 1 | 2 | 3;
   } | null>(null);
+
+  const { save: saveGameResult } = useSaveGameResult();
 
   // Auto-open the summary the first time the game ticks over to "finished".
   useEffect(() => {
