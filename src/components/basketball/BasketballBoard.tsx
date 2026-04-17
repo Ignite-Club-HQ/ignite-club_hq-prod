@@ -263,6 +263,8 @@ export default function BasketballBoard({
             onValidationModeChange={board.setValidationMode}
             timeoutsPerHalf={board.timerState.timeoutsPerHalf ?? 3}
             onTimeoutsPerHalfChange={board.setTimeoutsPerHalf}
+            periodType={board.timerState.periodType ?? "quarters"}
+            onPeriodTypeChange={board.setPeriodType}
           />
         )}
         {lineupPlannerOpen && (
