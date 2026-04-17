@@ -153,13 +153,57 @@ export function AttendanceSection({
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold">Team Attendance</h2>
-        {isAdmin && viewedCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+        {isAdmin && (viewedCount > 0 || (addressableMembers?.length ?? 0) > 0) && (
+          <button
+            type="button"
+            onClick={() => setViewsDialogOpen(true)}
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground rounded-md px-1.5 py-1 -mx-1.5 -my-1 hover:bg-muted/60 active:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`See who viewed this event: ${viewedCount} viewed`}
+          >
             <Eye className="h-3 w-3" />
-            {viewedCount} viewed
-          </span>
+            <span>{viewedCount} viewed</span>
+            <ChevronDown className="h-3 w-3" />
+          </button>
         )}
       </div>
+
+      {/* Viewed / Not viewed breakdown */}
+      <Dialog open={viewsDialogOpen} onOpenChange={setViewsDialogOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader className="text-left">
+            <DialogTitle>Event views</DialogTitle>
+            <DialogDescription>
+              Who has opened this event in the app.
+            </DialogDescription>
+          </DialogHeader>
+          {(addressableMembers?.length ?? 0) === 0 ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              {viewedCount > 0
+                ? `${viewedCount} member${viewedCount === 1 ? "" : "s"} viewed this event.`
+                : "No views yet."}
+            </div>
+          ) : (
+            <Tabs defaultValue={notViewedMembers.length > 0 ? "not-viewed" : "viewed"} className="flex-1 min-h-0 flex flex-col">
+              <TabsList className="grid grid-cols-2">
+                <TabsTrigger value="viewed" className="gap-1.5">
+                  <Eye className="h-3.5 w-3.5" />
+                  Viewed ({viewedMembers.length})
+                </TabsTrigger>
+                <TabsTrigger value="not-viewed" className="gap-1.5">
+                  <EyeOff className="h-3.5 w-3.5" />
+                  Not opened ({notViewedMembers.length})
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="viewed" className="flex-1 overflow-y-auto mt-3">
+                <ViewerList members={viewedMembers} emptyText="No one has viewed yet." />
+              </TabsContent>
+              <TabsContent value="not-viewed" className="flex-1 overflow-y-auto mt-3">
+                <ViewerList members={notViewedMembers} emptyText="Everyone has opened this event." />
+              </TabsContent>
+            </Tabs>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {noOneInvited ? (
         <div className="rounded-md border border-dashed p-4 text-center">
