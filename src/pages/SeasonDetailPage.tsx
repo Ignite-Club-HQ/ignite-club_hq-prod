@@ -24,6 +24,7 @@ import { DraftTeamBuilder } from "@/components/seasons/DraftTeamBuilder";
 import { SeasonAnalyticsCard } from "@/components/seasons/SeasonAnalyticsCard";
 import { BulkRolloverDialog } from "@/components/seasons/BulkRolloverDialog";
 import { SeasonEoiConfigCard } from "@/components/seasons/SeasonEoiConfigCard";
+import { EoiEmbedCard } from "@/components/eoi/EoiEmbedCard";
 import { useClubSeasons } from "@/hooks/useClubSeasons";
 
 export default function SeasonDetailPage() {
@@ -298,8 +299,18 @@ export default function SeasonDetailPage() {
 
       {(isActive || isArchived) && seasonId && <SeasonAnalyticsCard seasonId={seasonId} />}
 
-      {seasonId && club && season && (
-        <SeasonEoiConfigCard seasonId={seasonId} clubName={club.name} season={season as any} />
+{seasonId && club && season && (
+        <>
+          <SeasonEoiConfigCard seasonId={seasonId} clubName={club.name} season={season as any} />
+          {season.eoi_enabled && (
+            <EoiEmbedCard 
+              clubId={club.id} 
+              seasonId={seasonId} 
+              seasonSlug={season.eoi_slug || season.id} 
+              clubSlug={club.slug || club.id}
+            />
+          )}
+        </>
       )}
 
       {isActive && (
