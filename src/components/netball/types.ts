@@ -74,9 +74,14 @@ export interface NetballPlayer {
   isFillIn?: boolean;
   /** Coach-set preferred positions for like-for-like rotations. */
   preferredPositions?: NetballPosition[];
+  /** Wall-clock timestamp of the last time this player came off court (null = never benched / on court). Used for the bench rest timer. */
+  lastBenchedAt?: number | null;
 }
 
 export type Quarter = 1 | 2 | 3 | 4;
+
+/** "Quarters" = 4 periods (default netball). "Halves" = 2 periods (juniors). */
+export type PeriodType = "quarters" | "halves";
 
 export type RotationMode = "time-based" | "quarter-break" | "off";
 
@@ -145,6 +150,8 @@ export interface NetballTimerState {
   mvpPlayerId?: string | null;
   /** Which side has the next centre pass. Auto-flips after each goal. */
   centrePass?: "home" | "away";
+  /** Period structure: "quarters" (default, 4 periods) or "halves" (2 periods, junior leagues). */
+  periodType?: PeriodType;
 }
 
 export interface NetballBoardState {

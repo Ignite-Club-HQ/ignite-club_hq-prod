@@ -40,6 +40,7 @@ import {
   findNextDueSub,
   safeLoad,
   safeSave,
+  transitionPosition,
 } from "./netballHelpers";
 import { useNetballGameSync } from "@/hooks/useNetballGameSync";
 
@@ -252,8 +253,8 @@ export default function NetballBoard({
         const inP = prev.find((p) => p.id === sub.playerIn.id);
         if (!out?.position || !inP || inP.position !== null) return prev;
         return prev.map((p) => {
-          if (p.id === out.id) return { ...p, position: null };
-          if (p.id === inP.id) return { ...p, position: sub.position };
+          if (p.id === out.id) return transitionPosition(p, null);
+          if (p.id === inP.id) return transitionPosition(p, sub.position);
           return p;
         });
       });
@@ -397,7 +398,7 @@ export default function NetballBoard({
           if (p.id === playerId && p.position) {
             outName = p.name;
             outPos = p.position;
-            return { ...p, position: null };
+            return transitionPosition(p, null);
           }
           return p;
         })
@@ -435,10 +436,10 @@ export default function NetballBoard({
         if (last.playerInId === "" && p.id === last.playerOutId) {
           const slotTaken = prev.some((x) => x.id !== p.id && x.position === last.position);
           if (slotTaken) return p;
-          return { ...p, position: last.position };
+          return transitionPosition(p, last.position);
         }
-        if (p.id === last.playerInId) return { ...p, position: null };
-        if (p.id === last.playerOutId) return { ...p, position: last.position };
+        if (p.id === last.playerInId) return transitionPosition(p, null);
+        if (p.id === last.playerOutId) return transitionPosition(p, last.position);
         return p;
       })
     );

@@ -26,6 +26,7 @@ import {
   findNextDueSub,
   safeLoad,
   safeSave,
+  transitionPosition,
 } from "@/components/basketball/basketballHelpers";
 import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
 import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
@@ -136,6 +137,7 @@ export function useBasketballBoardState({
         homeTimeoutsRemaining: 3,
         awayTimeoutsRemaining: 3,
         timeoutsHalfTracked: 1,
+        periodType: "quarters",
       }
   );
 
@@ -293,8 +295,8 @@ export function useBasketballBoardState({
         const inP = prev.find((p) => p.id === sub.playerIn.id);
         if (!out?.position || !inP || inP.position !== null) return prev;
         return prev.map((p) => {
-          if (p.id === out.id) return { ...p, position: null };
-          if (p.id === inP.id) return { ...p, position: sub.position };
+          if (p.id === out.id) return transitionPosition(p, null);
+          if (p.id === inP.id) return transitionPosition(p, sub.position);
           return p;
         });
       });
@@ -427,8 +429,8 @@ export function useBasketballBoardState({
           });
         }
         return prev.map((p) => {
-          if (p.id === a.id) return { ...p, position: b.position };
-          if (p.id === b.id) return { ...p, position: a.position };
+          if (p.id === a.id) return transitionPosition(p, b.position);
+          if (p.id === b.id) return transitionPosition(p, a.position);
           return p;
         });
       });
@@ -478,8 +480,8 @@ export function useBasketballBoardState({
           };
         }
         return prev.map((p) => {
-          if (p.id === incoming.id) return { ...p, position };
-          if (p.position === position && p.id !== incoming.id) return { ...p, position: null };
+          if (p.id === incoming.id) return transitionPosition(p, position);
+          if (p.position === position && p.id !== incoming.id) return transitionPosition(p, null);
           return p;
         });
       });
@@ -498,7 +500,7 @@ export function useBasketballBoardState({
           if (p.id === playerId && p.position) {
             outName = p.name;
             outPos = p.position;
-            return { ...p, position: null };
+            return transitionPosition(p, null);
           }
           return p;
         })
@@ -538,10 +540,10 @@ export function useBasketballBoardState({
             // via a dedicated `isFouledOut` flag (NOT isInjured — that was
             // misleading the UI to show an injury badge).
             const fouledOut = newCount >= 5;
+            const next = transitionPosition(p, fouledOut ? null : p.position);
             return {
-              ...p,
+              ...next,
               fouls: newCount,
-              position: fouledOut ? null : p.position,
               isFouledOut: fouledOut ? true : p.isFouledOut,
             };
           }
@@ -665,10 +667,10 @@ export function useBasketballBoardState({
             (x) => x.id !== p.id && x.position === last.position
           );
           if (slotTaken) return p;
-          return { ...p, position: last.position };
+          return transitionPosition(p, last.position);
         }
-        if (p.id === last.playerInId) return { ...p, position: null };
-        if (p.id === last.playerOutId) return { ...p, position: last.position };
+        if (p.id === last.playerInId) return transitionPosition(p, null);
+        if (p.id === last.playerOutId) return transitionPosition(p, last.position);
         return p;
       })
     );
@@ -746,6 +748,77 @@ export function useBasketballBoardState({
     }));
   }, []);
 
+  // ---------- Free throws ----------
+  // Each made FT credits +1 to the player's points (and to the team score
+  // via a normal scoreLog entry so the per-quarter strip stays accurate).
+  const addFreeThrows = useCallback(
+    (playerId: string, made: number, attempted: number) => {
+      const safeMade = Math.max(0, Math.min(attempted, Math.floor(made)));
+      const safeAtt = Math.max(0, Math.floor(attempted));
+      if (safeAtt === 0) return;
+      // Update per-player FT counters + points.
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId
+            ? {
+                ...p,
+                ftMade: (p.ftMade ?? 0) + safeMade,
+                ftAttempted: (p.ftAttempted ?? 0) + safeAtt,
+                points: (p.points ?? 0) + safeMade,
+              }
+            : p
+        )
+      );
+      // Add the made FTs to the team score as a single 1pt-each event chain
+      // so QuarterScoreStrip + final score reflect the change.
+      if (safeMade > 0) {
+        setTimerState((s) => {
+          const events = Array.from({ length: safeMade }).map(() => ({
+            id: crypto.randomUUID(),
+            side: "home" as const,
+            points: 1,
+            quarter: s.currentQuarter,
+            at: Date.now(),
+            playerId,
+          }));
+          return {
+            ...s,
+            homeScore: (s.homeScore ?? 0) + safeMade,
+            scoreLog: [...(s.scoreLog ?? []), ...events],
+            lastUpdateTime: Date.now(),
+          };
+        });
+      }
+      toast({
+        title: "Free throws",
+        description: `${safeMade}/${safeAtt} made.`,
+      });
+    },
+    [toast]
+  );
+
+  // ---------- Period type (quarters vs halves) ----------
+  // When switching to halves we collapse 4 quarters → 2 halves by doubling
+  // the timer length so total game minutes stay stable. The currentQuarter
+  // counter still goes 1..4 internally for compatibility.
+  const setPeriodType = useCallback((next: "quarters" | "halves") => {
+    setTimerState((s) => {
+      const prev = s.periodType ?? "quarters";
+      if (prev === next) return s;
+      // Double minutes when going to halves; halve when returning to quarters.
+      const baseline =
+        prev === "halves" ? Math.max(4, Math.round(s.minutesPerQuarter / 2)) : s.minutesPerQuarter;
+      const newMinutes =
+        next === "halves" ? baseline * 2 : baseline;
+      return {
+        ...s,
+        periodType: next,
+        minutesPerQuarter: newMinutes,
+        lastUpdateTime: Date.now(),
+      };
+    });
+  }, []);
+
   return {
     // state
     players,
@@ -799,5 +872,8 @@ export function useBasketballBoardState({
     callTimeout,
     resetTimeoutsForCurrentHalf,
     setTimeoutsPerHalf,
+    // free throws + period type
+    addFreeThrows,
+    setPeriodType,
   };
 }

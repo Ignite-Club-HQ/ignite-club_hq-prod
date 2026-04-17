@@ -76,7 +76,16 @@ export interface BasketballPlayer {
   isFouledOut?: boolean;
   /** Total points scored by this player across the game. */
   points?: number;
+  /** Free-throw makes this game (each make = 1 point, already added to `points`). */
+  ftMade?: number;
+  /** Free-throw attempts this game (used to display FT%). */
+  ftAttempted?: number;
+  /** Wall-clock timestamp of the last time this player came off court (null = never benched / on court). Used for the bench rest timer. */
+  lastBenchedAt?: number | null;
 }
+
+/** "Quarters" = 4 periods (default basketball). "Halves" = 2 periods (younger leagues). */
+export type PeriodType = "quarters" | "halves";
 
 export type Quarter = 1 | 2 | 3 | 4;
 
@@ -160,6 +169,8 @@ export interface BasketballTimerState {
   awayTimeoutsRemaining?: number;
   /** Tracks which half we last reset timeouts for (auto-reset on Q3 start). */
   timeoutsHalfTracked?: 1 | 2;
+  /** Period structure: "quarters" (default, 4 periods) or "halves" (2 periods, junior leagues). */
+  periodType?: PeriodType;
 }
 
 export interface BasketballBoardState {
