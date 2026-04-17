@@ -347,11 +347,14 @@ export function useBasketballBoardState({
             : p
         )
       );
-      if (rotationMode !== "off") {
+      if (rotationMode !== "off" && !autoSubPaused) {
         // Cue the coach ~10s before a sub fires so they have time to react.
         const upcoming = findNextDueSub(autoSubPlan, quarter, elapsed + 10);
-        if (upcoming && upcoming.time > elapsed) {
-          // Stable id per-sub: position + time + outgoing player.
+        if (
+          upcoming &&
+          upcoming.time > elapsed &&
+          !lockedPlayerIds.has(upcoming.playerOut.id)
+        ) {
           const key = `${quarter}:${upcoming.time}:${upcoming.playerOut.id}`;
           if (!cuedSubIdsRef.current.has(key)) {
             cuedSubIdsRef.current.add(key);
@@ -359,10 +362,10 @@ export function useBasketballBoardState({
           }
         }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
-        if (due) executeSub(due);
+        if (due && !lockedPlayerIds.has(due.playerOut.id)) executeSub(due);
       }
     },
-    [autoSubPlan, rotationMode, executeSub]
+    [autoSubPlan, rotationMode, executeSub, autoSubPaused, lockedPlayerIds]
   );
 
   // ---------- Quarter end ----------
