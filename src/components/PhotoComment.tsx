@@ -497,8 +497,8 @@ export const PhotoComment = memo(function PhotoComment({
         />,
         document.body
       )}
-      <div className="flex gap-2">
-        <Avatar className="h-6 w-6">
+      <div className="flex gap-2.5">
+        <Avatar className="h-8 w-8">
           <AvatarImage src={avatarUrl || undefined} />
           <AvatarFallback className="text-xs">
             {displayName?.[0] || "?"}
