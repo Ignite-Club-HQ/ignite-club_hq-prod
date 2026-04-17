@@ -128,7 +128,20 @@ export interface BasketballBoardState {
   linkedEventId?: string | null;
 }
 
+/** A reusable, named 5-player unit (e.g. "Starters", "Bench mob"). */
+export interface BasketballLineupPreset {
+  id: string;
+  name: string;
+  /** Map of position -> player.id */
+  assignments: Partial<Record<BasketballPosition, string>>;
+  createdAt: number;
+}
+
+export type BasketballCourtView = "half" | "full";
+
 export const BASKETBALL_STATE_KEY_BASE = "ignite-basketball-board-state-team";
 export const getBasketballStateKey = (teamId: string) => `${BASKETBALL_STATE_KEY_BASE}-${teamId}`;
 export const BASKETBALL_TIMER_KEY_BASE = "ignite-basketball-timer-state-team";
 export const getBasketballTimerKey = (teamId: string) => `${BASKETBALL_TIMER_KEY_BASE}-${teamId}`;
+export const BASKETBALL_PRESETS_KEY_BASE = "ignite-basketball-presets-team";
+export const getBasketballPresetsKey = (teamId: string) => `${BASKETBALL_PRESETS_KEY_BASE}-${teamId}`;
