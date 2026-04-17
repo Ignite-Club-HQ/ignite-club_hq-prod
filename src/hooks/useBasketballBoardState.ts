@@ -259,6 +259,28 @@ export function useBasketballBoardState({
   useBasketballGameSync(boardState, timerState, !readOnly);
 
   // ---------- Sub execution ----------
+  // Centralised sub log writer — every sub (auto or manual) flows through one
+  // of the appendSubLog calls below so undo + summary stay accurate.
+  const appendSubLog = useCallback(
+    (entry: Omit<SubLogEntry, "id" | "at" | "quarter" | "time">) => {
+      setTimerState((s) => ({
+        ...s,
+        subLog: [
+          ...(s.subLog ?? []),
+          {
+            ...entry,
+            id: crypto.randomUUID(),
+            at: Date.now(),
+            quarter: s.currentQuarter,
+            time: s.elapsedSeconds,
+          },
+        ],
+        lastUpdateTime: Date.now(),
+      }));
+    },
+    []
+  );
+
   const executeSub = useCallback(
     (sub: BasketballSubEvent) => {
       setPlayers((prev) => {
@@ -274,12 +296,20 @@ export function useBasketballBoardState({
       setAutoSubPlan((prev) =>
         prev.map((s) => (s === sub ? { ...s, executed: true } : s))
       );
+      appendSubLog({
+        playerOutId: sub.playerOut.id,
+        playerOutName: sub.playerOut.name,
+        playerInId: sub.playerIn.id,
+        playerInName: sub.playerIn.name,
+        position: sub.position,
+        source: "auto",
+      });
       toast({
         title: "Auto-sub",
         description: `${sub.playerIn.name} ON for ${sub.playerOut.name} at ${sub.position}`,
       });
     },
-    [toast]
+    [toast, appendSubLog]
   );
 
   // ---------- Time tracking ----------
