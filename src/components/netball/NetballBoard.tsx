@@ -488,6 +488,7 @@ export default function NetballBoard({
       <NetballBench
         bench={bench}
         selectedPlayerId={selectedPlayerId}
+        nextSubInId={nextSub?.playerIn.id ?? null}
         readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
       />
