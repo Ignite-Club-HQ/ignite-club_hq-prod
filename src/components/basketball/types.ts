@@ -153,6 +153,13 @@ export interface BasketballTimerState {
   subLog?: SubLogEntry[];
   /** Coach-selected MVP / Player of the Match (player.id). */
   mvpPlayerId?: string | null;
+  /** Per-half timeout allowance (FIBA default = 2 H1 / 3 H2; we treat as a single number). */
+  timeoutsPerHalf?: number;
+  /** Remaining timeouts in the current half for each team. */
+  homeTimeoutsRemaining?: number;
+  awayTimeoutsRemaining?: number;
+  /** Tracks which half we last reset timeouts for (auto-reset on Q3 start). */
+  timeoutsHalfTracked?: 1 | 2;
 }
 
 export interface BasketballBoardState {
