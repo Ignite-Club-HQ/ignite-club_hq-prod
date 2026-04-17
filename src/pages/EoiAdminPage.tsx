@@ -33,6 +33,7 @@ import {
   type EoiStatus,
 } from "@/hooks/useEoiAdmin";
 import { EOI_STATUS_LABELS, calculateAgeGroup, buildPublicEoiUrl } from "@/lib/eoiUtils";
+import { EoiTeamSuggestions } from "@/components/eoi/EoiTeamSuggestions";
 
 export default function EoiAdminPage() {
   const { clubId } = useParams<{ clubId: string }>();
