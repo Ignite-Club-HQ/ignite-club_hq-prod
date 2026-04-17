@@ -135,7 +135,7 @@ export default function SeasonsPage() {
       )}
 
       {grouped.active.length > 0 && (
-        <SeasonGroup title="Current season" seasons={grouped.active} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Current season" seasons={grouped.active} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} onTemplate={setTemplateSource} />
       )}
 
       {grouped.draft.length > 0 && (
@@ -143,8 +143,10 @@ export default function SeasonsPage() {
       )}
 
       {grouped.past.length > 0 && (
-        <SeasonGroup title="Past seasons" seasons={grouped.past} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Past seasons" seasons={grouped.past} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} onTemplate={setTemplateSource} />
       )}
+
+      {clubId && <OrphanEventsCard clubId={clubId} />}
 
       {seasons.length === 0 && (
         <Card>
@@ -164,6 +166,16 @@ export default function SeasonsPage() {
             setWizardOpen(false);
             refetch();
           }}
+        />
+      )}
+
+      {clubId && templateSource && (
+        <SeasonTemplateDialog
+          open={!!templateSource}
+          onOpenChange={(o) => !o && setTemplateSource(null)}
+          clubId={clubId}
+          sourceSeasonId={templateSource.id}
+          sourceSeasonName={templateSource.name}
         />
       )}
     </div>
