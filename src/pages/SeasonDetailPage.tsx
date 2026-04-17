@@ -47,10 +47,10 @@ export default function SeasonDetailPage() {
   });
 
 const { data: club } = useQuery({
-    queryKey: ["club-name", clubId],
+    queryKey: ["club-detail", clubId],
     queryFn: async () => {
       if (!clubId) return null;
-      const { data } = await supabase.from("clubs").select("id, name, slug").eq("id", clubId).maybeSingle();
+      const { data } = await supabase.from("clubs").select("id, name").eq("id", clubId).maybeSingle();
       return data;
     },
     enabled: !!clubId,
