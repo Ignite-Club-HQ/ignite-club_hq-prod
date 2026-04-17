@@ -711,5 +711,9 @@ export function useBasketballBoardState({
     addScore,
     undoScore,
     setOpponentName,
+    // post-game
+    undoLastSub,
+    canUndoSub: (timerState.subLog?.length ?? 0) > 0,
+    setMvp,
   };
 }
