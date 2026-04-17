@@ -1,8 +1,17 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Loader2, Eye, Smartphone, Mail, ChevronDown, Share2 } from "lucide-react";
+import { Bell, Loader2, Eye, Smartphone, Mail, ChevronDown, Share2, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
