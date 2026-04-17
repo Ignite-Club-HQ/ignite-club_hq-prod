@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
@@ -52,9 +52,9 @@ export default function BasketballBoard({
 
   // Local UI-only state for which secondary dialog is open.
   // Kept here (not in the hook) so the hook stays focused on game logic.
-  const [settingsOpen, setSettingsOpen] = useDialogState();
-  const [lineupPlannerOpen, setLineupPlannerOpen] = useDialogState();
-  const [rosterOpen, setRosterOpen] = useDialogState();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
+  const [rosterOpen, setRosterOpen] = useState(false);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -165,10 +165,4 @@ export default function BasketballBoard({
       </Suspense>
     </div>
   );
-}
-
-// Tiny helper to keep the body lean; one-line useState wrapper.
-import { useState } from "react";
-function useDialogState() {
-  return useState(false);
 }
