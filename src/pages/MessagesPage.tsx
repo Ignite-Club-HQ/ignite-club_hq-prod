@@ -64,7 +64,6 @@ function MessageSkeleton() {
   );
 }
 
-import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview } from "@/lib/messagePreview";
 
 // Helper to get first name only from a display name
 const getFirstName = (fullName: string | undefined): string => {
