@@ -15,6 +15,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import PendingInviteCard from "./PendingInviteCard";
+import ReconcilePendingInvitesButton from "./ReconcilePendingInvitesButton";
 
 interface PendingInvite {
   id: string;
@@ -182,26 +183,35 @@ export default function PendingInvitesList({ invites, teamId, clubId, isAdmin = 
 
   return (
     <div className="space-y-2">
-      <div className="px-1 py-1.5 flex items-center justify-between gap-2">
+      <div className="px-1 py-1.5 flex items-center justify-between gap-2 flex-wrap">
         <span className="text-sm text-muted-foreground">
           {invites.length} pending invite{invites.length !== 1 ? "s" : ""}
         </span>
-        {isAdmin && invitesWithEmail.length > 1 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowResendAllDialog(true)}
-            disabled={isResendingAll}
-            className="h-7 text-xs gap-1.5"
-          >
-            {isResendingAll ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Mail className="h-3 w-3" />
-            )}
-            Resend All
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <ReconcilePendingInvitesButton
+              pendingCount={invites.length}
+              teamId={teamId}
+              clubId={clubId}
+            />
+          )}
+          {isAdmin && invitesWithEmail.length > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowResendAllDialog(true)}
+              disabled={isResendingAll}
+              className="h-7 text-xs gap-1.5"
+            >
+              {isResendingAll ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Mail className="h-3 w-3" />
+              )}
+              Resend All
+            </Button>
+          )}
+        </div>
       </div>
 
       {invites.map((invite) => (
