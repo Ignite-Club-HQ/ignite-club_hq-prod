@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BasketballPlayer, BasketballPosition, POSITION_COLORS } from "./types";
 import { Pin, AlertTriangle, Ban } from "lucide-react";
+import { useNowTick, formatRest } from "@/hooks/useNowTick";
 
 interface BasketballPlayerTokenProps {
   player: BasketballPlayer;
@@ -52,6 +53,14 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
   const fouled = !!player.isFouledOut;
   const fouls = player.fouls ?? 0;
   const points = player.points ?? 0;
+  const ftAtt = player.ftAttempted ?? 0;
+  const ftMade = player.ftMade ?? 0;
+  // Bench rest timer — only meaningful for benched players with a stamp.
+  const now = useNowTick(5000);
+  const restSeconds =
+    variant === "bench" && player.lastBenchedAt
+      ? Math.max(0, Math.floor((now - player.lastBenchedAt) / 1000))
+      : 0;
 
   return (
     <button
@@ -137,11 +146,16 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         {player.name.split(" ")[0]}
       </span>
       <span className="text-[9px] text-muted-foreground leading-none">
-        {minutes}m
+        {variant === "bench" && restSeconds > 0
+          ? `rest ${formatRest(restSeconds)}`
+          : `${minutes}m`}
         {fouls > 0 && (
           <span className={cn("ml-1", fouled && "text-destructive font-semibold")}>
             · {fouls}F
           </span>
+        )}
+        {ftAtt > 0 && (
+          <span className="ml-1">· {ftMade}/{ftAtt}FT</span>
         )}
       </span>
     </button>

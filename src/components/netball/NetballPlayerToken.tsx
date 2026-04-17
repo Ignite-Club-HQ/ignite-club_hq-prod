@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NetballPlayer, NetballPosition, POSITION_COLORS } from "./types";
 import { Pin, AlertTriangle } from "lucide-react";
+import { useNowTick, formatRest } from "@/hooks/useNowTick";
 
 interface NetballPlayerTokenProps {
   player: NetballPlayer;
@@ -47,6 +48,11 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
   const pos = position ?? player.position;
   const colors = pos ? POSITION_COLORS[pos] : null;
   const minutes = Math.floor((player.minutesPlayed ?? 0) / 60);
+  const now = useNowTick(5000);
+  const restSeconds =
+    variant === "bench" && player.lastBenchedAt
+      ? Math.max(0, Math.floor((now - player.lastBenchedAt) / 1000))
+      : 0;
 
   return (
     <button
@@ -118,7 +124,11 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
       <span className="text-[10px] font-medium text-foreground/90 leading-tight text-center max-w-full truncate">
         {player.name.split(" ")[0]}
       </span>
-      <span className="text-[9px] text-muted-foreground leading-none">{minutes}m</span>
+      <span className="text-[9px] text-muted-foreground leading-none">
+        {variant === "bench" && restSeconds > 0
+          ? `rest ${formatRest(restSeconds)}`
+          : `${minutes}m`}
+      </span>
     </button>
   );
 });
