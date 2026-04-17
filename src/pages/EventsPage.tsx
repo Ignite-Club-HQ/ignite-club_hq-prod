@@ -553,51 +553,6 @@ export default function EventsPage() {
                 </div>
               </Button>
             )}
-
-            <Button
-              variant="outline"
-              className="w-full justify-start h-12 gap-3"
-              disabled={!upcomingEvents?.length}
-              onClick={async () => {
-                setCreateMenuOpen(false);
-                if (!upcomingEvents?.length) return;
-                try {
-                  await exportEventsIcs(
-                    upcomingEvents.map((e: any) => ({
-                      id: e.id,
-                      title: e.title,
-                      type: e.type,
-                      event_date: e.event_date,
-                      start_time: e.start_time,
-                      end_time: e.end_time,
-                      description: e.description,
-                      location_name: e.location_name,
-                      address: e.address,
-                      suburb: e.suburb,
-                      state: e.state,
-                      postcode: e.postcode,
-                      is_cancelled: e.is_cancelled,
-                      updated_at: e.updated_at,
-                      url: `${window.location.origin}/events/${e.id}`,
-                    })),
-                    "Ignite Schedule",
-                    "ignite-schedule",
-                  );
-                  toast({
-                    title: "Schedule exported",
-                    description: `Open the file to add ${upcomingEvents.length} event${upcomingEvents.length === 1 ? "" : "s"} to your calendar.`,
-                  });
-                } catch (err) {
-                  toast({ title: "Couldn't export schedule", description: (err as Error).message, variant: "destructive" });
-                }
-              }}
-            >
-              <CalendarPlus className="h-5 w-5" />
-              <div className="flex flex-col items-start">
-                <span className="text-sm font-semibold">Add to your calendar</span>
-                <span className="text-[11px] text-muted-foreground">Export upcoming events as .ics</span>
-              </div>
-            </Button>
           </div>
         </SheetContent>
       </Sheet>
