@@ -2252,16 +2252,7 @@ export default function EventDetailPage() {
       {/* Event Sponsors (Pro only) */}
       <EventSponsorsSection eventId={id!} clubId={event.club_id} />
 
-      {/* Event Views Admin Section - shows who has/hasn't seen the event (Pro only) */}
-      {(isAdmin || isAppAdmin) && hasTeamPro && (
-        <EventViewsAdminSection
-          eventId={id!}
-          teamId={event.team_id}
-          clubId={event.club_id}
-          miniLeagueId={event.mini_league_id}
-          eventTitle={event.title}
-        />
-      )}
+      {/* Event Views are now surfaced inside the unified Attendance section below */}
 
       {event.description && (
         <p className="text-muted-foreground whitespace-pre-line">{event.description}</p>
