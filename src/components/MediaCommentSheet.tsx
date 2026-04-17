@@ -431,7 +431,7 @@ export function MediaCommentSheet({
         className="flex-1 min-h-0"
         style={{ pointerEvents: isCommentInteracting ? "none" : "auto" }}
       >
-        <div className="px-4 pt-3 pb-4 space-y-3">
+        <div className="px-4 pt-2 pb-4 space-y-3 bg-muted/10">
           {topLevelComments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <p className="text-sm">No comments yet</p>
