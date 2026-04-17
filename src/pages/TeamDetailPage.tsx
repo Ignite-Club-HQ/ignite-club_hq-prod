@@ -61,6 +61,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
+import { isNetballSport } from "@/lib/sportDetection";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
@@ -148,6 +150,7 @@ export default function TeamDetailPage() {
   const isSoccerClub = team?.clubs?.sport && SOCCER_SPORTS.some(keyword => 
     team.clubs.sport.toLowerCase().includes(keyword)
   );
+  const isNetballClub = isNetballSport(team?.clubs?.sport);
 
   const isClassMode = !!team?.clubs?.class_mode_enabled;
 
@@ -1198,7 +1201,7 @@ export default function TeamDetailPage() {
               </Badge>
             </Button>
           )}
-          {isSoccerClub && (hasProFootball || isAppAdmin) && (
+          {((isSoccerClub && (hasProFootball || isAppAdmin)) || isNetballClub) && (
             <Button 
               variant="outline"
               className="w-full h-9 text-xs font-medium justify-start gap-2"
@@ -1225,7 +1228,7 @@ export default function TeamDetailPage() {
               }}
             >
               <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
-              Pitch Board
+              {isNetballClub ? "Game Board" : "Pitch Board"}
             </Button>
           )}
         </div>
@@ -2224,7 +2227,7 @@ export default function TeamDetailPage() {
           )}
         </Accordion>
       )}
-      {/* Pitch Board Modal */}
+      {/* Pitch Board Modal — soccer */}
       {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
@@ -2273,6 +2276,33 @@ export default function TeamDetailPage() {
               initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
             />
           )}
+        </Suspense>,
+        document.body
+      )}
+
+      {/* Game Board Modal — netball */}
+      {showPitchBoard && isNetballClub && createPortal(
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading Game Board…</p>
+            </div>
+          </div>
+        }>
+          <div className="fixed inset-0 z-[9999] bg-background">
+            <NetballBoard
+              teamId={id!}
+              teamName={team.name}
+              members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
+              onClose={() => {
+                setShowPitchBoard(false);
+                setLinkedEventId(null);
+                setPitchBoardMembersOverride([]);
+              }}
+              readOnly={!canEditPitchBoard && !isSubsManager}
+            />
+          </div>
         </Suspense>,
         document.body
       )}
