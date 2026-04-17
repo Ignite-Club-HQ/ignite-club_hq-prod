@@ -795,5 +795,9 @@ export function useBasketballBoardState({
     undoLastSub,
     canUndoSub: (timerState.subLog?.length ?? 0) > 0,
     setMvp,
+    // timeouts
+    callTimeout,
+    resetTimeoutsForCurrentHalf,
+    setTimeoutsPerHalf,
   };
 }
