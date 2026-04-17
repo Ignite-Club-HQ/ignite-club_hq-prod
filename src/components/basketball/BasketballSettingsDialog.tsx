@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { RotationMode, ValidationMode } from "./types";
+import { PeriodType, RotationMode, ValidationMode } from "./types";
 
 interface BasketballSettingsDialogProps {
   open: boolean;
@@ -18,6 +18,8 @@ interface BasketballSettingsDialogProps {
   onValidationModeChange: (m: ValidationMode) => void;
   timeoutsPerHalf: number;
   onTimeoutsPerHalfChange: (n: number) => void;
+  periodType: PeriodType;
+  onPeriodTypeChange: (p: PeriodType) => void;
 }
 
 export default function BasketballSettingsDialog({
@@ -33,7 +35,10 @@ export default function BasketballSettingsDialog({
   onValidationModeChange,
   timeoutsPerHalf,
   onTimeoutsPerHalfChange,
+  periodType,
+  onPeriodTypeChange,
 }: BasketballSettingsDialogProps) {
+  const periodLabel = periodType === "halves" ? "half" : "quarter";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -43,10 +48,26 @@ export default function BasketballSettingsDialog({
 
         <div className="space-y-5 py-2">
           <div className="space-y-2">
-            <Label>Minutes per quarter: {minutesPerQuarter}</Label>
+            <Label>Period structure</Label>
+            <Select value={periodType} onValueChange={(v) => onPeriodTypeChange(v as PeriodType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="quarters">Quarters (4 × N mins)</SelectItem>
+                <SelectItem value="halves">Halves (2 × N mins)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Switch to halves for younger leagues. Total game time is preserved.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Minutes per {periodLabel}: {minutesPerQuarter}</Label>
             <Slider
               min={4}
-              max={15}
+              max={periodType === "halves" ? 30 : 15}
               step={1}
               value={[minutesPerQuarter]}
               onValueChange={v => onMinutesPerQuarterChange(v[0])}

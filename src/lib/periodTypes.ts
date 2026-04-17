@@ -7,7 +7,9 @@
  * compatibility, but in halves mode we map Q1↔H1, Q3↔H2, and skip
  * Q2 / Q4 entirely.
  */
-import type { PeriodType } from "@/components/basketball/types";
+
+/** Self-contained period-type union (avoids circular sport-type imports). */
+export type PeriodType = "quarters" | "halves";
 
 export const periodCount = (pt: PeriodType | undefined): number =>
   pt === "halves" ? 2 : 4;

@@ -4,6 +4,7 @@ import { Play, Pause, SkipForward, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BasketballTimerState, Quarter } from "./types";
 import { formatTime } from "./basketballHelpers";
+import { periodLabel, visiblePeriods } from "@/lib/periodTypes";
 
 interface BasketballQuarterTimerProps {
   state: BasketballTimerState;
@@ -52,7 +53,13 @@ export default function BasketballQuarterTimer({
         if (deltaToEnd > 0) {
           onTickRef.current?.(quarterSeconds, cur.currentQuarter, deltaToEnd);
         }
-        if (cur.currentQuarter === 4) {
+        // In halves mode the visible periods are Q1 (=H1) and Q3 (=H2).
+        // Skip Q2/Q4 so the game ends after H2 (== Q3 internally).
+        const periods = visiblePeriods(cur.periodType);
+        const idx = periods.indexOf(cur.currentQuarter);
+        const isFinalPeriod = idx === periods.length - 1;
+        const nextSlot = (periods[idx + 1] ?? null) as Quarter | null;
+        if (isFinalPeriod) {
           onChange({
             ...cur,
             elapsedSeconds: quarterSeconds,
@@ -63,7 +70,7 @@ export default function BasketballQuarterTimer({
         } else {
           onChange({
             ...cur,
-            currentQuarter: (cur.currentQuarter + 1) as Quarter,
+            currentQuarter: nextSlot ?? ((cur.currentQuarter + 1) as Quarter),
             elapsedSeconds: 0,
             isRunning: false,
             lastUpdateTime: Date.now(),
@@ -117,11 +124,13 @@ export default function BasketballQuarterTimer({
   const quarterSeconds = state.minutesPerQuarter * 60;
   const remaining = Math.max(0, quarterSeconds - state.elapsedSeconds);
   const lowTime = remaining <= 60 && state.isRunning;
+  const periods = visiblePeriods(state.periodType);
+  const isFinalPeriod = periods.indexOf(state.currentQuarter) === periods.length - 1;
 
   return (
     <div className="flex items-center gap-2 bg-card border rounded-full px-3 py-1.5 shadow-sm">
       <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
-        Q{state.currentQuarter}
+        {periodLabel(state.currentQuarter, state.periodType)}
       </span>
       <span
         className={cn(
@@ -148,8 +157,8 @@ export default function BasketballQuarterTimer({
             variant="ghost"
             className="h-7 w-7"
             onClick={advanceQuarter}
-            disabled={state.currentQuarter >= 4 || state.isGameFinished}
-            aria-label="Next quarter"
+            disabled={isFinalPeriod || state.isGameFinished}
+            aria-label="Next period"
           >
             <SkipForward className="h-4 w-4" />
           </Button>
