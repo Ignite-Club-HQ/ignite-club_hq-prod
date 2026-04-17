@@ -135,3 +135,6 @@ export function FullscreenImageViewer({ src, alt = "Image", onClose, onReport, o
           draggable={false}
         />
       )}
+    </div>
+  );
+}
