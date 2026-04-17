@@ -32,6 +32,8 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { Capacitor } from "@capacitor/core";
 import { isNearBottom, scrollChatToBottom } from "@/lib/chatScroll";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { TypingIndicator } from "@/components/chat/TypingIndicator";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -383,12 +385,20 @@ export default function ClubAdminChatPage() {
     setMessage("");
   }, []);
 
+  // Typing indicator
+  const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
+    `club-admin-${conversationId || ""}`,
+    user?.id,
+    profile?.display_name || user?.email || "Someone"
+  );
+
   const handleSend = () => {
     if (!message.trim() && !pendingPollId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
+    stopTyping();
     const baseText = message.trim();
     const finalText = pendingPollId
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
@@ -657,6 +667,7 @@ export default function ClubAdminChatPage() {
       {/* Input area */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
       <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview
             replyingTo={{ id: replyTo.id, text: replyTo.text, authorName: replyTo.author?.display_name || null }}
@@ -682,7 +693,10 @@ export default function ClubAdminChatPage() {
           </button>
           <MentionInput
             value={message}
-            onChange={setMessage}
+            onChange={(val) => {
+              setMessage(val);
+              if (val.trim()) startTyping(); else stopTyping();
+            }}
             onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
             placeholder="Type a message..."
             disabled={sendMessageMutation.isPending}
