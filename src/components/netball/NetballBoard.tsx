@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Loader2, Trophy, Undo2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import NetballQuarterTimer from "./NetballQuarterTimer";
@@ -17,6 +17,7 @@ import {
   NETBALL_POSITIONS,
   NetballBoardState,
   NetballTimerState,
+  NetballSubLogEntry,
   Quarter,
   QuarterLineup,
   RotationMode,
@@ -43,6 +44,7 @@ const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
 const QuarterLineupPlanner = lazy(() => import("./QuarterLineupPlanner"));
 const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
 const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
+const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 
 interface NetballBoardProps {
   teamId: string;
