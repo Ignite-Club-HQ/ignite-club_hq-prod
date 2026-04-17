@@ -4,8 +4,11 @@ import {
   BasketballPosition,
   BASKETBALL_POSITIONS,
   POSITION_SLOTS,
+  POSITION_SLOTS_FULL,
+  BasketballCourtView,
 } from "./types";
 import BasketballCourt from "./BasketballCourt";
+import BasketballFullCourt from "./BasketballFullCourt";
 import BasketballPlayerToken from "./BasketballPlayerToken";
 import { findPlayerInPosition } from "./basketballHelpers";
 
@@ -14,29 +17,38 @@ interface BasketballCourtAreaProps {
   selectedPlayerId: string | null;
   nextSubOutId?: string | null;
   readOnly?: boolean;
+  courtView?: BasketballCourtView;
   onPlayerClick: (playerId: string) => void;
   onSlotClick: (position: BasketballPosition) => void;
 }
 
 /**
- * Renders the half-court SVG with 5 soft position slots.
- * Slots are visual hints only — any player can occupy any slot (free movement).
+ * Renders the court SVG (half by default, full optionally) with 5 soft
+ * position slots. Slots are visual hints only — any player can occupy any slot.
  */
 export default function BasketballCourtArea({
   players,
   selectedPlayerId,
   nextSubOutId,
   readOnly = false,
+  courtView = "half",
   onPlayerClick,
   onSlotClick,
 }: BasketballCourtAreaProps) {
+  const slots = courtView === "full" ? POSITION_SLOTS_FULL : POSITION_SLOTS;
+  const aspect = courtView === "full" ? "aspect-square" : "aspect-[5/7]";
+
   return (
     <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-muted/40 p-2">
-      <div className="relative w-full max-w-sm aspect-[5/7] mx-auto">
-        <BasketballCourt className="absolute inset-0 w-full h-full rounded-lg" />
+      <div className={cn("relative w-full max-w-sm mx-auto", aspect)}>
+        {courtView === "full" ? (
+          <BasketballFullCourt className="absolute inset-0 w-full h-full rounded-lg" />
+        ) : (
+          <BasketballCourt className="absolute inset-0 w-full h-full rounded-lg" />
+        )}
 
         {BASKETBALL_POSITIONS.map((pos) => {
-          const slot = POSITION_SLOTS[pos];
+          const slot = slots[pos];
           const player = findPlayerInPosition(players, pos);
           return (
             <div

@@ -6,6 +6,8 @@ import {
   BASKETBALL_POSITIONS,
   BasketballBoardState,
   BasketballTimerState,
+  BasketballLineupPreset,
+  BasketballCourtView,
   Quarter,
   QuarterLineup,
   RotationMode,
@@ -13,6 +15,7 @@ import {
   BasketballSubEvent,
   getBasketballStateKey,
   getBasketballTimerKey,
+  getBasketballPresetsKey,
 } from "@/components/basketball/types";
 import {
   getBench,
@@ -114,6 +117,24 @@ export function useBasketballBoardState({
     quarter: Quarter;
     subs: BasketballSubEvent[];
   } | null>(null);
+  const [courtView, setCourtView] = useState<BasketballCourtView>("half");
+
+  // Lineup presets (own localStorage key, separate from board state)
+  const presetsKey = getBasketballPresetsKey(teamId);
+  const [lineupPresets, setLineupPresetsState] = useState<BasketballLineupPreset[]>(
+    () => safeLoad<BasketballLineupPreset[]>(presetsKey) ?? []
+  );
+  const setLineupPresets = useCallback(
+    (next: BasketballLineupPreset[]) => {
+      setLineupPresetsState(next);
+      safeSave(presetsKey, next);
+    },
+    [presetsKey]
+  );
+  const toggleCourtView = useCallback(
+    () => setCourtView((v) => (v === "half" ? "full" : "half")),
+    []
+  );
 
   // ---------- Aggregated board state ----------
   const boardState: BasketballBoardState = useMemo(
@@ -397,6 +418,19 @@ export function useBasketballBoardState({
     toast({ title: `Q${nextQ} lineup applied` });
   }, [quarterLineups, timerState.currentQuarter, toast]);
 
+  const applyPreset = useCallback(
+    (preset: BasketballLineupPreset) => {
+      setPlayers((prev) =>
+        applyLineup(prev, {
+          quarter: timerState.currentQuarter,
+          assignments: preset.assignments,
+          createdAt: preset.createdAt,
+        })
+      );
+    },
+    [timerState.currentQuarter]
+  );
+
   return {
     // state
     players,
@@ -431,5 +465,11 @@ export function useBasketballBoardState({
     toggleInjured,
     addFoul,
     applyNextLineupNow,
+    // presets + view
+    lineupPresets,
+    setLineupPresets,
+    applyPreset,
+    courtView,
+    toggleCourtView,
   };
 }

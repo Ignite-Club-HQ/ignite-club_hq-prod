@@ -38,6 +38,18 @@ export const POSITION_SLOTS: Record<BasketballPosition, { x: number; y: number }
   C:  { x: 50, y: 18 },
 };
 
+/**
+ * Full-court slot positions (100x100 viewBox). Players are clustered in the
+ * top half (offensive end) so the bottom half stays visually clear.
+ */
+export const POSITION_SLOTS_FULL: Record<BasketballPosition, { x: number; y: number }> = {
+  PG: { x: 50, y: 42 },
+  SG: { x: 75, y: 32 },
+  SF: { x: 25, y: 32 },
+  PF: { x: 65, y: 18 },
+  C:  { x: 50, y: 12 },
+};
+
 export const POSITION_COLORS: Record<BasketballPosition, { bg: string; text: string; border: string }> = {
   PG: { bg: "bg-amber-500/30",   text: "text-amber-700 dark:text-amber-200",   border: "border-amber-500" },
   SG: { bg: "bg-orange-500/30",  text: "text-orange-700 dark:text-orange-200", border: "border-orange-500" },
@@ -116,7 +128,20 @@ export interface BasketballBoardState {
   linkedEventId?: string | null;
 }
 
+/** A reusable, named 5-player unit (e.g. "Starters", "Bench mob"). */
+export interface BasketballLineupPreset {
+  id: string;
+  name: string;
+  /** Map of position -> player.id */
+  assignments: Partial<Record<BasketballPosition, string>>;
+  createdAt: number;
+}
+
+export type BasketballCourtView = "half" | "full";
+
 export const BASKETBALL_STATE_KEY_BASE = "ignite-basketball-board-state-team";
 export const getBasketballStateKey = (teamId: string) => `${BASKETBALL_STATE_KEY_BASE}-${teamId}`;
 export const BASKETBALL_TIMER_KEY_BASE = "ignite-basketball-timer-state-team";
 export const getBasketballTimerKey = (teamId: string) => `${BASKETBALL_TIMER_KEY_BASE}-${teamId}`;
+export const BASKETBALL_PRESETS_KEY_BASE = "ignite-basketball-presets-team";
+export const getBasketballPresetsKey = (teamId: string) => `${BASKETBALL_PRESETS_KEY_BASE}-${teamId}`;
