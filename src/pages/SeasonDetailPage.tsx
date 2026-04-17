@@ -298,6 +298,10 @@ export default function SeasonDetailPage() {
 
       {(isActive || isArchived) && seasonId && <SeasonAnalyticsCard seasonId={seasonId} />}
 
+      {seasonId && club && season && (
+        <SeasonEoiConfigCard seasonId={seasonId} clubName={club.name} season={season as any} />
+      )}
+
       {isActive && (
         <Card>
           <CardHeader>
