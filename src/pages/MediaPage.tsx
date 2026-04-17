@@ -421,7 +421,7 @@ export default function MediaPage() {
   }, [isCacheStale, user]);
 
   // Flatten all pages into single photos array - prefer real data, fallback to cache
-  const allPhotos = useMemo(() => {
+  const allPhotos = useMemo<any[]>(() => {
     const serverPhotos = photosData?.pages.flatMap(page => page.photos) ?? [];
     
     // If we have server data, use it
@@ -434,7 +434,7 @@ export default function MediaPage() {
       return cachedPhotosData.map(p => ({
         ...p,
         caption: p.caption ?? null,
-        image_url: p.file_url, // Cached data uses file_url
+        image_url: p.file_url,
         mini_league_id: null,
         clubs: null,
         teams: null,
