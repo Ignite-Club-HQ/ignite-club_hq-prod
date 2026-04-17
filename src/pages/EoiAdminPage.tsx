@@ -1,7 +1,17 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Search, Users, UserPlus, ClipboardList, ExternalLink } from "lucide-react";
+import {
+  ArrowLeft,
+  Search,
+  Users,
+  UserPlus,
+  ClipboardList,
+  ExternalLink,
+  Download,
+  Send,
+  RotateCw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,8 +42,10 @@ import {
   useDeleteEoi,
   type EoiStatus,
 } from "@/hooks/useEoiAdmin";
+import { useResendEoiInvite, useBulkResendEoiInvites } from "@/hooks/useEoiPolish";
 import { EOI_STATUS_LABELS, calculateAgeGroup, buildPublicEoiUrl } from "@/lib/eoiUtils";
 import { EoiTeamSuggestions } from "@/components/eoi/EoiTeamSuggestions";
+import { exportEoisCSV } from "@/lib/exportEois";
 
 export default function EoiAdminPage() {
   const { clubId } = useParams<{ clubId: string }>();
