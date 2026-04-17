@@ -748,6 +748,77 @@ export function useBasketballBoardState({
     }));
   }, []);
 
+  // ---------- Free throws ----------
+  // Each made FT credits +1 to the player's points (and to the team score
+  // via a normal scoreLog entry so the per-quarter strip stays accurate).
+  const addFreeThrows = useCallback(
+    (playerId: string, made: number, attempted: number) => {
+      const safeMade = Math.max(0, Math.min(attempted, Math.floor(made)));
+      const safeAtt = Math.max(0, Math.floor(attempted));
+      if (safeAtt === 0) return;
+      // Update per-player FT counters + points.
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId
+            ? {
+                ...p,
+                ftMade: (p.ftMade ?? 0) + safeMade,
+                ftAttempted: (p.ftAttempted ?? 0) + safeAtt,
+                points: (p.points ?? 0) + safeMade,
+              }
+            : p
+        )
+      );
+      // Add the made FTs to the team score as a single 1pt-each event chain
+      // so QuarterScoreStrip + final score reflect the change.
+      if (safeMade > 0) {
+        setTimerState((s) => {
+          const events = Array.from({ length: safeMade }).map(() => ({
+            id: crypto.randomUUID(),
+            side: "home" as const,
+            points: 1,
+            quarter: s.currentQuarter,
+            at: Date.now(),
+            playerId,
+          }));
+          return {
+            ...s,
+            homeScore: (s.homeScore ?? 0) + safeMade,
+            scoreLog: [...(s.scoreLog ?? []), ...events],
+            lastUpdateTime: Date.now(),
+          };
+        });
+      }
+      toast({
+        title: "Free throws",
+        description: `${safeMade}/${safeAtt} made.`,
+      });
+    },
+    [toast]
+  );
+
+  // ---------- Period type (quarters vs halves) ----------
+  // When switching to halves we collapse 4 quarters → 2 halves by doubling
+  // the timer length so total game minutes stay stable. The currentQuarter
+  // counter still goes 1..4 internally for compatibility.
+  const setPeriodType = useCallback((next: "quarters" | "halves") => {
+    setTimerState((s) => {
+      const prev = s.periodType ?? "quarters";
+      if (prev === next) return s;
+      // Double minutes when going to halves; halve when returning to quarters.
+      const baseline =
+        prev === "halves" ? Math.max(4, Math.round(s.minutesPerQuarter / 2)) : s.minutesPerQuarter;
+      const newMinutes =
+        next === "halves" ? baseline * 2 : baseline;
+      return {
+        ...s,
+        periodType: next,
+        minutesPerQuarter: newMinutes,
+        lastUpdateTime: Date.now(),
+      };
+    });
+  }, []);
+
   return {
     // state
     players,
@@ -801,5 +872,8 @@ export function useBasketballBoardState({
     callTimeout,
     resetTimeoutsForCurrentHalf,
     setTimeoutsPerHalf,
+    // free throws + period type
+    addFreeThrows,
+    setPeriodType,
   };
 }
