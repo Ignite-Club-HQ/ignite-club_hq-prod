@@ -1,10 +1,9 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { RotationMode, ValidationMode } from "./types";
+import { PeriodType, RotationMode, ValidationMode } from "./types";
 
 interface NetballSettingsDialogProps {
   open: boolean;
@@ -17,6 +16,8 @@ interface NetballSettingsDialogProps {
   onRotationIntervalChange: (n: number) => void;
   validationMode: ValidationMode;
   onValidationModeChange: (m: ValidationMode) => void;
+  periodType: PeriodType;
+  onPeriodTypeChange: (p: PeriodType) => void;
 }
 
 export default function NetballSettingsDialog({
@@ -30,7 +31,10 @@ export default function NetballSettingsDialog({
   onRotationIntervalChange,
   validationMode,
   onValidationModeChange,
+  periodType,
+  onPeriodTypeChange,
 }: NetballSettingsDialogProps) {
+  const periodLabel = periodType === "halves" ? "half" : "quarter";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -40,10 +44,26 @@ export default function NetballSettingsDialog({
 
         <div className="space-y-5 py-2">
           <div className="space-y-2">
-            <Label>Minutes per quarter: {minutesPerQuarter}</Label>
+            <Label>Period structure</Label>
+            <Select value={periodType} onValueChange={(v) => onPeriodTypeChange(v as PeriodType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="quarters">Quarters (4 × N mins)</SelectItem>
+                <SelectItem value="halves">Halves (2 × N mins)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Switch to halves for junior leagues. Total game time is preserved.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Minutes per {periodLabel}: {minutesPerQuarter}</Label>
             <Slider
               min={5}
-              max={20}
+              max={periodType === "halves" ? 40 : 20}
               step={1}
               value={[minutesPerQuarter]}
               onValueChange={v => onMinutesPerQuarterChange(v[0])}
