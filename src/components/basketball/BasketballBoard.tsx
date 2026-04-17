@@ -25,6 +25,7 @@ const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPrese
 const FreeThrowDialog = lazy(() => import("./FreeThrowDialog"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 const QuarterAutoSubControlPanel = lazy(() => import("@/components/scoreboard/QuarterAutoSubControlPanel"));
+import PreTipoffHint from "@/components/scoreboard/PreTipoffHint";
 
 interface BasketballBoardProps {
   teamId: string;
@@ -227,6 +228,21 @@ export default function BasketballBoard({
           courtView={board.courtView}
         />
       )}
+
+      {/* Pre-tipoff nudge: only before the very first whistle. */}
+      {!readOnly &&
+        board.timerState.currentQuarter === 1 &&
+        board.timerState.elapsedSeconds === 0 &&
+        !board.timerState.isRunning &&
+        !board.timerState.isGameFinished && (
+          <PreTipoffHint
+            required={5}
+            currentOnCourt={board.players.filter((p) => p.position !== null).length}
+            onOpenPlanner={() => setLineupPlannerOpen(true)}
+            onOpenPresets={() => setPresetsOpen(true)}
+            hasPresets={board.lineupPresets.length > 0}
+          />
+        )}
 
       {!readOnly && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
         <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">

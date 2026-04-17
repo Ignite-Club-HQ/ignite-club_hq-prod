@@ -851,6 +851,7 @@ export default function NetballBoard({
         <NetballActionBar
           onOpenSquad={() => setRosterOpen(true)}
           onOpenLineups={() => setLineupPlannerOpen(true)}
+          onOpenPresets={() => setPresetsOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onApplyLineup={applyNextLineupNow}
           currentQuarter={timerState.currentQuarter}
@@ -858,6 +859,21 @@ export default function NetballBoard({
           rotationIntervalMinutes={rotationIntervalMinutes}
         />
       )}
+
+      {/* Pre-tipoff nudge: only before the very first whistle. */}
+      {!readOnly &&
+        timerState.currentQuarter === 1 &&
+        timerState.elapsedSeconds === 0 &&
+        !timerState.isRunning &&
+        !timerState.isGameFinished && (
+          <PreTipoffHint
+            required={7}
+            currentOnCourt={getOnCourt(players).length}
+            onOpenPlanner={() => setLineupPlannerOpen(true)}
+            onOpenPresets={() => setPresetsOpen(true)}
+            hasPresets={lineupPresets.length > 0}
+          />
+        )}
 
       {!readOnly && rotationMode !== "off" && autoSubPlan.length > 0 && (
         <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
@@ -958,6 +974,16 @@ export default function NetballBoard({
             players={players}
             lineups={quarterLineups}
             onSave={setQuarterLineups}
+          />
+        )}
+        {presetsOpen && (
+          <NetballLineupPresetsDialog
+            open={presetsOpen}
+            onOpenChange={setPresetsOpen}
+            players={players}
+            presets={lineupPresets}
+            onSave={setLineupPresets}
+            onApply={applyPreset}
           />
         )}
         {rosterOpen && (
