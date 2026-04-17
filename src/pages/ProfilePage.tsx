@@ -3,6 +3,8 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Crown, Building2, ShieldCheck, Gift, Plus, CheckCircle2, ClipboardList, Lock, FileText } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useClubSeasons } from "@/hooks/useClubSeasons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -41,8 +43,10 @@ export default function ProfilePage() {
   const [clubPlansOpen, setClubPlansOpen] = useState(true);
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
   const [myClubsTeamsOpen, setMyClubsTeamsOpen] = useState(true);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>("all");
   
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
+  const { data: seasonsForRank = [] } = useClubSeasons(activeClubFilter || undefined);
 
   // Auto-scroll to points history when navigated from notification
   useEffect(() => {
@@ -398,6 +402,26 @@ export default function ProfilePage() {
     enabled: !!user && hasProAccess === true,
   });
 
+  // Season-scoped rank (only when a specific season is selected within a filtered club)
+  const { data: seasonRankData } = useQuery({
+    queryKey: ["points-rank-seasoned", user?.id, activeClubFilter, selectedSeasonId],
+    queryFn: async () => {
+      if (!user?.id || !activeClubFilter || selectedSeasonId === "all") return null;
+      const { data, error } = await supabase.rpc("get_user_leaderboard_rank_seasoned", {
+        _user_id: user.id,
+        _club_id: activeClubFilter,
+        _season_id: selectedSeasonId,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row || !row.rank) return null;
+      return { rank: row.rank as number, total: row.total as number, points: row.points as number };
+    },
+    enabled: !!user && hasProAccess === true && !!activeClubFilter && selectedSeasonId !== "all",
+  });
+
+  const displayedRank = selectedSeasonId !== "all" ? seasonRankData : rankData;
+
   const { data: upgradableClubs } = useQuery({
     queryKey: ["upgradable-clubs", user?.id, activeClubFilter],
     queryFn: async () => {
@@ -689,11 +713,30 @@ export default function ProfilePage() {
                   <div className="text-xs text-muted-foreground">Balance</div>
                 </div>
               </div>
-              {rankData && (
+              {activeClubFilter && seasonsForRank.length > 0 && (
+                <div className="mt-3">
+                  <Select value={selectedSeasonId} onValueChange={setSelectedSeasonId}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All time</SelectItem>
+                      {seasonsForRank.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                          {s.status === "active" ? " · Current" : s.status === "archived" ? " · Archived" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {displayedRank && (
                 <div className="flex items-center justify-center gap-2 mt-3 p-2 bg-primary/10 rounded-lg">
                   <Trophy className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium">
-                    You are <span className="text-primary font-bold">{rankData.rank}{getOrdinalSuffix(rankData.rank)}</span> out of {rankData.total} member{rankData.total !== 1 ? 's' : ''}
+                    You are <span className="text-primary font-bold">{displayedRank.rank}{getOrdinalSuffix(displayedRank.rank)}</span> out of {displayedRank.total} member{displayedRank.total !== 1 ? 's' : ''}
+                    {selectedSeasonId !== "all" && "points" in (displayedRank as any) ? ` · ${(displayedRank as any).points} pts` : ""}
                   </span>
                 </div>
               )}
