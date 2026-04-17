@@ -282,7 +282,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           onChange={handleFileSelect}
           className="sr-only"
           disabled={disabled || uploading}
@@ -339,7 +339,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         onChange={handleFileSelect}
         className="sr-only"
         disabled={disabled || uploading}
@@ -355,7 +355,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         onChange={handleFileSelect}
         className="sr-only"
         disabled={disabled || uploading}
