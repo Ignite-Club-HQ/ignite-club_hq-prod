@@ -102,6 +102,7 @@ const ShortInviteRedirect = lazy(() => import("./pages/ShortInviteRedirect"));
 const EoiAdminPage = lazy(() => import("./pages/EoiAdminPage"));
 const PublicEoiFormPage = lazy(() => import("./pages/PublicEoiFormPage"));
 const EoiCompletePage = lazy(() => import("./pages/EoiCompletePage"));
+const EmbeddedEoiFormPage = lazy(() => import("./pages/EmbeddedEoiFormPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
@@ -236,8 +237,9 @@ const App = () => {
                 <Route path="/cancellation" element={<CancellationPolicyPage />} />
                 <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
                 <Route path="/share" element={<ShareLinkRedirect />} />
-                <Route path="/eoi/:clubSlug/:seasonSlug" element={<PublicEoiFormPage />} />
-                <Route path="/eoi-complete/:token" element={<EoiCompletePage />} />
+<Route path="/eoi/:clubSlug/:seasonSlug" element={<PublicEoiFormPage />} />
+<Route path="/eoi-embed/:clubSlug/:seasonSlug" element={<EmbeddedEoiFormPage />} />
+<Route path="/eoi-complete/:token" element={<EoiCompletePage />} />
 
 
                 {/* Protected routes */}
