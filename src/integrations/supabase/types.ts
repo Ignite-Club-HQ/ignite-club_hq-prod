@@ -6538,6 +6538,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      reconcile_pending_invites: {
+        Args: { _club_id?: string; _team_id?: string }
+        Returns: {
+          reconciled_count: number
+          skipped_count: number
+        }[]
+      }
       record_push_failure: {
         Args: { p_endpoint: string; p_reason?: string }
         Returns: undefined
