@@ -140,6 +140,33 @@ export default function NetballBoard({
   const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+
+  // Auto-open the summary the first time the game ticks over to "finished".
+  useEffect(() => {
+    if (timerState.isGameFinished) setSummaryOpen(true);
+  }, [timerState.isGameFinished]);
+
+  // ---------- Sub log writer (single funnel for auto + manual subs) ----------
+  const appendSubLog = useCallback(
+    (entry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time">) => {
+      setTimerState((s) => ({
+        ...s,
+        subLog: [
+          ...(s.subLog ?? []),
+          {
+            ...entry,
+            id: crypto.randomUUID(),
+            at: Date.now(),
+            quarter: s.currentQuarter,
+            time: s.elapsedSeconds,
+          },
+        ],
+        lastUpdateTime: Date.now(),
+      }));
+    },
+    []
+  );
 
   // ---------- Aggregated state for persistence + sync ----------
   const boardState: NetballBoardState = useMemo(
