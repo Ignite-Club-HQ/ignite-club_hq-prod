@@ -389,6 +389,9 @@ export default function NetballBoard({
       {/* Action bar */}
       {!readOnly && (
         <div className="flex items-center gap-1.5 px-2 py-1.5 border-b bg-muted/30 overflow-x-auto">
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setRosterOpen(true)}>
+            <UserCog className="h-3.5 w-3.5 mr-1" /> Squad
+          </Button>
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLineupPlannerOpen(true)}>
             <Calendar className="h-3.5 w-3.5 mr-1" /> Lineups
           </Button>
