@@ -366,11 +366,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   }}
                   disabled={disabled}
                   className="flex items-center gap-3 w-full px-3 py-3 rounded-md bg-primary/10 hover:bg-primary/15 text-primary transition-colors disabled:opacity-50 min-h-[52px]"
-                  aria-label="Create event"
+                  aria-label="Share event"
                 >
                   <CalendarPlus className="h-5 w-5 shrink-0" strokeWidth={2} />
                   <div className="flex flex-col items-start leading-tight">
-                    <span className="text-sm font-semibold">Create Event</span>
+                    <span className="text-sm font-semibold">Share Event</span>
                     <span className="text-[11px] text-primary/70">Training, game or social</span>
                   </div>
                 </button>
@@ -384,12 +384,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   }}
                   disabled={disabled}
                   className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
-                  aria-label="Create quick RSVP"
+                  aria-label="Create poll"
                 >
                   <BarChart3 className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
                   <div className="flex flex-col items-start leading-tight">
-                    <span className="text-sm font-medium">Quick RSVP</span>
-                    <span className="text-[11px] text-muted-foreground">Check availability</span>
+                    <span className="text-sm font-medium">Create Poll</span>
+                    <span className="text-[11px] text-muted-foreground">Ask the group a question</span>
                   </div>
                 </button>
               )}
