@@ -57,17 +57,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     recoveryCleanupRef.current = scheduleIOSNativeOverlayRecovery();
   };
 
-  const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
-    const { skipCompression = false } = options ?? {};
+  const uploadBlob = async (
+    blob: Blob,
+    options?: { skipCompression?: boolean; isVideo?: boolean; fileName?: string },
+  ) => {
+    const { skipCompression = false, isVideo = false } = options ?? {};
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const originalMimeType = blob.type || "image/jpeg";
+    const originalMimeType = blob.type || (isVideo ? "video/mp4" : "image/jpeg");
     let fileToUpload: Blob | File = blob;
     let contentType = originalMimeType;
 
-    if (!skipCompression) {
+    if (!isVideo && !skipCompression) {
       const sourceFile = blob instanceof File
         ? blob
         : new File([blob], `photo.${mimeToExtension(originalMimeType)}`, { type: originalMimeType });
@@ -83,7 +86,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
     }
 
-    const extension = mimeToExtension(contentType);
+    const extension = isVideo
+      ? videoMimeToExtension(contentType)
+      : mimeToExtension(contentType);
 
     const timestamp = Date.now();
     let fileName: string;
