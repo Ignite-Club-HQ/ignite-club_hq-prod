@@ -423,6 +423,19 @@ export default function NetballBoard({
         />
       </header>
 
+      <GameScoreboard
+        homeLabel={teamName}
+        awayLabel={timerState.opponentName ?? "Opponent"}
+        homeScore={timerState.homeScore ?? 0}
+        awayScore={timerState.awayScore ?? 0}
+        increments={[1]}
+        readOnly={readOnly}
+        onScore={addScore}
+        onUndo={undoScore}
+        onRenameAway={setOpponentName}
+        canUndo={(timerState.scoreLog?.length ?? 0) > 0}
+      />
+
       {!readOnly && (
         <NetballActionBar
           onOpenSquad={() => setRosterOpen(true)}
