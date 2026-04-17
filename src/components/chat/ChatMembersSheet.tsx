@@ -528,9 +528,22 @@ export function ChatMembersSheet({
               </div>
             )}
             <div>
-              <h3 className="text-sm font-medium mb-3">
-                Members {uniqueMembers.length > 0 && `(${uniqueMembers.length})`}
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium">
+                  Members {uniqueMembers.length > 0 && `(${uniqueMembers.length})`}
+                </h3>
+                {isPersonalGroupChat && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1 h-8"
+                    onClick={() => setAddPeopleOpen(true)}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Add
+                  </Button>
+                )}
+              </div>
               <ScrollArea className="h-[calc(100vh-180px)]">
                 {membersLoading ? (
                   <div className="flex justify-center py-8">
