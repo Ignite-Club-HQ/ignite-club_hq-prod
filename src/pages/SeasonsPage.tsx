@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Archive, CheckCircle2, Clock, Lock, Users, GitCompare } from "lucide-react";
+import { ArrowLeft, Plus, Archive, CheckCircle2, Clock, Lock, Users, GitCompare, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageLoading } from "@/components/ui/page-loading";
 import { useClubSeasons, type Season, type SeasonStatus } from "@/hooks/useClubSeasons";
 import { StartNewSeasonWizard } from "@/components/seasons/StartNewSeasonWizard";
+import { SeasonTemplateDialog } from "@/components/seasons/SeasonTemplateDialog";
+import { OrphanEventsCard } from "@/components/seasons/OrphanEventsCard";
 import { format } from "date-fns";
 
 const STATUS_META: Record<SeasonStatus, { label: string; icon: typeof Clock; variant: "default" | "secondary" | "outline" }> = {
@@ -24,6 +26,7 @@ export default function SeasonsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [templateSource, setTemplateSource] = useState<Season | null>(null);
 
   const { data: club, isLoading: clubLoading } = useQuery({
     queryKey: ["club-basic", clubId],
@@ -132,7 +135,7 @@ export default function SeasonsPage() {
       )}
 
       {grouped.active.length > 0 && (
-        <SeasonGroup title="Current season" seasons={grouped.active} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Current season" seasons={grouped.active} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} onTemplate={setTemplateSource} />
       )}
 
       {grouped.draft.length > 0 && (
@@ -140,8 +143,10 @@ export default function SeasonsPage() {
       )}
 
       {grouped.past.length > 0 && (
-        <SeasonGroup title="Past seasons" seasons={grouped.past} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} />
+        <SeasonGroup title="Past seasons" seasons={grouped.past} teamCounts={teamCounts} onClick={(s) => navigate(`/clubs/${clubId}/seasons/${s.id}`)} onTemplate={setTemplateSource} />
       )}
+
+      {clubId && <OrphanEventsCard clubId={clubId} />}
 
       {seasons.length === 0 && (
         <Card>
@@ -161,6 +166,16 @@ export default function SeasonsPage() {
             setWizardOpen(false);
             refetch();
           }}
+        />
+      )}
+
+      {clubId && templateSource && (
+        <SeasonTemplateDialog
+          open={!!templateSource}
+          onOpenChange={(o) => !o && setTemplateSource(null)}
+          clubId={clubId}
+          sourceSeasonId={templateSource.id}
+          sourceSeasonName={templateSource.name}
         />
       )}
     </div>

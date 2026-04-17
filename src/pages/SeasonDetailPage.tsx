@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Archive, Rocket, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Archive, Rocket, AlertTriangle, Users2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,11 +22,16 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { DraftTeamBuilder } from "@/components/seasons/DraftTeamBuilder";
 import { SeasonAnalyticsCard } from "@/components/seasons/SeasonAnalyticsCard";
+import { BulkRolloverDialog } from "@/components/seasons/BulkRolloverDialog";
+import { useClubSeasons } from "@/hooks/useClubSeasons";
 
 export default function SeasonDetailPage() {
   const { clubId, seasonId } = useParams<{ clubId: string; seasonId: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [bulkRolloverOpen, setBulkRolloverOpen] = useState(false);
+
+  const { data: allSeasons = [] } = useClubSeasons(clubId);
 
   const { data: season, isLoading: seasonLoading } = useQuery({
     queryKey: ["season", seasonId],
@@ -81,15 +87,48 @@ export default function SeasonDetailPage() {
     mutationFn: async () => {
       const { error } = await supabase.rpc("archive_season", { _season_id: seasonId! });
       if (error) throw error;
+      const { data: notified, error: notifyError } = await supabase.rpc(
+        "notify_season_archived",
+        { _season_id: seasonId! },
+      );
+      return { notified: notified ?? 0, notifyError };
     },
-    onSuccess: () => {
-      toast.success("Season archived");
+    onSuccess: ({ notified, notifyError }) => {
+      if (notifyError) {
+        toast.success("Season archived");
+        toast.warning("Could not send all member notifications");
+      } else {
+        toast.success(
+          notified > 0
+            ? `Season archived — ${notified} member${notified === 1 ? "" : "s"} notified`
+            : "Season archived",
+        );
+      }
       qc.invalidateQueries({ queryKey: ["season", seasonId] });
       qc.invalidateQueries({ queryKey: ["club-seasons", clubId] });
       qc.invalidateQueries({ queryKey: ["season-teams", seasonId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const notifyMut = useMutation({
+    mutationFn: async () => {
+      const rpc = season?.status === "active" ? "notify_season_published" : "notify_season_archived";
+      const { data, error } = await supabase.rpc(rpc as any, { _season_id: seasonId! });
+      if (error) throw error;
+      return data ?? 0;
+    },
+    onSuccess: (count) => {
+      toast.success(
+        count > 0
+          ? `Notified ${count} member${count === 1 ? "" : "s"}`
+          : "No members to notify",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const priorSeasons = allSeasons.filter((s) => s.id !== seasonId && (s.status === "closed" || s.status === "archived" || s.status === "active"));
 
   const publishMut = useMutation({
     mutationFn: async () => {
@@ -175,6 +214,44 @@ export default function SeasonDetailPage() {
         <DraftTeamBuilder clubId={clubId} seasonId={seasonId} teams={teams} />
       )}
 
+      {isDraft && priorSeasons.length > 0 && teams.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users2 className="h-4 w-4" /> Bulk roll over teams
+            </CardTitle>
+            <CardDescription>
+              Carry players from an earlier season across, team-by-team.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => setBulkRolloverOpen(true)}>
+              <Users2 className="h-4 w-4 mr-2" />
+              Choose teams to roll over
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {(isActive || isArchived) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Bell className="h-4 w-4" /> Notify members
+            </CardTitle>
+            <CardDescription>
+              Send a push reminder about this season to all placed players and their guardians.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => notifyMut.mutate()} disabled={notifyMut.isPending}>
+              <Bell className="h-4 w-4 mr-2" />
+              Send notification
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Teams in this season</CardTitle>
@@ -252,6 +329,15 @@ export default function SeasonDetailPage() {
             <span>This season is archived and read-only. All history is preserved.</span>
           </CardContent>
         </Card>
+      )}
+
+      {bulkRolloverOpen && priorSeasons.length > 0 && seasonId && (
+        <BulkRolloverDialog
+          open={bulkRolloverOpen}
+          onOpenChange={setBulkRolloverOpen}
+          sourceSeasonId={priorSeasons[0].id}
+          targetSeasonId={seasonId}
+        />
       )}
     </div>
   );
