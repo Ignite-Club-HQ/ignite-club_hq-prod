@@ -4,6 +4,7 @@ import { Play, Pause, SkipForward, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BasketballTimerState, Quarter } from "./types";
 import { formatTime } from "./basketballHelpers";
+import { periodLabel, visiblePeriods } from "@/lib/periodTypes";
 
 interface BasketballQuarterTimerProps {
   state: BasketballTimerState;
