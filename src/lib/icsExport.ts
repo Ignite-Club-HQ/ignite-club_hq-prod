@@ -176,12 +176,47 @@ export async function downloadIcs(filenameBase: string, ics: string): Promise<vo
   // Web fallback: blob download.
   const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+
+  // Detect sandboxed iframe (e.g. Lovable preview) where downloads are blocked.
+  // In that case, open the .ics in a new tab as a data URL so the user can still get it.
+  const inSandboxedIframe = (() => {
+    try {
+      return window.self !== window.top;
+    } catch {
+      return true;
+    }
+  })();
+
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (err) {
+    console.warn("[icsExport] Anchor download failed", err);
+  }
+
+  // Fallback for sandboxed previews: also open the file so the user gets *something*.
+  if (inSandboxedIframe) {
+    try {
+      const dataUrl = `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
+      const win = window.open(dataUrl, "_blank", "noopener,noreferrer");
+      if (!win) {
+        // Popup blocked — surface a clear error so the caller can toast it.
+        throw new Error(
+          "Your browser blocked the calendar download. Open the published app to export your schedule.",
+        );
+      }
+    } catch (err) {
+      // Re-throw so the calling toast shows a useful message.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      throw err;
+    }
+  }
+
   // Defer revoke so the browser has time to start the download.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
