@@ -365,9 +365,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
   // Start group DM mutation (creates a chat group)
   const startGroupDMMutation = useMutation({
-    mutationFn: async (users: DMableUser[]) => {
-      // Create a group chat with all selected users + current user
-      const groupName = users.map(u => u.display_name?.split(" ")[0] || "User").join(", ");
+    mutationFn: async ({ users, customName }: { users: DMableUser[]; customName: string }) => {
+      // Use custom name if provided, otherwise auto-name from member first names
+      const groupName = customName.trim() || users.map(u => u.display_name?.split(" ")[0] || "User").join(", ");
       
       const allowedRoles: ("basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin")[] = 
         ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];
