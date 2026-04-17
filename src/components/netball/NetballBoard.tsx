@@ -7,6 +7,7 @@ import NetballQuarterTimer from "./NetballQuarterTimer";
 import NetballActionBar from "./NetballActionBar";
 import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
+import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 
 import {
   NetballPlayer,
