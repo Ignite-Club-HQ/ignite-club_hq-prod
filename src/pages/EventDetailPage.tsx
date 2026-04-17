@@ -78,6 +78,8 @@ import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPro
 
 // Lazy load PitchBoard for game events
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
+import { isNetballSport } from "@/lib/sportDetection";
 
 type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";
@@ -474,9 +476,12 @@ export default function EventDetailPage() {
   // Check if club is soccer/football for pitch board
   const isSoccerClub = event?.clubs?.sport?.toLowerCase().includes('soccer') || 
                        event?.clubs?.sport?.toLowerCase().includes('football');
-  
-  // Check if user can access pitch board (coach/admin) - requires Pro Football subscription
-  const canAccessPitchBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
+  const isNetballClub = isNetballSport(event?.clubs?.sport);
+
+  // Check if user can access pitch board (coach/admin) - requires Pro Football for soccer; netball is open
+  const canAccessSoccerBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isSoccerClub && hasProFootball === true;
+  const canAccessNetballBoard = !!(isAdmin || isAppAdmin) && event?.type === 'game' && !!event?.team_id && !!isNetballClub;
+  const canAccessPitchBoard = canAccessSoccerBoard || canAccessNetballBoard;
 
   // Check if user is a team member (for read-only pitch board access)
   const { data: isTeamMember } = useQuery({
@@ -2896,8 +2901,8 @@ export default function EventDetailPage() {
         isPending={assignDutyMutation.isPending}
       />
 
-      {/* Pitch Board Modal */}
-      {showPitchBoard && (canAccessPitchBoard || canViewPitchBoardReadOnly) && teamMembers && event?.team_id && createPortal(
+      {/* Pitch Board Modal — soccer */}
+      {showPitchBoard && isSoccerClub && (canAccessSoccerBoard || canViewPitchBoardReadOnly) && teamMembers && event?.team_id && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen flex items-center justify-center" style={{ backgroundColor: '#2d5a27', zIndex: 999999 }}>
             <div className="flex flex-col items-center gap-4">
@@ -2935,6 +2940,30 @@ export default function EventDetailPage() {
             initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
             readOnly={!!canViewPitchBoardReadOnly}
           />
+        </Suspense>,
+        document.body
+      )}
+
+      {/* Game Board Modal — netball */}
+      {showPitchBoard && isNetballClub && canAccessNetballBoard && teamMembers && event?.team_id && createPortal(
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-background">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        }>
+          <div className="fixed inset-0 z-[999999] bg-background">
+            <NetballBoard
+              teamId={event.team_id}
+              teamName={event.teams?.name || "Team"}
+              members={teamMembers.map(m => ({
+                id: m.user_id,
+                user_id: m.user_id,
+                role: m.role,
+                profiles: m.profiles
+              }))}
+              onClose={() => setShowPitchBoard(false)}
+            />
+          </div>
         </Suspense>,
         document.body
       )}
