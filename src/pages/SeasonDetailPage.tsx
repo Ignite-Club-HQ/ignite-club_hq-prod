@@ -302,12 +302,12 @@ const { data: club } = useQuery({
 {seasonId && club && season && (
         <>
           <SeasonEoiConfigCard seasonId={seasonId} clubName={club.name} season={season as any} />
-          {season.eoi_enabled && (
+{seasonId && club && season && season.eoi_enabled && (
             <EoiEmbedCard 
               clubId={club.id} 
               seasonId={seasonId} 
               seasonSlug={season.eoi_slug || season.id} 
-              clubSlug={club.slug || club.id}
+              clubSlug={club.id}
             />
           )}
         </>
