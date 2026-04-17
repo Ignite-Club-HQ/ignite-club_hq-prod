@@ -271,7 +271,7 @@ export function PollCard({ pollId }: PollCardProps) {
                   <span className={`text-sm truncate ${selected ? "font-medium" : ""}`}>{opt.label}</span>
                 </div>
                 <span className="text-[11px] font-medium text-muted-foreground shrink-0 tabular-nums">
-                  {pct}%
+                  {count} · {pct}%
                 </span>
               </div>
               {busyOptionId === opt.id && (
