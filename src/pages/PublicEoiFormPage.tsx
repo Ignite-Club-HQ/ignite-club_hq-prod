@@ -70,7 +70,21 @@ export default function PublicEoiFormPage() {
       }
       const row = (data as EoiConfig[] | null)?.[0] ?? null;
       setConfig(row);
-      if (row) document.title = `EOI · ${row.club_name}`;
+      if (row) {
+        document.title = `EOI · ${row.club_name}`;
+        // Fire-and-forget view tracking (best effort)
+        const isEmbed = typeof window !== "undefined" && window.parent !== window;
+        supabase
+          .from("eoi_form_views")
+          .insert({
+            season_id: row.season_id,
+            club_id: row.club_id,
+            source: isEmbed ? "embed" : "website",
+          })
+          .then(({ error: viewErr }) => {
+            if (viewErr) console.warn("[eoi] view tracking failed", viewErr);
+          });
+      }
       setLoading(false);
     })();
   }, [clubSlug, seasonSlug]);
