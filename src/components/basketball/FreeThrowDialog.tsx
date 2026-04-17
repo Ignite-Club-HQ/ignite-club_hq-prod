@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -37,13 +37,10 @@ export default function FreeThrowDialog({
     Array.from({ length: attempts }).map(() => null)
   );
 
-  // Reset when the dialog opens with a new attempt count.
-  const resetIfNeeded = () => {
-    if (results.length !== attempts) {
-      setResults(Array.from({ length: attempts }).map(() => null));
-    }
-  };
-  resetIfNeeded();
+  // Reset whenever the attempt count changes (new free-throw session opened).
+  useEffect(() => {
+    setResults(Array.from({ length: attempts }).map(() => null));
+  }, [attempts, open]);
 
   const setResult = (idx: number, made: boolean) => {
     setResults((prev) => prev.map((r, i) => (i === idx ? made : r)));
@@ -88,7 +85,7 @@ export default function FreeThrowDialog({
               <Button
                 size="sm"
                 variant={r === true ? "default" : "outline"}
-                className={cn("flex-1 h-10", r === true && "bg-emerald-600 hover:bg-emerald-700")}
+                className="flex-1 h-10"
                 onClick={() => setResult(idx, true)}
               >
                 <Check className="h-4 w-4 mr-1" />
