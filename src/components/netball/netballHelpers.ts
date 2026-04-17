@@ -92,6 +92,27 @@ export const findPlayerInPosition = (
  * Players named in the lineup go on court at their slot;
  * everyone else moves to bench (preserving their stats).
  */
+/**
+ * Apply a transition to a single player, stamping `lastBenchedAt` whenever
+ * they go from on-court → bench so the bench rest timer can render. The
+ * stamp is cleared whenever they come back on.
+ */
+export const transitionPosition = (
+  p: NetballPlayer,
+  next: NetballPosition | null,
+  now: number = Date.now()
+): NetballPlayer => {
+  const wasOnCourt = p.position !== null;
+  const goingToBench = next === null;
+  if (wasOnCourt && goingToBench) {
+    return { ...p, position: null, lastBenchedAt: now };
+  }
+  if (!goingToBench && p.lastBenchedAt) {
+    return { ...p, position: next, lastBenchedAt: null };
+  }
+  return { ...p, position: next };
+};
+
 export const applyLineup = (
   players: NetballPlayer[],
   lineup: QuarterLineup
@@ -100,10 +121,7 @@ export const applyLineup = (
   for (const [position, playerId] of Object.entries(lineup.assignments)) {
     if (playerId) positionByPlayerId.set(playerId, position as NetballPosition);
   }
-  return players.map(p => ({
-    ...p,
-    position: positionByPlayerId.get(p.id) ?? null,
-  }));
+  return players.map(p => transitionPosition(p, positionByPlayerId.get(p.id) ?? null));
 };
 
 /** Snapshot the current on-court 7 as a lineup for a quarter. */
