@@ -93,6 +93,19 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
     },
   });
 
+  const carryOverMut = useMutation({
+    mutationFn: async ({ targetId, ids }: { targetId: string; ids: string[] }): Promise<number> => {
+      if (!currentSeason || ids.length === 0) return 0;
+      const { data, error } = await supabase.rpc("carry_over_players", {
+        _source_season_id: currentSeason.id,
+        _target_season_id: targetId,
+        _club_player_ids: ids,
+      });
+      if (error) throw error;
+      return (data as number) ?? 0;
+    },
+  });
+
   const goNext = async () => {
     try {
       if (step === 1) {
@@ -111,8 +124,21 @@ export function StartNewSeasonWizard({ clubId, open, onOpenChange, currentSeason
         toast.success("Draft season created");
         setStep(3);
       } else if (step === 3) {
+        // Carry over selected players
+        if (createdSeasonId && selectedPlayerIds.size > 0) {
+          const count = await carryOverMut.mutateAsync({
+            targetId: createdSeasonId,
+            ids: Array.from(selectedPlayerIds),
+          });
+          setCarriedOverCount(count);
+          if (count > 0) toast.success(`${count} player${count === 1 ? "" : "s"} carried over`);
+        } else {
+          setCarriedOverCount(0);
+        }
         setStep(4);
-      } else if (step === 4 && createdSeasonId) {
+      } else if (step === 4) {
+        setStep(5);
+      } else if (step === 5 && createdSeasonId) {
         await publishMut.mutateAsync(createdSeasonId);
         toast.success("New season is live!");
         qc.invalidateQueries({ queryKey: ["club-seasons", clubId] });
