@@ -2590,23 +2590,29 @@ export default function EventDetailPage() {
                     </div>
                   </div>
                 </div>
-                {(isAdmin || isAppAdmin) && canSendReminders && !isMiniLeagueEvent && child.parent_id && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-2.5 shrink-0 gap-1.5"
-                    onClick={() => individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id })}
-                    disabled={individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id}
-                    title="Remind all parents"
-                  >
-                    {individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Bell className="h-3.5 w-3.5" />
-                    )}
-                    <span className="text-xs">Remind</span>
-                  </Button>
-                )}
+                {(isAdmin || isAppAdmin) && canSendReminders && !isMiniLeagueEvent && child.parent_id && (() => {
+                  const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id;
+                  const wasReminded = recentlyReminded.has(child.parent_id);
+                  return (
+                    <Button
+                      variant={wasReminded ? "secondary" : "default"}
+                      size="sm"
+                      className="h-8 px-3 shrink-0 gap-1.5"
+                      onClick={() => individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id })}
+                      disabled={isLoadingThis || wasReminded}
+                      title={wasReminded ? "Already reminded" : "Remind all parents"}
+                    >
+                      {isLoadingThis ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : wasReminded ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <Bell className="h-3.5 w-3.5" />
+                      )}
+                      <span className="text-xs">{wasReminded ? "Reminded" : "Remind"}</span>
+                    </Button>
+                  );
+                })()}
                 {(isAdmin || isAppAdmin) && (
                   <AdminRsvpChanger
                     currentStatus={null}
