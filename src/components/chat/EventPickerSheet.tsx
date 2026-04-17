@@ -6,6 +6,7 @@ import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Clock, MapPin, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Dialog,
   DialogContent,
@@ -22,43 +23,88 @@ interface EventPickerSheetProps {
 }
 
 export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, clubId }: EventPickerSheetProps) {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const today = format(new Date(), "yyyy-MM-dd");
 
   const { data: events, isLoading } = useQuery({
-    queryKey: ["event-picker", teamId, clubId],
+    queryKey: ["event-picker", teamId, clubId, user?.id],
     queryFn: async () => {
-      let query = supabase
-        .from("events")
-        .select("id, title, event_date, start_time, location_name, location, type, opponent, mini_league_id, is_cancelled")
-        .eq("is_cancelled", false)
-        .gte("event_date", today)
-        .order("event_date", { ascending: true })
-        .order("start_time", { ascending: true })
-        .limit(30);
-
+      // Team chat: only events for THIS team
       if (teamId) {
-        query = query.eq("team_id", teamId);
-      } else if (clubId) {
-        // Get all events for any team in this club
-        const { data: teams } = await supabase
-          .from("teams")
-          .select("id")
-          .eq("club_id", clubId);
-        const teamIds = teams?.map(t => t.id) || [];
-        if (teamIds.length > 0) {
-          query = query.in("team_id", teamIds);
-        } else {
-          return [];
-        }
-      } else {
-        return [];
+        const { data } = await supabase
+          .from("events")
+          .select("id, title, event_date, start_time, location_name, location, type, opponent, mini_league_id, is_cancelled, team_id")
+          .eq("team_id", teamId)
+          .eq("is_cancelled", false)
+          .gte("event_date", today)
+          .order("event_date", { ascending: true })
+          .order("start_time", { ascending: true })
+          .limit(50);
+        return data || [];
       }
 
-      const { data } = await query;
-      return data || [];
+      // Club-wide / group chat: only events the user has access to
+      // (events for teams they belong to via role OR as a parent of an assigned child,
+      //  plus club-level events with no team_id)
+      if (clubId && user?.id) {
+        const [rolesRes, childrenRes] = await Promise.all([
+          supabase
+            .from("user_roles")
+            .select("team_id")
+            .eq("user_id", user.id)
+            .eq("club_id", clubId)
+            .not("team_id", "is", null),
+          supabase
+            .from("children")
+            .select("id, child_team_assignments!inner(team_id, teams!inner(club_id))")
+            .eq("parent_id", user.id)
+            .eq("child_team_assignments.teams.club_id", clubId),
+        ]);
+
+        const teamIds = new Set<string>();
+        (rolesRes.data || []).forEach((r: any) => { if (r.team_id) teamIds.add(r.team_id); });
+        (childrenRes.data || []).forEach((c: any) => {
+          (c.child_team_assignments || []).forEach((a: any) => { if (a.team_id) teamIds.add(a.team_id); });
+        });
+        const teamIdArr = Array.from(teamIds);
+
+        // Club-level events (no team_id) for this club
+        const { data: clubEvents } = await supabase
+          .from("events")
+          .select("id, title, event_date, start_time, location_name, location, type, opponent, mini_league_id, is_cancelled, team_id")
+          .eq("club_id", clubId)
+          .eq("is_cancelled", false)
+          .gte("event_date", today)
+          .is("team_id", null)
+          .order("event_date", { ascending: true })
+          .limit(50);
+
+        let teamEvents: any[] = [];
+        if (teamIdArr.length > 0) {
+          const { data } = await supabase
+            .from("events")
+            .select("id, title, event_date, start_time, location_name, location, type, opponent, mini_league_id, is_cancelled, team_id")
+            .in("team_id", teamIdArr)
+            .eq("is_cancelled", false)
+            .gte("event_date", today)
+            .order("event_date", { ascending: true })
+            .limit(50);
+          teamEvents = data || [];
+        }
+
+        return [...(clubEvents || []), ...teamEvents]
+          .sort((a, b) => {
+            const dateCmp = (a.event_date || "").localeCompare(b.event_date || "");
+            if (dateCmp !== 0) return dateCmp;
+            return (a.start_time || "").localeCompare(b.start_time || "");
+          })
+          .slice(0, 50);
+      }
+
+      return [];
     },
-    enabled: open && !!(teamId || clubId),
+    enabled: open && !!(teamId || clubId) && !!user?.id,
     staleTime: 60 * 1000,
   });
 
