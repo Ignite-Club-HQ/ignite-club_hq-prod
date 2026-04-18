@@ -31,6 +31,7 @@ import {
 import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
 import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
 import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
+import { visiblePeriods } from "@/lib/periodTypes";
 
 interface Member {
   id: string;
@@ -380,7 +381,7 @@ export function useBasketballBoardState({
       // In halves mode the visible periods are [1, 3], so "next" after slot 1
       // is slot 3 — NOT slot 2. Using +1 silently broke quarterLineups lookups
       // and quarter-break subs whenever a coach ran the game in halves mode.
-      const periodType = stateRef_periodType();
+      const periodType = timerStateRef.current.periodType;
       const periods = visiblePeriods(periodType);
       const idx = periods.indexOf(endedQuarter);
       const isFinalPeriod = idx === periods.length - 1;
