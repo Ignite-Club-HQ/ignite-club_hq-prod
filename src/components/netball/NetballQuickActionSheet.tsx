@@ -65,6 +65,20 @@ export default function NetballQuickActionSheet({
         </SheetHeader>
 
         <div className="grid grid-cols-2 gap-2 py-4">
+          {canScore && (
+            <Button
+              variant="default"
+              className="h-14 flex-col gap-1 col-span-2"
+              onClick={() => {
+                onScore!();
+                onOpenChange(false);
+              }}
+            >
+              <Target className="h-5 w-5" />
+              <span className="text-xs">Goal scored (+1)</span>
+            </Button>
+          )}
+
           <Button
             variant="outline"
             className="h-14 flex-col gap-1"
