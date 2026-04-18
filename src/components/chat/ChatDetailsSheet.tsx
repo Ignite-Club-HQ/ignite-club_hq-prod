@@ -224,7 +224,7 @@ export function ChatDetailsSheet({
                   groupAllowedRoles={groupAllowedRoles}
                   enabled={open}
                   onBeforeNavigate={close}
-                  inline
+                  scrollClassName="max-h-[45vh]"
                 />
               </Section>
             )}
