@@ -156,9 +156,13 @@ export function useBasketballBoardState({
     subs: BasketballSubEvent[];
   } | null>(null);
   const [courtView, setCourtView] = useState<BasketballCourtView>("half");
-  // Auto-sub control panel state
-  const [autoSubPaused, setAutoSubPaused] = useState(false);
-  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  // Auto-sub control panel state — persisted across reloads via boardState.
+  const [autoSubPaused, setAutoSubPaused] = useState(
+    savedStateRef.current?.autoSubPaused ?? false
+  );
+  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(
+    new Set(savedStateRef.current?.lockedPlayerIds ?? [])
+  );
   const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
   const toggleLockPlayer = useCallback((playerId: string) => {
     setLockedPlayerIds((prev) => {
@@ -263,7 +267,8 @@ export function useBasketballBoardState({
       validationMode,
       autoSubPlan,
       autoSubActive: rotationMode !== "off",
-      autoSubPaused: false,
+      autoSubPaused,
+      lockedPlayerIds: Array.from(lockedPlayerIds),
       quarterLineups,
       lastUpdateTime: Date.now(),
     }),
@@ -275,6 +280,8 @@ export function useBasketballBoardState({
       rotationIntervalMinutes,
       validationMode,
       autoSubPlan,
+      autoSubPaused,
+      lockedPlayerIds,
       quarterLineups,
     ]
   );
