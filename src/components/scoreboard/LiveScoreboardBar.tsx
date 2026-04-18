@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { hapticSelectionTick } from "@/lib/haptics";
@@ -13,14 +13,19 @@ interface LiveScoreboardBarProps {
   readOnly?: boolean;
   disabled?: boolean;
   onScore: (side: "home" | "away", points: number) => void;
+  /** Optional left-side controls (period pill, clock, play/pause). */
+  leadingSlot?: ReactNode;
+  /** Optional right-side controls (sync indicator, etc.). */
+  trailingSlot?: ReactNode;
 }
 
 /**
- * Compact single-row live scoreboard:
- *   [+1 +2 +3]  HOME  12 — 8  AWAY  [+1 +2 +3]
+ * Single-row live control strip:
+ *   [leadingSlot]  [+1+2+3] HOME 12 — 8 AWAY [+1+2+3]  [trailingSlot]
  *
- * Score buttons sit inline with the score number — no second row, no menus.
- * One tap = one point change. Score number flashes on update.
+ * Everything — period, clock, play/pause, scores and scoring buttons — fits
+ * in one horizontal strip. One tap = one point change. Score number flashes
+ * on update.
  */
 const LiveScoreboardBar = memo(function LiveScoreboardBar({
   homeLabel,
@@ -31,6 +36,8 @@ const LiveScoreboardBar = memo(function LiveScoreboardBar({
   readOnly = false,
   disabled = false,
   onScore,
+  leadingSlot,
+  trailingSlot,
 }: LiveScoreboardBarProps) {
   const interactive = !readOnly && !disabled;
 
@@ -42,11 +49,12 @@ const LiveScoreboardBar = memo(function LiveScoreboardBar({
 
   return (
     <div
-      className="flex items-center gap-2 px-2 py-1.5 bg-card border-b"
+      className="flex items-center gap-1.5 px-1.5 py-1 bg-card border-b"
       role="group"
       aria-label="Live scoreboard"
     >
-      {/* HOME — buttons | label+score */}
+      {leadingSlot && <div className="flex items-center gap-1 shrink-0">{leadingSlot}</div>}
+
       <TeamSide
         label={homeLabel}
         score={homeScore}
@@ -56,10 +64,10 @@ const LiveScoreboardBar = memo(function LiveScoreboardBar({
         side="home"
       />
 
-      {/* DASH separator */}
-      <span className="text-xl font-light text-muted-foreground/50 px-0.5 leading-none">—</span>
+      <span className="text-base font-light text-muted-foreground/50 px-0.5 leading-none shrink-0">
+        —
+      </span>
 
-      {/* AWAY — label+score | buttons */}
       <TeamSide
         label={awayLabel}
         score={awayScore}
@@ -68,6 +76,8 @@ const LiveScoreboardBar = memo(function LiveScoreboardBar({
         onScore={(pts) => handleScore("away", pts)}
         side="away"
       />
+
+      {trailingSlot && <div className="flex items-center gap-1 shrink-0">{trailingSlot}</div>}
     </div>
   );
 });
@@ -95,13 +105,13 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
   }, [score]);
 
   const buttons = interactive && (
-    <div className="flex items-center gap-1 shrink-0">
+    <div className="flex items-center gap-0.5 shrink-0">
       {increments.map((pts) => (
         <Button
           key={pts}
           size="sm"
           variant="secondary"
-          className="h-9 min-w-9 px-2 text-sm font-bold rounded-md active:scale-95"
+          className="h-7 min-h-0 min-w-7 px-1.5 text-[11px] font-bold rounded leading-none"
           onClick={() => onScore(pts)}
           aria-label={`Add ${pts} point${pts === 1 ? "" : "s"} for ${label}`}
         >
@@ -119,14 +129,14 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
       )}
     >
       <span
-        className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
+        className="text-[8px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
         title={label}
       >
         {label}
       </span>
       <span
         className={cn(
-          "text-4xl font-extrabold tabular-nums leading-none text-foreground transition-transform mt-0.5",
+          "text-2xl font-extrabold tabular-nums leading-none text-foreground transition-transform mt-0.5",
           pulse && "scale-110 text-primary",
         )}
         aria-live="polite"
@@ -137,12 +147,10 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
     </div>
   );
 
-  // HOME: [+1 +2 +3]  LABEL/SCORE  →  pushed toward centre dash
-  // AWAY: LABEL/SCORE  [+1 +2 +3]  →  pushed away from dash
   return (
     <div
       className={cn(
-        "flex flex-1 items-center gap-2 min-w-0",
+        "flex flex-1 items-center gap-1.5 min-w-0",
         side === "home" ? "justify-end" : "justify-start",
       )}
     >
