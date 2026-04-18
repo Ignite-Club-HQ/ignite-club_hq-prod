@@ -1274,12 +1274,12 @@ export default function TeamChatPage() {
     }
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
-  // Live online count for the team — shown in the header sublabel.
+  // Live online count for the team — always shown in the header sublabel.
   const teamOnlineCount = useChatOnlineCount("team", teamId);
-  const teamHeaderSublabel =
-    teamOnlineCount > 0
-      ? `${team?.clubs?.name ? `${team.clubs.name} · ` : ""}${teamOnlineCount} online`
-      : team?.clubs?.name;
+  const onlineLabel = `${teamOnlineCount} online`;
+  const teamHeaderSublabel = team?.clubs?.name
+    ? `${team.clubs.name} · ${onlineLabel}`
+    : onlineLabel;
 
   if (loadingTeam) {
     return <PageLoading message="Loading team chat..." />;
