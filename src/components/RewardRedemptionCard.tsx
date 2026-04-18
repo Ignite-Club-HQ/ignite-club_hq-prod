@@ -107,7 +107,10 @@ export default function RewardRedemptionCard() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [selectedRedemption, setSelectedRedemption] = useState<RewardRedemption | null>(null);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself"); // "myself" or child_id
-  
+  const [activeChildId, setActiveChildId] = useState<string | null>(null);
+  const [childSwitcherOpen, setChildSwitcherOpen] = useState(false);
+  const [howToEarnOpen, setHowToEarnOpen] = useState(false);
+
   // Use cached theme state to prevent gradient flash on initial render
   const [hasClubThemeCached] = useState(getInitialThemeState);
   const hasClubTheme = activeThemeData || hasClubThemeCached;
