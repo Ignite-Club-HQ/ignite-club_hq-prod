@@ -574,24 +574,6 @@ export default function BasketballBoard({
       />
 
       <Suspense fallback={<DialogLoader />}>
-        {rosterOpen && (
-          <BasketballRosterDialog
-            open={rosterOpen}
-            onOpenChange={setRosterOpen}
-            players={board.players}
-            onSave={board.setPlayers}
-          />
-        )}
-        {presetsOpen && (
-          <BasketballLineupPresetsDialog
-            open={presetsOpen}
-            onOpenChange={setPresetsOpen}
-            players={board.players}
-            presets={board.lineupPresets}
-            onSave={board.setLineupPresets}
-            onApply={board.applyPreset}
-          />
-        )}
         {board.quickActionPlayerId && board.quickActionPlayer && (
           <BasketballQuickActionSheet
             open={!!board.quickActionPlayerId}
