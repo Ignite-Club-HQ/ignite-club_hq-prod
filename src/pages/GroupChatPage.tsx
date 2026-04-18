@@ -1544,8 +1544,7 @@ export default function GroupChatPage() {
     : group?.club_id
     ? "Club group"
     : "Personal group";
-  const groupHeaderSublabel =
-    groupOnlineCount > 0 ? `${groupBaseSublabel} · ${groupOnlineCount} online` : groupBaseSublabel;
+  const groupHeaderSublabel = `${groupBaseSublabel} · ${groupOnlineCount} online`;
 
   if (groupLoading) {
     return <PageLoading message="Loading group chat..." />;
