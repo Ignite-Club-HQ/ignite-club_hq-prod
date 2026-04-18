@@ -74,7 +74,11 @@ export default function ResetPasswordPage() {
         }
 
         // Case 2: implicit/hash flow — Supabase auto-detects via detectSessionInUrl.
-        // Give it a brief moment, then verify a session exists.
+        // Give the SDK a brief window to process tokens in the URL hash before
+        // we conclude there's no session (avoids a flash of the error UI).
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        if (cancelled) return;
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!session && !cancelled) {
           setError("Invalid or expired reset link. Please request a new password reset.");

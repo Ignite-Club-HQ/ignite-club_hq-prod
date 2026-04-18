@@ -109,6 +109,14 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
               <p className="text-xs text-muted-foreground">
                 Don't see it? Check your spam folder.
               </p>
+              <p className="text-xs text-muted-foreground pt-2 border-t border-border/50 mt-3">
+                <span className="font-medium text-foreground">Important:</span> open the email on the
+                same device you requested it from. The link expires in 1 hour.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Already signed in? You can change your password from{" "}
+                <span className="font-medium text-foreground">Settings → Change Password</span>.
+              </p>
             </div>
             <Button onClick={handleClose} className="w-full">
               Done
