@@ -20,8 +20,13 @@ const config: CapacitorConfig = {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
     FirebaseMessaging: {
-      // Use custom notification icon for Android
-      presentationOptions: ['badge', 'sound', 'alert'],
+      // IMPORTANT: leave presentationOptions empty.
+      // Both @capacitor/push-notifications and @capacitor-firebase/messaging
+      // listen to incoming FCM messages. If BOTH present the system notification,
+      // users see duplicate notifications (especially noticeable on DMs).
+      // We rely on @capacitor/push-notifications + the OS to display the alert
+      // once, and only use FirebaseMessaging for token management.
+      presentationOptions: [],
     },
   },
   android: {
