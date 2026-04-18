@@ -35,15 +35,14 @@ export default function BasketballBench({
   const isEmpty = bench.length === 0;
 
   return (
-    <div className="border-t bg-card">
+    <div className="border-t bg-card flex-shrink-0">
       <div
         className={cn(
-          "flex items-center justify-between px-3",
-          isEmpty ? "py-1" : "py-1.5"
+          "flex items-center justify-between px-3 py-0.5",
         )}
       >
-        <h2 className="text-xs font-bold flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" /> Bench ({bench.length})
+        <h2 className="text-[11px] font-bold flex items-center gap-1 text-muted-foreground">
+          <Users className="h-3 w-3" /> Bench ({bench.length})
         </h2>
         {!isEmpty && selectedPlayerId ? (
           <span className="text-[10px] text-primary font-medium flex items-center gap-1">
@@ -57,7 +56,7 @@ export default function BasketballBench({
       </div>
       {!isEmpty && (
         <ScrollArea className="w-full">
-          <div className="flex gap-2 px-3 pb-3">
+          <div className="flex gap-1.5 px-2 pb-1.5">
             {bench.map((p) => (
               <BasketballPlayerToken
                 key={p.id}
