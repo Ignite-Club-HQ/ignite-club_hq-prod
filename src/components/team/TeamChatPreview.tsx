@@ -120,7 +120,7 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
               {latestMessage.author_id === user?.id ? "You" : latestMessage.authorName}:
             </span>{" "}
             {(() => {
-              const clean = stripMentionFormatting(latestMessage.text);
+              const clean = stripMentionFormatting(latestMessage.text, eventTitleMap);
               return clean.length > 40 ? clean.slice(0, 40) + "…" : clean;
             })()}
           </p>
