@@ -303,7 +303,81 @@ export default function GameSummaryDialog({
               </div>
             )}
 
-            {/* Player stats */}
+            {/* Standouts — top scorer / most minutes / most fouls.
+                Hidden entirely if no qualifying stats so the card stays tidy. */}
+            {standouts &&
+              (standouts.topScorer || standouts.mostMinutes || standouts.mostFouls) && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
+                    Standouts
+                  </p>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {standouts.topScorer && (
+                      <div className="flex items-center gap-2 rounded-md border bg-muted/20 px-2 py-1.5">
+                        <Crown className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[9px] uppercase tracking-wide text-muted-foreground font-semibold">
+                              Top scorer
+                            </p>
+                            <p className="text-xs font-semibold truncate">
+                              {standouts.topScorer.name}
+                            </p>
+                          </div>
+                          <p className="text-sm font-bold tabular-nums text-primary shrink-0">
+                            {standouts.topScorer.points}
+                            <span className="text-[10px] text-muted-foreground font-normal ml-0.5">
+                              pts
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {standouts.mostMinutes && (
+                      <div className="flex items-center gap-2 rounded-md border bg-muted/20 px-2 py-1.5">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[9px] uppercase tracking-wide text-muted-foreground font-semibold">
+                              Most court time
+                            </p>
+                            <p className="text-xs font-semibold truncate">
+                              {standouts.mostMinutes.name}
+                            </p>
+                          </div>
+                          <p className="text-sm font-bold tabular-nums shrink-0">
+                            {fmtTime(standouts.mostMinutes.secondsPlayed)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {standouts.mostFouls && (
+                      <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-2 py-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                        <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[9px] uppercase tracking-wide text-muted-foreground font-semibold">
+                              Most fouls
+                            </p>
+                            <p className="text-xs font-semibold truncate">
+                              {standouts.mostFouls.name}
+                              {standouts.mostFouls.isFouledOut && (
+                                <span className="ml-1 text-[9px] font-bold text-destructive">
+                                  · OUT
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <p className="text-sm font-bold tabular-nums text-destructive shrink-0">
+                            {standouts.mostFouls.fouls}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             <div>
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">
                 Player stats
