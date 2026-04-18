@@ -433,6 +433,7 @@ export default function NetballBoard({
   const performSwap = useCallback(
     (aId: string, bId: string) => {
       hapticImpactMedium();
+      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
       setPlayers((prev) => {
         const a = prev.find((p) => p.id === aId);
         const b = prev.find((p) => p.id === bId);
@@ -462,14 +463,36 @@ export default function NetballBoard({
 
         if (!enforce(a, b.position) || !enforce(b, a.position)) return prev;
 
+        // Bench → court swap counts as a sub for undo + summary purposes.
+        if (a.position === null && b.position !== null) {
+          logEntry = {
+            playerOutId: b.id,
+            playerOutName: b.name,
+            playerInId: a.id,
+            playerInName: a.name,
+            position: b.position,
+            source: "manual",
+          };
+        } else if (b.position === null && a.position !== null) {
+          logEntry = {
+            playerOutId: a.id,
+            playerOutName: a.name,
+            playerInId: b.id,
+            playerInName: b.name,
+            position: a.position,
+            source: "manual",
+          };
+        }
+
         return prev.map((p) => {
           if (p.id === a.id) return { ...p, position: b.position };
           if (p.id === b.id) return { ...p, position: a.position };
           return p;
         });
       });
+      if (logEntry) appendSubLog(logEntry);
     },
-    [validationMode, toast]
+    [validationMode, toast, appendSubLog]
   );
 
   const handlePlayerClick = useCallback(
