@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { setSyncStatus } from "./useSyncStatus";
+import { buildGameSignature } from "@/lib/gameSyncSignature";
 import type { Json } from "@/integrations/supabase/types";
 import type { NetballBoardState, NetballTimerState } from "@/components/netball/types";
 
@@ -39,9 +40,29 @@ export function useNetballGameSync(
     [user?.id]
   );
 
-  const syncNow = useCallback(async () => {
+  // Cheap signature so we skip writes when nothing material changed.
+  const lastSignatureRef = useRef<string>("");
+  const syncNow = useCallback(async (force = false) => {
     if (!user?.id || !enabled || !state || !timerState) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+    const signature = buildGameSignature({
+      players: state.players,
+      currentQuarter: state.currentQuarter,
+      rotationMode: state.rotationMode,
+      validationMode: state.validationMode,
+      elapsedSeconds: timerState.elapsedSeconds,
+      isRunning: timerState.isRunning,
+      isGameFinished: timerState.isGameFinished,
+      homeScore: timerState.homeScore,
+      awayScore: timerState.awayScore,
+      scoreLogLength: timerState.scoreLog?.length,
+      subLogLength: timerState.subLog?.length,
+      centrePass: timerState.centrePass,
+    });
+    if (!force && signature === lastSignatureRef.current) return;
+    lastSignatureRef.current = signature;
+
     setSyncStatus({ status: "syncing", lastSyncTime: Date.now() });
 
     const isFinished = !!timerState.isGameFinished;
@@ -136,8 +157,9 @@ export function useNetballGameSync(
 
   useEffect(() => {
     if (!enabled) return;
-    syncNow();
-    intervalRef.current = setInterval(syncNow, SYNC_INTERVAL);
+    // First sync forced so spectators see state immediately.
+    syncNow(true);
+    intervalRef.current = setInterval(() => syncNow(false), SYNC_INTERVAL);
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -160,5 +182,5 @@ export function useNetballGameSync(
     };
   }, []);
 
-  return { forceSync: syncNow };
+  return { forceSync: () => syncNow(true) };
 }
