@@ -3,7 +3,6 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Loader2, ChevronRight, UserPlus, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +19,7 @@ import { toast } from "sonner";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import { AddGroupMembersDialog } from "@/components/chat/AddGroupMembersDialog";
+import { cn } from "@/lib/utils";
 
 interface ChatParticipantsListProps {
   chatType: "team" | "club" | "group";
@@ -524,7 +524,15 @@ export function ChatParticipantsList({
             })}
           </div>
         );
-        return inline ? listBody : <ScrollArea className={scrollClassName}>{listBody}</ScrollArea>;
+        return inline ? listBody : (
+          <div
+            className={cn("min-h-0 overflow-y-auto overscroll-contain", scrollClassName)}
+            data-allow-scroll
+            style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
+          >
+            {listBody}
+          </div>
+        );
       })()}
 
       {selectedMember && effectiveTeamId && (
