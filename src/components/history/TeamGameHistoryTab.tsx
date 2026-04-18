@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trophy, Trash2, Calendar, Star, Loader2, CalendarDays } from "lucide-react";
+import { Trophy, Trash2, Calendar, Star, Loader2, CalendarDays, Crown } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -84,6 +84,48 @@ export default function TeamGameHistoryTab({
     const netball = data?.filter((r) => r.sport === "netball").length ?? 0;
     return { all, basketball, netball };
   }, [data]);
+
+  /**
+   * Season-level aggregates over the (filtered) game list. Surfaces the
+   * coach's bird's-eye view: record, points-for/against differential, and the
+   * stand-out scorer across all games.
+   */
+  const aggregates = useMemo(() => {
+    const rows = data ?? [];
+    if (rows.length === 0) return null;
+    let wins = 0;
+    let losses = 0;
+    let draws = 0;
+    let pointsFor = 0;
+    let pointsAgainst = 0;
+    const scorerTotals = new Map<string, { name: string; points: number }>();
+    for (const r of rows) {
+      if (r.home_score > r.away_score) wins++;
+      else if (r.home_score < r.away_score) losses++;
+      else draws++;
+      pointsFor += r.home_score;
+      pointsAgainst += r.away_score;
+      for (const p of r.player_stats ?? []) {
+        const pts = p.points ?? 0;
+        if (pts <= 0) continue;
+        const prev = scorerTotals.get(p.id) ?? { name: p.name, points: 0 };
+        prev.points += pts;
+        prev.name = p.name; // refresh in case display name changed
+        scorerTotals.set(p.id, prev);
+      }
+    }
+    const topScorer = [...scorerTotals.values()].sort((a, b) => b.points - a.points)[0] ?? null;
+    return {
+      wins,
+      losses,
+      draws,
+      pointsFor,
+      pointsAgainst,
+      diff: pointsFor - pointsAgainst,
+      topScorer,
+    };
+  }, [data]);
+
 
   const visible = useMemo(() => {
     if (!data) return [];
