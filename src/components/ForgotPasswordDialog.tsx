@@ -12,7 +12,15 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Capacitor } from "@capacitor/core";
 import { z } from "zod";
+
+// Always use the public web domain for password reset redirects.
+// On native, window.location.origin returns capacitor://localhost which
+// Supabase rejects, and even on web previews the domain may not match
+// the user's original device. Universal Links + deep link handler route
+// the resulting /reset-password URL back into the native app when installed.
+const RESET_PASSWORD_REDIRECT = "https://igniteclubhq.app/reset-password";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 
