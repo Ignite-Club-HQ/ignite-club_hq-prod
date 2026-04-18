@@ -167,11 +167,6 @@ export default function BasketballRosterDialog({
             </Button>
           </div>
         </div>
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Add
-          </Button>
-        </div>
 
         <ScrollArea className="flex-1 -mx-6 px-6">
           <div className="space-y-4 py-2">
