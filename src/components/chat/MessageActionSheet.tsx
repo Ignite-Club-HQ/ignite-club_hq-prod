@@ -74,6 +74,11 @@ export function MessageActionSheet({
   onReport,
   onBlock,
   onViewImage,
+  canPin = false,
+  isPinned = false,
+  pinLimitReached = false,
+  onPin,
+  onUnpin,
 }: MessageActionSheetProps) {
   const [showSafety, setShowSafety] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
