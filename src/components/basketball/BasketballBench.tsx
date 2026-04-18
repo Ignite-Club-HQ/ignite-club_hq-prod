@@ -3,6 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Users, ArrowLeftRight, ArrowUpCircle } from "lucide-react";
 import BasketballPlayerToken from "./BasketballPlayerToken";
 import { BasketballPlayer } from "./types";
+import { cn } from "@/lib/utils";
 
 interface BasketballBenchProps {
   bench: BasketballPlayer[];
