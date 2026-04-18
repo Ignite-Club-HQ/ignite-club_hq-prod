@@ -80,7 +80,7 @@ const GameScoreboard = memo(function GameScoreboard({
       aria-label="Scoreboard"
     >
       {/* HOME */}
-      <div className="flex flex-col items-end min-w-0 gap-0.5">
+      <div className="flex flex-col items-center min-w-0 gap-0.5">
         <span
           className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
           title={homeLabel}
@@ -95,7 +95,7 @@ const GameScoreboard = memo(function GameScoreboard({
           onScore={(pts) => handleScore("home", pts)}
           increments={increments}
           ariaLabel={`Add points for ${homeLabel}`}
-          align="right"
+          align="center"
         />
       </div>
 
