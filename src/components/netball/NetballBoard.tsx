@@ -972,6 +972,13 @@ export default function NetballBoard({
         }
       />
 
+      <CentrePassStatsPanel
+        homeLabel={teamName}
+        awayLabel={timerState.opponentName ?? "Opponent"}
+        log={timerState.centrePassLog}
+        currentQuarter={timerState.currentQuarter}
+      />
+
       <BenchFairnessMeter
         players={players}
         elapsedSeconds={
