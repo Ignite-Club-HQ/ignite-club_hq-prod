@@ -33,6 +33,8 @@ interface ChatParticipantsListProps {
   onBeforeNavigate?: () => void;
   className?: string;
   scrollClassName?: string;
+  /** When true, render the list inline (no inner ScrollArea) so the parent container scrolls. */
+  inline?: boolean;
 }
 
 interface Member {
@@ -64,6 +66,7 @@ export function ChatParticipantsList({
   onBeforeNavigate,
   className,
   scrollClassName = "h-[360px]",
+  inline = false,
 }: ChatParticipantsListProps) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -430,8 +433,8 @@ export function ChatParticipantsList({
         )}
       </div>
 
-      <ScrollArea className={scrollClassName}>
-        {membersLoading ? (
+      {(() => {
+        const listBody = membersLoading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
@@ -520,8 +523,9 @@ export function ChatParticipantsList({
               );
             })}
           </div>
-        )}
-      </ScrollArea>
+        );
+        return inline ? listBody : <ScrollArea className={scrollClassName}>{listBody}</ScrollArea>;
+      })()}
 
       {selectedMember && effectiveTeamId && (
         <MemberDetailSheet
