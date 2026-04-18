@@ -34,10 +34,7 @@ export function ChatMediaViewer({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          className="p-0 sm:max-w-2xl gap-0 max-h-[90vh] overflow-hidden flex flex-col"
-          hideCloseButton
-        >
+        <DialogContent className="p-0 sm:max-w-2xl gap-0 max-h-[90vh] overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <div>
               <h2 className="text-base font-semibold">{title}</h2>
@@ -45,9 +42,6 @@ export function ChatMediaViewer({
                 {isLoading ? "Loading…" : `${items.length} item${items.length === 1 ? "" : "s"}`}
               </p>
             </div>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => onOpenChange(false)}>
-              <X className="h-5 w-5" />
-            </Button>
           </div>
 
           <ScrollArea className="flex-1">
