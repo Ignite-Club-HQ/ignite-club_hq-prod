@@ -57,6 +57,7 @@ import {
   transitionPosition,
 } from "./netballHelpers";
 import { useNetballGameSync } from "@/hooks/useNetballGameSync";
+import { visiblePeriods } from "@/lib/periodTypes";
 
 // Lazy-load secondary dialogs
 const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
