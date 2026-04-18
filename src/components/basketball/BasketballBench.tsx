@@ -3,6 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Users, ArrowLeftRight, ArrowUpCircle } from "lucide-react";
 import BasketballPlayerToken from "./BasketballPlayerToken";
 import { BasketballPlayer } from "./types";
+import { cn } from "@/lib/utils";
 
 interface BasketballBenchProps {
   bench: BasketballPlayer[];
@@ -31,25 +32,32 @@ export default function BasketballBench({
     ).id;
   }, [bench, nextSubInId]);
 
+  const isEmpty = bench.length === 0;
+
   return (
     <div className="border-t bg-card">
-      <div className="flex items-center justify-between px-3 py-1.5">
+      <div
+        className={cn(
+          "flex items-center justify-between px-3",
+          isEmpty ? "py-1" : "py-1.5"
+        )}
+      >
         <h2 className="text-xs font-bold flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5" /> Bench ({bench.length})
         </h2>
-        {selectedPlayerId ? (
+        {!isEmpty && selectedPlayerId ? (
           <span className="text-[10px] text-primary font-medium flex items-center gap-1">
             <ArrowLeftRight className="h-3 w-3" /> Tap a player or empty slot
           </span>
-        ) : (nextSubInId || lowestMinutesId) ? (
+        ) : !isEmpty && (nextSubInId || lowestMinutesId) ? (
           <span className="text-[10px] text-primary font-medium flex items-center gap-1">
             <ArrowUpCircle className="h-3 w-3" /> Next up
           </span>
         ) : null}
       </div>
-      {bench.length > 0 && (
+      {!isEmpty && (
         <ScrollArea className="w-full">
-          <div className="flex gap-2 px-3 pb-3 min-h-[68px]">
+          <div className="flex gap-2 px-3 pb-3">
             {bench.map((p) => (
               <BasketballPlayerToken
                 key={p.id}

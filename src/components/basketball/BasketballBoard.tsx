@@ -246,14 +246,16 @@ export default function BasketballBoard({
   const lineupSet = onCourtCount >= 5;
   const opponentName = board.timerState.opponentName ?? "Opponent";
   // Pre-game = before the first whistle AND no scores logged yet.
-  // Drives a calmer, setup-focused layout: scoreboard goes compact,
-  // scoring controls + undo + auto-sub status hide entirely.
+  // Game-in-progress = anything after first tip-off (running OR paused for a
+  // timeout) until finished. We use this — not isLive — to hide setup UI so
+  // pausing the clock doesn't suddenly leak "Set starting 5" back on screen.
   const hasGameStarted =
     board.timerState.currentQuarter > 1 ||
     board.timerState.elapsedSeconds > 0 ||
     (board.timerState.scoreLog?.length ?? 0) > 0 ||
     board.timerState.isGameFinished;
   const isPreGame = !hasGameStarted;
+  const gameInProgress = hasGameStarted && !board.timerState.isGameFinished;
   const [opponentEditOpen, setOpponentEditOpen] = useState(false);
   const [draftOpponent, setDraftOpponent] = useState(opponentName);
   const [scoreBreakdownOpen, setScoreBreakdownOpen] = useState(false);
@@ -380,22 +382,23 @@ export default function BasketballBoard({
       )}
 
       {/* ── ROW 5: Action bar — pre-game only.
-          Auto-hides while live so the court owns the screen. ── */}
-      <BasketballActionBar
-        onOpenSettings={() => setSettingsOpen(true)}
-        onToggleCourtView={board.toggleCourtView}
-        onOpenLineup={() => setLineupPlannerOpen(true)}
-        rotationMode={board.rotationMode}
-        rotationIntervalMinutes={board.rotationIntervalMinutes}
-        courtView={board.courtView}
-        onCourtCount={onCourtCount}
-        isLive={isLive}
-      />
+          Auto-hides the moment the game starts so the court owns the screen. ── */}
+      {!gameInProgress && (
+        <BasketballActionBar
+          onOpenSettings={() => setSettingsOpen(true)}
+          onToggleCourtView={board.toggleCourtView}
+          onOpenLineup={() => setLineupPlannerOpen(true)}
+          rotationMode={board.rotationMode}
+          rotationIntervalMinutes={board.rotationIntervalMinutes}
+          courtView={board.courtView}
+          onCourtCount={onCourtCount}
+          isLive={false}
+        />
+      )}
 
       {/* ── ROW 6: Inline "Starting 5" status card — pre-game only.
-          Shows progress + a single CTA to open presets. Disappears once
-          5 are placed or the game is live. ── */}
-      {!readOnly && isPreGame && !lineupSet && (
+          Hidden the moment the game starts (even when paused mid-game). ── */}
+      {!readOnly && !gameInProgress && !lineupSet && (
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-card">
           <div className="flex flex-col leading-tight min-w-0">
             <span className="text-xs font-semibold text-foreground">
@@ -421,8 +424,8 @@ export default function BasketballBoard({
         </div>
       )}
 
-      {/* Auto-sub status — live only. Setup-time controls live in the kebab. */}
-      {!readOnly && isLive && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
+      {/* Auto-sub status — only while game is in progress. */}
+      {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
         <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
           <span className="text-[11px] text-muted-foreground">
             Auto-subs: {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
