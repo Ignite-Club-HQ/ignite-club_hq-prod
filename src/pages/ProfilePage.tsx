@@ -635,28 +635,7 @@ export default function ProfilePage() {
       {/* Points & Rewards Card */}
       <RewardRedemptionCard />
 
-      {/* Team history — current + past teams from season memberships */}
-      <ProfileTeamHistory profileId={user?.id} />
-
-      {/* Discover / Create Club */}
-      <Button variant="outline" className="w-full" onClick={() => navigate("/clubs")}>
-        <Plus className="h-4 w-4 mr-2" />
-        Discover or Create Club
-      </Button>
-
-      {/* Manage section */}
-      <div className="space-y-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
-          Manage
-        </h2>
-        <MenuCard icon={Baby} label="Manage Children" onClick={() => navigate("/children")} />
-        <MenuCard icon={Users} label="My Roles" onClick={() => navigate("/roles")} />
-        {(isAppAdmin || isTeamAdminOrCoach) && (
-          <MenuCard icon={ShieldCheck} label="Admin" onClick={() => navigate("/admin")} />
-        )}
-      </div>
-
-      {/* Points History Section */}
+      {/* Points History — sits directly under Rewards to preserve the engagement loop */}
       <div ref={pointsHistoryRef}>
       {hasProAccess ? (
         (() => {
@@ -709,6 +688,30 @@ export default function ProfilePage() {
           </CardHeader>
         </Card>
       )}
+      </div>
+
+      {/* Subtle transition between engagement loop and management actions */}
+      <Separator className="opacity-60" />
+
+      {/* Team history — current + past teams from season memberships */}
+      <ProfileTeamHistory profileId={user?.id} />
+
+      {/* Discover / Create Club */}
+      <Button variant="outline" className="w-full" onClick={() => navigate("/clubs")}>
+        <Plus className="h-4 w-4 mr-2" />
+        Discover or Create Club
+      </Button>
+
+      {/* Manage section */}
+      <div className="space-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+          Manage
+        </h2>
+        <MenuCard icon={Baby} label="Manage Children" onClick={() => navigate("/children")} />
+        <MenuCard icon={Users} label="My Roles" onClick={() => navigate("/roles")} />
+        {(isAppAdmin || isTeamAdminOrCoach) && (
+          <MenuCard icon={ShieldCheck} label="Admin" onClick={() => navigate("/admin")} />
+        )}
       </div>
 
       {/* Manage Plans Section */}
