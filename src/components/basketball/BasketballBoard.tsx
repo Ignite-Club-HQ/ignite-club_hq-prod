@@ -322,29 +322,36 @@ export default function BasketballBoard({
   //   MIDDLE — court (who is playing)
   //   BOTTOM — bench (who comes on next)
   return (
-    <div className="flex flex-col h-full bg-background overflow-y-auto">
-      {/* ── Slim header — back + matchup label only. No edit icons. ── */}
-      <header className="flex items-center gap-2 px-2 py-1.5 border-b bg-card sticky top-0 z-20">
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0 h-8 w-8">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
+      {/* ── Compact top: back + scoreboard (with inline scoring) ── */}
+      <div className="flex items-stretch border-b bg-card sticky top-0 z-20">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          aria-label="Close"
+          className="flex-shrink-0 h-auto w-9 rounded-none"
+        >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1" />
-        <SyncStatusIndicator />
-      </header>
+        <div className="flex-1 min-w-0">
+          <LiveScoreboardBar
+            homeLabel={teamName}
+            awayLabel={opponentName}
+            homeScore={board.timerState.homeScore ?? 0}
+            awayScore={board.timerState.awayScore ?? 0}
+            increments={[1, 2, 3]}
+            readOnly={readOnly}
+            disabled={!!board.timerState.isGameFinished}
+            onScore={board.addScore}
+          />
+        </div>
+        <div className="flex items-center px-1.5">
+          <SyncStatusIndicator />
+        </div>
+      </div>
 
-      {/* ── DOMINANT SCOREBOARD: team — score — team ── */}
-      <LiveScoreboardBar
-        homeLabel={teamName}
-        awayLabel={opponentName}
-        homeScore={board.timerState.homeScore ?? 0}
-        awayScore={board.timerState.awayScore ?? 0}
-        increments={[1, 2, 3]}
-        readOnly={readOnly}
-        disabled={!!board.timerState.isGameFinished}
-        onScore={board.addScore}
-      />
-
-      {/* ── Timer row: period + huge clock + play/pause ── */}
+      {/* ── Timer row: period + clock + play/pause ── */}
       <div className="border-b">
         <BasketballQuarterTimer
           state={board.timerState}
