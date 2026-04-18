@@ -12,7 +12,7 @@ import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { toast } from "sonner";
 import { isIgniteSupportUser } from "@/lib/systemUser";
-import { formatMessagePreview as stripMentionFormatting } from "@/lib/messagePreview";
+import { formatMessagePreview as stripMentionFormatting, extractEventIds } from "@/lib/messagePreview";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
 
 interface DMConversation {
@@ -58,15 +58,17 @@ const MessagePreview = ({
   text, 
   imageUrl,
   isOwn,
+  eventTitles,
 }: { 
   text?: string; 
   imageUrl?: string | null;
   isOwn: boolean;
+  eventTitles?: Record<string, string>;
 }) => {
   const hasText = text && text.trim();
   const isImageOnly = !hasText && imageUrl;
   const hasTextAndImage = hasText && imageUrl;
-  const displayText = hasText ? stripMentionFormatting(text!) : null;
+  const displayText = hasText ? stripMentionFormatting(text!, eventTitles) : null;
   
   return (
     <span className="flex items-center gap-1.5">
