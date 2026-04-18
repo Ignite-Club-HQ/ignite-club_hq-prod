@@ -91,7 +91,7 @@ const LiveGameHUD = memo(function LiveGameHUD({
       </div>
 
       {/* Row 2 — dominant scores + scoring buttons */}
-      <div className="flex items-baseline gap-1.5 px-2 pb-1.5">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 pb-1.5">
         <TeamSide
           label={homeLabel}
           score={homeScore}
@@ -101,7 +101,7 @@ const LiveGameHUD = memo(function LiveGameHUD({
           side="home"
         />
 
-        <span className="text-xl font-light text-muted-foreground/40 px-0.5 leading-none shrink-0 self-center">
+        <span className="text-lg font-light text-muted-foreground/40 leading-none shrink-0 self-center pb-0.5">
           —
         </span>
 
