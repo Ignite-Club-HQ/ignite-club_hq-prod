@@ -5,6 +5,7 @@ import { ArrowLeft, AlertTriangle, Loader2, Trophy, Undo2, Repeat } from "lucide
 import { useToast } from "@/hooks/use-toast";
 import { LinkedEventHeader } from "@/components/pitch/LinkedEventHeader";
 import { SyncStatusIndicator } from "@/components/pitch/SyncStatusIndicator";
+import { supabase } from "@/integrations/supabase/client";
 
 import NetballQuarterTimer from "./NetballQuarterTimer";
 import NetballActionBar from "./NetballActionBar";
