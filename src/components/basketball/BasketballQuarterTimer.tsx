@@ -27,6 +27,9 @@ interface BasketballQuarterTimerProps {
    *  cached cue refs so a fresh game starts cleanly. */
   onReset?: () => void;
   readOnly?: boolean;
+  /** When true, render inline controls only (no card wrapper / padding) so the
+   *  timer can sit alongside the scoreboard in a single header strip. */
+  compact?: boolean;
 }
 
 export default function BasketballQuarterTimer({
@@ -36,6 +39,7 @@ export default function BasketballQuarterTimer({
   onQuarterEnd,
   onReset,
   readOnly = false,
+  compact = false,
 }: BasketballQuarterTimerProps) {
   const intervalRef = useRef<number | null>(null);
   const stateRef = useRef(state);
@@ -147,17 +151,23 @@ export default function BasketballQuarterTimer({
   const periods = visiblePeriods(state.periodType);
   const isFinalPeriod = periods.indexOf(state.currentQuarter) === periods.length - 1;
 
-  return (
-    <div className="flex items-center justify-center gap-2 px-2 py-1 bg-card">
+  const inner = (
+    <>
       {/* Period pill */}
-      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary tabular-nums shrink-0">
+      <span
+        className={cn(
+          "rounded-full font-bold bg-primary/10 text-primary tabular-nums shrink-0",
+          compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]",
+        )}
+      >
         {periodLabel(state.currentQuarter, state.periodType)}
       </span>
 
       {/* Timer clock */}
       <div
         className={cn(
-          "tabular-nums font-mono font-extrabold text-2xl tracking-tight leading-none",
+          "tabular-nums font-mono font-extrabold tracking-tight leading-none shrink-0",
+          compact ? "text-base" : "text-2xl",
           lowTime && "text-destructive animate-pulse",
           state.isGameFinished && "text-muted-foreground"
         )}
@@ -168,21 +178,33 @@ export default function BasketballQuarterTimer({
 
       {/* Primary play/pause + overflow */}
       {!readOnly && (
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
           <Button
             size="icon"
             variant={state.isRunning ? "secondary" : "default"}
-            className="h-8 w-8 rounded-full shadow-sm"
+            className={cn(
+              "rounded-full shadow-sm",
+              compact ? "h-7 w-7 min-h-0 min-w-0" : "h-8 w-8",
+            )}
             onClick={toggle}
             disabled={state.isGameFinished}
             aria-label={state.isRunning ? "Pause" : "Start"}
           >
-            {state.isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+            {state.isRunning ? (
+              <Pause className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
+            ) : (
+              <Play className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", "ml-0.5")} />
+            )}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="More timer options">
-                <MoreVertical className="h-4 w-4" />
+              <Button
+                size="icon"
+                variant="ghost"
+                className={cn(compact ? "h-6 w-6 min-h-0 min-w-0" : "h-7 w-7")}
+                aria-label="More timer options"
+              >
+                <MoreVertical className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="z-[100000]">
@@ -202,6 +224,14 @@ export default function BasketballQuarterTimer({
           </DropdownMenu>
         </div>
       )}
-    </div>
+    </>
+  );
+
+  if (compact) {
+    return <div className="flex items-center gap-1 shrink-0">{inner}</div>;
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-2 px-2 py-1 bg-card">{inner}</div>
   );
 }
