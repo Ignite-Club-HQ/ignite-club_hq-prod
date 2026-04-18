@@ -196,9 +196,9 @@ function ScoreButton({
   const display = (
     <span
       className={cn(
-        "text-6xl font-extrabold tabular-nums leading-none text-foreground landscape:text-7xl px-3 py-1 rounded-lg",
+        "text-6xl font-extrabold tabular-nums leading-none text-foreground landscape:text-7xl px-2 py-0.5 rounded-md",
         interactive &&
-          "bg-muted/40 hover:bg-muted/60 active:bg-muted/70 active:scale-95 transition-all cursor-pointer"
+          "hover:bg-muted/40 active:bg-muted/60 active:scale-95 transition-all cursor-pointer"
       )}
       aria-live="polite"
     >
