@@ -127,8 +127,10 @@ export function useNetballGameSync(
           await deactivateOtherGames(created.id);
         }
       }
+      setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
     } catch (err) {
       console.error("[netball-sync] sync error", err);
+      setSyncStatus({ status: "error", lastSyncTime: Date.now(), error: String(err) });
     }
   }, [user?.id, enabled, state, timerState, deactivateOtherGames]);
 
