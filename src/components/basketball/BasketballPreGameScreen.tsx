@@ -181,6 +181,15 @@ export default function BasketballPreGameScreen({
 
       </div>
 
+      {/* Bench — shown ABOVE the court so coaches see who's available before tapping a slot */}
+      <BasketballBench
+        bench={bench}
+        selectedPlayerId={selectedPlayerId}
+        nextSubInId={null}
+        readOnly={readOnly}
+        onPlayerClick={onPlayerClick}
+      />
+
       {/* Court — interactive slot assignment */}
       <BasketballCourtArea
         players={players}
@@ -190,15 +199,6 @@ export default function BasketballPreGameScreen({
         courtView={courtView}
         onPlayerClick={onPlayerClick}
         onSlotClick={onSlotClick}
-      />
-
-      {/* Bench — pick from here */}
-      <BasketballBench
-        bench={bench}
-        selectedPlayerId={selectedPlayerId}
-        nextSubInId={null}
-        readOnly={readOnly}
-        onPlayerClick={onPlayerClick}
       />
 
       {/* Sticky CTA */}
