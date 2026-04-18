@@ -1,10 +1,15 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronDown, ChevronUp, Loader2, Repeat, Trophy, Undo2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Loader2, Pencil, Repeat, Trophy, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { LinkedEventHeader } from "@/components/pitch/LinkedEventHeader";
 import { SyncStatusIndicator } from "@/components/pitch/SyncStatusIndicator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 import BasketballQuarterTimer from "./BasketballQuarterTimer";
 import BasketballActionBar from "./BasketballActionBar";
