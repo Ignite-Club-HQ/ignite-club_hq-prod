@@ -52,6 +52,7 @@ import {
   generateTimeBasedRotationPlan,
   generateQuarterBreakRotationPlan,
   findNextDueSub,
+  getSubKey,
   safeLoad,
   safeSave,
   transitionPosition,
@@ -402,7 +403,13 @@ export default function NetballBoard({
           return p;
         });
       });
-      setAutoSubPlan((prev) => prev.map((s) => (s === sub ? { ...s, executed: true } : s)));
+      // Match by stable key, not object identity — `regenerateAutoSubPlan`
+      // creates new SubEvent objects, so `s === sub` would silently miss and
+      // the sub would re-fire every tick (audit fix N1).
+      const subKey = getSubKey(sub);
+      setAutoSubPlan((prev) =>
+        prev.map((s) => (getSubKey(s) === subKey ? { ...s, executed: true } : s))
+      );
       appendSubLog({
         playerOutId: sub.playerOut.id,
         playerOutName: sub.playerOut.name,

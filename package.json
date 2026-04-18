@@ -76,6 +76,7 @@
     "firebase": "^12.7.0",
     "html-to-image": "^1.11.13",
     "input-otp": "^1.4.2",
+    "jsdom": "^29.0.2",
     "jspdf": "4.2.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.462.0",
@@ -93,6 +94,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "vite-plugin-pwa": "0.19.8",
+    "vitest": "^4.1.4",
     "web-vitals": "^5.2.0",
     "workbox-precaching": "^7.4.0",
     "zod": "^3.25.76"

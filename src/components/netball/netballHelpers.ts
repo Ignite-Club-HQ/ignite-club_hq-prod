@@ -255,7 +255,14 @@ export const generateQuarterBreakRotationPlan = (
   return plan;
 };
 
-/** Compute the next due sub given current quarter+elapsed. */
+/**
+ * Next un-executed sub that's due **in the current quarter only**.
+ *
+ * Subs from earlier quarters are intentionally NOT cascaded (N1 audit fix).
+ * A missed Q1 sub at 5:00 should not fire 30 seconds into Q2 and yank a
+ * fresh starter off court. Quarter-break rotations have a separate path
+ * via `handleQuarterEnd`.
+ */
 export const findNextDueSub = (
   plan: NetballSubEvent[],
   currentQuarter: Quarter,
@@ -263,10 +270,7 @@ export const findNextDueSub = (
 ): NetballSubEvent | undefined => {
   return plan
     .filter(s => !s.executed && !s.skipped)
-    .find(s =>
-      s.quarter < currentQuarter ||
-      (s.quarter === currentQuarter && s.time <= elapsedSeconds)
-    );
+    .find(s => s.quarter === currentQuarter && s.time <= elapsedSeconds);
 };
 
 /** Format seconds as MM:SS. */
