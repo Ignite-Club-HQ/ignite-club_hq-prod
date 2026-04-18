@@ -165,7 +165,7 @@ const GameScoreboard = memo(function GameScoreboard({
           onScore={(pts) => handleScore("away", pts)}
           increments={increments}
           ariaLabel={`Add points for ${awayLabel}`}
-          align="left"
+          align="center"
         />
       </div>
     </div>
