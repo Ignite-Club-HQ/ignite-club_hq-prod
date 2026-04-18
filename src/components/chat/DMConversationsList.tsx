@@ -446,6 +446,7 @@ function DMConversationRow({ conv, currentUserId, isFetching, eventTitles }: DMC
                 text={conv.last_message?.text}
                 imageUrl={conv.last_message?.image_url}
                 isOwn={isOwn}
+                eventTitles={eventTitles}
               />
             </p>
           </div>
