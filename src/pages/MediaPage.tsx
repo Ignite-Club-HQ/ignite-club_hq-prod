@@ -1175,14 +1175,14 @@ export default function MediaPage() {
                       <MessageCircle className="h-5 w-5" />
                       {comments.length > 0 && <span className="text-xs">{comments.length}</span>}
                     </Button>
-                    {new Date(photo.created_at) >= PHOTO_VIEWS_FEATURE_LAUNCH && (
+                    {new Date(photo.created_at) >= PHOTO_VIEWS_FEATURE_LAUNCH && (photoViewCounts?.get(photo.id) || 0) > 0 && (
                       <div
                         className="flex items-center gap-1 text-muted-foreground"
                         title={`${photoViewCounts?.get(photo.id) || 0} view${(photoViewCounts?.get(photo.id) || 0) === 1 ? "" : "s"}`}
                         aria-label={`${photoViewCounts?.get(photo.id) || 0} views`}
                       >
                         <Eye className="h-5 w-5" />
-                        <span className="text-xs">{photoViewCounts?.get(photo.id) || 0}</span>
+                        <span className="text-xs">{photoViewCounts?.get(photo.id)}</span>
                       </div>
                     )}
                   </div>
