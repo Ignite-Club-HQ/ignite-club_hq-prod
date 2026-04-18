@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { Play, ImageIcon, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-// Button import removed (close handled by Dialog)
 import { FullscreenImageViewer } from "@/components/chat/FullscreenImageViewer";
 import { useChatSharedMedia, type ChatSharedMediaType, type SharedMediaItem } from "@/hooks/useChatSharedMedia";
 import { isVideoUrl } from "@/lib/videoUtils";
