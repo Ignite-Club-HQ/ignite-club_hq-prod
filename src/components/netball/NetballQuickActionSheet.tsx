@@ -11,6 +11,7 @@ import {
   LogIn,
   AlertTriangle,
   X,
+  Target,
 } from "lucide-react";
 import { NetballPlayer, NETBALL_POSITION_LABELS } from "./types";
 
@@ -26,6 +27,8 @@ interface NetballQuickActionSheetProps {
   onSubOn: () => void;
   /** Toggle injured flag. */
   onToggleInjured: () => void;
+  /** Attribute a goal to this player (home side). Only meaningful for GS/GA. */
+  onScore?: () => void;
 }
 
 export default function NetballQuickActionSheet({
@@ -36,9 +39,11 @@ export default function NetballQuickActionSheet({
   onSubOff,
   onSubOn,
   onToggleInjured,
+  onScore,
 }: NetballQuickActionSheetProps) {
   if (!player) return null;
   const onCourt = player.position !== null;
+  const canScore = !!onScore && (player.position === "GS" || player.position === "GA");
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -60,6 +65,20 @@ export default function NetballQuickActionSheet({
         </SheetHeader>
 
         <div className="grid grid-cols-2 gap-2 py-4">
+          {canScore && (
+            <Button
+              variant="default"
+              className="h-14 flex-col gap-1 col-span-2"
+              onClick={() => {
+                onScore!();
+                onOpenChange(false);
+              }}
+            >
+              <Target className="h-5 w-5" />
+              <span className="text-xs">Goal scored (+1)</span>
+            </Button>
+          )}
+
           <Button
             variant="outline"
             className="h-14 flex-col gap-1"

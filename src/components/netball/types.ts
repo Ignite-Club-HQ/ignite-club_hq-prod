@@ -76,6 +76,8 @@ export interface NetballPlayer {
   preferredPositions?: NetballPosition[];
   /** Wall-clock timestamp of the last time this player came off court (null = never benched / on court). Used for the bench rest timer. */
   lastBenchedAt?: number | null;
+  /** Goals scored (attributable goals — only credited when scored from a quick action by GS/GA). */
+  goals?: number;
 }
 
 export type Quarter = 1 | 2 | 3 | 4;
@@ -115,6 +117,8 @@ export interface NetballScoreEvent {
   points: number;
   quarter: Quarter;
   at: number;
+  /** When the goal is attributed to a specific player (home only). */
+  playerId?: string;
 }
 
 /** Append-only sub log entry — supports undo + post-game review. */

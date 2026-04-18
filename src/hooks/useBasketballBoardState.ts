@@ -156,9 +156,13 @@ export function useBasketballBoardState({
     subs: BasketballSubEvent[];
   } | null>(null);
   const [courtView, setCourtView] = useState<BasketballCourtView>("half");
-  // Auto-sub control panel state
-  const [autoSubPaused, setAutoSubPaused] = useState(false);
-  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  // Auto-sub control panel state — persisted across reloads via boardState.
+  const [autoSubPaused, setAutoSubPaused] = useState(
+    savedStateRef.current?.autoSubPaused ?? false
+  );
+  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(
+    new Set(savedStateRef.current?.lockedPlayerIds ?? [])
+  );
   const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
   const toggleLockPlayer = useCallback((playerId: string) => {
     setLockedPlayerIds((prev) => {
@@ -263,7 +267,8 @@ export function useBasketballBoardState({
       validationMode,
       autoSubPlan,
       autoSubActive: rotationMode !== "off",
-      autoSubPaused: false,
+      autoSubPaused,
+      lockedPlayerIds: Array.from(lockedPlayerIds),
       quarterLineups,
       lastUpdateTime: Date.now(),
     }),
@@ -275,6 +280,8 @@ export function useBasketballBoardState({
       rotationIntervalMinutes,
       validationMode,
       autoSubPlan,
+      autoSubPaused,
+      lockedPlayerIds,
       quarterLineups,
     ]
   );
@@ -456,6 +463,13 @@ export function useBasketballBoardState({
   const performSwap = useCallback(
     (aId: string, bId: string) => {
       hapticImpactMedium();
+      let logEntry: {
+        playerOutId: string;
+        playerOutName: string;
+        playerInId: string;
+        playerInName: string;
+        position: BasketballPosition;
+      } | null = null;
       setPlayers((prev) => {
         const a = prev.find((p) => p.id === aId);
         const b = prev.find((p) => p.id === bId);
@@ -471,14 +485,34 @@ export function useBasketballBoardState({
             description: `Both players are ${a.position}. Free movement allowed.`,
           });
         }
+        // Bench → court swap: log it as a sub so undo + summary stay accurate.
+        // (Court → court swaps are positional re-shuffles, not subs — skip.)
+        if (a.position === null && b.position !== null) {
+          logEntry = {
+            playerOutId: b.id,
+            playerOutName: b.name,
+            playerInId: a.id,
+            playerInName: a.name,
+            position: b.position,
+          };
+        } else if (b.position === null && a.position !== null) {
+          logEntry = {
+            playerOutId: a.id,
+            playerOutName: a.name,
+            playerInId: b.id,
+            playerInName: b.name,
+            position: a.position,
+          };
+        }
         return prev.map((p) => {
           if (p.id === a.id) return transitionPosition(p, b.position);
           if (p.id === b.id) return transitionPosition(p, a.position);
           return p;
         });
       });
+      if (logEntry) appendSubLog({ ...logEntry, source: "manual" });
     },
-    [validationMode, toast]
+    [validationMode, toast, appendSubLog]
   );
 
   const handlePlayerClick = useCallback(

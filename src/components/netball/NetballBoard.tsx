@@ -244,8 +244,12 @@ export default function NetballBoard({
   const [summaryOpen, setSummaryOpen] = useState(false);
   // Auto-sub control panel state
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
-  const [autoSubPaused, setAutoSubPaused] = useState(false);
-  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  const [autoSubPaused, setAutoSubPaused] = useState(
+    savedStateRef.current?.autoSubPaused ?? false
+  );
+  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(
+    new Set((savedStateRef.current as NetballBoardState & { lockedPlayerIds?: string[] })?.lockedPlayerIds ?? [])
+  );
   const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
   const toggleLockPlayer = useCallback((playerId: string) => {
     setLockedPlayerIds((prev) => {
@@ -296,7 +300,9 @@ export default function NetballBoard({
       validationMode,
       autoSubPlan,
       autoSubActive: rotationMode !== "off",
-      autoSubPaused: false,
+      autoSubPaused,
+      // Persist locked IDs as a plain array (Set isn't JSON-friendly).
+      ...({ lockedPlayerIds: Array.from(lockedPlayerIds) } as { lockedPlayerIds: string[] }),
       quarterLineups,
       lastUpdateTime: Date.now(),
     }),
@@ -308,6 +314,8 @@ export default function NetballBoard({
       rotationIntervalMinutes,
       validationMode,
       autoSubPlan,
+      autoSubPaused,
+      lockedPlayerIds,
       quarterLineups,
     ]
   );
@@ -433,6 +441,7 @@ export default function NetballBoard({
   const performSwap = useCallback(
     (aId: string, bId: string) => {
       hapticImpactMedium();
+      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
       setPlayers((prev) => {
         const a = prev.find((p) => p.id === aId);
         const b = prev.find((p) => p.id === bId);
@@ -462,14 +471,36 @@ export default function NetballBoard({
 
         if (!enforce(a, b.position) || !enforce(b, a.position)) return prev;
 
+        // Bench → court swap counts as a sub for undo + summary purposes.
+        if (a.position === null && b.position !== null) {
+          logEntry = {
+            playerOutId: b.id,
+            playerOutName: b.name,
+            playerInId: a.id,
+            playerInName: a.name,
+            position: b.position,
+            source: "manual",
+          };
+        } else if (b.position === null && a.position !== null) {
+          logEntry = {
+            playerOutId: a.id,
+            playerOutName: a.name,
+            playerInId: b.id,
+            playerInName: b.name,
+            position: a.position,
+            source: "manual",
+          };
+        }
+
         return prev.map((p) => {
           if (p.id === a.id) return { ...p, position: b.position };
           if (p.id === b.id) return { ...p, position: a.position };
           return p;
         });
       });
+      if (logEntry) appendSubLog(logEntry);
     },
-    [validationMode, toast]
+    [validationMode, toast, appendSubLog]
   );
 
   const handlePlayerClick = useCallback(
@@ -612,7 +643,7 @@ export default function NetballBoard({
   // After every goal, the centre pass automatically flips to the OTHER side.
   // We also mark the most recent centre-pass entry for the scoring side as
   // "converted" — that's the input the win-rate panel needs.
-  const addScore = useCallback((side: "home" | "away", points: number) => {
+  const addScore = useCallback((side: "home" | "away", points: number, playerId?: string) => {
     hapticImpactLight();
     setTimerState((s) => {
       const event = {
@@ -621,6 +652,7 @@ export default function NetballBoard({
         points,
         quarter: s.currentQuarter,
         at: Date.now(),
+        playerId: side === "home" ? playerId : undefined,
       };
       const cpLog = [...(s.centrePassLog ?? [])];
       // First goal of the game? Seed the opening centre-pass entry so it can
@@ -666,6 +698,13 @@ export default function NetballBoard({
         lastUpdateTime: Date.now(),
       };
     });
+    if (side === "home" && playerId) {
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId ? { ...p, goals: (p.goals ?? 0) + points } : p
+        )
+      );
+    }
   }, []);
 
   const undoScore = useCallback(() => {
@@ -673,6 +712,16 @@ export default function NetballBoard({
       const log = s.scoreLog ?? [];
       if (log.length === 0) return s;
       const last = log[log.length - 1];
+      // Roll back per-player goals if the last score was attributed.
+      if (last.side === "home" && last.playerId) {
+        setPlayers((prev) =>
+          prev.map((p) =>
+            p.id === last.playerId
+              ? { ...p, goals: Math.max(0, (p.goals ?? 0) - last.points) }
+              : p
+          )
+        );
+      }
       // Roll back the centre-pass log too: drop the auto-pushed "next" CP and
       // unconvert the previous CP we credited.
       const cpLog = [...(s.centrePassLog ?? [])];
@@ -854,6 +903,8 @@ export default function NetballBoard({
         id: p.id,
         name: p.name,
         secondsPlayed: p.minutesPlayed ?? 0,
+        // Surface attributable goals as `points` so GameSummaryDialog renders them.
+        points: p.goals ?? 0,
         isInjured: !!p.isInjured,
         finalPosition: p.position ?? null,
       })),
@@ -1217,6 +1268,7 @@ export default function NetballBoard({
             onSubOff={() => subOff(quickActionPlayer.id)}
             onSubOn={() => setSelectedPlayerId(quickActionPlayer.id)}
             onToggleInjured={() => toggleInjured(quickActionPlayer.id)}
+            onScore={() => addScore("home", 1, quickActionPlayer.id)}
           />
         )}
         {summaryOpen && (
