@@ -541,7 +541,7 @@ export default function MediaPage() {
 
   // Photo view tracking — count, recording, and realtime updates
   const { data: photoViewCounts } = usePhotoViewCounts(allPhotoIds);
-  const { recordView } = useRecordPhotoView(user?.id);
+  const { recordView, observeView } = useRecordPhotoView(user?.id);
   usePhotoViewRealtime(allPhotoIds);
 
   // Stable query key for reactions - include photo count to refetch when more photos load
@@ -1134,6 +1134,7 @@ export default function MediaPage() {
 
 {/* Image with lazy loading */}
                 <div 
+                  ref={observeView(photo.id)}
                   className="relative w-full aspect-square bg-muted overflow-hidden cursor-pointer"
                   onClick={() => {
                     if (isDeleting) return;
