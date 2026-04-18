@@ -12,7 +12,7 @@ import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { toast } from "sonner";
 import { isIgniteSupportUser } from "@/lib/systemUser";
-import { formatMessagePreview as stripMentionFormatting } from "@/lib/messagePreview";
+import { formatMessagePreview as stripMentionFormatting, extractEventIds } from "@/lib/messagePreview";
 import { useIsUserOnline } from "@/hooks/useUserPresence";
 
 interface DMConversation {
@@ -58,15 +58,17 @@ const MessagePreview = ({
   text, 
   imageUrl,
   isOwn,
+  eventTitles,
 }: { 
   text?: string; 
   imageUrl?: string | null;
   isOwn: boolean;
+  eventTitles?: Record<string, string>;
 }) => {
   const hasText = text && text.trim();
   const isImageOnly = !hasText && imageUrl;
   const hasTextAndImage = hasText && imageUrl;
-  const displayText = hasText ? stripMentionFormatting(text!) : null;
+  const displayText = hasText ? stripMentionFormatting(text!, eventTitles) : null;
   
   return (
     <span className="flex items-center gap-1.5">
@@ -260,6 +262,33 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
     return conv.other_user?.display_name?.toLowerCase().includes(query);
   }) || [];
 
+  // Resolve event titles referenced in any DM preview
+  const referencedEventIds = useMemo(() => {
+    const set = new Set<string>();
+    filteredConversations.forEach((c) => {
+      extractEventIds(c.last_message?.text).forEach((id) => set.add(id));
+    });
+    return Array.from(set);
+  }, [filteredConversations]);
+
+  const { data: eventTitleMap = {} } = useQuery({
+    queryKey: ["dm-list-event-titles", referencedEventIds.join(",")],
+    queryFn: async () => {
+      if (referencedEventIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("events")
+        .select("id, title")
+        .in("id", referencedEventIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((e) => {
+        if (e?.id && e?.title) map[e.id.toLowerCase()] = e.title;
+      });
+      return map;
+    },
+    enabled: referencedEventIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   if (isLoading) {
     return (
       <>
@@ -336,6 +365,7 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
           conv={conv}
           currentUserId={user?.id}
           isFetching={isFetching}
+          eventTitles={eventTitleMap}
         />
       ))}
     </div>
@@ -346,9 +376,10 @@ interface DMConversationRowProps {
   conv: DMConversation;
   currentUserId: string | undefined;
   isFetching: boolean;
+  eventTitles?: Record<string, string>;
 }
 
-function DMConversationRow({ conv, currentUserId, isFetching }: DMConversationRowProps) {
+function DMConversationRow({ conv, currentUserId, isFetching, eventTitles }: DMConversationRowProps) {
   const isOwn = conv.last_message?.author_id === currentUserId;
   const isIgniteSupport = isIgniteSupportUser(conv.other_user?.id);
   const profileLoading = !conv.other_user?.display_name && isFetching;
@@ -415,6 +446,7 @@ function DMConversationRow({ conv, currentUserId, isFetching }: DMConversationRo
                 text={conv.last_message?.text}
                 imageUrl={conv.last_message?.image_url}
                 isOwn={isOwn}
+                eventTitles={eventTitles}
               />
             </p>
           </div>

@@ -18,7 +18,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { isIgniteSupportUser } from "@/lib/systemUser";
-import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview } from "@/lib/messagePreview";
+import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds } from "@/lib/messagePreview";
 
 const MESSAGES_PER_PAGE = 15;
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
@@ -88,10 +88,11 @@ const abbreviateClubName = (name: string): string => {
 const MessagePreview = ({ 
   text, 
   imageUrl, 
-  author,
-  hasUnread,
+  author, 
+  hasUnread, 
   fallback,
   isAnnouncement,
+  eventTitles,
 }: { 
   text?: string; 
   imageUrl?: string | null; 
@@ -99,13 +100,14 @@ const MessagePreview = ({
   hasUnread?: boolean;
   fallback: string;
   isAnnouncement?: boolean;
+  eventTitles?: Record<string, string>;
 }) => {
   const hasText = text && text.trim();
   const isImageOnly = !hasText && imageUrl;
   const hasTextAndImage = hasText && imageUrl;
   
-  // Strip mention formatting from text for preview
-  const displayText = hasText ? stripMentionFormatting(text!) : null;
+  // Strip mention formatting (and resolve event titles) from text for preview
+  const displayText = hasText ? stripMentionFormatting(text!, eventTitles) : null;
   
   if (!hasText && !imageUrl && !author) {
     return <span className="text-muted-foreground">No messages yet</span>;
@@ -1260,6 +1262,34 @@ export default function MessagesPage() {
     filteredDMs, user?.id, showIgniteSupport, systemMessage,
   ]);
 
+  // Resolve event titles referenced in any conversation preview so they
+  // display the actual event name instead of a generic "Event" placeholder.
+  const referencedEventIds = useMemo(() => {
+    const set = new Set<string>();
+    unifiedConversations.forEach((c) => {
+      extractEventIds(c.lastMessage?.text).forEach((id) => set.add(id));
+    });
+    return Array.from(set);
+  }, [unifiedConversations]);
+
+  const { data: eventTitleMap = {} } = useQuery({
+    queryKey: ["messages-page-event-titles", referencedEventIds.join(",")],
+    queryFn: async () => {
+      if (referencedEventIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("events")
+        .select("id, title")
+        .in("id", referencedEventIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((e) => {
+        if (e?.id && e?.title) map[e.id.toLowerCase()] = e.title;
+      });
+      return map;
+    },
+    enabled: referencedEventIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Split into unread and recent
   const unreadItems = useMemo(() => {
     return unifiedConversations
@@ -1333,6 +1363,7 @@ export default function MessagesPage() {
                     author={item.lastMessage?.author}
                     hasUnread={hasUnread}
                     fallback="Official announcements and updates"
+                    eventTitles={eventTitleMap}
                   />
                 </p>
               </div>
@@ -1451,7 +1482,7 @@ export default function MessagesPage() {
                     {isOwn && <span className="text-muted-foreground">You:</span>}
                     {conv?.last_message?.image_url && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                     <span className="truncate">
-                      {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text) : 
+                      {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text, eventTitleMap) : 
                        conv?.last_message?.image_url ? "Image" : "Start a conversation"}
                     </span>
                   </span>
@@ -1507,6 +1538,7 @@ export default function MessagesPage() {
                   author={item.lastMessage?.author}
                   hasUnread={hasUnread}
                   fallback="No messages yet"
+                  eventTitles={eventTitleMap}
                 />
               </p>
             </div>
@@ -1554,6 +1586,7 @@ export default function MessagesPage() {
                   hasUnread={hasUnread}
                   fallback={item.type === 'club' ? "Club-wide announcements" : "No messages yet"}
                   isAnnouncement={(item.lastMessage as any)?.is_announcement}
+                  eventTitles={eventTitleMap}
                 />
               </p>
             </div>
