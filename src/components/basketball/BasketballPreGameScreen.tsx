@@ -57,6 +57,7 @@ export default function BasketballPreGameScreen({
   const lineupReady = onCourtCount >= 5;
   const periodLabel = periodType === "halves" ? "half" : "quarter";
   const periodCount = periodType === "halves" ? 2 : 4;
+  const squadEmpty = players.length === 0;
 
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
