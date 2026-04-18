@@ -98,6 +98,27 @@ export default function NetballBoard({
   const stateKey = getNetballStateKey(teamId, eventId);
   const timerKey = getNetballTimerKey(teamId, eventId);
 
+  // ---------- Linked event lifecycle (mirrors soccer pitch board) ----------
+  const [linkedEventId, setLinkedEventId] = useState<string | null>(eventId);
+  useEffect(() => {
+    setLinkedEventId(eventId);
+  }, [eventId]);
+
+  const { data: linkedEvent } = useQuery({
+    queryKey: ["netball-linked-event", linkedEventId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("events")
+        .select("id, opponent, title")
+        .eq("id", linkedEventId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!linkedEventId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // ---------- Initial state ----------
   const savedStateRef = useRef<NetballBoardState | null>(null);
   const savedTimerRef = useRef<NetballTimerState | null>(null);
