@@ -184,6 +184,8 @@ export interface BasketballBoardState {
   autoSubPlan: BasketballSubEvent[];
   autoSubActive: boolean;
   autoSubPaused: boolean;
+  /** Persisted set of locked player IDs (excluded from auto-sub). */
+  lockedPlayerIds?: string[];
   quarterLineups: QuarterLineup[];
   lastUpdateTime: number;
   linkedEventId?: string | null;
