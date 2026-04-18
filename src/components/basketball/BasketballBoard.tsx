@@ -240,9 +240,6 @@ export default function BasketballBoard({
     board.timerState.isGameFinished;
   const isPreGame = !hasGameStarted;
   const gameInProgress = hasGameStarted && !board.timerState.isGameFinished;
-  const [opponentEditOpen, setOpponentEditOpen] = useState(false);
-  const [draftOpponent, setDraftOpponent] = useState(opponentName);
-  const [gameDetailsOpen, setGameDetailsOpen] = useState(false);
 
   // ── PRE-GAME ─────────────────────────────────────────────────────
   // Replace the live UI with a focused checklist screen until the coach
