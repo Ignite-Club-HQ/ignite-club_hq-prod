@@ -244,6 +244,7 @@ export default function BasketballBoard({
           onChange={board.setTimerState}
           onTick={board.handleTick}
           onQuarterEnd={board.handleQuarterEnd}
+          onReset={board.resetPlayerStats}
           readOnly={readOnly}
         />
       </header>

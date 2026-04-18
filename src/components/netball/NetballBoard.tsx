@@ -248,7 +248,7 @@ export default function NetballBoard({
     savedStateRef.current?.autoSubPaused ?? false
   );
   const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(
-    new Set((savedStateRef.current as NetballBoardState & { lockedPlayerIds?: string[] })?.lockedPlayerIds ?? [])
+    new Set(savedStateRef.current?.lockedPlayerIds ?? [])
   );
   const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
   const toggleLockPlayer = useCallback((playerId: string) => {
@@ -302,7 +302,7 @@ export default function NetballBoard({
       autoSubActive: rotationMode !== "off",
       autoSubPaused,
       // Persist locked IDs as a plain array (Set isn't JSON-friendly).
-      ...({ lockedPlayerIds: Array.from(lockedPlayerIds) } as { lockedPlayerIds: string[] }),
+      lockedPlayerIds: Array.from(lockedPlayerIds),
       quarterLineups,
       lastUpdateTime: Date.now(),
     }),
@@ -338,6 +338,26 @@ export default function NetballBoard({
   // wall-clock but per-player minutes wouldn't).
   // Track sub-cue de-dupe so we don't beep every second.
   const cuedSubIdsRef = useRef<Set<string>>(new Set());
+
+  // ---------- Full reset (called from the timer's reset button) ----------
+  // Wipes per-player stats AND any cached cue/sub state so a fresh game
+  // starts cleanly. Without this, stale "ghost" sub cues would re-fire and
+  // old goals/minutes would persist visually after a confirmed reset.
+  const resetPlayerStats = useCallback(() => {
+    cuedSubIdsRef.current = new Set();
+    setAutoSubPlan((prev) => prev.map((s) => ({ ...s, executed: false, skipped: false })));
+    setLockedPlayerIds(new Set());
+    setAutoSubPaused(false);
+    setPlayers((prev) =>
+      prev.map((p) => ({
+        ...p,
+        minutesPlayed: 0,
+        goals: 0,
+        isInjured: false,
+        lastBenchedAt: null,
+      }))
+    );
+  }, []);
   const handleTick = useCallback(
     (elapsed: number, quarter: Quarter, delta = 1) => {
       const safeDelta = Math.max(1, Math.floor(delta));
@@ -549,17 +569,26 @@ export default function NetballBoard({
         const incoming = prev.find((p) => p.id === selectedPlayerId);
         if (!incoming) return prev;
         const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
-        if (incoming.position === null) {
+        // Only log a sub when the incoming was on the bench AND a real player
+        // was displaced. Empty-slot fills aren't subs (no playerOut) — logging
+        // them with playerOutId="" would orphan the entry and break undo.
+        if (incoming.position === null && displaced) {
           logEntry = {
-            playerOutId: displaced?.id ?? "",
-            playerOutName: displaced?.name ?? "(empty)",
+            playerOutId: displaced.id,
+            playerOutName: displaced.name,
             playerInId: incoming.id,
             playerInName: incoming.name,
             position,
             source: "manual",
           };
         }
-        return prev.map((p) => (p.id === selectedPlayerId ? { ...p, position } : p));
+        return prev.map((p) => {
+          if (p.id === incoming.id) return transitionPosition(p, position);
+          // CRITICAL: bench the displaced player. Without this both players
+          // would hold the same position simultaneously (data corruption).
+          if (p.id === displaced?.id) return transitionPosition(p, null);
+          return p;
+        });
       });
       if (logEntry) appendSubLog(logEntry);
       setSelectedPlayerId(null);
@@ -874,7 +903,7 @@ export default function NetballBoard({
       ),
     ]);
     toast({ title: "Plan regenerated" });
-  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, autoSubPlan, toast]);
+  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, autoSubPlan, toast]);
 
   const onCourtForPanel = useMemo(
     () =>
@@ -1005,6 +1034,7 @@ export default function NetballBoard({
           onChange={setTimerState}
           onTick={handleTick}
           onQuarterEnd={handleQuarterEnd}
+          onReset={resetPlayerStats}
           readOnly={readOnly}
         />
       </header>

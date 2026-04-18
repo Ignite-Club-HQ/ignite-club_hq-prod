@@ -15,6 +15,9 @@ interface NetballQuarterTimerProps {
   onTick?: (elapsedSeconds: number, quarter: Quarter, deltaSeconds: number) => void;
   /** Called when a quarter ends naturally. */
   onQuarterEnd?: (quarter: Quarter) => void;
+  /** Called when the user confirms a full reset — parent should wipe per-player
+   *  stats + any cached cue/sub state so a fresh game starts cleanly. */
+  onReset?: () => void;
   readOnly?: boolean;
 }
 
@@ -23,6 +26,7 @@ export default function NetballQuarterTimer({
   onChange,
   onTick,
   onQuarterEnd,
+  onReset,
   readOnly = false,
 }: NetballQuarterTimerProps) {
   const intervalRef = useRef<number | null>(null);
@@ -32,6 +36,8 @@ export default function NetballQuarterTimer({
   onTickRef.current = onTick;
   const onQuarterEndRef = useRef(onQuarterEnd);
   onQuarterEndRef.current = onQuarterEnd;
+  const onResetRef = useRef(onReset);
+  onResetRef.current = onReset;
 
   // Drive the timer using wall-clock to survive backgrounding.
   useEffect(() => {
@@ -109,7 +115,7 @@ export default function NetballQuarterTimer({
   }, [state, onChange]);
 
   const reset = useCallback(() => {
-    if (!window.confirm("Reset the game? This clears the timer, score, and sub log.")) return;
+    if (!window.confirm("Reset the game? This clears the timer, score, sub log, and player stats.")) return;
     onChange({
       ...state,
       currentQuarter: 1,
@@ -125,6 +131,8 @@ export default function NetballQuarterTimer({
       mvpPlayerId: null,
       lastUpdateTime: Date.now(),
     });
+    // Notify the parent so it can wipe per-player stats + cued sub IDs.
+    onResetRef.current?.();
   }, [state, onChange]);
 
   const quarterSeconds = state.minutesPerQuarter * 60;

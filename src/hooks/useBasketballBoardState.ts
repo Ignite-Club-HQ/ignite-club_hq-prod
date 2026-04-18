@@ -358,6 +358,30 @@ export function useBasketballBoardState({
   // ticking via wall-clock but per-player minutes wouldn't catch up).
   // Track which subs we've already "warned" about so we don't beep every second.
   const cuedSubIdsRef = useRef<Set<string>>(new Set());
+
+  // ---------- Full reset (called from timer's reset button) ----------
+  // Wipe per-player stats AND any cached cue/sub state so a fresh game starts
+  // cleanly. Without this, stale "ghost" sub cues would re-fire and old
+  // fouls/points/FTs would persist visually after a confirmed reset.
+  const resetPlayerStats = useCallback(() => {
+    cuedSubIdsRef.current = new Set();
+    setAutoSubPlan((prev) => prev.map((s) => ({ ...s, executed: false, skipped: false })));
+    setLockedPlayerIds(new Set());
+    setAutoSubPaused(false);
+    setPlayers((prev) =>
+      prev.map((p) => ({
+        ...p,
+        minutesPlayed: 0,
+        fouls: 0,
+        points: 0,
+        ftMade: 0,
+        ftAttempted: 0,
+        isFouledOut: false,
+        isInjured: false,
+        lastBenchedAt: null,
+      }))
+    );
+  }, []);
   const handleTick = useCallback(
     (elapsed: number, quarter: Quarter, delta = 1) => {
       const safeDelta = Math.max(1, Math.floor(delta));
@@ -1039,5 +1063,7 @@ export function useBasketballBoardState({
     skipNextSub,
     cancelAutoSubPlan,
     regenerateAutoSubPlan,
+    // full reset
+    resetPlayerStats,
   };
 }

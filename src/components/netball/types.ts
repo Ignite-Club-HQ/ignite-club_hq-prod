@@ -186,6 +186,8 @@ export interface NetballBoardState {
   autoSubPlan: NetballSubEvent[];
   autoSubActive: boolean;
   autoSubPaused: boolean;
+  /** Persisted as plain array (Set isn't JSON-friendly). Coach-locked players exempt from auto-subs. */
+  lockedPlayerIds?: string[];
   quarterLineups: QuarterLineup[];
   lastUpdateTime: number;
   linkedEventId?: string | null;
