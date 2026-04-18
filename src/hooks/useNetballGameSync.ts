@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { setSyncStatus } from "./useSyncStatus";
 import type { Json } from "@/integrations/supabase/types";
 import type { NetballBoardState, NetballTimerState } from "@/components/netball/types";
 
@@ -41,6 +42,7 @@ export function useNetballGameSync(
   const syncNow = useCallback(async () => {
     if (!user?.id || !enabled || !state || !timerState) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    setSyncStatus({ status: "syncing", lastSyncTime: Date.now() });
 
     const isFinished = !!timerState.isGameFinished;
     if (isFinished) {
@@ -125,8 +127,10 @@ export function useNetballGameSync(
           await deactivateOtherGames(created.id);
         }
       }
+      setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
     } catch (err) {
       console.error("[netball-sync] sync error", err);
+      setSyncStatus({ status: "error", lastSyncTime: Date.now(), error: String(err) });
     }
   }, [user?.id, enabled, state, timerState, deactivateOtherGames]);
 

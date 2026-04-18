@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { setSyncStatus } from "./useSyncStatus";
 import type { Json } from "@/integrations/supabase/types";
 import type {
   BasketballBoardState,
@@ -44,6 +45,7 @@ export function useBasketballGameSync(
   const syncNow = useCallback(async () => {
     if (!user?.id || !enabled || !state || !timerState) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    setSyncStatus({ status: "syncing", lastSyncTime: Date.now() });
 
     const isFinished = !!timerState.isGameFinished;
     if (isFinished) {
@@ -126,8 +128,10 @@ export function useBasketballGameSync(
           await deactivateOtherGames(created.id);
         }
       }
+      setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
     } catch (err) {
       console.error("[basketball-sync] sync error", err);
+      setSyncStatus({ status: "error", lastSyncTime: Date.now(), error: String(err) });
     }
   }, [user?.id, enabled, state, timerState, deactivateOtherGames]);
 
