@@ -25,6 +25,7 @@ import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
 import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
+import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
 
 import {
   NetballPlayer,
@@ -416,6 +417,7 @@ export default function NetballBoard({
   // ---------- Manual swap / sub interactions ----------
   const performSwap = useCallback(
     (aId: string, bId: string) => {
+      hapticImpactMedium();
       setPlayers((prev) => {
         const a = prev.find((p) => p.id === aId);
         const b = prev.find((p) => p.id === bId);
@@ -560,6 +562,7 @@ export default function NetballBoard({
       toast({ title: "Nothing to undo", description: "No subs recorded yet." });
       return;
     }
+    hapticSelectionTick();
     const last = log[log.length - 1];
     setPlayers((prev) =>
       prev.map((p) => {
@@ -595,6 +598,7 @@ export default function NetballBoard({
   // We also mark the most recent centre-pass entry for the scoring side as
   // "converted" — that's the input the win-rate panel needs.
   const addScore = useCallback((side: "home" | "away", points: number) => {
+    hapticImpactLight();
     setTimerState((s) => {
       const event = {
         id: crypto.randomUUID(),
