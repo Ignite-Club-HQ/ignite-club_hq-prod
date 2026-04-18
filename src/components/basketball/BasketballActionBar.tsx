@@ -1,52 +1,37 @@
 import { Button } from "@/components/ui/button";
-import { Calendar, Settings, UserCog, Zap, Bookmark, LayoutGrid, Maximize2, UserPlus } from "lucide-react";
-import { Quarter, RotationMode, BasketballCourtView } from "./types";
+import { Settings, LayoutGrid, Maximize2 } from "lucide-react";
+import { RotationMode, BasketballCourtView } from "./types";
 
 interface BasketballActionBarProps {
-  onOpenSquad: () => void;
-  onOpenLineups: () => void;
   onOpenSettings: () => void;
-  onOpenPresets: () => void;
-  onApplyLineup: () => void;
   onToggleCourtView: () => void;
-  onAddFillIn?: () => void;
-  currentQuarter: Quarter;
   rotationMode: RotationMode;
   rotationIntervalMinutes: number;
   courtView: BasketballCourtView;
 }
 
+/**
+ * Minimal action bar — mirrors the soccer pitch board pattern where the
+ * Settings dialog is the single entry point for game setup (squad, lineups,
+ * presets, fill-ins, etc.). We keep the court view toggle here because it's
+ * a frequent in-game tweak, not a setup decision.
+ */
 export default function BasketballActionBar({
-  onOpenSquad,
-  onOpenLineups,
   onOpenSettings,
-  onOpenPresets,
-  onApplyLineup,
   onToggleCourtView,
-  onAddFillIn,
-  currentQuarter,
   rotationMode,
   rotationIntervalMinutes,
   courtView,
 }: BasketballActionBarProps) {
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1.5 border-b bg-muted/30 overflow-x-auto">
-      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onOpenSquad}>
-        <UserCog className="h-3.5 w-3.5 mr-1" /> Squad
-      </Button>
-      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onOpenLineups}>
-        <Calendar className="h-3.5 w-3.5 mr-1" /> Lineups
-      </Button>
-      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onOpenPresets}>
-        <Bookmark className="h-3.5 w-3.5 mr-1" /> Presets
-      </Button>
-      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onApplyLineup}>
-        <Zap className="h-3.5 w-3.5 mr-1" /> Apply Q{currentQuarter}
+    <div className="flex items-center gap-1.5 px-2 py-1.5 border-b bg-muted/30">
+      <Button size="sm" variant="default" className="h-8 text-xs" onClick={onOpenSettings}>
+        <Settings className="h-3.5 w-3.5 mr-1" /> Game Setup
       </Button>
       <Button
         size="sm"
         variant="outline"
-        className="h-7 text-xs"
+        className="h-8 text-xs"
         onClick={onToggleCourtView}
         aria-label={courtView === "half" ? "Switch to full court" : "Switch to half court"}
       >
@@ -60,14 +45,6 @@ export default function BasketballActionBar({
           </>
         )}
       </Button>
-      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onOpenSettings}>
-        <Settings className="h-3.5 w-3.5 mr-1" /> Settings
-      </Button>
-      {onAddFillIn && (
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onAddFillIn}>
-          <UserPlus className="h-3.5 w-3.5 mr-1" /> Fill-In
-        </Button>
-      )}
       {rotationMode !== "off" && (
         <span className="text-[10px] text-muted-foreground ml-auto whitespace-nowrap">
           Auto: {rotationMode === "time-based" ? `${rotationIntervalMinutes}m` : "qtr-break"}
