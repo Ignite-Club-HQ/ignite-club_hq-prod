@@ -517,24 +517,24 @@ export default function BasketballBoard({
       </Collapsible>
 
       {!readOnly && (board.canUndoSub || (board.timerState.scoreLog?.length ?? 0) > 0) && (
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
+        <div className="flex items-center justify-between gap-2 px-2 py-1 border-t bg-muted/10">
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 text-xs"
+            className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
             onClick={board.undoLastSub}
             disabled={!board.canUndoSub}
           >
-            <Undo2 className="h-3.5 w-3.5 mr-1" />
-            Undo last sub
+            <Undo2 className="h-3 w-3 mr-1" />
+            Undo
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="h-8 text-xs"
+            className="h-7 text-[11px]"
             onClick={() => setSummaryOpen(true)}
           >
-            <Trophy className="h-3.5 w-3.5 mr-1" />
+            <Trophy className="h-3 w-3 mr-1" />
             Game summary
           </Button>
         </div>
