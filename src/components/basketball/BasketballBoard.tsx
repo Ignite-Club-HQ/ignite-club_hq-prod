@@ -49,6 +49,12 @@ interface BasketballBoardProps {
   initialMinutesPerQuarter?: number;
   /** When provided, board state is scoped to this event (no collisions across matches). */
   eventId?: string | null;
+  /**
+   * Spectator mode — when true, the board polls the coach's published state
+   * via `useCourtSpectator` and renders it read-only. No notifications, no
+   * sync writes, no game-summary save. Forces `readOnly` regardless of prop.
+   */
+  spectator?: boolean;
 }
 
 const DialogLoader = () => (
@@ -65,13 +71,37 @@ export default function BasketballBoard({
   readOnly = false,
   initialMinutesPerQuarter = 10,
   eventId = null,
+  spectator = false,
 }: BasketballBoardProps) {
+  // Spectator mode is always read-only (regardless of caller's readOnly flag)
+  // and pulls live state from the coach's `active_games` row.
+  const effectiveReadOnly = readOnly || spectator;
+  const spectatorFeed = useCourtSpectator({
+    teamId,
+    sport: "basketball",
+    enabled: spectator,
+  });
+  const spectatorState = spectator
+    ? {
+        players:
+          (spectatorFeed.pitchState as { players?: typeof members extends Array<infer _> ? unknown : never } | null)?.players as never,
+        timerState: spectatorFeed.timerState as never,
+        rotationMode: (spectatorFeed.pitchState as { rotationMode?: never } | null)?.rotationMode,
+        rotationIntervalMinutes: (spectatorFeed.pitchState as { rotationIntervalMinutes?: number } | null)
+          ?.rotationIntervalMinutes,
+        validationMode: (spectatorFeed.pitchState as { validationMode?: never } | null)?.validationMode,
+        autoSubPlan: (spectatorFeed.pitchState as { autoSubPlan?: never } | null)?.autoSubPlan,
+        quarterLineups: (spectatorFeed.pitchState as { quarterLineups?: never } | null)?.quarterLineups,
+      }
+    : null;
+
   const board = useBasketballBoardState({
     teamId,
     members,
-    readOnly,
+    readOnly: effectiveReadOnly,
     initialMinutesPerQuarter,
     eventId,
+    spectatorState,
   });
 
   // Per-team default board settings (minutes, rotation, validation, period type, timeouts).
