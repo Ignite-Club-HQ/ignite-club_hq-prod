@@ -318,44 +318,49 @@ export default function BasketballBoard({
   // ── LIVE / FINISHED ──────────────────────────────────────────────
   // Strict live mode: no setup UI, no edit affordances, no collapsible
   // "Game details". Three zones only:
-  //   TOP    — scoreboard + timer
+  //   TOP    — scoreboard (dominant scores) + timer strip (secondary)
   //   MIDDLE — court (who is playing)
   //   BOTTOM — bench (who comes on next)
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
-      {/* ── Single-row top strip: back · period · clock · play · scores+scoring · sync ── */}
-      <div className="flex items-stretch border-b bg-card sticky top-0 z-20">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          aria-label="Close"
-          className="flex-shrink-0 h-auto w-8 rounded-none"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <LiveScoreboardBar
-            homeLabel={teamName}
-            awayLabel={opponentName}
-            homeScore={board.timerState.homeScore ?? 0}
-            awayScore={board.timerState.awayScore ?? 0}
-            increments={[1, 2, 3]}
+      {/* ── Two-row top header ── */}
+      <div className="flex flex-col border-b bg-card sticky top-0 z-20">
+        {/* Row 1: Back + Dominant Score (primary visual) */}
+        <div className="flex items-center px-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex-shrink-0 h-9 w-8 rounded-none"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <LiveScoreboardBar
+              homeLabel={teamName}
+              awayLabel={opponentName}
+              homeScore={board.timerState.homeScore ?? 0}
+              awayScore={board.timerState.awayScore ?? 0}
+              increments={[1, 2, 3]}
+              readOnly={readOnly}
+              disabled={!!board.timerState.isGameFinished}
+              onScore={board.addScore}
+              trailingSlot={<SyncStatusIndicator />}
+            />
+          </div>
+        </div>
+
+        {/* Row 2: Compact timer + controls (secondary) */}
+        <div className="flex items-center justify-center gap-3 px-2 py-0.5 border-t border-border/30">
+          <BasketballQuarterTimer
+            state={board.timerState}
+            onChange={board.setTimerState}
+            onTick={board.handleTick}
+            onQuarterEnd={board.handleQuarterEnd}
+            onReset={board.resetPlayerStats}
             readOnly={readOnly}
-            disabled={!!board.timerState.isGameFinished}
-            onScore={board.addScore}
-            leadingSlot={
-              <BasketballQuarterTimer
-                state={board.timerState}
-                onChange={board.setTimerState}
-                onTick={board.handleTick}
-                onQuarterEnd={board.handleQuarterEnd}
-                onReset={board.resetPlayerStats}
-                readOnly={readOnly}
-                compact
-              />
-            }
-            trailingSlot={<SyncStatusIndicator />}
+            compact
           />
         </div>
       </div>
