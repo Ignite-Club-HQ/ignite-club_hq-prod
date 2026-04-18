@@ -95,10 +95,15 @@ export default function BasketballQuarterTimer({
   }, [state, onChange]);
 
   const advanceQuarter = useCallback(() => {
-    if (state.currentQuarter >= 4) return;
+    // Honour periodType so halves mode jumps Q1 → Q3 (skips slot 2). Using
+    // `currentQuarter + 1` here silently broke halves-mode pacing.
+    const periods = visiblePeriods(state.periodType);
+    const idx = periods.indexOf(state.currentQuarter);
+    const next = periods[idx + 1];
+    if (!next) return;
     onChange({
       ...state,
-      currentQuarter: (state.currentQuarter + 1) as Quarter,
+      currentQuarter: next,
       elapsedSeconds: 0,
       isRunning: false,
       lastUpdateTime: Date.now(),
