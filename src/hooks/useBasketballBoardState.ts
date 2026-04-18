@@ -491,7 +491,7 @@ export function useBasketballBoardState({
       prev.map((s) => (skipped.has(s) ? { ...s, skipped: true } : s))
     );
     setPendingQuarterSubs(null);
-    toast({ title: "Subs skipped", description: `Q${pendingQuarterSubs.quarter} rotation cleared.` });
+    toast({ title: "Subs skipped", description: `${periodLabel(pendingQuarterSubs.quarter, timerStateRef.current.periodType)} rotation cleared.` });
   }, [pendingQuarterSubs, toast]);
 
   // ---------- Manual swap ----------
@@ -817,15 +817,16 @@ export function useBasketballBoardState({
     const nextQ = timerState.currentQuarter;
     const lineup = quarterLineups.find((l) => l.quarter === nextQ);
     if (!lineup || Object.keys(lineup.assignments).length === 0) {
+      const label = periodLabel(nextQ, timerState.periodType);
       toast({
         title: "No lineup planned",
-        description: `Open the Lineup Planner to set up Q${nextQ}.`,
+        description: `Open the Lineup Planner to set up ${label}.`,
         variant: "destructive",
       });
       return;
     }
     setPlayers((prev) => applyLineup(prev, lineup));
-    toast({ title: `Q${nextQ} lineup applied` });
+    toast({ title: `${label} lineup applied` });
   }, [quarterLineups, timerState.currentQuarter, toast]);
 
   const applyPreset = useCallback(

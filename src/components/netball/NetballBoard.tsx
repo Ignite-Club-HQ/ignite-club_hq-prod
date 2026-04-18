@@ -997,15 +997,16 @@ export default function NetballBoard({
     const nextQ = timerState.currentQuarter;
     const lineup = quarterLineups.find((l) => l.quarter === nextQ);
     if (!lineup || Object.keys(lineup.assignments).length === 0) {
+      const label = periodLabel(nextQ, timerState.periodType);
       toast({
         title: "No lineup planned",
-        description: `Open the Lineup Planner to set up Q${nextQ}.`,
+        description: `Open the Lineup Planner to set up ${label}.`,
         variant: "destructive",
       });
       return;
     }
     setPlayers((prev) => applyLineup(prev, lineup));
-    toast({ title: `Q${nextQ} lineup applied` });
+    toast({ title: `${label} lineup applied` });
   };
 
   // Keep the screen awake while a coach is actively running the game.
