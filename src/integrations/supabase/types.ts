@@ -6205,6 +6205,12 @@ export type Database = {
           admin_pro_football_override: boolean
           admin_pro_override: boolean
           cancelled_at: string | null
+          court_minutes_per_quarter: number | null
+          court_period_type: string | null
+          court_rotation_interval_minutes: number | null
+          court_rotation_mode: string | null
+          court_timeouts_per_half: number | null
+          court_validation_mode: string | null
           created_at: string
           disable_auto_subs: boolean | null
           disable_batch_subs: boolean | null
@@ -6229,6 +6235,12 @@ export type Database = {
           admin_pro_football_override?: boolean
           admin_pro_override?: boolean
           cancelled_at?: string | null
+          court_minutes_per_quarter?: number | null
+          court_period_type?: string | null
+          court_rotation_interval_minutes?: number | null
+          court_rotation_mode?: string | null
+          court_timeouts_per_half?: number | null
+          court_validation_mode?: string | null
           created_at?: string
           disable_auto_subs?: boolean | null
           disable_batch_subs?: boolean | null
@@ -6253,6 +6265,12 @@ export type Database = {
           admin_pro_football_override?: boolean
           admin_pro_override?: boolean
           cancelled_at?: string | null
+          court_minutes_per_quarter?: number | null
+          court_period_type?: string | null
+          court_rotation_interval_minutes?: number | null
+          court_rotation_mode?: string | null
+          court_timeouts_per_half?: number | null
+          court_validation_mode?: string | null
           created_at?: string
           disable_auto_subs?: boolean | null
           disable_batch_subs?: boolean | null

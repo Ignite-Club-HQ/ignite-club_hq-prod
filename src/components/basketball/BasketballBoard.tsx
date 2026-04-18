@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, Repeat, Trophy, Undo2 } from "lucide-react";
@@ -22,6 +22,7 @@ import CuesToggle from "@/components/scoreboard/CuesToggle";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
+import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
 
 // Lazy-load secondary dialogs
 const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
@@ -72,6 +73,33 @@ export default function BasketballBoard({
     initialMinutesPerQuarter,
     eventId,
   });
+
+  // Per-team default board settings (minutes, rotation, validation, period type, timeouts).
+  // Loaded once from `team_subscriptions.court_*`; in-game changes persist back via the
+  // settings dialog handlers below.
+  const { defaults, isLoading: defaultsLoading, persist: persistDefaults } =
+    useCourtBoardDefaults(teamId, readOnly);
+  const defaultsAppliedRef = useRef(false);
+  useEffect(() => {
+    if (defaultsLoading || defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
+    if (defaults.minutesPerQuarter != null) {
+      board.setTimerState((s) => ({
+        ...s,
+        minutesPerQuarter: defaults.minutesPerQuarter!,
+        lastUpdateTime: Date.now(),
+      }));
+    }
+    if (defaults.rotationMode) board.setRotationMode(defaults.rotationMode);
+    if (defaults.rotationIntervalMinutes != null)
+      board.setRotationIntervalMinutes(defaults.rotationIntervalMinutes);
+    if (defaults.validationMode === "free" || defaults.validationMode === "structured") {
+      board.setValidationMode(defaults.validationMode);
+    }
+    if (defaults.periodType) board.setPeriodType(defaults.periodType);
+    if (defaults.timeoutsPerHalf != null) board.setTimeoutsPerHalf(defaults.timeoutsPerHalf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultsLoading]);
 
   // Local UI-only state for which secondary dialog is open.
   // Kept here (not in the hook) so the hook stays focused on game logic.
@@ -399,23 +427,39 @@ export default function BasketballBoard({
             open={settingsOpen}
             onOpenChange={setSettingsOpen}
             minutesPerQuarter={board.timerState.minutesPerQuarter}
-            onMinutesPerQuarterChange={(n) =>
+            onMinutesPerQuarterChange={(n) => {
               board.setTimerState((s) => ({
                 ...s,
                 minutesPerQuarter: n,
                 lastUpdateTime: Date.now(),
-              }))
-            }
+              }));
+              persistDefaults({ court_minutes_per_quarter: n });
+            }}
             rotationMode={board.rotationMode}
-            onRotationModeChange={board.setRotationMode}
+            onRotationModeChange={(m) => {
+              board.setRotationMode(m);
+              persistDefaults({ court_rotation_mode: m });
+            }}
             rotationIntervalMinutes={board.rotationIntervalMinutes}
-            onRotationIntervalChange={board.setRotationIntervalMinutes}
+            onRotationIntervalChange={(n) => {
+              board.setRotationIntervalMinutes(n);
+              persistDefaults({ court_rotation_interval_minutes: n });
+            }}
             validationMode={board.validationMode}
-            onValidationModeChange={board.setValidationMode}
+            onValidationModeChange={(m) => {
+              board.setValidationMode(m);
+              persistDefaults({ court_validation_mode: m });
+            }}
             timeoutsPerHalf={board.timerState.timeoutsPerHalf ?? 3}
-            onTimeoutsPerHalfChange={board.setTimeoutsPerHalf}
+            onTimeoutsPerHalfChange={(n) => {
+              board.setTimeoutsPerHalf(n);
+              persistDefaults({ court_timeouts_per_half: n });
+            }}
             periodType={board.timerState.periodType ?? "quarters"}
-            onPeriodTypeChange={board.setPeriodType}
+            onPeriodTypeChange={(p) => {
+              board.setPeriodType(p);
+              persistDefaults({ court_period_type: p });
+            }}
           />
         )}
         {lineupPlannerOpen && (

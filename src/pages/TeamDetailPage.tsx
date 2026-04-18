@@ -1204,7 +1204,10 @@ export default function TeamDetailPage() {
               </Badge>
             </Button>
           )}
-          {((isSoccerClub && (hasProFootball || isAppAdmin)) || isNetballClub) && (
+          {(
+            (isSoccerClub && (hasProFootball || isAppAdmin)) ||
+            ((isNetballClub || isBasketballClub) && (isTeamPro || isAppAdmin))
+          ) && (
             <Button 
               variant="outline"
               className="w-full h-9 text-xs font-medium justify-start gap-2"
@@ -1231,7 +1234,7 @@ export default function TeamDetailPage() {
               }}
             >
               <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
-              {isNetballClub ? "Game Board" : "Pitch Board"}
+              {(isNetballClub || isBasketballClub) ? "Game Board" : "Pitch Board"}
             </Button>
           )}
         </div>

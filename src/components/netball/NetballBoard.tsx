@@ -22,6 +22,7 @@ import CuesToggle from "@/components/scoreboard/CuesToggle";
 import QuarterAutoSubControlPanel from "@/components/scoreboard/QuarterAutoSubControlPanel";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
+import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
 import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 
 import {
@@ -172,6 +173,36 @@ export default function NetballBoard({
       }
     );
   });
+
+  // Per-team default board settings (loaded once from team_subscriptions.court_*).
+  const { defaults, isLoading: defaultsLoading, persist: persistDefaults } =
+    useCourtBoardDefaults(teamId, readOnly);
+  const defaultsAppliedRef = useRef(false);
+  useEffect(() => {
+    if (defaultsLoading || defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
+    if (defaults.minutesPerQuarter != null) {
+      setTimerState((s) => ({
+        ...s,
+        minutesPerQuarter: defaults.minutesPerQuarter!,
+        lastUpdateTime: Date.now(),
+      }));
+    }
+    if (defaults.rotationMode) setRotationMode(defaults.rotationMode);
+    if (defaults.rotationIntervalMinutes != null)
+      setRotationIntervalMinutes(defaults.rotationIntervalMinutes);
+    if (
+      defaults.validationMode === "free" ||
+      defaults.validationMode === "warn" ||
+      defaults.validationMode === "strict"
+    ) {
+      setValidationMode(defaults.validationMode);
+    }
+    if (defaults.periodType) {
+      setTimerState((s) => ({ ...s, periodType: defaults.periodType!, lastUpdateTime: Date.now() }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultsLoading]);
 
   // UI state
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
@@ -1031,17 +1062,30 @@ export default function NetballBoard({
             open={settingsOpen}
             onOpenChange={setSettingsOpen}
             minutesPerQuarter={timerState.minutesPerQuarter}
-            onMinutesPerQuarterChange={(n) =>
-              setTimerState((s) => ({ ...s, minutesPerQuarter: n, lastUpdateTime: Date.now() }))
-            }
+            onMinutesPerQuarterChange={(n) => {
+              setTimerState((s) => ({ ...s, minutesPerQuarter: n, lastUpdateTime: Date.now() }));
+              persistDefaults({ court_minutes_per_quarter: n });
+            }}
             rotationMode={rotationMode}
-            onRotationModeChange={setRotationMode}
+            onRotationModeChange={(m) => {
+              setRotationMode(m);
+              persistDefaults({ court_rotation_mode: m });
+            }}
             rotationIntervalMinutes={rotationIntervalMinutes}
-            onRotationIntervalChange={setRotationIntervalMinutes}
+            onRotationIntervalChange={(n) => {
+              setRotationIntervalMinutes(n);
+              persistDefaults({ court_rotation_interval_minutes: n });
+            }}
             validationMode={validationMode}
-            onValidationModeChange={setValidationMode}
+            onValidationModeChange={(m) => {
+              setValidationMode(m);
+              persistDefaults({ court_validation_mode: m });
+            }}
             periodType={timerState.periodType ?? "quarters"}
-            onPeriodTypeChange={setPeriodType}
+            onPeriodTypeChange={(p) => {
+              setPeriodType(p);
+              persistDefaults({ court_period_type: p });
+            }}
           />
         )}
         {lineupPlannerOpen && (
