@@ -358,7 +358,6 @@ export default function BasketballBoard({
               compact
             />
           }
-          trailingSlot={<SyncStatusIndicator />}
         />
 
         {/* Auto-sub status — small floating chip below HUD */}
