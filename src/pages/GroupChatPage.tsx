@@ -44,6 +44,9 @@ import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
+import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { jumpToMessageInChat } from "@/lib/jumpToMessage";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -242,6 +245,17 @@ export default function GroupChatPage() {
       return () => clearTimeout(timer);
     }
   }, [targetMessageId]);
+
+  // Pinned messages
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("group", groupId);
+  const handleJumpToMessage = (mid: string) =>
+    jumpToMessageInChat(mid, setHighlightedMessageId);
 
   // Fetch group details
   const { data: group, isLoading: groupLoading } = useQuery({
@@ -1618,6 +1632,13 @@ export default function GroupChatPage() {
         </div>
       )}
 
+      {/* Pinned messages banner */}
+      <PinnedMessagesBanner
+        pins={pinnedMessages}
+        onJumpToMessage={handleJumpToMessage}
+        onUnpin={unpinMessage}
+      />
+
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
@@ -1666,6 +1687,10 @@ export default function GroupChatPage() {
                   deleteMessageMutation={deleteMessageMutation}
                   toggleReactionMutation={toggleReactionMutation}
                   groupId={groupId || ""}
+                  isPinned={pinnedMessageIds.has(msg.id)}
+                  pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                  onPin={pinMessage}
+                  onUnpin={unpinMessage}
                 />
               </div>
             );

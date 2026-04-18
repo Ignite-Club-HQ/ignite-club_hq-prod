@@ -4609,6 +4609,33 @@ export type Database = {
           },
         ]
       }
+      pinned_messages: {
+        Row: {
+          chat_id: string
+          chat_type: string
+          created_at: string
+          id: string
+          message_id: string
+          pinned_by: string
+        }
+        Insert: {
+          chat_id: string
+          chat_type: string
+          created_at?: string
+          id?: string
+          message_id: string
+          pinned_by: string
+        }
+        Update: {
+          chat_id?: string
+          chat_type?: string
+          created_at?: string
+          id?: string
+          message_id?: string
+          pinned_by?: string
+        }
+        Relationships: []
+      }
       pitch_formations: {
         Row: {
           created_at: string
@@ -6974,6 +7001,10 @@ export type Database = {
         Returns: undefined
       }
       archive_season: { Args: { _season_id: string }; Returns: undefined }
+      can_access_chat: {
+        Args: { _chat_id: string; _chat_type: string }
+        Returns: boolean
+      }
       can_access_chat_attachment: { Args: { _name: string }; Returns: boolean }
       can_access_chat_group: {
         Args: { _group_id: string; _user_id: string }

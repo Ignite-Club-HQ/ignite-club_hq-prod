@@ -35,6 +35,9 @@ import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { jumpToMessageInChat } from "@/lib/jumpToMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
 import { useMessageReads } from "@/hooks/useMessageReads";
@@ -179,6 +182,17 @@ export default function ClubChatPage() {
       return () => clearTimeout(timer);
     }
   }, [targetMessageId]);
+
+  // Pinned messages
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("club", clubId);
+  const handleJumpToMessage = (mid: string) =>
+    jumpToMessageInChat(mid, setHighlightedMessageId);
 
   // Get club info
   const { data: club } = useQuery({
@@ -1242,6 +1256,13 @@ export default function ClubChatPage() {
         </div>
       )}
 
+      {/* Pinned messages banner */}
+      <PinnedMessagesBanner
+        pins={pinnedMessages}
+        onJumpToMessage={handleJumpToMessage}
+        onUnpin={unpinMessage}
+      />
+
       <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (
           <div className="space-y-4">
@@ -1316,6 +1337,11 @@ export default function ClubChatPage() {
                         isLastMessage={index === filteredMessages.length - 1}
                         isPending={msg.id.startsWith("queued-")}
                         contextId={clubId || ""}
+                        isPinned={pinnedMessageIds.has(msg.id)}
+                        canPin={!msg.id.startsWith("queued-")}
+                        pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                        onPin={pinMessage}
+                        onUnpin={unpinMessage}
                       />
                     </div>
                   </div>
