@@ -73,16 +73,16 @@ const GameScoreboard = memo(function GameScoreboard({
   return (
     <div
       className={cn(
-        "grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2.5 border-b bg-card",
+        "grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2 bg-card",
         className
       )}
       role="group"
       aria-label="Scoreboard"
     >
       {/* HOME */}
-      <div className="flex flex-col items-end min-w-0">
+      <div className="flex flex-col items-end min-w-0 gap-0.5">
         <span
-          className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground truncate max-w-full"
+          className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
           title={homeLabel}
         >
           {homeLabel}
