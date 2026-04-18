@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity } from "lucide-react";
+import { ArrowLeft, Ticket, CreditCard, MessageSquare, UserCog, FileArchive, BarChart3, Megaphone, Bell, Settings, FileText, ShieldCheck, Video, Smartphone, Send, Activity, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronRight } from "lucide-react";
@@ -131,6 +131,12 @@ export default function AdminPage() {
               label="User Management"
               description="Manage user accounts and roles"
               onClick={() => navigate("/admin/users")}
+            />
+            <AdminMenuItem
+              icon={KeyRound}
+              label="Set Temp Password"
+              description="Reset password for a locked-out user"
+              onClick={() => navigate("/admin/temp-password")}
             />
             <AdminMenuItem
               icon={FileArchive}

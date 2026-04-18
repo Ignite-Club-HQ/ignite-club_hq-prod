@@ -59,6 +59,7 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const AccountPage = lazy(() => import("./pages/AccountPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
+const AdminTempPasswordPage = lazy(() => import("./pages/AdminTempPasswordPage"));
 const OnlineUsersPage = lazy(() => import("./pages/OnlineUsersPage"));
 const EditProfilePage = lazy(() => import("./pages/EditProfilePage"));
 const MyRolesPage = lazy(() => import("./pages/MyRolesPage"));
@@ -299,6 +300,7 @@ const App = () => {
                   <Route path="/admin/stripe" element={<AppStripeSettingsPage />} />
                   <Route path="/admin/feedback" element={<ManageFeedbackPage />} />
                   <Route path="/admin/users" element={<ManageUsersPage />} />
+                  <Route path="/admin/temp-password" element={<AdminTempPasswordPage />} />
                   <Route path="/admin/backups" element={<ManageBackupsPage />} />
                   <Route path="/admin/sponsor-analytics" element={<SponsorAnalyticsPage />} />
                   <Route path="/admin/ads" element={<ManageAdsPage />} />
