@@ -575,60 +575,6 @@ export default function BasketballBoard({
       />
 
       <Suspense fallback={<DialogLoader />}>
-        {settingsOpen && (
-          <BasketballSettingsDialog
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
-            minutesPerQuarter={board.timerState.minutesPerQuarter}
-            onMinutesPerQuarterChange={(n) => {
-              board.setTimerState((s) => ({
-                ...s,
-                minutesPerQuarter: n,
-                lastUpdateTime: Date.now(),
-              }));
-              persistDefaults({ court_minutes_per_quarter: n });
-            }}
-            rotationMode={board.rotationMode}
-            onRotationModeChange={(m) => {
-              board.setRotationMode(m);
-              persistDefaults({ court_rotation_mode: m });
-            }}
-            rotationIntervalMinutes={board.rotationIntervalMinutes}
-            onRotationIntervalChange={(n) => {
-              board.setRotationIntervalMinutes(n);
-              persistDefaults({ court_rotation_interval_minutes: n });
-            }}
-            validationMode={board.validationMode}
-            onValidationModeChange={(m) => {
-              board.setValidationMode(m);
-              persistDefaults({ court_validation_mode: m });
-            }}
-            timeoutsPerHalf={board.timerState.timeoutsPerHalf ?? 3}
-            onTimeoutsPerHalfChange={(n) => {
-              board.setTimeoutsPerHalf(n);
-              persistDefaults({ court_timeouts_per_half: n });
-            }}
-            periodType={board.timerState.periodType ?? "quarters"}
-            onPeriodTypeChange={(p) => {
-              board.setPeriodType(p);
-              persistDefaults({ court_period_type: p });
-            }}
-            onOpenSquad={() => setRosterOpen(true)}
-            onOpenLineups={() => setLineupPlannerOpen(true)}
-            onOpenPresets={() => setPresetsOpen(true)}
-            onApplyLineup={board.applyNextLineupNow}
-            currentQuarter={board.timerState.currentQuarter}
-          />
-        )}
-        {lineupPlannerOpen && (
-          <BasketballQuarterLineupPlanner
-            open={lineupPlannerOpen}
-            onOpenChange={setLineupPlannerOpen}
-            players={board.players}
-            lineups={board.quarterLineups}
-            onSave={board.setQuarterLineups}
-          />
-        )}
         {rosterOpen && (
           <BasketballRosterDialog
             open={rosterOpen}
