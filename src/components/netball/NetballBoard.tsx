@@ -22,6 +22,7 @@ import CuesToggle from "@/components/scoreboard/CuesToggle";
 import QuarterAutoSubControlPanel from "@/components/scoreboard/QuarterAutoSubControlPanel";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
+import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
 import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 
 import {
