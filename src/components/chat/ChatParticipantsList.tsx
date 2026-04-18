@@ -528,6 +528,7 @@ export function ChatParticipantsList({
           <div
             className={cn("min-h-0 overflow-y-auto overscroll-contain", scrollClassName)}
             data-allow-scroll
+            data-chat-scroll-lock="true"
             style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
           >
             {listBody}
