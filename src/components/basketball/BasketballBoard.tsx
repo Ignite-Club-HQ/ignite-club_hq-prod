@@ -14,10 +14,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 
 import BasketballQuarterTimer from "./BasketballQuarterTimer";
-import BasketballActionBar from "./BasketballActionBar";
 import BasketballCourtArea from "./BasketballCourtArea";
 import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
+import BasketballPreGameScreen from "./BasketballPreGameScreen";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import TimeoutsPanel from "@/components/scoreboard/TimeoutsPanel";
@@ -33,8 +33,7 @@ import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
 import { totalElapsedSeconds, visiblePeriods } from "@/lib/periodTypes";
 
 // Lazy-load secondary dialogs
-const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
-const BasketballQuarterLineupPlanner = lazy(() => import("./BasketballQuarterLineupPlanner"));
+const BasketballGameSettingsDialog = lazy(() => import("./BasketballGameSettingsDialog"));
 const BasketballRosterDialog = lazy(() => import("./BasketballRosterDialog"));
 const BasketballQuickActionSheet = lazy(() => import("./BasketballQuickActionSheet"));
 const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPresetsDialog"));
@@ -112,7 +111,6 @@ export default function BasketballBoard({
   // Local UI-only state for which secondary dialog is open.
   // Kept here (not in the hook) so the hook stays focused on game logic.
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -260,9 +258,87 @@ export default function BasketballBoard({
   const [draftOpponent, setDraftOpponent] = useState(opponentName);
   const [gameDetailsOpen, setGameDetailsOpen] = useState(false);
 
+  // ── PRE-GAME ─────────────────────────────────────────────────────
+  // Replace the live UI with a focused checklist screen until the coach
+  // taps "Start Game". No timer, no scoreboard, no setup CTAs leaking
+  // into a running match.
+  if (isPreGame) {
+    return (
+      <>
+        <BasketballPreGameScreen
+          teamName={teamName}
+          opponentName={opponentName}
+          players={board.players}
+          bench={board.bench}
+          selectedPlayerId={board.selectedPlayerId}
+          courtView={board.courtView}
+          onPlayerClick={board.handlePlayerClick}
+          onSlotClick={board.handleSlotClick}
+          minutesPerQuarter={board.timerState.minutesPerQuarter}
+          periodType={board.timerState.periodType ?? "quarters"}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSquad={() => setRosterOpen(true)}
+          onOpenPresets={() => setPresetsOpen(true)}
+          hasPresets={board.lineupPresets.length > 0}
+          onStartGame={() =>
+            board.setTimerState((s) => ({
+              ...s,
+              isRunning: true,
+              lastUpdateTime: Date.now(),
+            }))
+          }
+          onBack={onClose}
+          readOnly={readOnly}
+        />
+
+        <Suspense fallback={<DialogLoader />}>
+          {settingsOpen && (
+            <BasketballGameSettingsDialog
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              periodType={board.timerState.periodType ?? "quarters"}
+              onPeriodTypeChange={(p) => {
+                board.setPeriodType(p);
+                persistDefaults({ court_period_type: p });
+              }}
+              minutesPerQuarter={board.timerState.minutesPerQuarter}
+              onMinutesPerQuarterChange={(n) => {
+                board.setTimerState((s) => ({
+                  ...s,
+                  minutesPerQuarter: n,
+                  lastUpdateTime: Date.now(),
+                }));
+                persistDefaults({ court_minutes_per_quarter: n });
+              }}
+            />
+          )}
+          {rosterOpen && (
+            <BasketballRosterDialog
+              open={rosterOpen}
+              onOpenChange={setRosterOpen}
+              players={board.players}
+              onSave={board.setPlayers}
+            />
+          )}
+          {presetsOpen && (
+            <BasketballLineupPresetsDialog
+              open={presetsOpen}
+              onOpenChange={setPresetsOpen}
+              players={board.players}
+              presets={board.lineupPresets}
+              onSave={board.setLineupPresets}
+              onApply={board.applyPreset}
+            />
+          )}
+        </Suspense>
+      </>
+    );
+  }
+
+  // ── LIVE / FINISHED ──────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
-      {/* ── ROW 1: Minimal header — back, matchup, sync ── */}
+      {/* ── Header — back, matchup, sync ── */}
       <header className="flex items-center gap-2 px-2 py-2 border-b bg-card sticky top-0 z-20">
         <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0 h-9 w-9">
           <ArrowLeft className="h-5 w-5" />
@@ -294,9 +370,7 @@ export default function BasketballBoard({
             </PopoverTrigger>
             <PopoverContent className="w-60 p-2" align="end">
               <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Opponent name
-                </label>
+                <label className="text-xs font-medium text-muted-foreground">Opponent name</label>
                 <Input
                   value={draftOpponent}
                   onChange={(e) => setDraftOpponent(e.target.value)}
@@ -326,7 +400,7 @@ export default function BasketballBoard({
         <SyncStatusIndicator />
       </header>
 
-      {/* ── ROW 2: Hero timer (period • clock • play • menu) ── */}
+      {/* ── Hero timer ── */}
       <div className="border-b">
         <BasketballQuarterTimer
           state={board.timerState}
@@ -338,9 +412,7 @@ export default function BasketballBoard({
         />
       </div>
 
-      {/* ── ROW 3: Scoreboard.
-          Pre-game → compact, no controls (focus stays on lineup setup).
-          Live    → tap-to-score with +1/+2/+3 buttons. ── */}
+      {/* ── Scoreboard ── */}
       <GameScoreboard
         homeLabel={teamName}
         awayLabel={opponentName}
@@ -353,54 +425,7 @@ export default function BasketballBoard({
         onUndo={board.undoScore}
         onRenameAway={board.setOpponentName}
         canUndo={(board.timerState.scoreLog?.length ?? 0) > 0}
-        compact={isPreGame}
       />
-
-      {/* Score by period moved into "Game details" drawer — keeps the live
-          view clean (only timer • score • court • bench above the fold). */}
-
-      {/* ── ROW 5: Action bar — pre-game only.
-          Auto-hides the moment the game starts so the court owns the screen. ── */}
-      {!gameInProgress && (
-        <BasketballActionBar
-          onOpenSettings={() => setSettingsOpen(true)}
-          onToggleCourtView={board.toggleCourtView}
-          onOpenLineup={() => setLineupPlannerOpen(true)}
-          rotationMode={board.rotationMode}
-          rotationIntervalMinutes={board.rotationIntervalMinutes}
-          courtView={board.courtView}
-          onCourtCount={onCourtCount}
-          isLive={false}
-        />
-      )}
-
-      {/* ── ROW 6: Inline "Starting 5" status card — pre-game only.
-          Hidden the moment the game starts (even when paused mid-game). ── */}
-      {!readOnly && !gameInProgress && !lineupSet && (
-        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-card">
-          <div className="flex flex-col leading-tight min-w-0">
-            <span className="text-xs font-semibold text-foreground">
-              Starting 5
-              <span className="ml-1.5 text-muted-foreground tabular-nums font-normal">
-                {onCourtCount}/5
-              </span>
-            </span>
-            <span className="text-[10px] text-muted-foreground">
-              Tap a court slot to assign a player.
-            </span>
-          </div>
-          {board.lineupPresets.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={() => setPresetsOpen(true)}
-            >
-              Presets
-            </Button>
-          )}
-        </div>
-      )}
 
       {/* Auto-sub status — only while game is in progress. */}
       {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
@@ -549,78 +574,6 @@ export default function BasketballBoard({
       />
 
       <Suspense fallback={<DialogLoader />}>
-        {settingsOpen && (
-          <BasketballSettingsDialog
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
-            minutesPerQuarter={board.timerState.minutesPerQuarter}
-            onMinutesPerQuarterChange={(n) => {
-              board.setTimerState((s) => ({
-                ...s,
-                minutesPerQuarter: n,
-                lastUpdateTime: Date.now(),
-              }));
-              persistDefaults({ court_minutes_per_quarter: n });
-            }}
-            rotationMode={board.rotationMode}
-            onRotationModeChange={(m) => {
-              board.setRotationMode(m);
-              persistDefaults({ court_rotation_mode: m });
-            }}
-            rotationIntervalMinutes={board.rotationIntervalMinutes}
-            onRotationIntervalChange={(n) => {
-              board.setRotationIntervalMinutes(n);
-              persistDefaults({ court_rotation_interval_minutes: n });
-            }}
-            validationMode={board.validationMode}
-            onValidationModeChange={(m) => {
-              board.setValidationMode(m);
-              persistDefaults({ court_validation_mode: m });
-            }}
-            timeoutsPerHalf={board.timerState.timeoutsPerHalf ?? 3}
-            onTimeoutsPerHalfChange={(n) => {
-              board.setTimeoutsPerHalf(n);
-              persistDefaults({ court_timeouts_per_half: n });
-            }}
-            periodType={board.timerState.periodType ?? "quarters"}
-            onPeriodTypeChange={(p) => {
-              board.setPeriodType(p);
-              persistDefaults({ court_period_type: p });
-            }}
-            onOpenSquad={() => setRosterOpen(true)}
-            onOpenLineups={() => setLineupPlannerOpen(true)}
-            onOpenPresets={() => setPresetsOpen(true)}
-            onApplyLineup={board.applyNextLineupNow}
-            currentQuarter={board.timerState.currentQuarter}
-          />
-        )}
-        {lineupPlannerOpen && (
-          <BasketballQuarterLineupPlanner
-            open={lineupPlannerOpen}
-            onOpenChange={setLineupPlannerOpen}
-            players={board.players}
-            lineups={board.quarterLineups}
-            onSave={board.setQuarterLineups}
-          />
-        )}
-        {rosterOpen && (
-          <BasketballRosterDialog
-            open={rosterOpen}
-            onOpenChange={setRosterOpen}
-            players={board.players}
-            onSave={board.setPlayers}
-          />
-        )}
-        {presetsOpen && (
-          <BasketballLineupPresetsDialog
-            open={presetsOpen}
-            onOpenChange={setPresetsOpen}
-            players={board.players}
-            presets={board.lineupPresets}
-            onSave={board.setLineupPresets}
-            onApply={board.applyPreset}
-          />
-        )}
         {board.quickActionPlayerId && board.quickActionPlayer && (
           <BasketballQuickActionSheet
             open={!!board.quickActionPlayerId}
