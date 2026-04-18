@@ -32,6 +32,11 @@ interface GameScoreboardProps {
   canUndo: boolean;
   /** When true, scoring (+N) buttons are disabled. Undo + rename remain available. */
   disabled?: boolean;
+  /**
+   * Compact pre-game variant: single horizontal row, no +N buttons, no undo,
+   * no rename popover. Used before tipoff to keep the focus on lineup setup.
+   */
+  compact?: boolean;
   className?: string;
 }
 
@@ -52,10 +57,39 @@ const GameScoreboard = memo(function GameScoreboard({
   onRenameAway,
   canUndo,
   disabled = false,
+  compact = false,
   className,
 }: GameScoreboardProps) {
   const [renameOpen, setRenameOpen] = useState(false);
   const [draftAway, setDraftAway] = useState(awayLabel);
+
+  // ── PRE-GAME COMPACT: single horizontal row, no controls ──
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center gap-3 px-3 py-2 border-b bg-card",
+          className
+        )}
+        role="group"
+        aria-label="Scoreboard"
+      >
+        <span className="text-xs font-semibold uppercase text-muted-foreground truncate max-w-[35%] text-right">
+          {homeLabel}
+        </span>
+        <span className="text-xl font-bold tabular-nums text-foreground">
+          {homeScore}
+        </span>
+        <span className="text-xs text-muted-foreground">—</span>
+        <span className="text-xl font-bold tabular-nums text-foreground">
+          {awayScore}
+        </span>
+        <span className="text-xs font-semibold uppercase text-muted-foreground truncate max-w-[35%] text-left">
+          {awayLabel}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div

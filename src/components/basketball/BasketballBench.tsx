@@ -47,12 +47,10 @@ export default function BasketballBench({
           </span>
         ) : null}
       </div>
-      <ScrollArea className="w-full">
-        <div className="flex gap-2 px-3 pb-3 min-h-[68px]">
-          {bench.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic py-3">No bench players.</p>
-          ) : (
-            bench.map((p) => (
+      {bench.length > 0 && (
+        <ScrollArea className="w-full">
+          <div className="flex gap-2 px-3 pb-3 min-h-[68px]">
+            {bench.map((p) => (
               <BasketballPlayerToken
                 key={p.id}
                 player={p}
@@ -64,10 +62,10 @@ export default function BasketballBench({
                 onClick={() => onPlayerClick(p.id)}
                 readOnly={readOnly}
               />
-            ))
-          )}
-        </div>
-      </ScrollArea>
+            ))}
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
 }
