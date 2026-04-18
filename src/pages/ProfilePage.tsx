@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, parseISO } from "date-fns";
 import RewardRedemptionCard from "@/components/RewardRedemptionCard";
 import { ProfileTeamHistory } from "@/components/profile/ProfileTeamHistory";
+import { PointsActivityFeed, type PointsActivityItem } from "@/components/profile/PointsActivityFeed";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
