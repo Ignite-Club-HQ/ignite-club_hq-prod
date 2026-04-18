@@ -390,16 +390,26 @@ export default function NetballBoard({
   const handleQuarterEnd = useCallback(
     (endedQuarter: Quarter) => {
       cueQuarterEnd();
-      const nextQuarter = (endedQuarter + 1) as Quarter;
-      if (nextQuarter > 4) {
-        toast({ title: "Game finished", description: "Q4 complete." });
+      // In halves mode the visible periods are [1, 3] — slot 1 ("H1") rolls
+      // straight to slot 3 ("H2"), skipping slot 2. Using `endedQuarter + 1`
+      // silently broke quarterLineups + quarter-break rotations for halves.
+      const periodType = timerState.periodType;
+      const periods = visiblePeriods(periodType);
+      const idx = periods.indexOf(endedQuarter);
+      const isFinalPeriod = idx === periods.length - 1;
+      const nextQuarter = (periods[idx + 1] ?? null) as Quarter | null;
+      if (isFinalPeriod || nextQuarter === null) {
+        toast({
+          title: "Game finished",
+          description: periodType === "halves" ? "H2 complete." : "Q4 complete.",
+        });
         return;
       }
       const nextLineup = quarterLineups.find((l) => l.quarter === nextQuarter);
       if (nextLineup && Object.keys(nextLineup.assignments).length > 0) {
         setPlayers((prev) => applyLineup(prev, nextLineup));
         toast({
-          title: `Q${nextQuarter} lineup applied`,
+          title: `${periodType === "halves" ? "H" + (nextQuarter <= 2 ? 1 : 2) : "Q" + nextQuarter} lineup applied`,
           description: "On-court 7 updated from your plan.",
         });
         return;
@@ -411,7 +421,7 @@ export default function NetballBoard({
         dueSubs.forEach(executeSub);
       }
     },
-    [autoSubPlan, executeSub, quarterLineups, rotationMode, toast]
+    [autoSubPlan, executeSub, quarterLineups, rotationMode, toast, timerState.periodType]
   );
 
   // ---------- Manual swap / sub interactions ----------
