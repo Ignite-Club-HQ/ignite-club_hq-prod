@@ -174,6 +174,36 @@ export default function NetballBoard({
     );
   });
 
+  // Per-team default board settings (loaded once from team_subscriptions.court_*).
+  const { defaults, isLoading: defaultsLoading, persist: persistDefaults } =
+    useCourtBoardDefaults(teamId, readOnly);
+  const defaultsAppliedRef = useRef(false);
+  useEffect(() => {
+    if (defaultsLoading || defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
+    if (defaults.minutesPerQuarter != null) {
+      setTimerState((s) => ({
+        ...s,
+        minutesPerQuarter: defaults.minutesPerQuarter!,
+        lastUpdateTime: Date.now(),
+      }));
+    }
+    if (defaults.rotationMode) setRotationMode(defaults.rotationMode);
+    if (defaults.rotationIntervalMinutes != null)
+      setRotationIntervalMinutes(defaults.rotationIntervalMinutes);
+    if (
+      defaults.validationMode === "free" ||
+      defaults.validationMode === "warn" ||
+      defaults.validationMode === "strict"
+    ) {
+      setValidationMode(defaults.validationMode);
+    }
+    if (defaults.periodType) {
+      setTimerState((s) => ({ ...s, periodType: defaults.periodType!, lastUpdateTime: Date.now() }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultsLoading]);
+
   // UI state
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
