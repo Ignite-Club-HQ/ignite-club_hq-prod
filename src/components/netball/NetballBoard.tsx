@@ -197,7 +197,7 @@ export default function NetballBoard({
   const lastSpectatorTickRef = useRef<number>(0);
   useEffect(() => {
     if (!spectator) return;
-    const ps = spectatorFeed.pitchState as
+    const ps = spectatorFeed.pitchState as unknown as
       | {
           players?: NetballPlayer[];
           rotationMode?: RotationMode;
@@ -207,7 +207,7 @@ export default function NetballBoard({
           quarterLineups?: QuarterLineup[];
         }
       | null;
-    const ts = spectatorFeed.timerState as NetballTimerState | null;
+    const ts = spectatorFeed.timerState as unknown as NetballTimerState | null;
     if (!ps || !ts) return;
     const incomingTick = ts.lastUpdateTime ?? 0;
     if (incomingTick && incomingTick === lastSpectatorTickRef.current) return;
@@ -222,7 +222,7 @@ export default function NetballBoard({
     if (ps.quarterLineups) setQuarterLineups(ps.quarterLineups);
   }, [spectator, spectatorFeed.pitchState, spectatorFeed.timerState]);
   const { defaults, isLoading: defaultsLoading, persist: persistDefaults } =
-    useCourtBoardDefaults(teamId, readOnly);
+    useCourtBoardDefaults(teamId, effectiveReadOnly);
   const defaultsAppliedRef = useRef(false);
   useEffect(() => {
     if (defaultsLoading || defaultsAppliedRef.current) return;
