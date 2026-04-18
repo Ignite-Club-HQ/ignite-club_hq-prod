@@ -39,6 +39,7 @@ export default function BasketballQuarterTimer({
   onQuarterEnd,
   onReset,
   readOnly = false,
+  compact = false,
 }: BasketballQuarterTimerProps) {
   const intervalRef = useRef<number | null>(null);
   const stateRef = useRef(state);
