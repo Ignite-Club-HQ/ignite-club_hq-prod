@@ -289,12 +289,16 @@ export function useBasketballBoardState({
   );
 
   // ---------- Persistence ----------
+  // Spectators must NOT persist incoming snapshots — they'd corrupt the local
+  // board state if this user later opens the board as a coach on the same team.
   useEffect(() => {
+    if (spectatorState) return;
     safeSave(stateKey, boardState);
-  }, [boardState, stateKey]);
+  }, [boardState, stateKey, spectatorState]);
   useEffect(() => {
+    if (spectatorState) return;
     safeSave(timerKey, timerState);
-  }, [timerState, timerKey]);
+  }, [timerState, timerKey, spectatorState]);
   useBasketballGameSync(boardState, timerState, !readOnly && !spectatorState);
 
   // ---------- Spectator mirror ----------
