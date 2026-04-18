@@ -246,6 +246,17 @@ export default function GroupChatPage() {
     }
   }, [targetMessageId]);
 
+  // Pinned messages
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("group", groupId);
+  const handleJumpToMessage = (mid: string) =>
+    jumpToMessageInChat(mid, setHighlightedMessageId);
+
   // Fetch group details
   const { data: group, isLoading: groupLoading } = useQuery({
     queryKey: ["chat-group", groupId],

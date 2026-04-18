@@ -183,6 +183,17 @@ export default function ClubChatPage() {
     }
   }, [targetMessageId]);
 
+  // Pinned messages
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("club", clubId);
+  const handleJumpToMessage = (mid: string) =>
+    jumpToMessageInChat(mid, setHighlightedMessageId);
+
   // Get club info
   const { data: club } = useQuery({
     queryKey: ["club", clubId],
