@@ -229,19 +229,17 @@ export function useBasketballBoardState({
   );
 
   const undoScore = useCallback(() => {
+    // Capture the attributed-points rollback target BEFORE entering the
+    // setTimerState updater so we can call setPlayers cleanly afterwards.
+    // Calling setPlayers from inside a setTimerState updater double-fires
+    // under StrictMode and decrements points by 2× (audit fix B18).
+    let attributed: { playerId: string; points: number } | null = null;
     setTimerState((s) => {
       const log = s.scoreLog ?? [];
       if (log.length === 0) return s;
       const last = log[log.length - 1];
-      // Roll back per-player points if attributed.
       if (last.side === "home" && last.playerId) {
-        setPlayers((prev) =>
-          prev.map((p) =>
-            p.id === last.playerId
-              ? { ...p, points: Math.max(0, (p.points ?? 0) - last.points) }
-              : p
-          )
-        );
+        attributed = { playerId: last.playerId, points: last.points };
       }
       return {
         ...s,
@@ -251,6 +249,16 @@ export function useBasketballBoardState({
         lastUpdateTime: Date.now(),
       };
     });
+    if (attributed) {
+      const { playerId, points } = attributed;
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId
+            ? { ...p, points: Math.max(0, (p.points ?? 0) - points) }
+            : p
+        )
+      );
+    }
   }, []);
 
   const setOpponentName = useCallback((name: string) => {

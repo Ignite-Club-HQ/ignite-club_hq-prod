@@ -821,6 +821,16 @@ export default function NetballBoard({
         lastUpdateTime: Date.now(),
       };
     });
+    if (attributedHomeGoal) {
+      const { playerId, points } = attributedHomeGoal;
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId
+            ? { ...p, goals: Math.max(0, (p.goals ?? 0) - points) }
+            : p
+        )
+      );
+    }
   }, []);
 
   const setCentrePass = useCallback(
