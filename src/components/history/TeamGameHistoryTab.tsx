@@ -184,6 +184,79 @@ export default function TeamGameHistoryTab({
 
   return (
     <div className="space-y-2">
+      {/* Season-at-a-glance — only when there's enough signal to be useful. */}
+      {aggregates && aggregates.wins + aggregates.losses + aggregates.draws > 0 && (
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+          <CardContent className="p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+                Season so far
+              </p>
+              <span className="text-[10px] text-muted-foreground tabular-nums">
+                {aggregates.wins + aggregates.losses + aggregates.draws} games
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Record</p>
+                <p className="text-sm font-bold tabular-nums">
+                  <span className="text-primary">{aggregates.wins}</span>
+                  <span className="text-muted-foreground">–</span>
+                  <span className="text-destructive">{aggregates.losses}</span>
+                  {aggregates.draws > 0 && (
+                    <>
+                      <span className="text-muted-foreground">–</span>
+                      <span className="text-muted-foreground">{aggregates.draws}</span>
+                    </>
+                  )}
+                </p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Points</p>
+                <p className="text-sm font-bold tabular-nums">
+                  {aggregates.pointsFor}
+                  <span className="text-muted-foreground">–</span>
+                  {aggregates.pointsAgainst}
+                </p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Diff</p>
+                <p
+                  className={cn(
+                    "text-sm font-bold tabular-nums",
+                    aggregates.diff > 0
+                      ? "text-primary"
+                      : aggregates.diff < 0
+                        ? "text-destructive"
+                        : "text-muted-foreground"
+                  )}
+                >
+                  {aggregates.diff > 0 ? "+" : ""}
+                  {aggregates.diff}
+                </p>
+              </div>
+            </div>
+            {aggregates.topScorer && (
+              <div className="flex items-center gap-2 pt-1.5 border-t border-border/50">
+                <Crown className="h-3.5 w-3.5 text-primary shrink-0" />
+                <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
+                  <p className="text-xs truncate">
+                    <span className="text-muted-foreground">Leading scorer · </span>
+                    <span className="font-semibold">{aggregates.topScorer.name}</span>
+                  </p>
+                  <p className="text-xs font-bold tabular-nums text-primary shrink-0">
+                    {aggregates.topScorer.points}
+                    <span className="text-[10px] text-muted-foreground font-normal ml-0.5">
+                      pts
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {showFilter && (
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {(
