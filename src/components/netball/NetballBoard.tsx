@@ -175,6 +175,10 @@ export default function NetballBoard({
         elapsedSeconds: 0,
         isRunning: false,
         lastUpdateTime: Date.now(),
+        // Seed an opening centre-pass side so first-goal credit and CP stats
+        // populate from kickoff (audit fix B15/N15-init). Coach can flip via
+        // the CentrePassIndicator before tipoff.
+        centrePass: "home",
       }
     );
   });
@@ -814,9 +818,19 @@ export default function NetballBoard({
     });
   }, []);
 
-  const setCentrePass = useCallback((side: "home" | "away") => {
-    setTimerState((s) => ({ ...s, centrePass: side, lastUpdateTime: Date.now() }));
-  }, []);
+  const setCentrePass = useCallback(
+    (side: "home" | "away" | ((prev: "home" | "away") => "home" | "away")) => {
+      setTimerState((s) => ({
+        ...s,
+        // Functional form so rapid swap taps don't read a stale `s.centrePass`
+        // (audit fix N16). Existing callers passing a literal still work.
+        centrePass:
+          typeof side === "function" ? side(s.centrePass ?? "home") : side,
+        lastUpdateTime: Date.now(),
+      }));
+    },
+    []
+  );
 
   const setOpponentName = useCallback((name: string) => {
     setTimerState((s) => ({ ...s, opponentName: name, lastUpdateTime: Date.now() }));
