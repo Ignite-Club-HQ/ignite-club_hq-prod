@@ -70,6 +70,12 @@ export interface ChatMessageProps {
   isSystemMessage?: boolean;
   isClubAnnouncement?: boolean;
   contextId?: string;
+  // Pin support
+  isPinned?: boolean;
+  canPin?: boolean;
+  pinLimitReached?: boolean;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
 }
 
 export const ChatMessage = memo(function ChatMessage({
@@ -99,6 +105,11 @@ export const ChatMessage = memo(function ChatMessage({
   isSystemMessage = false,
   isClubAnnouncement = false,
   contextId,
+  isPinned = false,
+  canPin = false,
+  pinLimitReached = false,
+  onPin,
+  onUnpin,
 }: ChatMessageProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
@@ -803,6 +814,11 @@ export const ChatMessage = memo(function ChatMessage({
           onBlock={() => setShowBlockDialog(true)}
           hasImage={!!imageUrl}
           onViewImage={() => setShowFullscreenImage(true)}
+          canPin={canPin}
+          isPinned={isPinned}
+          pinLimitReached={pinLimitReached}
+          onPin={onPin ? () => onPin(id) : undefined}
+          onUnpin={onUnpin ? () => onUnpin(id) : undefined}
         />
         {/* Fullscreen image viewer triggered from action sheet */}
         {showFullscreenImage && imageUrl && (

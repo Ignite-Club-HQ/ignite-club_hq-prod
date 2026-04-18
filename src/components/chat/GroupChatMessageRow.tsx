@@ -79,6 +79,10 @@ interface GroupChatMessageRowProps {
   deleteMessageMutation: { mutate: (id: string) => void };
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   groupId?: string;
+  isPinned?: boolean;
+  pinLimitReached?: boolean;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
