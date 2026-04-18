@@ -370,6 +370,9 @@ export default function NetballBoard({
       }))
     );
   }, []);
+  // Forward ref so handleTick can call executeSub before it's declared
+  // (audit fix N14 — temporal dead zone + missing dep).
+  const executeSubRef = useRef<((sub: NetballSubEvent) => void) | null>(null);
   const handleTick = useCallback(
     (elapsed: number, quarter: Quarter, delta = 1) => {
       const safeDelta = Math.max(1, Math.floor(delta));
@@ -395,10 +398,10 @@ export default function NetballBoard({
           }
         }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
-        if (due && !lockedPlayerIds.has(due.playerOut.id)) executeSub(due);
+        if (due && !lockedPlayerIds.has(due.playerOut.id)) executeSubRef.current?.(due);
       }
     },
-    [autoSubPlan, rotationMode, autoSubPaused, lockedPlayerIds] // executeSub stable via setState callbacks
+    [autoSubPlan, rotationMode, autoSubPaused, lockedPlayerIds]
   );
 
   // ---------- Sub execution ----------
@@ -1133,7 +1136,7 @@ export default function NetballBoard({
         side={timerState.centrePass ?? "home"}
         readOnly={readOnly}
         onSwap={() =>
-          setCentrePass((timerState.centrePass ?? "home") === "home" ? "away" : "home")
+          setCentrePass((prev) => (prev === "home" ? "away" : "home"))
         }
       />
 
