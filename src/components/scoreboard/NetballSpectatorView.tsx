@@ -86,7 +86,7 @@ export default function NetballSpectatorView({
           )}
         >
           <span className="text-[9px] uppercase tracking-wide font-semibold">
-            Q{currentQuarter}
+            {periodLabel(currentQuarter, periodType)}
           </span>
           <span className="text-sm font-black tabular-nums">
             {formatClock(elapsedSeconds, minutesPerQuarter)}
