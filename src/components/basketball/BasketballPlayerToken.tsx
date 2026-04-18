@@ -73,15 +73,17 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       style={style}
       aria-label={`${player.name}${pos ? ` at ${pos}` : " on bench"}${points > 0 ? `, ${points} points` : ""}`}
       className={cn(
-        "relative flex flex-col items-center gap-1 transition-all touch-manipulation select-none",
+        "relative flex flex-col items-center gap-1 touch-manipulation select-none",
+        "transition-all duration-200 ease-out will-change-transform",
         variant === "court" ? "w-14" : "w-12",
         isDragging && "opacity-40 scale-90",
-        isSelected && "scale-110 z-20",
-        isSwapTarget && "ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
+        isSelected && "scale-110 z-20 drop-shadow-[0_0_12px_hsl(var(--primary)/0.6)]",
+        isSwapTarget && "ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full animate-pulse",
         isInvalidTarget && "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full",
-        isNextSub && "animate-pulse",
+        isNextSub && "animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary)/0.45)]",
         isLowestMinutes && variant === "bench" && "ring-2 ring-emerald-500 ring-offset-1 ring-offset-background rounded-full",
-        readOnly && "pointer-events-none"
+        readOnly && "pointer-events-none",
+        "active:scale-95",
       )}
     >
       {/* Foul-out (red Ban) takes priority over injury (yellow triangle) */}
@@ -112,7 +114,8 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       <div className="relative">
         <Avatar
           className={cn(
-            "border-2 shadow-md",
+            "border-2 shadow-md transition-shadow",
+            "drop-shadow-[0_2px_4px_hsl(var(--foreground)/0.18)]",
             variant === "court" ? "h-11 w-11" : "h-10 w-10",
             fouled ? "border-destructive opacity-70" : (colors?.border ?? "border-border")
           )}
