@@ -323,7 +323,6 @@ export default function BasketballBoard({
           </Popover>
         )}
         <SyncStatusIndicator />
-        <CuesToggle />
       </header>
 
       {/* ── ROW 2: Hero timer (period • clock • play • menu) ── */}
@@ -338,7 +337,9 @@ export default function BasketballBoard({
         />
       </div>
 
-      {/* ── ROW 3: Hero scoreboard (tap-to-score) ── */}
+      {/* ── ROW 3: Scoreboard.
+          Pre-game → compact, no controls (focus stays on lineup setup).
+          Live    → tap-to-score with +1/+2/+3 buttons. ── */}
       <GameScoreboard
         homeLabel={teamName}
         awayLabel={opponentName}
@@ -351,31 +352,35 @@ export default function BasketballBoard({
         onUndo={board.undoScore}
         onRenameAway={board.setOpponentName}
         canUndo={(board.timerState.scoreLog?.length ?? 0) > 0}
+        compact={isPreGame}
       />
 
-      {/* ── ROW 4: Collapsed quarter breakdown — minimised by default ── */}
-      <Collapsible open={scoreBreakdownOpen} onOpenChange={setScoreBreakdownOpen}>
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex items-center justify-between w-full px-3 py-1 border-b bg-muted/20 text-[10px] font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
-            aria-expanded={scoreBreakdownOpen}
-          >
-            <span className="uppercase tracking-wide">Score by period</span>
-            {scoreBreakdownOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <QuarterScoreStrip
-            scoreLog={board.timerState.scoreLog}
-            currentQuarter={board.timerState.currentQuarter}
-            periodType={board.timerState.periodType ?? "quarters"}
-          />
-        </CollapsibleContent>
-      </Collapsible>
+      {/* ── ROW 4: Quarter breakdown — only meaningful once scoring has begun.
+          Hidden entirely pre-game; collapsed by default once live. ── */}
+      {!isPreGame && (
+        <Collapsible open={scoreBreakdownOpen} onOpenChange={setScoreBreakdownOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center justify-between w-full px-3 py-1 border-b bg-muted/20 text-[10px] font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
+              aria-expanded={scoreBreakdownOpen}
+            >
+              <span className="uppercase tracking-wide">Score by period</span>
+              {scoreBreakdownOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <QuarterScoreStrip
+              scoreLog={board.timerState.scoreLog}
+              currentQuarter={board.timerState.currentQuarter}
+              periodType={board.timerState.periodType ?? "quarters"}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
-      {/* ── ROW 5: Action bar — contextual primary CTA + kebab.
-          Auto-hides while the game is live to keep the court the focus. ── */}
+      {/* ── ROW 5: Action bar — pre-game only.
+          Auto-hides while live so the court owns the screen. ── */}
       <BasketballActionBar
         onOpenSettings={() => setSettingsOpen(true)}
         onToggleCourtView={board.toggleCourtView}
@@ -387,29 +392,37 @@ export default function BasketballBoard({
         isLive={isLive}
       />
 
-      {/* ── ROW 6: Inline lineup hint — only before tipoff & when not set ── */}
-      {!readOnly &&
-        !isLive &&
-        !lineupSet &&
-        board.timerState.currentQuarter === 1 &&
-        board.timerState.elapsedSeconds === 0 &&
-        !board.timerState.isGameFinished && (
-          <div className="px-3 py-2 border-b bg-primary/5 text-xs text-foreground flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">
-              Tap a court slot to assign a player, or use{" "}
-              <button
-                type="button"
-                onClick={() => setPresetsOpen(true)}
-                className="text-primary font-medium underline-offset-2 hover:underline"
-              >
-                lineup presets
-              </button>
-              .
+      {/* ── ROW 6: Inline "Starting 5" status card — pre-game only.
+          Shows progress + a single CTA to open presets. Disappears once
+          5 are placed or the game is live. ── */}
+      {!readOnly && isPreGame && !lineupSet && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-card">
+          <div className="flex flex-col leading-tight min-w-0">
+            <span className="text-xs font-semibold text-foreground">
+              Starting 5
+              <span className="ml-1.5 text-muted-foreground tabular-nums font-normal">
+                {onCourtCount}/5
+              </span>
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              Tap a court slot to assign a player.
             </span>
           </div>
-        )}
+          {board.lineupPresets.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => setPresetsOpen(true)}
+            >
+              Presets
+            </Button>
+          )}
+        </div>
+      )}
 
-      {!readOnly && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
+      {/* Auto-sub status — live only. Setup-time controls live in the kebab. */}
+      {!readOnly && isLive && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
         <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
           <span className="text-[11px] text-muted-foreground">
             Auto-subs: {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
