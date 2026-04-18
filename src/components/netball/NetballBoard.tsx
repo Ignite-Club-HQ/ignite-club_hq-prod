@@ -58,7 +58,7 @@ import {
   transitionPosition,
 } from "./netballHelpers";
 import { useNetballGameSync } from "@/hooks/useNetballGameSync";
-import { visiblePeriods, totalElapsedSeconds } from "@/lib/periodTypes";
+import { visiblePeriods, totalElapsedSeconds, periodLabel } from "@/lib/periodTypes";
 import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX, CENTRE_PASS_LOG_MAX } from "@/lib/gameLogLimits";
 
 // Lazy-load secondary dialogs
@@ -995,9 +995,9 @@ export default function NetballBoard({
 
   const applyNextLineupNow = () => {
     const nextQ = timerState.currentQuarter;
+    const label = periodLabel(nextQ, timerState.periodType);
     const lineup = quarterLineups.find((l) => l.quarter === nextQ);
     if (!lineup || Object.keys(lineup.assignments).length === 0) {
-      const label = periodLabel(nextQ, timerState.periodType);
       toast({
         title: "No lineup planned",
         description: `Open the Lineup Planner to set up ${label}.`,

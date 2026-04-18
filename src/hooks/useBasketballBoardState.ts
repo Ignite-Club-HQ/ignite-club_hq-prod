@@ -32,7 +32,7 @@ import {
 import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
 import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
 import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
-import { visiblePeriods } from "@/lib/periodTypes";
+import { visiblePeriods, periodLabel } from "@/lib/periodTypes";
 import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX } from "@/lib/gameLogLimits";
 
 interface Member {
@@ -815,9 +815,9 @@ export function useBasketballBoardState({
 
   const applyNextLineupNow = useCallback(() => {
     const nextQ = timerState.currentQuarter;
+    const label = periodLabel(nextQ, timerState.periodType);
     const lineup = quarterLineups.find((l) => l.quarter === nextQ);
     if (!lineup || Object.keys(lineup.assignments).length === 0) {
-      const label = periodLabel(nextQ, timerState.periodType);
       toast({
         title: "No lineup planned",
         description: `Open the Lineup Planner to set up ${label}.`,
@@ -827,7 +827,7 @@ export function useBasketballBoardState({
     }
     setPlayers((prev) => applyLineup(prev, lineup));
     toast({ title: `${label} lineup applied` });
-  }, [quarterLineups, timerState.currentQuarter, toast]);
+  }, [quarterLineups, timerState.currentQuarter, timerState.periodType, toast]);
 
   const applyPreset = useCallback(
     (preset: BasketballLineupPreset) => {
