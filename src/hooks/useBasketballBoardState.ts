@@ -97,6 +97,21 @@ export function useBasketballBoardState({
       };
     });
   };
+
+  // ---------- Core state ----------
+  const [players, setPlayers] = useState<BasketballPlayer[]>(buildInitialPlayers);
+
+  // Hydrate squad once members arrive (the parent fetch is async, so on first
+  // mount `members` is often empty — without this effect the roster dialog
+  // would stay empty forever).
+  useEffect(() => {
+    if (players.length > 0) return;
+    if (!members || members.length === 0) return;
+    if (savedStateRef.current?.players?.length) return;
+    setPlayers(buildInitialPlayers());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members]);
+
   const [rotationMode, setRotationMode] = useState<RotationMode>(
     savedStateRef.current?.rotationMode ?? "off"
   );
