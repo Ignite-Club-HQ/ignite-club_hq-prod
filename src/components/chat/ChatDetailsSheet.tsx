@@ -9,6 +9,8 @@ import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
+  SheetTitle,
 } from "@/components/ui/sheet";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { ChatParticipantsList } from "@/components/chat/ChatParticipantsList";
@@ -88,14 +90,22 @@ export function ChatDetailsSheet({
         <SheetContent
           side={isMobile ? "bottom" : "right"}
           className={cn(
-            "flex flex-col p-0 gap-0",
+            "flex min-h-0 flex-col overflow-hidden p-0 gap-0",
             isMobile
               ? "h-[85vh] max-h-[85vh] rounded-t-2xl"
               : "w-[400px] sm:max-w-md",
           )}
           hideCloseButton
           enableDragToClose={isMobile}
+          data-lock-keyboard-scroll="true"
+          data-allow-scroll
+          style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
         >
+          <SheetTitle className="sr-only">{name} chat details</SheetTitle>
+          <SheetDescription className="sr-only">
+            View shared media, notification settings, and participants for this conversation.
+          </SheetDescription>
+
           {/* Identity */}
           <div className="relative px-5 pt-6 pb-4 border-b">
             <Button
@@ -122,7 +132,11 @@ export function ChatDetailsSheet({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-6">
+          <div
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6"
+            data-chat-scroll-lock="true"
+            style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+          >
             {/* Context links */}
             {showContextLinks && (
               <div className="pt-3">
