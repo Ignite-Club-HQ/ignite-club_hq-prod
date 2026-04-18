@@ -53,16 +53,36 @@ export function initDeepLinkHandler() {
           }
         }
       } else if (code) {
+        // Determine the destination path so we can route password recovery
+        // to the dedicated reset page instead of exchanging the code here
+        // (the reset page needs the recovery session to call updateUser).
+        const rawPath = url.pathname || '/';
+        const isHttpLike = url.protocol === 'http:' || url.protocol === 'https:';
+        let routePath = rawPath;
+        if (!isHttpLike && url.host && !url.host.includes('.')) {
+          routePath = `/${url.host}${rawPath === '/' ? '' : rawPath}`;
+        }
+
+        const isPasswordRecovery =
+          routePath === '/reset-password' || url.host === 'reset-password';
+
+        if (isPasswordRecovery) {
+          console.log('[DeepLink] Password recovery code detected, routing to /reset-password');
+          // Preserve the code so ResetPasswordPage can exchange it
+          window.location.href = `/reset-password?code=${encodeURIComponent(code)}`;
+          return;
+        }
+
         console.log('[DeepLink] OAuth code found, exchanging for session...');
-        
+
         // Exchange the code for a session (PKCE flow)
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        
+
         if (error) {
           console.error('[DeepLink] Error exchanging code:', error);
         } else {
           console.log('[DeepLink] Code exchanged successfully, user:', data.user?.id);
-          
+
           // Navigate to home after successful auth
           window.location.href = '/';
         }
