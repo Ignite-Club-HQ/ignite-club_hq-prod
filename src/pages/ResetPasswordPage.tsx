@@ -44,14 +44,62 @@ export default function ResetPasswordPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if we have a valid recovery session
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError("Invalid or expired reset link. Please request a new password reset.");
+    let cancelled = false;
+
+    const establishRecoverySession = async () => {
+      try {
+        // Case 1: PKCE flow — Supabase puts ?code=... in the URL search params
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+        const errorDescription =
+          url.searchParams.get("error_description") ||
+          new URLSearchParams(url.hash.replace(/^#/, "")).get("error_description");
+
+        if (errorDescription) {
+          if (!cancelled) setError(decodeURIComponent(errorDescription));
+          return;
+        }
+
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error("[ResetPassword] exchangeCodeForSession error:", exchangeError);
+            if (!cancelled) {
+              setError("Invalid or expired reset link. Please request a new password reset.");
+            }
+            return;
+          }
+          // Clean the URL so a refresh doesn't try to re-exchange the code
+          window.history.replaceState({}, document.title, "/reset-password");
+        }
+
+        // Case 2: implicit/hash flow — Supabase auto-detects via detectSessionInUrl.
+        // Give it a brief moment, then verify a session exists.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session && !cancelled) {
+          setError("Invalid or expired reset link. Please request a new password reset.");
+        }
+      } catch (err) {
+        console.error("[ResetPassword] session setup failed:", err);
+        if (!cancelled) {
+          setError("Invalid or expired reset link. Please request a new password reset.");
+        }
       }
     };
-    checkSession();
+
+    establishRecoverySession();
+
+    // Also listen for PASSWORD_RECOVERY in case the SDK fires it after our check
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY" && !cancelled) {
+        setError(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleResetPassword = async () => {
