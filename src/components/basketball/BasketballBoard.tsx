@@ -340,13 +340,8 @@ export default function BasketballBoard({
 
       {!readOnly && (
         <BasketballActionBar
-          onOpenSquad={() => setRosterOpen(true)}
-          onOpenLineups={() => setLineupPlannerOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
-          onOpenPresets={() => setPresetsOpen(true)}
-          onApplyLineup={board.applyNextLineupNow}
           onToggleCourtView={board.toggleCourtView}
-          currentQuarter={board.timerState.currentQuarter}
           rotationMode={board.rotationMode}
           rotationIntervalMinutes={board.rotationIntervalMinutes}
           courtView={board.courtView}
@@ -478,6 +473,11 @@ export default function BasketballBoard({
               board.setPeriodType(p);
               persistDefaults({ court_period_type: p });
             }}
+            onOpenSquad={() => setRosterOpen(true)}
+            onOpenLineups={() => setLineupPlannerOpen(true)}
+            onOpenPresets={() => setPresetsOpen(true)}
+            onApplyLineup={board.applyNextLineupNow}
+            currentQuarter={board.timerState.currentQuarter}
           />
         )}
         {lineupPlannerOpen && (
