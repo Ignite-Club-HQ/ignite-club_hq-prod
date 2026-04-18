@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trophy, Download, Share2, Star, Save, Check, Loader2 } from "lucide-react";
+import { Trophy, Download, Share2, Star, Save, Check, Loader2, Crown, Clock, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -104,6 +104,30 @@ export default function GameSummaryDialog({
     () => players.find((p) => p.id === mvpPlayerId) ?? null,
     [players, mvpPlayerId]
   );
+
+  // Quick-glance "podium" — surfaces the standout performances so coaches don't
+  // have to scan the full table to find who shone. Each callout is omitted if
+  // the underlying stat is zero / not tracked.
+  const standouts = useMemo(() => {
+    if (players.length === 0) return null;
+    const topScorer =
+      sport === "basketball"
+        ? [...players]
+            .filter((p) => (p.points ?? 0) > 0)
+            .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))[0] ?? null
+        : null;
+    const mostMinutes =
+      [...players]
+        .filter((p) => p.secondsPlayed > 0)
+        .sort((a, b) => b.secondsPlayed - a.secondsPlayed)[0] ?? null;
+    const mostFouls =
+      sport === "basketball"
+        ? [...players]
+            .filter((p) => (p.fouls ?? 0) > 0)
+            .sort((a, b) => (b.fouls ?? 0) - (a.fouls ?? 0))[0] ?? null
+        : null;
+    return { topScorer, mostMinutes, mostFouls };
+  }, [players, sport]);
 
   const renderToCanvas = async (): Promise<HTMLCanvasElement> => {
     // Render the visible card via html-to-image; loaded lazily so the dialog
