@@ -103,7 +103,7 @@ const GameScoreboard = memo(function GameScoreboard({
       <span className="text-2xl font-light text-muted-foreground/60 px-1">—</span>
 
       {/* AWAY */}
-      <div className="flex flex-col items-start min-w-0 gap-0.5">
+      <div className="flex flex-col items-center min-w-0 gap-0.5">
         <div className="flex items-center gap-1 max-w-full">
           <span
             className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate"
