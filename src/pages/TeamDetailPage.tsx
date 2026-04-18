@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy, Eye, Radio } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
@@ -505,9 +505,31 @@ export default function TeamDetailPage() {
     enabled: !!linkedEventId && !!user && !canEditPitchBoard,
   });
 
-  // Fetch pending invites for this team
-  const { data: pendingInvites = [] } = useQuery({
-    queryKey: ["pending-invites", id, null],
+  // Detect a live game for this team so we can show a "Watch Live" entry
+  // point to all team members (parents/players included). Polls every 30s
+  // because the coach's sync also updates `active_games.updated_at` regularly
+  // — that's the cheapest reliable signal without subscribing on every
+  // team page load.
+  const { data: activeGame } = useQuery({
+    queryKey: ["team-active-game", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("active_games")
+        .select("id, updated_at, pitch_state")
+        .eq("team_id", id!)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!id && (isMember || isClubAdmin),
+    refetchInterval: 30000,
+    staleTime: 15000,
+  });
+  const liveSport = (activeGame?.pitch_state as { sport?: string } | null)?.sport ?? null;
+  const showWatchLive =
+    !!activeGame && (liveSport === "basketball" || liveSport === "netball") && !showPitchBoard;
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
