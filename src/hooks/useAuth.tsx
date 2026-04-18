@@ -450,7 +450,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null);
         currentUserIdRef.current = incomingUserId;
         
-        if (event === 'SIGNED_IN') {
+        if (event === 'PASSWORD_RECOVERY') {
+          // Recovery session: do NOT treat as a fresh login (no cache clear,
+          // no profile fetch redirect). Just hold the session and ensure the
+          // user is on /reset-password so they can set a new password.
+          console.log('[Auth] PASSWORD_RECOVERY event - routing to reset password');
+          handleSession(currentSession, false, false);
+          if (typeof window !== 'undefined' && window.location.pathname !== '/reset-password') {
+            window.location.href = '/reset-password';
+          }
+        } else if (event === 'SIGNED_IN') {
           const isSameUserResuming = !!previousUserId && previousUserId === incomingUserId;
           
           if (isSameUserResuming) {
@@ -461,15 +470,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             // FRESH LOGIN or different user: Reset state to block AppLayout until profile is fetched
             console.log('[Auth] SIGNED_IN event - processing login', isNative ? '(native app)' : '(web)');
-            // Clear all cached query data to force fresh fetches with the new session
-            // This prevents stale/empty RLS results from a previous logged-out window
-            queryClient.clear();
-            setIsFreshLogin(true);
-            setInitialized(false);
-            setLoading(true);
-            setProfileLoading(true);
-            setProfileResolved(false);
-            handleSession(currentSession, false, true);
+            // If we're on the reset password page, this SIGNED_IN is from the
+            // recovery code exchange — do NOT redirect away or clear cache
+            // aggressively, the user still needs to set their new password.
+            const onResetPage = typeof window !== 'undefined' && window.location.pathname === '/reset-password';
+            if (onResetPage) {
+              console.log('[Auth] SIGNED_IN on /reset-password — treating as recovery, skipping cache clear');
+              handleSession(currentSession, false, false);
+            } else {
+              // Clear all cached query data to force fresh fetches with the new session
+              // This prevents stale/empty RLS results from a previous logged-out window
+              queryClient.clear();
+              setIsFreshLogin(true);
+              setInitialized(false);
+              setLoading(true);
+              setProfileLoading(true);
+              setProfileResolved(false);
+              handleSession(currentSession, false, true);
+            }
           }
         } else if ((event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && currentSession?.user) {
           // Page refresh or token refresh - don't override theme

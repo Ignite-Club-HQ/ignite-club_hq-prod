@@ -12,7 +12,15 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Capacitor } from "@capacitor/core";
 import { z } from "zod";
+
+// Always use the public web domain for password reset redirects.
+// On native, window.location.origin returns capacitor://localhost which
+// Supabase rejects, and even on web previews the domain may not match
+// the user's original device. Universal Links + deep link handler route
+// the resulting /reset-password URL back into the native app when installed.
+const RESET_PASSWORD_REDIRECT = "https://igniteclubhq.app/reset-password";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 
@@ -44,21 +52,26 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
     }
 
     setLoading(true);
-    
+
+    // Use the public web domain so the link works regardless of which
+    // device/browser opens the email. Native apps will intercept via
+    // Universal Links / deep-link handler.
+    const redirectTo = Capacitor.isNativePlatform()
+      ? RESET_PASSWORD_REDIRECT
+      : `${window.location.origin}/reset-password`;
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo,
     });
 
     setLoading(false);
 
+    // Always show the same success state to avoid leaking which emails
+    // are registered (email enumeration protection).
     if (error) {
-      toast({
-        title: "Unable to send reset email",
-        description: error.message,
-      });
-    } else {
-      setSent(true);
+      console.error("[ForgotPassword] resetPasswordForEmail error:", error);
     }
+    setSent(true);
   };
 
   const handleClose = () => {
