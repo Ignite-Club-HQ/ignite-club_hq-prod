@@ -872,6 +872,8 @@ export default function NetballBoard({
         id: p.id,
         name: p.name,
         secondsPlayed: p.minutesPlayed ?? 0,
+        // Surface attributable goals as `points` so GameSummaryDialog renders them.
+        points: p.goals ?? 0,
         isInjured: !!p.isInjured,
         finalPosition: p.position ?? null,
       })),
@@ -1235,6 +1237,7 @@ export default function NetballBoard({
             onSubOff={() => subOff(quickActionPlayer.id)}
             onSubOn={() => setSelectedPlayerId(quickActionPlayer.id)}
             onToggleInjured={() => toggleInjured(quickActionPlayer.id)}
+            onScore={() => addScore("home", 1, quickActionPlayer.id)}
           />
         )}
         {summaryOpen && (
