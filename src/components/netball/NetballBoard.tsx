@@ -57,7 +57,7 @@ import {
   transitionPosition,
 } from "./netballHelpers";
 import { useNetballGameSync } from "@/hooks/useNetballGameSync";
-import { visiblePeriods } from "@/lib/periodTypes";
+import { visiblePeriods, totalElapsedSeconds } from "@/lib/periodTypes";
 import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX, CENTRE_PASS_LOG_MAX } from "@/lib/gameLogLimits";
 
 // Lazy-load secondary dialogs
