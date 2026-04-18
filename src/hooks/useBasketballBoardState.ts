@@ -47,6 +47,20 @@ interface UseBasketballBoardStateArgs {
   /** When provided, board state is scoped per-event so multiple matches
    *  on the same team don't share/overwrite state. */
   eventId?: string | null;
+  /**
+   * Spectator-mode override. When provided, the hook ignores localStorage and
+   * mirrors the incoming `players` + `timerState` snapshot from the coach's
+   * device. Caller is responsible for also setting `readOnly: true`.
+   */
+  spectatorState?: {
+    players: BasketballPlayer[] | null;
+    timerState: BasketballTimerState | null;
+    rotationMode?: RotationMode;
+    rotationIntervalMinutes?: number;
+    validationMode?: ValidationMode;
+    autoSubPlan?: BasketballSubEvent[];
+    quarterLineups?: QuarterLineup[];
+  } | null;
 }
 
 /**
@@ -59,6 +73,7 @@ export function useBasketballBoardState({
   readOnly,
   initialMinutesPerQuarter,
   eventId = null,
+  spectatorState = null,
 }: UseBasketballBoardStateArgs) {
   const { toast } = useToast();
   const stateKey = getBasketballStateKey(teamId, eventId);
