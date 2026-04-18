@@ -199,6 +199,7 @@ export default function BasketballBoard({
           <h1 className="font-bold text-sm truncate">{teamName}</h1>
           <p className="text-[10px] text-muted-foreground">Basketball Game Board</p>
         </div>
+        <SyncStatusIndicator />
         <CuesToggle />
         <BasketballQuarterTimer
           state={board.timerState}
@@ -208,6 +209,20 @@ export default function BasketballBoard({
           readOnly={readOnly}
         />
       </header>
+
+      {/* Linked event header (link/unlink a scheduled match). */}
+      <LinkedEventHeader
+        eventId={linkedEventId || ""}
+        teamId={teamId}
+        teamName={teamName}
+        compact
+        onLinkEvent={readOnly ? undefined : setLinkedEventId}
+        currentScore={{
+          team: board.timerState.homeScore ?? 0,
+          opponent: board.timerState.awayScore ?? 0,
+        }}
+        isGameInProgress={!!board.timerState.isRunning && !board.timerState.isGameFinished}
+      />
 
       <GameScoreboard
         homeLabel={teamName}
