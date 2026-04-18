@@ -15,7 +15,7 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
-import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 
@@ -1043,9 +1043,6 @@ export default function DirectMessagePage() {
             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
               <Search className="h-4 w-4" />
             </Button>
-            {!isIgniteSupportConversation && (
-              <ChatMuteButton chatType="dm" chatId={conversationId!} />
-            )}
             <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
           </>
         }
