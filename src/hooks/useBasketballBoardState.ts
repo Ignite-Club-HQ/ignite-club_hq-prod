@@ -637,14 +637,17 @@ export function useBasketballBoardState({
         generateTimeBasedRotationPlan(
           players,
           rotationIntervalMinutes,
-          timerState.minutesPerQuarter
+          timerState.minutesPerQuarter,
+          timerState.periodType ?? "quarters"
         )
       );
     } else if (rotationMode === "quarter-break") {
-      setAutoSubPlan(generateQuarterBreakRotationPlan(players, 3));
+      setAutoSubPlan(
+        generateQuarterBreakRotationPlan(players, 3, timerState.periodType ?? "quarters")
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, rosterSignature]);
+  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, rosterSignature]);
 
   // ---------- Auto-sub control panel handlers ----------
   /** Execute the next due (or upcoming) sub immediately, regardless of clock. */
@@ -709,13 +712,13 @@ export function useBasketballBoardState({
     }
     const fresh =
       rotationMode === "time-based"
-        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter)
-        : generateQuarterBreakRotationPlan(players, 3);
+        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
+        : generateQuarterBreakRotationPlan(players, 3, timerState.periodType ?? "quarters");
     // Preserve the historical record of executed subs so the timeline still shows them.
     const executed = autoSubPlan.filter((s) => s.executed);
     setAutoSubPlan([...executed, ...fresh.filter((f) => !executed.some((e) => e.quarter === f.quarter && e.time === f.time && e.playerOut.id === f.playerOut.id))]);
     toast({ title: "Plan regenerated" });
-  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, autoSubPlan, toast]);
+  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, autoSubPlan, toast]);
 
 
   // ---------- Derived ----------
