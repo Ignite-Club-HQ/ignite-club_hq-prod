@@ -17,6 +17,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { useIsUserOnline } from "@/hooks/useUserPresence";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 
 import { toast } from "sonner";
