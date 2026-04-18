@@ -6574,6 +6574,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_presence: {
+        Row: {
+          last_seen_at: string
+          platform: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          last_seen_at?: string
+          platform?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          last_seen_at?: string
+          platform?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           club_id: string | null
@@ -7454,6 +7478,10 @@ export type Database = {
         Returns: boolean
       }
       hash_email: { Args: { email: string }; Returns: string }
+      heartbeat_presence: {
+        Args: { _platform?: string; _user_agent?: string }
+        Returns: undefined
+      }
       increment_child_ignite_points: {
         Args: { _amount: number; _child_id: string }
         Returns: number
