@@ -97,6 +97,9 @@ export function ChatDetailsSheet({
           )}
           hideCloseButton
           enableDragToClose={isMobile}
+          data-lock-keyboard-scroll="true"
+          data-allow-scroll
+          style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
         >
           <SheetTitle className="sr-only">{name} chat details</SheetTitle>
           <SheetDescription className="sr-only">
@@ -129,7 +132,11 @@ export function ChatDetailsSheet({
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6 touch-pan-y [-webkit-overflow-scrolling:touch]">
+          <div
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6"
+            data-chat-scroll-lock="true"
+            style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+          >
             {/* Context links */}
             {showContextLinks && (
               <div className="pt-3">
@@ -217,7 +224,7 @@ export function ChatDetailsSheet({
                   groupAllowedRoles={groupAllowedRoles}
                   enabled={open}
                   onBeforeNavigate={close}
-                  inline
+                  scrollClassName="max-h-[45vh]"
                 />
               </Section>
             )}
