@@ -1197,6 +1197,37 @@ export default function TeamDetailPage() {
         <TeamNextEventCard teamId={id!} clubId={team.club_id} />
       )}
 
+      {/* Watch Live banner — shown to ALL team members when a coach is running
+          a basketball/netball board. Read-only spectator view; no controls. */}
+      {isMember && showWatchLive && (
+        <Link
+          to={`/watch/team/${team.id}`}
+          aria-label="Watch live game"
+          className="block"
+        >
+          <Card className="border-primary/30 bg-primary/[0.05] hover:border-primary/50 transition-colors" role="button">
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/15 relative">
+                <Radio className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-semibold">Watch Live</span>
+                  <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-destructive/40 text-destructive">
+                    LIVE
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground capitalize">
+                  {liveSport} game in progress
+                </p>
+              </div>
+              <Eye className="h-4 w-4 text-primary shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+      )}
+
       {/* Primary Actions - Chat & Schedule */}
       {isMember && (
         <div className="space-y-2">
