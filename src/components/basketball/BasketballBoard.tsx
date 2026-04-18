@@ -259,147 +259,87 @@ export default function BasketballBoard({
   const [draftOpponent, setDraftOpponent] = useState(opponentName);
   const [gameDetailsOpen, setGameDetailsOpen] = useState(false);
 
-  return (
-    <div className="flex flex-col h-full bg-background overflow-y-auto">
-      {/* ── ROW 1: Minimal header — back, matchup, sync ── */}
-      <header className="flex items-center gap-2 px-2 py-2 border-b bg-card sticky top-0 z-20">
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0 h-9 w-9">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1 min-w-0 text-center">
-          <h1 className="font-bold text-sm truncate leading-tight">
-            <span className="text-foreground">{teamName}</span>
-            <span className="text-muted-foreground mx-1.5 font-normal">vs</span>
-            <span className="text-foreground">{opponentName}</span>
-          </h1>
-        </div>
-        {!readOnly && (
-          <Popover
-            open={opponentEditOpen}
-            onOpenChange={(o) => {
-              setOpponentEditOpen(o);
-              if (o) setDraftOpponent(opponentName);
-            }}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 flex-shrink-0"
-                aria-label="Edit opponent"
-              >
-                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-60 p-2" align="end">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Opponent name
-                </label>
-                <Input
-                  value={draftOpponent}
-                  onChange={(e) => setDraftOpponent(e.target.value)}
-                  placeholder="Opponent"
-                  maxLength={24}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      board.setOpponentName(draftOpponent.trim() || "Opponent");
-                      setOpponentEditOpen(false);
-                    }
-                  }}
-                />
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    board.setOpponentName(draftOpponent.trim() || "Opponent");
-                    setOpponentEditOpen(false);
-                  }}
-                >
-                  Save
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        )}
-        <SyncStatusIndicator />
-      </header>
-
-      {/* ── ROW 2: Hero timer (period • clock • play • menu) ── */}
-      <div className="border-b">
-        <BasketballQuarterTimer
-          state={board.timerState}
-          onChange={board.setTimerState}
-          onTick={board.handleTick}
-          onQuarterEnd={board.handleQuarterEnd}
-          onReset={board.resetPlayerStats}
+  // ── PRE-GAME ─────────────────────────────────────────────────────
+  // Replace the live UI with a focused checklist screen until the coach
+  // taps "Start Game". No timer, no scoreboard, no setup CTAs leaking
+  // into a running match.
+  if (isPreGame) {
+    return (
+      <>
+        <BasketballPreGameScreen
+          teamName={teamName}
+          opponentName={opponentName}
+          players={board.players}
+          bench={board.bench}
+          selectedPlayerId={board.selectedPlayerId}
+          courtView={board.courtView}
+          onPlayerClick={board.handlePlayerClick}
+          onSlotClick={board.handleSlotClick}
+          minutesPerQuarter={board.timerState.minutesPerQuarter}
+          periodType={board.timerState.periodType ?? "quarters"}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSquad={() => setRosterOpen(true)}
+          onOpenPresets={() => setPresetsOpen(true)}
+          hasPresets={board.lineupPresets.length > 0}
+          onStartGame={() =>
+            board.setTimerState((s) => ({
+              ...s,
+              isRunning: true,
+              lastUpdateTime: Date.now(),
+            }))
+          }
+          onBack={onClose}
           readOnly={readOnly}
         />
-      </div>
 
-      {/* ── ROW 3: Scoreboard.
-          Pre-game → compact, no controls (focus stays on lineup setup).
-          Live    → tap-to-score with +1/+2/+3 buttons. ── */}
-      <GameScoreboard
-        homeLabel={teamName}
-        awayLabel={opponentName}
-        homeScore={board.timerState.homeScore ?? 0}
-        awayScore={board.timerState.awayScore ?? 0}
-        increments={[1, 2, 3]}
-        readOnly={readOnly}
-        disabled={!!board.timerState.isGameFinished}
-        onScore={board.addScore}
-        onUndo={board.undoScore}
-        onRenameAway={board.setOpponentName}
-        canUndo={(board.timerState.scoreLog?.length ?? 0) > 0}
-        compact={isPreGame}
-      />
-
-      {/* Score by period moved into "Game details" drawer — keeps the live
-          view clean (only timer • score • court • bench above the fold). */}
-
-      {/* ── ROW 5: Action bar — pre-game only.
-          Auto-hides the moment the game starts so the court owns the screen. ── */}
-      {!gameInProgress && (
-        <BasketballActionBar
-          onOpenSettings={() => setSettingsOpen(true)}
-          onToggleCourtView={board.toggleCourtView}
-          onOpenLineup={() => setLineupPlannerOpen(true)}
-          rotationMode={board.rotationMode}
-          rotationIntervalMinutes={board.rotationIntervalMinutes}
-          courtView={board.courtView}
-          onCourtCount={onCourtCount}
-          isLive={false}
-        />
-      )}
-
-      {/* ── ROW 6: Inline "Starting 5" status card — pre-game only.
-          Hidden the moment the game starts (even when paused mid-game). ── */}
-      {!readOnly && !gameInProgress && !lineupSet && (
-        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-card">
-          <div className="flex flex-col leading-tight min-w-0">
-            <span className="text-xs font-semibold text-foreground">
-              Starting 5
-              <span className="ml-1.5 text-muted-foreground tabular-nums font-normal">
-                {onCourtCount}/5
-              </span>
-            </span>
-            <span className="text-[10px] text-muted-foreground">
-              Tap a court slot to assign a player.
-            </span>
-          </div>
-          {board.lineupPresets.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={() => setPresetsOpen(true)}
-            >
-              Presets
-            </Button>
+        <Suspense fallback={<DialogLoader />}>
+          {settingsOpen && (
+            <BasketballGameSettingsDialog
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              periodType={board.timerState.periodType ?? "quarters"}
+              onPeriodTypeChange={(p) => {
+                board.setPeriodType(p);
+                persistDefaults({ court_period_type: p });
+              }}
+              minutesPerQuarter={board.timerState.minutesPerQuarter}
+              onMinutesPerQuarterChange={(n) => {
+                board.setTimerState((s) => ({
+                  ...s,
+                  minutesPerQuarter: n,
+                  lastUpdateTime: Date.now(),
+                }));
+                persistDefaults({ court_minutes_per_quarter: n });
+              }}
+            />
           )}
-        </div>
-      )}
+          {rosterOpen && (
+            <BasketballRosterDialog
+              open={rosterOpen}
+              onOpenChange={setRosterOpen}
+              players={board.players}
+              onSave={board.setPlayers}
+            />
+          )}
+          {presetsOpen && (
+            <BasketballLineupPresetsDialog
+              open={presetsOpen}
+              onOpenChange={setPresetsOpen}
+              players={board.players}
+              presets={board.lineupPresets}
+              onSave={board.setLineupPresets}
+              onApply={board.applyPreset}
+            />
+          )}
+        </Suspense>
+      </>
+    );
+  }
+
+  // ── LIVE / FINISHED ──────────────────────────────────────────────
+  return (
+    <div className="flex flex-col h-full bg-background overflow-y-auto">
+
 
       {/* Auto-sub status — only while game is in progress. */}
       {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
