@@ -109,7 +109,7 @@ export default function NetballQuarterTimer({
   }, [state, onChange]);
 
   const reset = useCallback(() => {
-    if (!window.confirm("Reset the game? This clears the timer and the score.")) return;
+    if (!window.confirm("Reset the game? This clears the timer, score, and sub log.")) return;
     onChange({
       ...state,
       currentQuarter: 1,
@@ -119,6 +119,10 @@ export default function NetballQuarterTimer({
       homeScore: 0,
       awayScore: 0,
       scoreLog: [],
+      subLog: [],
+      centrePassLog: [],
+      centrePass: "home",
+      mvpPlayerId: null,
       lastUpdateTime: Date.now(),
     });
   }, [state, onChange]);

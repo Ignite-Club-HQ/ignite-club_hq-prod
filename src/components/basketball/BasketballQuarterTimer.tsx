@@ -107,7 +107,7 @@ export default function BasketballQuarterTimer({
   }, [state, onChange]);
 
   const reset = useCallback(() => {
-    if (!window.confirm("Reset the game? This clears the timer and the score.")) return;
+    if (!window.confirm("Reset the game? This clears the timer, score, and player stats.")) return;
     onChange({
       ...state,
       currentQuarter: 1,
@@ -117,6 +117,12 @@ export default function BasketballQuarterTimer({
       homeScore: 0,
       awayScore: 0,
       scoreLog: [],
+      // Also clear sub log + per-half timeouts so a true reset starts clean.
+      subLog: [],
+      homeTimeoutsRemaining: state.timeoutsPerHalf ?? 3,
+      awayTimeoutsRemaining: state.timeoutsPerHalf ?? 3,
+      timeoutsHalfTracked: 1,
+      mvpPlayerId: null,
       lastUpdateTime: Date.now(),
     });
   }, [state, onChange]);
