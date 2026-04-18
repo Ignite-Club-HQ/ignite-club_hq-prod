@@ -18,6 +18,8 @@ interface BasketballCourtAreaProps {
   nextSubOutId?: string | null;
   readOnly?: boolean;
   courtView?: BasketballCourtView;
+  /** When true, empty position slots render nothing (used in live mode after tip-off). */
+  hideEmptySlots?: boolean;
   onPlayerClick: (playerId: string) => void;
   onSlotClick: (position: BasketballPosition) => void;
 }
@@ -32,6 +34,7 @@ export default function BasketballCourtArea({
   nextSubOutId,
   readOnly = false,
   courtView = "half",
+  hideEmptySlots = false,
   onPlayerClick,
   onSlotClick,
 }: BasketballCourtAreaProps) {
@@ -69,7 +72,7 @@ export default function BasketballCourtArea({
                   onClick={() => onPlayerClick(player.id)}
                   readOnly={readOnly}
                 />
-              ) : (
+              ) : hideEmptySlots ? null : (
                 <button
                   type="button"
                   onClick={() => onSlotClick(pos)}

@@ -1,31 +1,16 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronDown, ChevronUp, Loader2, Pencil, Repeat, Trophy, Undo2 } from "lucide-react";
+import { ArrowLeft, Loader2, Repeat, Trophy, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { LinkedEventHeader } from "@/components/pitch/LinkedEventHeader";
 import { SyncStatusIndicator } from "@/components/pitch/SyncStatusIndicator";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
 
 import BasketballQuarterTimer from "./BasketballQuarterTimer";
 import BasketballCourtArea from "./BasketballCourtArea";
 import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
 import BasketballPreGameScreen from "./BasketballPreGameScreen";
-import GameScoreboard from "@/components/scoreboard/GameScoreboard";
-import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
-import TimeoutsPanel from "@/components/scoreboard/TimeoutsPanel";
-import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
-import MomentumStrip from "@/components/scoreboard/MomentumStrip";
-import FoulFatigueWatchlist from "@/components/scoreboard/FoulFatigueWatchlist";
-import SmartSubSuggestion from "@/components/scoreboard/SmartSubSuggestion";
-import CuesToggle from "@/components/scoreboard/CuesToggle";
+import LiveScoreboardBar from "@/components/scoreboard/LiveScoreboardBar";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
@@ -255,9 +240,6 @@ export default function BasketballBoard({
     board.timerState.isGameFinished;
   const isPreGame = !hasGameStarted;
   const gameInProgress = hasGameStarted && !board.timerState.isGameFinished;
-  const [opponentEditOpen, setOpponentEditOpen] = useState(false);
-  const [draftOpponent, setDraftOpponent] = useState(opponentName);
-  const [gameDetailsOpen, setGameDetailsOpen] = useState(false);
 
   // ── PRE-GAME ─────────────────────────────────────────────────────
   // Replace the live UI with a focused checklist screen until the coach
@@ -334,71 +316,35 @@ export default function BasketballBoard({
   }
 
   // ── LIVE / FINISHED ──────────────────────────────────────────────
+  // Strict live mode: no setup UI, no edit affordances, no collapsible
+  // "Game details". Three zones only:
+  //   TOP    — scoreboard + timer
+  //   MIDDLE — court (who is playing)
+  //   BOTTOM — bench (who comes on next)
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
-      {/* ── Header — back, matchup, sync ── */}
-      <header className="flex items-center gap-2 px-2 py-2 border-b bg-card sticky top-0 z-20">
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0 h-9 w-9">
+      {/* ── Slim header — back + matchup label only. No edit icons. ── */}
+      <header className="flex items-center gap-2 px-2 py-1.5 border-b bg-card sticky top-0 z-20">
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0 h-8 w-8">
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1 min-w-0 text-center">
-          <h1 className="font-bold text-sm truncate leading-tight">
-            <span className="text-foreground">{teamName}</span>
-            <span className="text-muted-foreground mx-1.5 font-normal">vs</span>
-            <span className="text-foreground">{opponentName}</span>
-          </h1>
-        </div>
-        {!readOnly && (
-          <Popover
-            open={opponentEditOpen}
-            onOpenChange={(o) => {
-              setOpponentEditOpen(o);
-              if (o) setDraftOpponent(opponentName);
-            }}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 flex-shrink-0"
-                aria-label="Edit opponent"
-              >
-                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-60 p-2" align="end">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium text-muted-foreground">Opponent name</label>
-                <Input
-                  value={draftOpponent}
-                  onChange={(e) => setDraftOpponent(e.target.value)}
-                  placeholder="Opponent"
-                  maxLength={24}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      board.setOpponentName(draftOpponent.trim() || "Opponent");
-                      setOpponentEditOpen(false);
-                    }
-                  }}
-                />
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    board.setOpponentName(draftOpponent.trim() || "Opponent");
-                    setOpponentEditOpen(false);
-                  }}
-                >
-                  Save
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        )}
+        <div className="flex-1" />
         <SyncStatusIndicator />
       </header>
 
-      {/* ── Hero timer ── */}
+      {/* ── DOMINANT SCOREBOARD: team — score — team ── */}
+      <LiveScoreboardBar
+        homeLabel={teamName}
+        awayLabel={opponentName}
+        homeScore={board.timerState.homeScore ?? 0}
+        awayScore={board.timerState.awayScore ?? 0}
+        increments={[1, 2, 3]}
+        readOnly={readOnly}
+        disabled={!!board.timerState.isGameFinished}
+        onScore={board.addScore}
+      />
+
+      {/* ── Timer row: period + huge clock + play/pause ── */}
       <div className="border-b">
         <BasketballQuarterTimer
           state={board.timerState}
@@ -409,21 +355,6 @@ export default function BasketballBoard({
           readOnly={readOnly}
         />
       </div>
-
-      {/* ── Scoreboard ── */}
-      <GameScoreboard
-        homeLabel={teamName}
-        awayLabel={opponentName}
-        homeScore={board.timerState.homeScore ?? 0}
-        awayScore={board.timerState.awayScore ?? 0}
-        increments={[1, 2, 3]}
-        readOnly={readOnly}
-        disabled={!!board.timerState.isGameFinished}
-        onScore={board.addScore}
-        onUndo={board.undoScore}
-        onRenameAway={board.setOpponentName}
-        canUndo={(board.timerState.scoreLog?.length ?? 0) > 0}
-      />
 
       {/* Auto-sub status — only while game is in progress. */}
       {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
@@ -447,18 +378,19 @@ export default function BasketballBoard({
         </div>
       )}
 
-      {/* ── COURT — the dominant interaction zone ── */}
+      {/* ── COURT — secondary but clean. No dotted placeholders mid-game. ── */}
       <BasketballCourtArea
         players={board.players}
         selectedPlayerId={board.selectedPlayerId}
         nextSubOutId={board.nextSub?.playerOut.id ?? null}
         readOnly={readOnly}
         courtView={board.courtView}
+        hideEmptySlots
         onPlayerClick={board.handlePlayerClick}
         onSlotClick={board.handleSlotClick}
       />
 
-      {/* ── BENCH ── */}
+      {/* ── BENCH — tap to sub. Lowest-minutes player is highlighted as "next up". ── */}
       <BasketballBench
         bench={board.bench}
         selectedPlayerId={board.selectedPlayerId}
@@ -466,78 +398,6 @@ export default function BasketballBoard({
         readOnly={readOnly}
         onPlayerClick={board.handlePlayerClick}
       />
-
-      {/* ── GAME DETAILS — collapsed by default. Houses linked event,
-          timeouts, and coach insights so the live UI stays clean. ── */}
-      <Collapsible open={gameDetailsOpen} onOpenChange={setGameDetailsOpen}>
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex items-center justify-between w-full px-3 py-1.5 border-t bg-muted/10 text-[11px] font-medium text-muted-foreground/80 hover:bg-muted/30 transition-colors"
-            aria-expanded={gameDetailsOpen}
-          >
-            <span>Game details</span>
-            {gameDetailsOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <QuarterScoreStrip
-            scoreLog={board.timerState.scoreLog}
-            currentQuarter={board.timerState.currentQuarter}
-            periodType={board.timerState.periodType ?? "quarters"}
-          />
-          <LinkedEventHeader
-            eventId={linkedEventId || ""}
-            teamId={teamId}
-            teamName={teamName}
-            compact
-            onLinkEvent={readOnly ? undefined : setLinkedEventId}
-            currentScore={{
-              team: board.timerState.homeScore ?? 0,
-              opponent: board.timerState.awayScore ?? 0,
-            }}
-            isGameInProgress={isLive}
-          />
-          <TimeoutsPanel
-            homeLabel={teamName}
-            awayLabel={opponentName}
-            homeRemaining={
-              board.timerState.homeTimeoutsRemaining ?? board.timerState.timeoutsPerHalf ?? 3
-            }
-            awayRemaining={
-              board.timerState.awayTimeoutsRemaining ?? board.timerState.timeoutsPerHalf ?? 3
-            }
-            perHalf={board.timerState.timeoutsPerHalf ?? 3}
-            half={board.timerState.currentQuarter <= 2 ? 1 : 2}
-            readOnly={readOnly}
-            onCall={board.callTimeout}
-            onResetHalf={board.resetTimeoutsForCurrentHalf}
-          />
-          <BenchFairnessMeter players={board.players} elapsedSeconds={totalElapsed} />
-          <MomentumStrip scoreLog={board.timerState.scoreLog} />
-          <FoulFatigueWatchlist
-            sport="basketball"
-            players={board.players}
-            currentQuarter={board.timerState.currentQuarter}
-            totalElapsedSeconds={totalElapsed}
-            minutesPerQuarter={board.timerState.minutesPerQuarter}
-          />
-          {!readOnly && (
-            <SmartSubSuggestion
-              players={board.players}
-              totalElapsedSeconds={totalElapsed}
-              isRunning={isLive}
-              onApplySub={(outId, inId) => board.performSwap(outId, inId)}
-            />
-          )}
-          {/* Audio cues toggle — moved out of the always-visible header to
-              cut chrome. Sits with the other game-detail tools. */}
-          <div className="flex items-center justify-between px-3 py-2 border-t">
-            <span className="text-xs text-muted-foreground">Audio cues</span>
-            <CuesToggle />
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
 
       {!readOnly && (board.canUndoSub || (board.timerState.scoreLog?.length ?? 0) > 0) && (
         <div className="flex items-center justify-between gap-2 px-2 py-1 border-t bg-muted/10">
