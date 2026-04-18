@@ -44,6 +44,9 @@ import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
+import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { jumpToMessageInChat } from "@/lib/jumpToMessage";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
