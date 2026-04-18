@@ -612,7 +612,7 @@ export default function NetballBoard({
   // After every goal, the centre pass automatically flips to the OTHER side.
   // We also mark the most recent centre-pass entry for the scoring side as
   // "converted" — that's the input the win-rate panel needs.
-  const addScore = useCallback((side: "home" | "away", points: number) => {
+  const addScore = useCallback((side: "home" | "away", points: number, playerId?: string) => {
     hapticImpactLight();
     setTimerState((s) => {
       const event = {
@@ -621,6 +621,7 @@ export default function NetballBoard({
         points,
         quarter: s.currentQuarter,
         at: Date.now(),
+        playerId: side === "home" ? playerId : undefined,
       };
       const cpLog = [...(s.centrePassLog ?? [])];
       // First goal of the game? Seed the opening centre-pass entry so it can
@@ -666,6 +667,13 @@ export default function NetballBoard({
         lastUpdateTime: Date.now(),
       };
     });
+    if (side === "home" && playerId) {
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId ? { ...p, goals: (p.goals ?? 0) + points } : p
+        )
+      );
+    }
   }, []);
 
   const undoScore = useCallback(() => {
