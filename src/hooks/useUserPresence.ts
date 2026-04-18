@@ -8,6 +8,16 @@ import { supabase } from "@/integrations/supabase/client";
  * users currently have the app open. Every consumer reads from the same
  * in-memory set so we only ever maintain one channel per tab.
  *
+ * Resilience:
+ *  - Re-tracks on every SUBSCRIBED (handles reconnect after token refresh,
+ *    network blips, mobile background → foreground transitions).
+ *  - Heartbeats every 25s so stale presences are refreshed and the server
+ *    keeps the entry alive.
+ *  - Re-syncs on window focus / `online` event so foregrounding the app
+ *    immediately re-broadcasts our presence.
+ *  - On CHANNEL_ERROR / TIMED_OUT / CLOSED we tear down and re-subscribe
+ *    after a short delay.
+ *
  * Usage:
  *   const isOnline = useIsUserOnline(otherUserId);
  */
@@ -15,15 +25,18 @@ import { supabase } from "@/integrations/supabase/client";
 type Listener = (online: Set<string>) => void;
 
 const PRESENCE_CHANNEL = "app-presence";
+const HEARTBEAT_MS = 25_000;
+const RECONNECT_DELAY_MS = 2_000;
 
 let channel: ReturnType<typeof supabase.channel> | null = null;
 let onlineUsers: Set<string> = new Set();
 const listeners = new Set<Listener>();
 let currentUserId: string | null = null;
-let initPromise: Promise<void> | null = null;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let visibilityHandlerAttached = false;
 
 function notify() {
-  // Pass a fresh Set so React state comparisons work.
   const snapshot = new Set(onlineUsers);
   onlineUsers = snapshot;
   for (const l of listeners) l(snapshot);
@@ -41,10 +54,71 @@ function rebuildFromState(state: Record<string, Array<{ user_id?: string }>>) {
   notify();
 }
 
+function clearTimers() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+async function trackSelf() {
+  if (!channel || !currentUserId) return;
+  try {
+    await channel.track({
+      user_id: currentUserId,
+      online_at: new Date().toISOString(),
+    });
+  } catch {
+    /* ignore — will retry on next heartbeat or reconnect */
+  }
+}
+
+function scheduleReconnect(userId: string) {
+  if (reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    // Force tear-down then re-init
+    if (channel) {
+      try {
+        supabase.removeChannel(channel);
+      } catch {
+        /* ignore */
+      }
+      channel = null;
+    }
+    currentUserId = null; // force ensureChannel to fully re-init
+    ensureChannel(userId).catch(() => {
+      // Try again later
+      scheduleReconnect(userId);
+    });
+  }, RECONNECT_DELAY_MS);
+}
+
+function attachVisibilityHandlers() {
+  if (visibilityHandlerAttached || typeof window === "undefined") return;
+  visibilityHandlerAttached = true;
+
+  const onForeground = () => {
+    if (!currentUserId) return;
+    // Re-broadcast presence on foreground / network recovery.
+    trackSelf();
+  };
+
+  window.addEventListener("focus", onForeground);
+  window.addEventListener("online", onForeground);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") onForeground();
+  });
+}
+
 async function ensureChannel(userId: string) {
   if (channel && currentUserId === userId) return;
 
-  // Tear down any previous channel (e.g. after sign-out / user switch).
+  // Tear down any previous channel (sign-out / user switch).
   if (channel) {
     try {
       await supabase.removeChannel(channel);
@@ -56,7 +130,9 @@ async function ensureChannel(userId: string) {
     notify();
   }
 
+  clearTimers();
   currentUserId = userId;
+  attachVisibilityHandlers();
 
   const ch = supabase.channel(PRESENCE_CHANNEL, {
     config: { presence: { key: userId } },
@@ -72,20 +148,33 @@ async function ensureChannel(userId: string) {
     rebuildFromState(ch.presenceState() as any);
   });
 
-  initPromise = new Promise<void>((resolve) => {
-    ch.subscribe(async (status) => {
-      if (status === "SUBSCRIBED") {
-        await ch.track({ user_id: userId, online_at: new Date().toISOString() });
-        resolve();
-      }
-    });
+  ch.subscribe(async (status) => {
+    if (status === "SUBSCRIBED") {
+      // Always (re)track on SUBSCRIBED — this fires on initial connect AND
+      // after auto-reconnects.
+      await trackSelf();
+
+      // Start / restart heartbeat
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        trackSelf();
+      }, HEARTBEAT_MS);
+    } else if (
+      status === "CHANNEL_ERROR" ||
+      status === "TIMED_OUT" ||
+      status === "CLOSED"
+    ) {
+      // Lost the channel — clean up and try again.
+      clearTimers();
+      if (currentUserId) scheduleReconnect(currentUserId);
+    }
   });
 
   channel = ch;
-  await initPromise;
 }
 
 async function teardown() {
+  clearTimers();
   if (!channel) return;
   try {
     await channel.untrack();
@@ -109,13 +198,12 @@ export function useTrackPresence(userId: string | null | undefined) {
       teardown();
       return;
     }
-    let cancelled = false;
     ensureChannel(userId).catch(() => {
-      /* ignore; will retry on next mount */
+      // Schedule a retry — ensureChannel itself doesn't, but the SUBSCRIBE
+      // status handler will if the subscription fails.
+      scheduleReconnect(userId);
     });
     return () => {
-      if (cancelled) return;
-      cancelled = true;
       // Don't tear down on unmount — other components may still be listening.
       // The channel is torn down when the user changes or signs out.
     };
@@ -135,7 +223,6 @@ export function useIsUserOnline(userId: string | null | undefined): boolean {
     }
     const handler: Listener = (set) => setOnline(set.has(userId));
     listeners.add(handler);
-    // Sync initial value in case state changed between render and effect.
     setOnline(onlineUsers.has(userId));
     return () => {
       listeners.delete(handler);
@@ -153,8 +240,6 @@ export function useOnlineCount(
   userIds: string[] | null | undefined,
   excludeUserId?: string | null,
 ): number {
-  // Stable key so the effect doesn't re-run when the array identity changes
-  // but the contents don't.
   const key = (userIds || []).join(",") + "|" + (excludeUserId || "");
 
   const compute = (set: Set<string>): number => {
