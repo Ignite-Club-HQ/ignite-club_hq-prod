@@ -75,6 +75,20 @@ async function trackSelf() {
   } catch {
     /* ignore — will retry on next heartbeat or reconnect */
   }
+  // Persist heartbeat to DB so admins can see who is online server-side.
+  try {
+    const platform =
+      typeof window !== "undefined" && (window as any).Capacitor?.getPlatform
+        ? (window as any).Capacitor.getPlatform()
+        : "web";
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : null;
+    await supabase.rpc("heartbeat_presence" as any, {
+      _platform: platform,
+      _user_agent: ua,
+    });
+  } catch {
+    /* ignore — heartbeat is best-effort */
+  }
 }
 
 function scheduleReconnect(userId: string) {
