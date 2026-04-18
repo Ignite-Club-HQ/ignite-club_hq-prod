@@ -32,6 +32,7 @@ import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
 import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
 import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
 import { visiblePeriods } from "@/lib/periodTypes";
+import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX } from "@/lib/gameLogLimits";
 
 interface Member {
   id: string;
@@ -207,7 +208,7 @@ export function useBasketballBoardState({
           ...s,
           homeScore: (s.homeScore ?? 0) + (side === "home" ? points : 0),
           awayScore: (s.awayScore ?? 0) + (side === "away" ? points : 0),
-          scoreLog: [...(s.scoreLog ?? []), event],
+          scoreLog: trimLog([...(s.scoreLog ?? []), event], SCORE_LOG_MAX),
           lastUpdateTime: Date.now(),
         };
       });
@@ -294,16 +295,19 @@ export function useBasketballBoardState({
     (entry: Omit<SubLogEntry, "id" | "at" | "quarter" | "time">) => {
       setTimerState((s) => ({
         ...s,
-        subLog: [
-          ...(s.subLog ?? []),
-          {
-            ...entry,
-            id: crypto.randomUUID(),
-            at: Date.now(),
-            quarter: s.currentQuarter,
-            time: s.elapsedSeconds,
-          },
-        ],
+        subLog: trimLog(
+          [
+            ...(s.subLog ?? []),
+            {
+              ...entry,
+              id: crypto.randomUUID(),
+              at: Date.now(),
+              quarter: s.currentQuarter,
+              time: s.elapsedSeconds,
+            },
+          ],
+          SUB_LOG_MAX
+        ),
         lastUpdateTime: Date.now(),
       }));
     },
