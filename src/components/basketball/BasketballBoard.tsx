@@ -87,6 +87,37 @@ export default function BasketballBoard({
     attempts: 1 | 2 | 3;
   } | null>(null);
 
+  // Linked event lifecycle (mirrors soccer pitch board behaviour).
+  const [linkedEventId, setLinkedEventId] = useState<string | null>(eventId);
+  useEffect(() => {
+    setLinkedEventId(eventId);
+  }, [eventId]);
+
+  // Pull opponent + title from the linked event so the scoreboard auto-labels.
+  const { data: linkedEvent } = useQuery({
+    queryKey: ["basketball-linked-event", linkedEventId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("events")
+        .select("id, opponent, title")
+        .eq("id", linkedEventId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!linkedEventId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Default the opponent name from the linked event once, if the coach hasn't set one.
+  useEffect(() => {
+    if (!linkedEvent?.opponent) return;
+    const current = board.timerState.opponentName;
+    if (!current || current === "Opponent") {
+      board.setOpponentName(linkedEvent.opponent);
+    }
+  }, [linkedEvent?.opponent, board]);
+
   const { save: saveGameResult, saved: gameSaved } = useSaveGameResult();
 
   // Auto-open the summary the first time the game ticks over to "finished".
