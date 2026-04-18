@@ -1,31 +1,16 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronDown, ChevronUp, Loader2, Pencil, Repeat, Trophy, Undo2 } from "lucide-react";
+import { ArrowLeft, Loader2, Repeat, Trophy, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { LinkedEventHeader } from "@/components/pitch/LinkedEventHeader";
 import { SyncStatusIndicator } from "@/components/pitch/SyncStatusIndicator";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
 
 import BasketballQuarterTimer from "./BasketballQuarterTimer";
 import BasketballCourtArea from "./BasketballCourtArea";
 import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
 import BasketballPreGameScreen from "./BasketballPreGameScreen";
-import GameScoreboard from "@/components/scoreboard/GameScoreboard";
-import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
-import TimeoutsPanel from "@/components/scoreboard/TimeoutsPanel";
-import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
-import MomentumStrip from "@/components/scoreboard/MomentumStrip";
-import FoulFatigueWatchlist from "@/components/scoreboard/FoulFatigueWatchlist";
-import SmartSubSuggestion from "@/components/scoreboard/SmartSubSuggestion";
-import CuesToggle from "@/components/scoreboard/CuesToggle";
+import LiveScoreboardBar from "@/components/scoreboard/LiveScoreboardBar";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
