@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -68,14 +68,48 @@ export function useRecordPhotoView(userId: string | undefined) {
     },
   });
 
-  const recordView = (photoId: string) => {
+  const recordView = useCallback((photoId: string) => {
     if (!userId || !photoId) return;
     if (recorded.current.has(photoId)) return;
     recorded.current.add(photoId);
     mutation.mutate(photoId);
-  };
+  }, [userId, mutation]);
 
-  return { recordView };
+  /**
+   * Returns a ref callback that records a view once the element has been
+   * meaningfully visible in the viewport (>=50% for ~800ms). This catches
+   * users who scroll the feed without opening the lightbox.
+   */
+  const observeView = useCallback((photoId: string) => {
+    return (el: HTMLElement | null) => {
+      if (!el || !userId || !photoId) return;
+      if (recorded.current.has(photoId)) return;
+
+      let timer: ReturnType<typeof setTimeout> | null = null;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+              if (timer) continue;
+              timer = setTimeout(() => {
+                recordView(photoId);
+                observer.disconnect();
+              }, 800);
+            } else if (timer) {
+              clearTimeout(timer);
+              timer = null;
+            }
+          }
+        },
+        { threshold: [0, 0.5, 1] }
+      );
+
+      observer.observe(el);
+    };
+  }, [userId, recordView]);
+
+  return { recordView, observeView };
 }
 
 /**
