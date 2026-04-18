@@ -52,6 +52,28 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
     refetchInterval: 60 * 1000,
   });
 
+  // Resolve event titles referenced in the latest message so previews
+  // show the actual event name instead of a generic "Event" placeholder.
+  const referencedEventIds = extractEventIds(latestMessage?.text);
+  const eventIdsKey = referencedEventIds.join(",");
+  const { data: eventTitleMap } = useQuery({
+    queryKey: ["team-chat-preview-event-titles", eventIdsKey],
+    queryFn: async () => {
+      if (referencedEventIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("events")
+        .select("id, title")
+        .in("id", referencedEventIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((e) => {
+        if (e?.id && e?.title) map[e.id.toLowerCase()] = e.title;
+      });
+      return map;
+    },
+    enabled: referencedEventIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Get unread count
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ["team-chat-unread", teamId, user?.id],
