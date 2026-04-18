@@ -1,6 +1,13 @@
 import { useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, SkipForward, RotateCcw } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Play, Pause, SkipForward, RotateCcw, MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BasketballTimerState, Quarter } from "./types";
 import { formatTime } from "./basketballHelpers";
@@ -55,13 +62,10 @@ export default function BasketballQuarterTimer({
 
       if (newElapsed >= quarterSeconds) {
         const endingQuarter = cur.currentQuarter;
-        // Credit the final partial second of the quarter to on-court players.
         const deltaToEnd = Math.max(0, quarterSeconds - cur.elapsedSeconds);
         if (deltaToEnd > 0) {
           onTickRef.current?.(quarterSeconds, cur.currentQuarter, deltaToEnd);
         }
-        // In halves mode the visible periods are Q1 (=H1) and Q3 (=H2).
-        // Skip Q2/Q4 so the game ends after H2 (== Q3 internally).
         const periods = visiblePeriods(cur.periodType);
         const idx = periods.indexOf(cur.currentQuarter);
         const isFinalPeriod = idx === periods.length - 1;
@@ -102,8 +106,6 @@ export default function BasketballQuarterTimer({
   }, [state, onChange]);
 
   const advanceQuarter = useCallback(() => {
-    // Honour periodType so halves mode jumps Q1 → Q3 (skips slot 2). Using
-    // `currentQuarter + 1` here silently broke halves-mode pacing.
     const periods = visiblePeriods(state.periodType);
     const idx = periods.indexOf(state.currentQuarter);
     const next = periods[idx + 1];
@@ -129,7 +131,6 @@ export default function BasketballQuarterTimer({
       homeScore: 0,
       awayScore: 0,
       scoreLog: [],
-      // Also clear sub log + per-half timeouts so a true reset starts clean.
       subLog: [],
       homeTimeoutsRemaining: state.timeoutsPerHalf ?? 3,
       awayTimeoutsRemaining: state.timeoutsPerHalf ?? 3,
@@ -137,7 +138,6 @@ export default function BasketballQuarterTimer({
       mvpPlayerId: null,
       lastUpdateTime: Date.now(),
     });
-    // Tell the parent to wipe per-player stats + cached cue refs.
     onResetRef.current?.();
   }, [state, onChange]);
 
@@ -148,51 +148,67 @@ export default function BasketballQuarterTimer({
   const isFinalPeriod = periods.indexOf(state.currentQuarter) === periods.length - 1;
 
   return (
-    <div className="flex items-center gap-2 bg-card border rounded-full px-3 py-1.5 shadow-sm">
-      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
+    <div className="flex items-center justify-between gap-2 px-3 py-2 bg-card">
+      {/* Left: period pill */}
+      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary tabular-nums shrink-0">
         {periodLabel(state.currentQuarter, state.periodType)}
       </span>
-      <span
+
+      {/* Center: HERO timer */}
+      <div
         className={cn(
-          "tabular-nums font-mono font-bold text-sm min-w-[3rem] text-center",
-          lowTime && "text-destructive animate-pulse"
+          "tabular-nums font-mono font-extrabold text-3xl tracking-tight leading-none",
+          lowTime && "text-destructive animate-pulse",
+          state.isGameFinished && "text-muted-foreground"
         )}
+        aria-live="polite"
       >
         {formatTime(remaining)}
-      </span>
-      {!readOnly && (
-        <>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={toggle}
-            disabled={state.isGameFinished}
-            aria-label={state.isRunning ? "Pause" : "Start"}
-          >
-            {state.isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={advanceQuarter}
-            disabled={isFinalPeriod || state.isGameFinished}
-            aria-label="Next period"
-          >
-            <SkipForward className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={reset}
-            aria-label="Reset"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-        </>
-      )}
+      </div>
+
+      {/* Right: primary action + overflow */}
+      <div className="flex items-center gap-1 shrink-0">
+        {!readOnly && (
+          <>
+            <Button
+              size="icon"
+              variant={state.isRunning ? "secondary" : "default"}
+              className="h-10 w-10 rounded-full shadow-sm"
+              onClick={toggle}
+              disabled={state.isGameFinished}
+              aria-label={state.isRunning ? "Pause" : "Start"}
+            >
+              {state.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9"
+                  aria-label="More timer options"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-[100000]">
+                <DropdownMenuItem
+                  onClick={advanceQuarter}
+                  disabled={isFinalPeriod || state.isGameFinished}
+                >
+                  <SkipForward className="h-4 w-4 mr-2" />
+                  Next period
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={reset} className="text-destructive focus:text-destructive">
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Reset game
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
+      </div>
     </div>
   );
 }
