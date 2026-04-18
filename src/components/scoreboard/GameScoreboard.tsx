@@ -180,7 +180,7 @@ interface ScoreButtonProps {
   onScore: (points: number) => void;
   increments: number[];
   ariaLabel: string;
-  align: "left" | "right";
+  align: "left" | "right" | "center";
 }
 
 function ScoreButton({
