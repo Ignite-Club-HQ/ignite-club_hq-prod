@@ -57,6 +57,7 @@ import {
   transitionPosition,
 } from "./netballHelpers";
 import { useNetballGameSync } from "@/hooks/useNetballGameSync";
+import { useCourtSpectator } from "@/hooks/useCourtSpectator";
 
 // Lazy-load secondary dialogs
 const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
@@ -81,6 +82,12 @@ interface NetballBoardProps {
   initialMinutesPerQuarter?: number;
   /** When provided, board state is scoped to this event. */
   eventId?: string | null;
+  /**
+   * Spectator mode — polls the coach's published state and renders read-only.
+   * No notifications, no sync writes, no game-summary save. Forces `readOnly`
+   * regardless of caller's prop.
+   */
+  spectator?: boolean;
 }
 
 const DialogLoader = () => (
@@ -97,7 +104,9 @@ export default function NetballBoard({
   readOnly = false,
   initialMinutesPerQuarter = 15,
   eventId = null,
+  spectator = false,
 }: NetballBoardProps) {
+  const effectiveReadOnly = readOnly || spectator;
   const { toast } = useToast();
   const stateKey = getNetballStateKey(teamId, eventId);
   const timerKey = getNetballTimerKey(teamId, eventId);
