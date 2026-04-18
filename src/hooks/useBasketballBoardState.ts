@@ -900,7 +900,7 @@ export function useBasketballBoardState({
           return {
             ...s,
             homeScore: (s.homeScore ?? 0) + safeMade,
-            scoreLog: [...(s.scoreLog ?? []), ...events],
+            scoreLog: trimLog([...(s.scoreLog ?? []), ...events], SCORE_LOG_MAX),
             lastUpdateTime: Date.now(),
           };
         });
