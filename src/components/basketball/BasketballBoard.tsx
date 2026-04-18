@@ -10,7 +10,7 @@ import BasketballCourtArea from "./BasketballCourtArea";
 import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
 import BasketballPreGameScreen from "./BasketballPreGameScreen";
-import LiveScoreboardBar from "@/components/scoreboard/LiveScoreboardBar";
+import LiveGameHUD from "./LiveGameHUD";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
