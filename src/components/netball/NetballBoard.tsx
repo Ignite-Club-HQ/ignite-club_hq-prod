@@ -244,8 +244,12 @@ export default function NetballBoard({
   const [summaryOpen, setSummaryOpen] = useState(false);
   // Auto-sub control panel state
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
-  const [autoSubPaused, setAutoSubPaused] = useState(false);
-  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(new Set());
+  const [autoSubPaused, setAutoSubPaused] = useState(
+    savedStateRef.current?.autoSubPaused ?? false
+  );
+  const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(
+    new Set((savedStateRef.current as NetballBoardState & { lockedPlayerIds?: string[] })?.lockedPlayerIds ?? [])
+  );
   const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
   const toggleLockPlayer = useCallback((playerId: string) => {
     setLockedPlayerIds((prev) => {
