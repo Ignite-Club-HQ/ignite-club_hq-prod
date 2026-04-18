@@ -1,7 +1,10 @@
 import { ReactNode, memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hapticSelectionTick } from "@/lib/haptics";
+
+export type HUDPosition = "top" | "bottom";
 
 interface LiveGameHUDProps {
   homeLabel: string;
@@ -18,17 +21,15 @@ interface LiveGameHUDProps {
   trailingSlot?: ReactNode;
   /** Dim + disable taps when true (e.g. while dragging a player). */
   suppressed?: boolean;
+  /** Anchor the HUD to top or bottom of the court. */
+  position?: HUDPosition;
+  /** Fired when user taps the dock-toggle chip. */
+  onTogglePosition?: () => void;
 }
 
 /**
  * Floating in-game HUD overlaid on top of the court.
- *
- *   ┌──────────────────────────────────────────┐
- *   │   Q2  ·  10:00  ·  ▶                  ◉  │  ← controls (small)
- *   │ +1+2+3   HOME  12 — 8  AWAY   +1+2+3     │  ← scores (dominant)
- *   └──────────────────────────────────────────┘
- *
- * Semi-transparent + backdrop-blur so the court reads through.
+ * Can be docked to the top or bottom of the court (toggleable).
  */
 const LiveGameHUD = memo(function LiveGameHUD({
   homeLabel,
@@ -42,6 +43,8 @@ const LiveGameHUD = memo(function LiveGameHUD({
   controlSlot,
   trailingSlot,
   suppressed = false,
+  position = "top",
+  onTogglePosition,
 }: LiveGameHUDProps) {
   const interactive = !readOnly && !disabled && !suppressed;
 
@@ -54,9 +57,10 @@ const LiveGameHUD = memo(function LiveGameHUD({
   return (
     <div
       className={cn(
-        "absolute top-2 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1rem)] max-w-md",
+        "absolute left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1rem)] max-w-md",
         "rounded-2xl border border-border/40 bg-card/85 backdrop-blur-md shadow-lg",
         "transition-opacity duration-150",
+        position === "top" ? "top-2" : "bottom-2",
         suppressed && "opacity-30 pointer-events-none",
       )}
       role="group"
@@ -67,6 +71,21 @@ const LiveGameHUD = memo(function LiveGameHUD({
         <div className="flex items-center gap-1">{controlSlot}</div>
         {trailingSlot && (
           <div className="absolute right-2 top-1.5 flex items-center">{trailingSlot}</div>
+        )}
+        {onTogglePosition && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="absolute left-1 top-1 h-6 w-6 min-h-0 min-w-0 rounded-full text-muted-foreground hover:text-foreground"
+            onClick={onTogglePosition}
+            aria-label={position === "top" ? "Move HUD to bottom" : "Move HUD to top"}
+          >
+            {position === "top" ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronUp className="h-3.5 w-3.5" />
+            )}
+          </Button>
         )}
       </div>
 
