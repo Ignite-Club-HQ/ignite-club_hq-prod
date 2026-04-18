@@ -246,6 +246,7 @@ export default function BasketballBoard({
   const lineupSet = onCourtCount >= 5;
   const opponentName = board.timerState.opponentName ?? "Opponent";
   const [opponentEditOpen, setOpponentEditOpen] = useState(false);
+  const [draftOpponent, setDraftOpponent] = useState(opponentName);
   const [scoreBreakdownOpen, setScoreBreakdownOpen] = useState(false);
   const [gameDetailsOpen, setGameDetailsOpen] = useState(false);
 
@@ -264,15 +265,53 @@ export default function BasketballBoard({
           </h1>
         </div>
         {!readOnly && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 flex-shrink-0"
-            onClick={() => setOpponentEditOpen(true)}
-            aria-label="Edit opponent"
+          <Popover
+            open={opponentEditOpen}
+            onOpenChange={(o) => {
+              setOpponentEditOpen(o);
+              if (o) setDraftOpponent(opponentName);
+            }}
           >
-            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-          </Button>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 flex-shrink-0"
+                aria-label="Edit opponent"
+              >
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-60 p-2" align="end">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Opponent name
+                </label>
+                <Input
+                  value={draftOpponent}
+                  onChange={(e) => setDraftOpponent(e.target.value)}
+                  placeholder="Opponent"
+                  maxLength={24}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      board.setOpponentName(draftOpponent.trim() || "Opponent");
+                      setOpponentEditOpen(false);
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    board.setOpponentName(draftOpponent.trim() || "Opponent");
+                    setOpponentEditOpen(false);
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
         <SyncStatusIndicator />
         <CuesToggle />
