@@ -11,8 +11,8 @@ import {
   Quarter,
   QuarterLineup,
 } from "./types";
-import { snapshotLineup } from "./netballHelpers";
-import { Save } from "lucide-react";
+import { snapshotLineup, suggestQuarterLineup } from "./netballHelpers";
+import { Save, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface QuarterLineupPlannerProps {
@@ -76,6 +76,27 @@ export default function QuarterLineupPlanner({
           ? { quarter: targetQ, assignments: { ...source.assignments }, createdAt: Date.now() }
           : l
       );
+    });
+  };
+
+  /**
+   * Auto-fill the empty slots in this quarter using zone-aware fairness:
+   *   1. respects existing locked picks (already in the lineup)
+   *   2. honours preferredPositions when available
+   *   3. falls back to zone-compatible players
+   *   4. tiebreaks on minutes played (least → first)
+   */
+  const suggestForQuarter = (q: Quarter) => {
+    setDraft(prev =>
+      prev.map(l => {
+        if (l.quarter !== q) return l;
+        const assignments = suggestQuarterLineup(players, l.assignments);
+        return { ...l, assignments, createdAt: Date.now() };
+      })
+    );
+    toast({
+      title: `Q${q} suggested`,
+      description: "Open positions filled by fit + minutes. Tweak as needed.",
     });
   };
 
