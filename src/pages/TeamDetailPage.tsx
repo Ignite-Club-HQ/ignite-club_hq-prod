@@ -169,6 +169,24 @@ export default function TeamDetailPage() {
     }
   }, [team, hasSetInitialFilter]);
 
+  // Auto-open the game board when arriving from a "Resume game" tap
+  // (CourtBoardResumeCard / GameTimerWidget on the home screen).
+  useEffect(() => {
+    if (!team) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("openBoard") === "1") {
+      setShowPitchBoard(true);
+      // Strip the param so a refresh doesn't re-open after the coach closed it.
+      params.delete("openBoard");
+      const next = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        `${window.location.pathname}${next ? `?${next}` : ""}`
+      );
+    }
+  }, [team]);
+
   // Check if user (or their children) is already enrolled in this class
   const { data: isEnrolledInClass } = useQuery({
     queryKey: ["class-enrolment-check", id, user?.id],

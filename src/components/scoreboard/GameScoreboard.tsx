@@ -197,19 +197,21 @@ function ScoreColumn({
         )}
       >
         <span
-          className="text-2xl font-extrabold tabular-nums leading-none text-foreground"
+          className="text-2xl font-extrabold tabular-nums leading-none text-foreground landscape:text-4xl"
           aria-live="polite"
         >
           {score}
         </span>
         {!readOnly && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 landscape:gap-2">
             {increments.map((pts) => (
               <Button
                 key={pts}
                 size="sm"
                 variant="secondary"
-                className="h-7 min-w-7 px-1.5 text-xs font-bold"
+                // Landscape = sideline coach holding the phone in one hand —
+                // double the tap target so they never miss a score.
+                className="h-7 min-w-7 px-1.5 text-xs font-bold landscape:h-12 landscape:min-w-12 landscape:px-3 landscape:text-base active:scale-95 transition-transform"
                 onClick={() => onScore(pts)}
                 disabled={disabled}
                 aria-label={`Add ${pts} point${pts === 1 ? "" : "s"}`}

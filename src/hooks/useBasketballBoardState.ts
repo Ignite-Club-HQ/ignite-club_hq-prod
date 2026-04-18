@@ -30,6 +30,7 @@ import {
 } from "@/components/basketball/basketballHelpers";
 import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
 import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
+import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
 
 interface Member {
   id: string;
@@ -184,6 +185,10 @@ export function useBasketballBoardState({
   // player so the coach gets a per-player score breakdown.
   const addScore = useCallback(
     (side: "home" | "away", points: number, playerId?: string) => {
+      // Tactile confirmation — coaches scoring on a noisy sideline can confirm
+      // by feel without looking down. Light for 1pt, medium for 2-3.
+      if (points >= 2) hapticImpactMedium();
+      else hapticImpactLight();
       setTimerState((s) => {
         const event = {
           id: crypto.randomUUID(),
@@ -428,6 +433,7 @@ export function useBasketballBoardState({
   // ---------- Manual swap ----------
   const performSwap = useCallback(
     (aId: string, bId: string) => {
+      hapticImpactMedium();
       setPlayers((prev) => {
         const a = prev.find((p) => p.id === aId);
         const b = prev.find((p) => p.id === bId);
@@ -744,6 +750,7 @@ export function useBasketballBoardState({
       toast({ title: "Nothing to undo", description: "No subs recorded yet." });
       return;
     }
+    hapticSelectionTick();
     const last = log[log.length - 1];
     setPlayers((prev) =>
       prev.map((p) => {

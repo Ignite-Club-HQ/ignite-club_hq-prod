@@ -4,6 +4,7 @@ import {
   Calendar,
   Settings,
   UserCog,
+  UserPlus,
   Zap,
 } from "lucide-react";
 import { Quarter, RotationMode } from "./types";
@@ -14,6 +15,7 @@ interface NetballActionBarProps {
   onOpenPresets: () => void;
   onOpenSettings: () => void;
   onApplyLineup: () => void;
+  onAddFillIn?: () => void;
   currentQuarter: Quarter;
   rotationMode: RotationMode;
   rotationIntervalMinutes: number;
@@ -25,6 +27,7 @@ export default function NetballActionBar({
   onOpenPresets,
   onOpenSettings,
   onApplyLineup,
+  onAddFillIn,
   currentQuarter,
   rotationMode,
   rotationIntervalMinutes,
@@ -46,6 +49,11 @@ export default function NetballActionBar({
       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onOpenSettings}>
         <Settings className="h-3.5 w-3.5 mr-1" /> Settings
       </Button>
+      {onAddFillIn && (
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onAddFillIn}>
+          <UserPlus className="h-3.5 w-3.5 mr-1" /> Fill-In
+        </Button>
+      )}
       {rotationMode !== "off" && (
         <span className="text-[10px] text-muted-foreground ml-auto whitespace-nowrap">
           Auto: {rotationMode === "time-based" ? `${rotationIntervalMinutes}m` : "qtr-break"}

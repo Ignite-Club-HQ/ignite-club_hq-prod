@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Calendar, Settings, UserCog, Zap, Bookmark, LayoutGrid, Maximize2 } from "lucide-react";
+import { Calendar, Settings, UserCog, Zap, Bookmark, LayoutGrid, Maximize2, UserPlus } from "lucide-react";
 import { Quarter, RotationMode, BasketballCourtView } from "./types";
 
 interface BasketballActionBarProps {
@@ -9,6 +9,7 @@ interface BasketballActionBarProps {
   onOpenPresets: () => void;
   onApplyLineup: () => void;
   onToggleCourtView: () => void;
+  onAddFillIn?: () => void;
   currentQuarter: Quarter;
   rotationMode: RotationMode;
   rotationIntervalMinutes: number;
@@ -22,6 +23,7 @@ export default function BasketballActionBar({
   onOpenPresets,
   onApplyLineup,
   onToggleCourtView,
+  onAddFillIn,
   currentQuarter,
   rotationMode,
   rotationIntervalMinutes,
@@ -61,6 +63,11 @@ export default function BasketballActionBar({
       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onOpenSettings}>
         <Settings className="h-3.5 w-3.5 mr-1" /> Settings
       </Button>
+      {onAddFillIn && (
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onAddFillIn}>
+          <UserPlus className="h-3.5 w-3.5 mr-1" /> Fill-In
+        </Button>
+      )}
       {rotationMode !== "off" && (
         <span className="text-[10px] text-muted-foreground ml-auto whitespace-nowrap">
           Auto: {rotationMode === "time-based" ? `${rotationIntervalMinutes}m` : "qtr-break"}

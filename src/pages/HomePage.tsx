@@ -29,6 +29,7 @@ import { PageLoading } from "@/components/ui/page-loading";
 // Lazy load PitchBoard - it's a heavy 4k+ line component with Fabric.js
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 import GameTimerWidget from "@/components/pitch/GameTimerWidget";
+import CourtBoardResumeCard from "@/components/home/CourtBoardResumeCard";
 
 import { MiniLeagueGameWidgets } from "@/components/MiniLeagueGameWidgets";
 import { APP_STORE_URL, PLAY_STORE_URL } from "@/components/AppStoreDownloadGuide";
@@ -1582,6 +1583,10 @@ export default function HomePage() {
           />
         );
       })()}
+
+      {/* Resume in-progress basketball / netball game boards.
+          Soccer is already handled by GameTimerWidget above. */}
+      <CourtBoardResumeCard />
 
       {/* Quick Actions */}
       <HomeQuickActions
