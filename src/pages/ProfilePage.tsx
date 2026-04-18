@@ -258,16 +258,8 @@ export default function ProfilePage() {
   });
 
   // Combine points history
-  const pointsHistory = useMemo(() => {
-    const items: Array<{
-      id: string;
-      type: 'earned' | 'spent';
-      points: number;
-      name: string;
-      context: string;
-      date: string;
-      eventId?: string;
-    }> = [];
+  const pointsHistory = useMemo<PointsActivityItem[]>(() => {
+    const items: PointsActivityItem[] = [];
 
     const addedSourceIds = new Set<string>();
 
@@ -281,6 +273,7 @@ export default function ProfilePage() {
           name: entry.description,
           context: entry.clubs?.name || 'Club',
           date: entry.created_at,
+          sourceType: entry.source_type,
           eventId: entry.source_type === 'early_rsvp' || entry.source_type === 'player_of_match' || entry.source_type === 'attendance' ? entry.source_id : undefined,
         });
         if (entry.source_id) {
@@ -301,6 +294,7 @@ export default function ProfilePage() {
             name: duty.name,
             context: event?.teams?.name || event?.clubs?.name || 'Event',
             date: duty.created_at,
+            sourceType: 'duty',
             eventId: event?.id,
           });
         }
@@ -317,6 +311,7 @@ export default function ProfilePage() {
           name: redemption.club_rewards?.name || 'Reward',
           context: redemption.clubs?.name || 'Club',
           date: redemption.redeemed_at || redemption.created_at,
+          sourceType: 'redemption',
         });
       });
     }
