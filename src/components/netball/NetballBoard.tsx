@@ -178,6 +178,13 @@ export default function NetballBoard({
       }
     );
   });
+  // Mirror into a ref so callbacks (e.g. handleQuarterEnd) can read the
+  // latest periodType without taking it as a dep — fixes audit N11 where
+  // toggling halves/quarters mid-game saw a stale closure.
+  const timerStateRef = useRef(timerState);
+  useEffect(() => {
+    timerStateRef.current = timerState;
+  }, [timerState]);
 
   // Per-team default board settings (loaded once from team_subscriptions.court_*).
   const { defaults, isLoading: defaultsLoading, persist: persistDefaults } =
@@ -433,7 +440,9 @@ export default function NetballBoard({
       // In halves mode the visible periods are [1, 3] — slot 1 ("H1") rolls
       // straight to slot 3 ("H2"), skipping slot 2. Using `endedQuarter + 1`
       // silently broke quarterLineups + quarter-break rotations for halves.
-      const periodType = timerState.periodType;
+      // Read periodType from the ref (audit fix N11) so toggling halves
+      // mid-game doesn't trip a stale closure.
+      const periodType = timerStateRef.current.periodType;
       const periods = visiblePeriods(periodType);
       const idx = periods.indexOf(endedQuarter);
       const isFinalPeriod = idx === periods.length - 1;
@@ -467,7 +476,7 @@ export default function NetballBoard({
         dueSubs.forEach(executeSub);
       }
     },
-    [autoSubPlan, executeSub, quarterLineups, rotationMode, toast, timerState.periodType]
+    [autoSubPlan, executeSub, quarterLineups, rotationMode, toast]
   );
 
   // ---------- Manual swap / sub interactions ----------
@@ -710,12 +719,14 @@ export default function NetballBoard({
       };
       const cpLog = [...(s.centrePassLog ?? [])];
       // First goal of the game? Seed the opening centre-pass entry so it can
-      // be credited if the side that took it scored first.
-      if (cpLog.length === 0) {
+      // be credited if the side that took it scored first. Only seed when we
+      // actually know which side took it (audit fix N13) — defaulting to
+      // "home" silently mis-credited possession when the toss wasn't set.
+      if (cpLog.length === 0 && s.centrePass) {
         cpLog.push({
           id: crypto.randomUUID(),
           quarter: s.currentQuarter,
-          side: s.centrePass ?? "home",
+          side: s.centrePass,
           converted: false,
           at: Date.now() - 1,
         });
