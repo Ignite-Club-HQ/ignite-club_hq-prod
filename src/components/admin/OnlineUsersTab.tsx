@@ -204,9 +204,8 @@ export default function OnlineUsersTab() {
                                 {u.displayName.charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
-                            {isLive && (
-                              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
-                            )}
+                              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success ring-2 ring-background" style={{ backgroundColor: "hsl(142 71% 45%)" }} />
+
                           </div>
                           <div className="min-w-0">
                             <p className="font-medium text-sm truncate max-w-[180px]">
