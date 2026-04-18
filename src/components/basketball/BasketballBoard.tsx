@@ -449,25 +449,6 @@ export default function BasketballBoard({
           </Button>
         </div>
       )}
-        <div className="flex items-center justify-between gap-2 px-3 py-1 bg-primary/5">
-          <span className="text-[10px] text-muted-foreground">
-            Auto-subs: {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
-            {board.autoSubPaused && <span className="ml-1.5 text-amber-600 font-medium">· Paused</span>}
-            {board.lockedPlayerIds.size > 0 && (
-              <span className="ml-1.5 text-amber-600">· {board.lockedPlayerIds.size} locked</span>
-            )}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 text-[10px] gap-1"
-            onClick={() => setAutoSubPanelOpen(true)}
-          >
-            <Repeat className="h-3 w-3" />
-            Subs Plan
-          </Button>
-        </div>
-      )}
 
       {/* ── COURT — the dominant interaction zone ── */}
       <BasketballCourtArea
