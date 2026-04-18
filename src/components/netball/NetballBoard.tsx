@@ -300,7 +300,9 @@ export default function NetballBoard({
       validationMode,
       autoSubPlan,
       autoSubActive: rotationMode !== "off",
-      autoSubPaused: false,
+      autoSubPaused,
+      // Persist locked IDs as a plain array (Set isn't JSON-friendly).
+      ...({ lockedPlayerIds: Array.from(lockedPlayerIds) } as { lockedPlayerIds: string[] }),
       quarterLineups,
       lastUpdateTime: Date.now(),
     }),
@@ -312,6 +314,8 @@ export default function NetballBoard({
       rotationIntervalMinutes,
       validationMode,
       autoSubPlan,
+      autoSubPaused,
+      lockedPlayerIds,
       quarterLineups,
     ]
   );
