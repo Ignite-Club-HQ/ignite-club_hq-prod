@@ -43,8 +43,8 @@ export default function ProfilePage() {
   const [pointsHistoryOpen, setPointsHistoryOpen] = useState(true);
   const [clubPlansOpen, setClubPlansOpen] = useState(true);
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
-  const [myClubsTeamsOpen, setMyClubsTeamsOpen] = useState(true);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("all");
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
   const { data: seasonsForRank = [] } = useClubSeasons(activeClubFilter || undefined);
