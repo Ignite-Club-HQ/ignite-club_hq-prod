@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
@@ -50,6 +50,12 @@ interface MessageActionSheetProps {
   onReport: () => void;
   onBlock: () => void;
   onViewImage?: () => void;
+  // Pin support (only set for chats that support pinning)
+  canPin?: boolean;
+  isPinned?: boolean;
+  pinLimitReached?: boolean;
+  onPin?: () => void;
+  onUnpin?: () => void;
 }
 
 export function MessageActionSheet({
