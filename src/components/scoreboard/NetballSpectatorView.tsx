@@ -118,6 +118,7 @@ export default function NetballSpectatorView({
       <QuarterScoreStrip
         scoreLog={timer.scoreLog}
         currentQuarter={currentQuarter}
+        periodType={periodType}
       />
 
       <CentrePassIndicator
