@@ -131,6 +131,21 @@ export interface NetballSubLogEntry {
   source: "auto" | "manual";
 }
 
+/**
+ * Centre-pass log entry. One row per centre pass taken; `converted` flips
+ * to true when the side that took the pass scores BEFORE possession changes.
+ * Used by CentrePassStatsPanel to compute per-quarter conversion rate.
+ */
+export interface NetballCentrePassEntry {
+  id: string;
+  quarter: Quarter;
+  /** Side that took the centre pass. */
+  side: "home" | "away";
+  /** True if this side scored before the centre pass flipped. */
+  converted: boolean;
+  at: number;
+}
+
 export interface NetballTimerState {
   minutesPerQuarter: number;
   currentQuarter: Quarter;
@@ -151,6 +166,8 @@ export interface NetballTimerState {
   mvpPlayerId?: string | null;
   /** Which side has the next centre pass. Auto-flips after each goal. */
   centrePass?: "home" | "away";
+  /** Append-only centre-pass log used by the stats panel. */
+  centrePassLog?: NetballCentrePassEntry[];
   /** Period structure: "quarters" (default, 4 periods) or "halves" (2 periods, junior leagues). */
   periodType?: PeriodType;
 }

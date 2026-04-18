@@ -14,6 +14,7 @@ import NetballBench from "./NetballBench";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import CentrePassIndicator from "@/components/scoreboard/CentrePassIndicator";
+import CentrePassStatsPanel from "./CentrePassStatsPanel";
 import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
 import MomentumStrip from "@/components/scoreboard/MomentumStrip";
 import FoulFatigueWatchlist from "@/components/scoreboard/FoulFatigueWatchlist";
@@ -591,6 +592,8 @@ export default function NetballBoard({
 
   // ---------- Scoring ----------
   // After every goal, the centre pass automatically flips to the OTHER side.
+  // We also mark the most recent centre-pass entry for the scoring side as
+  // "converted" — that's the input the win-rate panel needs.
   const addScore = useCallback((side: "home" | "away", points: number) => {
     setTimerState((s) => {
       const event = {
@@ -600,12 +603,47 @@ export default function NetballBoard({
         quarter: s.currentQuarter,
         at: Date.now(),
       };
+      const cpLog = [...(s.centrePassLog ?? [])];
+      // First goal of the game? Seed the opening centre-pass entry so it can
+      // be credited if the side that took it scored first.
+      if (cpLog.length === 0) {
+        cpLog.push({
+          id: crypto.randomUUID(),
+          quarter: s.currentQuarter,
+          side: s.centrePass ?? "home",
+          converted: false,
+          at: Date.now() - 1,
+        });
+      }
+      // Walk backwards to find the most recent UNCONVERTED CP for the scoring
+      // side in this quarter. If we score before the CP flips again, we win it.
+      for (let i = cpLog.length - 1; i >= 0; i--) {
+        const cp = cpLog[i];
+        if (cp.quarter !== s.currentQuarter) break;
+        if (cp.side === side && !cp.converted) {
+          cpLog[i] = { ...cp, converted: true };
+          break;
+        }
+        // If we hit the OTHER side's CP first, that means possession already
+        // flipped — no conversion to credit.
+        if (cp.side !== side) break;
+      }
+      // After the goal the OPPOSITE side takes the next centre pass — log it.
+      const next: "home" | "away" = side === "home" ? "away" : "home";
+      cpLog.push({
+        id: crypto.randomUUID(),
+        quarter: s.currentQuarter,
+        side: next,
+        converted: false,
+        at: Date.now() + 1,
+      });
       return {
         ...s,
         homeScore: (s.homeScore ?? 0) + (side === "home" ? points : 0),
         awayScore: (s.awayScore ?? 0) + (side === "away" ? points : 0),
         scoreLog: [...(s.scoreLog ?? []), event],
-        centrePass: side === "home" ? "away" : "home",
+        centrePass: next,
+        centrePassLog: cpLog,
         lastUpdateTime: Date.now(),
       };
     });
@@ -616,13 +654,25 @@ export default function NetballBoard({
       const log = s.scoreLog ?? [];
       if (log.length === 0) return s;
       const last = log[log.length - 1];
+      // Roll back the centre-pass log too: drop the auto-pushed "next" CP and
+      // unconvert the previous CP we credited.
+      const cpLog = [...(s.centrePassLog ?? [])];
+      if (cpLog.length > 0 && !cpLog[cpLog.length - 1].converted) {
+        cpLog.pop();
+      }
+      for (let i = cpLog.length - 1; i >= 0; i--) {
+        if (cpLog[i].side === last.side && cpLog[i].converted) {
+          cpLog[i] = { ...cpLog[i], converted: false };
+          break;
+        }
+      }
       return {
         ...s,
         homeScore: Math.max(0, (s.homeScore ?? 0) - (last.side === "home" ? last.points : 0)),
         awayScore: Math.max(0, (s.awayScore ?? 0) - (last.side === "away" ? last.points : 0)),
         scoreLog: log.slice(0, -1),
-        // Flip centre pass back to the team that just had it taken away.
         centrePass: last.side,
+        centrePassLog: cpLog,
         lastUpdateTime: Date.now(),
       };
     });
@@ -920,6 +970,13 @@ export default function NetballBoard({
         onSwap={() =>
           setCentrePass((timerState.centrePass ?? "home") === "home" ? "away" : "home")
         }
+      />
+
+      <CentrePassStatsPanel
+        homeLabel={teamName}
+        awayLabel={timerState.opponentName ?? "Opponent"}
+        log={timerState.centrePassLog}
+        currentQuarter={timerState.currentQuarter}
       />
 
       <BenchFairnessMeter

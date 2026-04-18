@@ -11,8 +11,8 @@ import {
   Quarter,
   QuarterLineup,
 } from "./types";
-import { snapshotLineup } from "./netballHelpers";
-import { Save } from "lucide-react";
+import { snapshotLineup, suggestQuarterLineup } from "./netballHelpers";
+import { Save, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface QuarterLineupPlannerProps {
@@ -79,6 +79,27 @@ export default function QuarterLineupPlanner({
     });
   };
 
+  /**
+   * Auto-fill the empty slots in this quarter using zone-aware fairness:
+   *   1. respects existing locked picks (already in the lineup)
+   *   2. honours preferredPositions when available
+   *   3. falls back to zone-compatible players
+   *   4. tiebreaks on minutes played (least → first)
+   */
+  const suggestForQuarter = (q: Quarter) => {
+    setDraft(prev =>
+      prev.map(l => {
+        if (l.quarter !== q) return l;
+        const assignments = suggestQuarterLineup(players, l.assignments);
+        return { ...l, assignments, createdAt: Date.now() };
+      })
+    );
+    toast({
+      title: `Q${q} suggested`,
+      description: "Open positions filled by fit + minutes. Tweak as needed.",
+    });
+  };
+
   const handleSave = () => {
     onSave(draft);
     onOpenChange(false);
@@ -109,7 +130,7 @@ export default function QuarterLineupPlanner({
             const lineup = draft.find(l => l.quarter === q)!;
             return (
               <TabsContent key={q} value={String(q)} className="flex-1 overflow-y-auto">
-                <div className="flex gap-2 mb-3">
+                <div className="flex flex-wrap gap-2 mb-3">
                   <Button size="sm" variant="outline" onClick={() => copyFromCurrent(q)}>
                     Use current 7
                   </Button>
@@ -122,6 +143,15 @@ export default function QuarterLineupPlanner({
                       Copy Q{q - 1}
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => suggestForQuarter(q)}
+                    title="Auto-fill empty slots respecting netball position rules + bench fairness"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    Suggest
+                  </Button>
                 </div>
                 <div className="space-y-2">
                   {NETBALL_POSITIONS.map(position => {
