@@ -660,9 +660,9 @@ export default function NetballBoard({
         ...s,
         homeScore: (s.homeScore ?? 0) + (side === "home" ? points : 0),
         awayScore: (s.awayScore ?? 0) + (side === "away" ? points : 0),
-        scoreLog: [...(s.scoreLog ?? []), event],
+        scoreLog: trimLog([...(s.scoreLog ?? []), event], SCORE_LOG_MAX),
         centrePass: next,
-        centrePassLog: cpLog,
+        centrePassLog: trimLog(cpLog, CENTRE_PASS_LOG_MAX),
         lastUpdateTime: Date.now(),
       };
     });
