@@ -130,7 +130,7 @@ export default function QuarterLineupPlanner({
             const lineup = draft.find(l => l.quarter === q)!;
             return (
               <TabsContent key={q} value={String(q)} className="flex-1 overflow-y-auto">
-                <div className="flex gap-2 mb-3">
+                <div className="flex flex-wrap gap-2 mb-3">
                   <Button size="sm" variant="outline" onClick={() => copyFromCurrent(q)}>
                     Use current 7
                   </Button>
@@ -143,6 +143,15 @@ export default function QuarterLineupPlanner({
                       Copy Q{q - 1}
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => suggestForQuarter(q)}
+                    title="Auto-fill empty slots respecting netball position rules + bench fairness"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    Suggest
+                  </Button>
                 </div>
                 <div className="space-y-2">
                   {NETBALL_POSITIONS.map(position => {
