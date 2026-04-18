@@ -248,7 +248,7 @@ export default function NetballBoard({
     savedStateRef.current?.autoSubPaused ?? false
   );
   const [lockedPlayerIds, setLockedPlayerIds] = useState<Set<string>>(
-    new Set((savedStateRef.current as NetballBoardState & { lockedPlayerIds?: string[] })?.lockedPlayerIds ?? [])
+    new Set(savedStateRef.current?.lockedPlayerIds ?? [])
   );
   const toggleAutoSubPaused = useCallback(() => setAutoSubPaused((p) => !p), []);
   const toggleLockPlayer = useCallback((playerId: string) => {
@@ -302,7 +302,7 @@ export default function NetballBoard({
       autoSubActive: rotationMode !== "off",
       autoSubPaused,
       // Persist locked IDs as a plain array (Set isn't JSON-friendly).
-      ...({ lockedPlayerIds: Array.from(lockedPlayerIds) } as { lockedPlayerIds: string[] }),
+      lockedPlayerIds: Array.from(lockedPlayerIds),
       quarterLineups,
       lastUpdateTime: Date.now(),
     }),
