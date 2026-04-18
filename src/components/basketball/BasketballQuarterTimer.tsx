@@ -148,16 +148,16 @@ export default function BasketballQuarterTimer({
   const isFinalPeriod = periods.indexOf(state.currentQuarter) === periods.length - 1;
 
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 bg-card">
-      {/* Left: period pill */}
-      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary tabular-nums shrink-0">
+    <div className="flex items-center justify-center gap-2 px-2 py-1 bg-card">
+      {/* Period pill */}
+      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary tabular-nums shrink-0">
         {periodLabel(state.currentQuarter, state.periodType)}
       </span>
 
-      {/* Center: HERO timer */}
+      {/* Timer clock */}
       <div
         className={cn(
-          "tabular-nums font-mono font-extrabold text-3xl tracking-tight leading-none",
+          "tabular-nums font-mono font-extrabold text-2xl tracking-tight leading-none",
           lowTime && "text-destructive animate-pulse",
           state.isGameFinished && "text-muted-foreground"
         )}
@@ -166,49 +166,42 @@ export default function BasketballQuarterTimer({
         {formatTime(remaining)}
       </div>
 
-      {/* Right: primary action + overflow */}
-      <div className="flex items-center gap-1 shrink-0">
-        {!readOnly && (
-          <>
-            <Button
-              size="icon"
-              variant={state.isRunning ? "secondary" : "default"}
-              className="h-10 w-10 rounded-full shadow-sm"
-              onClick={toggle}
-              disabled={state.isGameFinished}
-              aria-label={state.isRunning ? "Pause" : "Start"}
-            >
-              {state.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-9 w-9"
-                  aria-label="More timer options"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="z-[100000]">
-                <DropdownMenuItem
-                  onClick={advanceQuarter}
-                  disabled={isFinalPeriod || state.isGameFinished}
-                >
-                  <SkipForward className="h-4 w-4 mr-2" />
-                  Next period
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={reset} className="text-destructive focus:text-destructive">
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Reset game
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        )}
-      </div>
+      {/* Primary play/pause + overflow */}
+      {!readOnly && (
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            size="icon"
+            variant={state.isRunning ? "secondary" : "default"}
+            className="h-8 w-8 rounded-full shadow-sm"
+            onClick={toggle}
+            disabled={state.isGameFinished}
+            aria-label={state.isRunning ? "Pause" : "Start"}
+          >
+            {state.isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="More timer options">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[100000]">
+              <DropdownMenuItem
+                onClick={advanceQuarter}
+                disabled={isFinalPeriod || state.isGameFinished}
+              >
+                <SkipForward className="h-4 w-4 mr-2" />
+                Next period
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={reset} className="text-destructive focus:text-destructive">
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset game
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   );
 }

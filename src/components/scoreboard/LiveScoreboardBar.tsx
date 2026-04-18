@@ -16,12 +16,11 @@ interface LiveScoreboardBarProps {
 }
 
 /**
- * Dominant single-row live scoreboard with always-visible quick-score buttons:
- *   [ HOOPS U12 ]      12  —  8      [ OPPONENT ]
- *   [+1][+2][+3]              [+1][+2][+3]
+ * Compact single-row live scoreboard:
+ *   [+1 +2 +3]  HOME  12 — 8  AWAY  [+1 +2 +3]
  *
- * - One-tap scoring: every increment is a single button press, no menus.
- * - Score number flashes + scales on update for instant feedback.
+ * Score buttons sit inline with the score number — no second row, no menus.
+ * One tap = one point change. Score number flashes on update.
  */
 const LiveScoreboardBar = memo(function LiveScoreboardBar({
   homeLabel,
@@ -43,48 +42,46 @@ const LiveScoreboardBar = memo(function LiveScoreboardBar({
 
   return (
     <div
-      className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-3 py-2 bg-card border-b"
+      className="flex items-center gap-2 px-2 py-1.5 bg-card border-b"
       role="group"
       aria-label="Live scoreboard"
     >
-      {/* HOME */}
-      <TeamColumn
+      {/* HOME — buttons | label+score */}
+      <TeamSide
         label={homeLabel}
         score={homeScore}
         increments={increments}
         interactive={interactive}
         onScore={(pts) => handleScore("home", pts)}
-        align="end"
+        side="home"
       />
 
-      {/* DASH separator — aligned to the score row */}
-      <span className="text-3xl font-light text-muted-foreground/50 px-1 pt-4 leading-none">
-        —
-      </span>
+      {/* DASH separator */}
+      <span className="text-xl font-light text-muted-foreground/50 px-0.5 leading-none">—</span>
 
-      {/* AWAY */}
-      <TeamColumn
+      {/* AWAY — label+score | buttons */}
+      <TeamSide
         label={awayLabel}
         score={awayScore}
         increments={increments}
         interactive={interactive}
         onScore={(pts) => handleScore("away", pts)}
-        align="start"
+        side="away"
       />
     </div>
   );
 });
 
-interface TeamColumnProps {
+interface TeamSideProps {
   label: string;
   score: number;
   increments: number[];
   interactive: boolean;
   onScore: (points: number) => void;
-  align: "start" | "end";
+  side: "home" | "away";
 }
 
-function TeamColumn({ label, score, increments, interactive, onScore, align }: TeamColumnProps) {
+function TeamSide({ label, score, increments, interactive, onScore, side }: TeamSideProps) {
   const [pulse, setPulse] = useState(false);
   const prevScore = useRef(score);
 
@@ -97,22 +94,39 @@ function TeamColumn({ label, score, increments, interactive, onScore, align }: T
     }
   }, [score]);
 
-  return (
+  const buttons = interactive && (
+    <div className="flex items-center gap-1 shrink-0">
+      {increments.map((pts) => (
+        <Button
+          key={pts}
+          size="sm"
+          variant="secondary"
+          className="h-9 min-w-9 px-2 text-sm font-bold rounded-md active:scale-95"
+          onClick={() => onScore(pts)}
+          aria-label={`Add ${pts} point${pts === 1 ? "" : "s"} for ${label}`}
+        >
+          +{pts}
+        </Button>
+      ))}
+    </div>
+  );
+
+  const labelAndScore = (
     <div
       className={cn(
-        "flex flex-col min-w-0 gap-1",
-        align === "end" ? "items-end" : "items-start",
+        "flex flex-col min-w-0 leading-none",
+        side === "home" ? "items-end" : "items-start",
       )}
     >
       <span
-        className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
+        className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
         title={label}
       >
         {label}
       </span>
       <span
         className={cn(
-          "text-5xl font-extrabold tabular-nums leading-none text-foreground landscape:text-6xl transition-transform",
+          "text-4xl font-extrabold tabular-nums leading-none text-foreground transition-transform mt-0.5",
           pulse && "scale-110 text-primary",
         )}
         aria-live="polite"
@@ -120,26 +134,28 @@ function TeamColumn({ label, score, increments, interactive, onScore, align }: T
       >
         {score}
       </span>
-      {interactive && (
-        <div
-          className={cn(
-            "flex items-center gap-1 mt-1",
-            align === "end" ? "justify-end" : "justify-start",
-          )}
-        >
-          {increments.map((pts) => (
-            <Button
-              key={pts}
-              size="sm"
-              variant="secondary"
-              className="h-9 min-w-10 px-2 text-sm font-bold rounded-md active:scale-95"
-              onClick={() => onScore(pts)}
-              aria-label={`Add ${pts} point${pts === 1 ? "" : "s"} for ${label}`}
-            >
-              +{pts}
-            </Button>
-          ))}
-        </div>
+    </div>
+  );
+
+  // HOME: [+1 +2 +3]  LABEL/SCORE  →  pushed toward centre dash
+  // AWAY: LABEL/SCORE  [+1 +2 +3]  →  pushed away from dash
+  return (
+    <div
+      className={cn(
+        "flex flex-1 items-center gap-2 min-w-0",
+        side === "home" ? "justify-end" : "justify-start",
+      )}
+    >
+      {side === "home" ? (
+        <>
+          {buttons}
+          {labelAndScore}
+        </>
+      ) : (
+        <>
+          {labelAndScore}
+          {buttons}
+        </>
       )}
     </div>
   );
