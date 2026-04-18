@@ -58,25 +58,26 @@ const LiveGameHUD = memo(function LiveGameHUD({
     <div
       className={cn(
         "absolute left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1rem)] max-w-md",
-        "rounded-2xl border border-border/40 bg-card/85 backdrop-blur-md shadow-lg",
-        "transition-opacity duration-150",
+        "rounded-xl border border-border/30 bg-card/75 supports-[backdrop-filter]:bg-card/60",
+        "backdrop-blur-xl shadow-[0_4px_24px_-8px_hsl(var(--foreground)/0.18)]",
+        "transition-[opacity,filter,transform] duration-200 ease-out",
         position === "top" ? "top-2" : "bottom-2",
-        suppressed && "opacity-30 pointer-events-none",
+        suppressed && "opacity-40 blur-[1px] pointer-events-none scale-[0.99]",
       )}
       role="group"
       aria-label="Live game HUD"
     >
       {/* Row 1 — small control strip */}
-      <div className="flex items-center justify-center gap-2 px-2 pt-1.5 pb-0.5">
+      <div className="flex items-center justify-center gap-2 px-2 pt-1 pb-0.5">
         <div className="flex items-center gap-1">{controlSlot}</div>
         {trailingSlot && (
-          <div className="absolute right-2 top-1.5 flex items-center">{trailingSlot}</div>
+          <div className="absolute right-2 top-1 flex items-center">{trailingSlot}</div>
         )}
         {onTogglePosition && (
           <Button
             size="icon"
             variant="ghost"
-            className="absolute left-1 top-1 h-6 w-6 min-h-0 min-w-0 rounded-full text-muted-foreground hover:text-foreground"
+            className="absolute left-1 top-0.5 h-6 w-6 min-h-0 min-w-0 rounded-full text-muted-foreground/70 hover:text-foreground transition-colors"
             onClick={onTogglePosition}
             aria-label={position === "top" ? "Move HUD to bottom" : "Move HUD to top"}
           >
@@ -90,7 +91,7 @@ const LiveGameHUD = memo(function LiveGameHUD({
       </div>
 
       {/* Row 2 — dominant scores + scoring buttons */}
-      <div className="flex items-center gap-1.5 px-2 pb-1.5">
+      <div className="flex items-baseline gap-1.5 px-2 pb-1.5">
         <TeamSide
           label={homeLabel}
           score={homeScore}
@@ -100,7 +101,7 @@ const LiveGameHUD = memo(function LiveGameHUD({
           side="home"
         />
 
-        <span className="text-xl font-light text-muted-foreground/50 px-0.5 leading-none shrink-0">
+        <span className="text-xl font-light text-muted-foreground/40 px-0.5 leading-none shrink-0 self-center">
           —
         </span>
 
@@ -146,7 +147,11 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
           key={pts}
           size="sm"
           variant="secondary"
-          className="h-6 min-h-0 min-w-6 px-1 text-[10px] font-bold rounded leading-none"
+          className={cn(
+            "h-6 min-h-0 min-w-6 px-1 text-[10px] font-bold rounded leading-none",
+            "bg-secondary/70 hover:bg-secondary transition-all duration-100",
+            "active:scale-90 active:bg-primary/20",
+          )}
           onClick={() => onScore(pts)}
           aria-label={`Add ${pts} point${pts === 1 ? "" : "s"} for ${label}`}
         >
@@ -159,20 +164,28 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
   const labelAndScore = (
     <div
       className={cn(
-        "flex flex-col min-w-0 leading-none",
+        "flex flex-col min-w-0 leading-none relative",
         side === "home" ? "items-end" : "items-start",
       )}
     >
       <span
-        className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
+        className={cn(
+          "text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/55 max-w-full block",
+          // Soft fade truncation instead of hard cut
+          "overflow-hidden whitespace-nowrap",
+          side === "home"
+            ? "[mask-image:linear-gradient(to_left,black_85%,transparent)]"
+            : "[mask-image:linear-gradient(to_right,black_85%,transparent)]",
+        )}
         title={label}
       >
         {label}
       </span>
       <span
         className={cn(
-          "text-3xl font-black tabular-nums leading-none text-foreground transition-transform mt-0.5",
-          pulse && "scale-110 text-primary",
+          "text-3xl font-black tabular-nums leading-none text-foreground mt-0.5",
+          "transition-transform duration-150 ease-out will-change-transform",
+          pulse && "scale-[1.15] text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.4)]",
         )}
         aria-live="polite"
         aria-label={`${label} score ${score}`}
