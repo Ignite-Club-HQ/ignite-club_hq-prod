@@ -246,14 +246,16 @@ export default function BasketballBoard({
   const lineupSet = onCourtCount >= 5;
   const opponentName = board.timerState.opponentName ?? "Opponent";
   // Pre-game = before the first whistle AND no scores logged yet.
-  // Drives a calmer, setup-focused layout: scoreboard goes compact,
-  // scoring controls + undo + auto-sub status hide entirely.
+  // Game-in-progress = anything after first tip-off (running OR paused for a
+  // timeout) until finished. We use this — not isLive — to hide setup UI so
+  // pausing the clock doesn't suddenly leak "Set starting 5" back on screen.
   const hasGameStarted =
     board.timerState.currentQuarter > 1 ||
     board.timerState.elapsedSeconds > 0 ||
     (board.timerState.scoreLog?.length ?? 0) > 0 ||
     board.timerState.isGameFinished;
   const isPreGame = !hasGameStarted;
+  const gameInProgress = hasGameStarted && !board.timerState.isGameFinished;
   const [opponentEditOpen, setOpponentEditOpen] = useState(false);
   const [draftOpponent, setDraftOpponent] = useState(opponentName);
   const [scoreBreakdownOpen, setScoreBreakdownOpen] = useState(false);
