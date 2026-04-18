@@ -229,19 +229,17 @@ export function useBasketballBoardState({
   );
 
   const undoScore = useCallback(() => {
+    // Capture the attributed-points rollback target BEFORE entering the
+    // setTimerState updater so we can call setPlayers cleanly afterwards.
+    // Calling setPlayers from inside a setTimerState updater double-fires
+    // under StrictMode and decrements points by 2× (audit fix B18).
+    let attributed: { playerId: string; points: number } | null = null;
     setTimerState((s) => {
       const log = s.scoreLog ?? [];
       if (log.length === 0) return s;
       const last = log[log.length - 1];
-      // Roll back per-player points if attributed.
       if (last.side === "home" && last.playerId) {
-        setPlayers((prev) =>
-          prev.map((p) =>
-            p.id === last.playerId
-              ? { ...p, points: Math.max(0, (p.points ?? 0) - last.points) }
-              : p
-          )
-        );
+        attributed = { playerId: last.playerId, points: last.points };
       }
       return {
         ...s,
@@ -251,6 +249,16 @@ export function useBasketballBoardState({
         lastUpdateTime: Date.now(),
       };
     });
+    if (attributed) {
+      const { playerId, points } = attributed;
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId
+            ? { ...p, points: Math.max(0, (p.points ?? 0) - points) }
+            : p
+        )
+      );
+    }
   }, []);
 
   const setOpponentName = useCallback((name: string) => {
@@ -480,9 +488,43 @@ export function useBasketballBoardState({
 
   const confirmPendingQuarterSubs = useCallback(() => {
     if (!pendingQuarterSubs) return;
-    pendingQuarterSubs.subs.forEach(executeSub);
+    // Apply ALL subs in one atomic setPlayers pass — calling executeSub in a
+    // forEach loop runs each through its own setPlayers updater, and earlier
+    // subs displace players to the bench so later subs see "playerOut not on
+    // court" or "playerIn not on bench" and silently skip (audit fix B22).
+    const subs = pendingQuarterSubs.subs;
+    const subKeys = new Set(subs.map(getSubKey));
+    setPlayers((prev) => {
+      let next = prev;
+      // Reserve target positions per sub up-front so we can detect collisions.
+      for (const sub of subs) {
+        const out = next.find((p) => p.id === sub.playerOut.id);
+        const inP = next.find((p) => p.id === sub.playerIn.id);
+        if (!out?.position || !inP || inP.position !== null) continue;
+        next = next.map((p) => {
+          if (p.id === out.id) return transitionPosition(p, null);
+          if (p.id === inP.id) return transitionPosition(p, sub.position);
+          return p;
+        });
+      }
+      return next;
+    });
+    // Mark all of them executed in one pass and append a single batched log.
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (subKeys.has(getSubKey(s)) ? { ...s, executed: true } : s))
+    );
+    subs.forEach((sub) =>
+      appendSubLog({
+        playerOutId: sub.playerOut.id,
+        playerOutName: sub.playerOut.name,
+        playerInId: sub.playerIn.id,
+        playerInName: sub.playerIn.name,
+        position: sub.position,
+        source: "auto",
+      })
+    );
     setPendingQuarterSubs(null);
-  }, [executeSub, pendingQuarterSubs]);
+  }, [pendingQuarterSubs, appendSubLog]);
 
   const skipPendingQuarterSubs = useCallback(() => {
     if (!pendingQuarterSubs) return;
