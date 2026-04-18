@@ -787,12 +787,19 @@ export function useBasketballBoardState({
         ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
         : generateQuarterBreakRotationPlan(players, 3, timerState.periodType ?? "quarters");
     // Preserve BOTH executed AND skipped history so a regen never resurrects
-    // a sub the coach already actioned (audit fix B7). Use stable getSubKey
-    // for dedupe — quarter+time+playerOutId+position — instead of fragile
-    // composite checks that miss when the slot's playerOut has changed.
+    // a sub the coach already actioned (audit fix B7).
     const history = autoSubPlan.filter((s) => s.executed || s.skipped);
     const historyKeys = new Set(history.map(getSubKey));
-    setAutoSubPlan([...history, ...fresh.filter((f) => !historyKeys.has(getSubKey(f)))]);
+    // Drop fresh subs whose playerOut is no longer on court — manual swaps
+    // that benched the planned playerOut would otherwise queue an invalid
+    // "sub-off" for an already-benched player (audit fix B14/N15).
+    const onCourtIds = new Set(players.filter((p) => p.position !== null).map((p) => p.id));
+    setAutoSubPlan([
+      ...history,
+      ...fresh.filter(
+        (f) => !historyKeys.has(getSubKey(f)) && onCourtIds.has(f.playerOut.id)
+      ),
+    ]);
     toast({ title: "Plan regenerated" });
   }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, autoSubPlan, toast]);
 

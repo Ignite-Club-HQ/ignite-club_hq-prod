@@ -439,6 +439,10 @@ export default function NetballBoard({
     },
     [toast, appendSubLog]
   );
+  // Wire the forward-ref so handleTick can fire executeSub safely (audit fix N14).
+  useEffect(() => {
+    executeSubRef.current = executeSub;
+  }, [executeSub]);
 
   // ---------- Quarter end → quarter-break rotations + apply next lineup ----------
   const handleQuarterEnd = useCallback(
@@ -949,14 +953,18 @@ export default function NetballBoard({
         ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
         : generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters");
     // Preserve BOTH executed AND skipped history so a regen never resurrects
-    // a sub the coach already actioned (audit fix N7). Use stable getSubKey
-    // for dedupe — composite property checks miss when the slot's playerOut
-    // changed mid-quarter via a manual swap.
+    // a sub the coach already actioned (audit fix N7).
     const history = autoSubPlan.filter((s) => s.executed || s.skipped);
     const historyKeys = new Set(history.map(getSubKey));
+    // Drop fresh subs whose playerOut is no longer on court — otherwise a
+    // manual swap that benched the planned playerOut would queue an invalid
+    // "sub-off" for an already-benched player (audit fix B14/N15).
+    const onCourtIds = new Set(players.filter((p) => p.position !== null).map((p) => p.id));
     setAutoSubPlan([
       ...history,
-      ...fresh.filter((f) => !historyKeys.has(getSubKey(f))),
+      ...fresh.filter(
+        (f) => !historyKeys.has(getSubKey(f)) && onCourtIds.has(f.playerOut.id)
+      ),
     ]);
     toast({ title: "Plan regenerated" });
   }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, autoSubPlan, toast]);
