@@ -27,6 +27,9 @@ interface BasketballQuarterTimerProps {
    *  cached cue refs so a fresh game starts cleanly. */
   onReset?: () => void;
   readOnly?: boolean;
+  /** When true, render inline controls only (no card wrapper / padding) so the
+   *  timer can sit alongside the scoreboard in a single header strip. */
+  compact?: boolean;
 }
 
 export default function BasketballQuarterTimer({
