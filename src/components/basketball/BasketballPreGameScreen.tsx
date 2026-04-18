@@ -60,7 +60,7 @@ export default function BasketballPreGameScreen({
   const squadEmpty = players.length === 0;
 
   return (
-    <div className="flex flex-col h-full bg-background overflow-y-auto">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* Header */}
       <header className="flex items-center gap-2 px-2 py-2 border-b bg-card sticky top-0 z-20">
         <Button
