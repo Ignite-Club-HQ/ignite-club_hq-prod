@@ -1,11 +1,7 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { hapticSelectionTick } from "@/lib/haptics";
 
 interface LiveScoreboardBarProps {
   homeLabel: string;
@@ -20,12 +16,12 @@ interface LiveScoreboardBarProps {
 }
 
 /**
- * Dominant single-row live scoreboard:
- *   [ HOOPS U12 ]    12 — 8    [ OPPONENT ]
+ * Dominant single-row live scoreboard with always-visible quick-score buttons:
+ *   [ HOOPS U12 ]      12  —  8      [ OPPONENT ]
+ *   [+1][+2][+3]              [+1][+2][+3]
  *
- * - Scores are the largest text on the screen.
- * - Tap a score → +1/+2/+3 popover (fast scoring, no extra steps).
- * - Team labels are small + secondary, no edit icons (rename moved out of live UI).
+ * - One-tap scoring: every increment is a single button press, no menus.
+ * - Score number flashes + scales on update for instant feedback.
  */
 const LiveScoreboardBar = memo(function LiveScoreboardBar({
   homeLabel,
@@ -37,129 +33,115 @@ const LiveScoreboardBar = memo(function LiveScoreboardBar({
   disabled = false,
   onScore,
 }: LiveScoreboardBarProps) {
-  const [open, setOpen] = useState<"home" | "away" | null>(null);
   const interactive = !readOnly && !disabled;
 
   const handleScore = (side: "home" | "away", pts: number) => {
+    if (!interactive) return;
+    hapticSelectionTick();
     onScore(side, pts);
-    setOpen(null);
   };
 
   return (
     <div
-      className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2 bg-card border-b"
+      className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-3 py-2 bg-card border-b"
       role="group"
       aria-label="Live scoreboard"
     >
-      {/* HOME — label above, score below, right-aligned to the centre dash */}
-      <div className="flex flex-col items-end min-w-0 gap-0.5">
-        <span
-          className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
-          title={homeLabel}
-        >
-          {homeLabel}
-        </span>
-        <ScoreDisplay
-          score={homeScore}
-          interactive={interactive}
-          open={open === "home"}
-          onOpenChange={(o) => setOpen(o ? "home" : null)}
-          onScore={(pts) => handleScore("home", pts)}
-          increments={increments}
-          ariaLabel={`Add points for ${homeLabel}`}
-          align="end"
-        />
-      </div>
+      {/* HOME */}
+      <TeamColumn
+        label={homeLabel}
+        score={homeScore}
+        increments={increments}
+        interactive={interactive}
+        onScore={(pts) => handleScore("home", pts)}
+        align="end"
+      />
 
-      {/* DASH separator */}
-      <span className="text-3xl font-light text-muted-foreground/50 px-1 self-end pb-1">—</span>
+      {/* DASH separator — aligned to the score row */}
+      <span className="text-3xl font-light text-muted-foreground/50 px-1 pt-4 leading-none">
+        —
+      </span>
 
       {/* AWAY */}
-      <div className="flex flex-col items-start min-w-0 gap-0.5">
-        <span
-          className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
-          title={awayLabel}
-        >
-          {awayLabel}
-        </span>
-        <ScoreDisplay
-          score={awayScore}
-          interactive={interactive}
-          open={open === "away"}
-          onOpenChange={(o) => setOpen(o ? "away" : null)}
-          onScore={(pts) => handleScore("away", pts)}
-          increments={increments}
-          ariaLabel={`Add points for ${awayLabel}`}
-          align="start"
-        />
-      </div>
+      <TeamColumn
+        label={awayLabel}
+        score={awayScore}
+        increments={increments}
+        interactive={interactive}
+        onScore={(pts) => handleScore("away", pts)}
+        align="start"
+      />
     </div>
   );
 });
 
-interface ScoreDisplayProps {
+interface TeamColumnProps {
+  label: string;
   score: number;
-  interactive: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onScore: (points: number) => void;
   increments: number[];
-  ariaLabel: string;
+  interactive: boolean;
+  onScore: (points: number) => void;
   align: "start" | "end";
 }
 
-function ScoreDisplay({
-  score,
-  interactive,
-  open,
-  onOpenChange,
-  onScore,
-  increments,
-  ariaLabel,
-  align,
-}: ScoreDisplayProps) {
-  const display = (
-    <span
-      className={cn(
-        "text-5xl font-extrabold tabular-nums leading-none text-foreground px-2 py-1 rounded-md landscape:text-6xl",
-        interactive &&
-          "hover:bg-muted/40 active:bg-muted/60 active:scale-95 transition-all cursor-pointer"
-      )}
-      aria-live="polite"
-    >
-      {score}
-    </span>
-  );
+function TeamColumn({ label, score, increments, interactive, onScore, align }: TeamColumnProps) {
+  const [pulse, setPulse] = useState(false);
+  const prevScore = useRef(score);
 
-  if (!interactive) return display;
+  useEffect(() => {
+    if (prevScore.current !== score) {
+      prevScore.current = score;
+      setPulse(true);
+      const t = setTimeout(() => setPulse(false), 320);
+      return () => clearTimeout(t);
+    }
+  }, [score]);
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="bg-transparent border-0 p-0 m-0 outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
-          aria-label={ariaLabel}
+    <div
+      className={cn(
+        "flex flex-col min-w-0 gap-1",
+        align === "end" ? "items-end" : "items-start",
+      )}
+    >
+      <span
+        className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
+        title={label}
+      >
+        {label}
+      </span>
+      <span
+        className={cn(
+          "text-5xl font-extrabold tabular-nums leading-none text-foreground landscape:text-6xl transition-transform",
+          pulse && "scale-110 text-primary",
+        )}
+        aria-live="polite"
+        aria-label={`${label} score ${score}`}
+      >
+        {score}
+      </span>
+      {interactive && (
+        <div
+          className={cn(
+            "flex items-center gap-1 mt-1",
+            align === "end" ? "justify-end" : "justify-start",
+          )}
         >
-          {display}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-1.5" align={align} sideOffset={4}>
-        <div className="flex items-center gap-1">
           {increments.map((pts) => (
             <Button
               key={pts}
               size="sm"
-              className="h-12 min-w-14 px-3 text-lg font-bold"
+              variant="secondary"
+              className="h-9 min-w-10 px-2 text-sm font-bold rounded-md active:scale-95"
               onClick={() => onScore(pts)}
-              aria-label={`Add ${pts} point${pts === 1 ? "" : "s"}`}
+              aria-label={`Add ${pts} point${pts === 1 ? "" : "s"} for ${label}`}
             >
               +{pts}
             </Button>
           ))}
         </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }
 
