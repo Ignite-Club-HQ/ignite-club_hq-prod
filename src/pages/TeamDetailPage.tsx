@@ -530,6 +530,10 @@ export default function TeamDetailPage() {
   const liveSport = (activeGame?.pitch_state as { sport?: string } | null)?.sport ?? null;
   const showWatchLive =
     !!activeGame && (liveSport === "basketball" || liveSport === "netball") && !showPitchBoard;
+
+  // Fetch pending invites for this team
+  const { data: pendingInvites = [] } = useQuery({
+    queryKey: ["pending-invites", id, null],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pending_invites")
