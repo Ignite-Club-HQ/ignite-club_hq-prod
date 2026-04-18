@@ -251,6 +251,9 @@ export default function DirectMessagePage() {
   // Check if this is a conversation with Ignite Support (system user)
   const isIgniteSupportConversation = isIgniteSupportUser(otherUserId);
 
+  // Live presence — true when the other user has the app open in any tab.
+  const isOtherUserOnline = useIsUserOnline(otherUserId);
+
   useLayoutEffect(() => {
     const composerEl = composerRef.current;
     if (!composerEl) return;
@@ -1035,6 +1038,7 @@ export default function DirectMessagePage() {
         name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
         sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
         avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
+        showOnlineDot={!isIgniteSupportConversation && isOtherUserOnline}
         onOpenDetails={() => setDetailsOpen(true)}
         leftSlot={
           <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
