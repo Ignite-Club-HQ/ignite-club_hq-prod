@@ -91,7 +91,7 @@ const LiveGameHUD = memo(function LiveGameHUD({
       </div>
 
       {/* Row 2 — dominant scores + scoring buttons */}
-      <div className="flex items-baseline gap-1.5 px-2 pb-1.5">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 pb-1.5">
         <TeamSide
           label={homeLabel}
           score={homeScore}
@@ -101,7 +101,7 @@ const LiveGameHUD = memo(function LiveGameHUD({
           side="home"
         />
 
-        <span className="text-xl font-light text-muted-foreground/40 px-0.5 leading-none shrink-0 self-center">
+        <span className="text-lg font-light text-muted-foreground/40 leading-none shrink-0 self-center pb-0.5">
           —
         </span>
 
@@ -161,18 +161,14 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
     </div>
   );
 
-  const labelAndScore = (
-    <div
-      className={cn(
-        "flex flex-col min-w-0 leading-none relative",
-        side === "home" ? "items-end" : "items-start",
-      )}
-    >
+  return (
+    <div className="flex flex-col min-w-0">
+      {/* Team name — spans full column, fades on overflow */}
       <span
         className={cn(
-          "text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/55 max-w-full block",
-          // Soft fade truncation instead of hard cut
+          "text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/55 leading-none mb-1",
           "overflow-hidden whitespace-nowrap",
+          side === "home" ? "text-right" : "text-left",
           side === "home"
             ? "[mask-image:linear-gradient(to_left,black_85%,transparent)]"
             : "[mask-image:linear-gradient(to_right,black_85%,transparent)]",
@@ -181,39 +177,43 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
       >
         {label}
       </span>
-      <span
+
+      {/* Score + buttons row — baseline aligned */}
+      <div
         className={cn(
-          "text-3xl font-black tabular-nums leading-none text-foreground mt-0.5",
-          "transition-transform duration-150 ease-out will-change-transform",
-          pulse && "scale-[1.15] text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.4)]",
+          "flex items-center gap-1.5 min-w-0",
+          side === "home" ? "justify-end" : "justify-start",
         )}
-        aria-live="polite"
-        aria-label={`${label} score ${score}`}
       >
-        {score}
-      </span>
+        {side === "home" ? (
+          <>
+            {buttons}
+            <ScoreNumber score={score} label={label} pulse={pulse} />
+          </>
+        ) : (
+          <>
+            <ScoreNumber score={score} label={label} pulse={pulse} />
+            {buttons}
+          </>
+        )}
+      </div>
     </div>
   );
+}
 
+function ScoreNumber({ score, label, pulse }: { score: number; label: string; pulse: boolean }) {
   return (
-    <div
+    <span
       className={cn(
-        "flex flex-1 items-center gap-1.5 min-w-0",
-        side === "home" ? "justify-end" : "justify-start",
+        "text-3xl font-black tabular-nums leading-none text-foreground shrink-0",
+        "transition-transform duration-150 ease-out will-change-transform",
+        pulse && "scale-[1.15] text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.4)]",
       )}
+      aria-live="polite"
+      aria-label={`${label} score ${score}`}
     >
-      {side === "home" ? (
-        <>
-          {buttons}
-          {labelAndScore}
-        </>
-      ) : (
-        <>
-          {labelAndScore}
-          {buttons}
-        </>
-      )}
-    </div>
+      {score}
+    </span>
   );
 }
 
