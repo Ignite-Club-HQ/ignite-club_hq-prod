@@ -11,7 +11,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Building2, Search, CalendarPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
-import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
+import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
@@ -1194,41 +1195,34 @@ export default function ClubChatPage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <ChatBackButton />
-        <button
-          className="flex items-center gap-3 flex-1 min-w-0 min-h-[44px] active:opacity-70 transition-opacity rounded-lg"
-          onClick={() => setMembersOpen(true)}
-        >
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={club?.logo_url || undefined} />
-            <AvatarFallback className="bg-secondary text-secondary-foreground">
-              {club?.name?.charAt(0)?.toUpperCase() || "C"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0 text-left">
-            <h1 className="font-semibold truncate">{club?.name || "Club"}</h1>
-          </div>
-        </button>
-        <div className="flex items-center shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          <ChatMuteButton chatType="club" chatId={clubId!} />
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-          />
-          <ChatMembersSheet
-            chatType="club"
-            chatId={clubId!}
-            chatName={club?.name || "Club"}
-            externalOpen={membersOpen}
-            onExternalOpenChange={setMembersOpen}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type="club"
+        name={club?.name || "Club"}
+        sublabel="Club chat"
+        avatarUrl={club?.logo_url}
+        onOpenDetails={() => setMembersOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatMuteButton chatType="club" chatId={clubId!} />
+            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={membersOpen}
+        onOpenChange={setMembersOpen}
+        chatType="club"
+        chatId={clubId!}
+        name={club?.name || "Club"}
+        sublabel="Club chat"
+        avatarUrl={club?.logo_url}
+      />
 
 
       {/* Notification Nudge */}
