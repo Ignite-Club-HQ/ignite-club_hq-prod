@@ -681,6 +681,16 @@ export default function NetballBoard({
       const log = s.scoreLog ?? [];
       if (log.length === 0) return s;
       const last = log[log.length - 1];
+      // Roll back per-player goals if the last score was attributed.
+      if (last.side === "home" && last.playerId) {
+        setPlayers((prev) =>
+          prev.map((p) =>
+            p.id === last.playerId
+              ? { ...p, goals: Math.max(0, (p.goals ?? 0) - last.points) }
+              : p
+          )
+        );
+      }
       // Roll back the centre-pass log too: drop the auto-pushed "next" CP and
       // unconvert the previous CP we credited.
       const cpLog = [...(s.centrePassLog ?? [])];
