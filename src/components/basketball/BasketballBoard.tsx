@@ -23,7 +23,6 @@ import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
-import { useCourtSpectator } from "@/hooks/useCourtSpectator";
 
 // Lazy-load secondary dialogs
 const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
@@ -50,12 +49,6 @@ interface BasketballBoardProps {
   initialMinutesPerQuarter?: number;
   /** When provided, board state is scoped to this event (no collisions across matches). */
   eventId?: string | null;
-  /**
-   * Spectator mode — when true, the board polls the coach's published state
-   * via `useCourtSpectator` and renders it read-only. No notifications, no
-   * sync writes, no game-summary save. Forces `readOnly` regardless of prop.
-   */
-  spectator?: boolean;
 }
 
 const DialogLoader = () => (
@@ -72,44 +65,20 @@ export default function BasketballBoard({
   readOnly = false,
   initialMinutesPerQuarter = 10,
   eventId = null,
-  spectator = false,
 }: BasketballBoardProps) {
-  // Spectator mode is always read-only (regardless of caller's readOnly flag)
-  // and pulls live state from the coach's `active_games` row.
-  const effectiveReadOnly = readOnly || spectator;
-  const spectatorFeed = useCourtSpectator({
-    teamId,
-    sport: "basketball",
-    enabled: spectator,
-  });
-  const spectatorState = spectator
-    ? {
-        players:
-          (spectatorFeed.pitchState as { players?: typeof members extends Array<infer _> ? unknown : never } | null)?.players as never,
-        timerState: spectatorFeed.timerState as never,
-        rotationMode: (spectatorFeed.pitchState as { rotationMode?: never } | null)?.rotationMode,
-        rotationIntervalMinutes: (spectatorFeed.pitchState as { rotationIntervalMinutes?: number } | null)
-          ?.rotationIntervalMinutes,
-        validationMode: (spectatorFeed.pitchState as { validationMode?: never } | null)?.validationMode,
-        autoSubPlan: (spectatorFeed.pitchState as { autoSubPlan?: never } | null)?.autoSubPlan,
-        quarterLineups: (spectatorFeed.pitchState as { quarterLineups?: never } | null)?.quarterLineups,
-      }
-    : null;
-
   const board = useBasketballBoardState({
     teamId,
     members,
-    readOnly: effectiveReadOnly,
+    readOnly,
     initialMinutesPerQuarter,
     eventId,
-    spectatorState,
   });
 
   // Per-team default board settings (minutes, rotation, validation, period type, timeouts).
   // Loaded once from `team_subscriptions.court_*`; in-game changes persist back via the
   // settings dialog handlers below.
   const { defaults, isLoading: defaultsLoading, persist: persistDefaults } =
-    useCourtBoardDefaults(teamId, effectiveReadOnly);
+    useCourtBoardDefaults(teamId, readOnly);
   const defaultsAppliedRef = useRef(false);
   useEffect(() => {
     if (defaultsLoading || defaultsAppliedRef.current) return;
@@ -180,11 +149,9 @@ export default function BasketballBoard({
   const { save: saveGameResult, saved: gameSaved } = useSaveGameResult();
 
   // Auto-open the summary the first time the game ticks over to "finished".
-  // Spectators don't see the summary — they're read-only viewers.
   useEffect(() => {
-    if (spectator) return;
     if (board.timerState.isGameFinished) setSummaryOpen(true);
-  }, [board.timerState.isGameFinished, spectator]);
+  }, [board.timerState.isGameFinished]);
 
   // Build sport-agnostic player rows for the summary dialog.
   const summaryPlayers = useMemo(
@@ -216,11 +183,11 @@ export default function BasketballBoard({
   }, [board.timerState.scoreLog]);
 
   // Keep the screen awake while a coach is actively running the game.
-  useWakeLock(!effectiveReadOnly && board.timerState.isRunning && !board.timerState.isGameFinished);
+  useWakeLock(!readOnly && board.timerState.isRunning && !board.timerState.isGameFinished);
 
   // Auto-save the finished game to history (admins/coaches only — RLS guards the rest).
   useEffect(() => {
-    if (!effectiveReadOnly && board.timerState.isGameFinished) {
+    if (!readOnly && board.timerState.isGameFinished) {
       saveGameResult({
         teamId,
         eventId,
@@ -235,7 +202,7 @@ export default function BasketballBoard({
       });
     }
   }, [
-    effectiveReadOnly,
+    readOnly,
     board.timerState.isGameFinished,
     board.timerState.mvpPlayerId,
     teamId,
@@ -267,7 +234,7 @@ export default function BasketballBoard({
           onChange={board.setTimerState}
           onTick={board.handleTick}
           onQuarterEnd={board.handleQuarterEnd}
-          readOnly={effectiveReadOnly}
+          readOnly={readOnly}
         />
       </header>
 
@@ -277,7 +244,7 @@ export default function BasketballBoard({
         teamId={teamId}
         teamName={teamName}
         compact
-        onLinkEvent={effectiveReadOnly ? undefined : setLinkedEventId}
+        onLinkEvent={readOnly ? undefined : setLinkedEventId}
         currentScore={{
           team: board.timerState.homeScore ?? 0,
           opponent: board.timerState.awayScore ?? 0,
@@ -291,7 +258,7 @@ export default function BasketballBoard({
         homeScore={board.timerState.homeScore ?? 0}
         awayScore={board.timerState.awayScore ?? 0}
         increments={[1, 2, 3]}
-        readOnly={effectiveReadOnly}
+        readOnly={readOnly}
         disabled={!!board.timerState.isGameFinished}
         onScore={board.addScore}
         onUndo={board.undoScore}
@@ -315,7 +282,7 @@ export default function BasketballBoard({
         }
         perHalf={board.timerState.timeoutsPerHalf ?? 3}
         half={board.timerState.currentQuarter <= 2 ? 1 : 2}
-        readOnly={effectiveReadOnly}
+        readOnly={readOnly}
         onCall={board.callTimeout}
         onResetHalf={board.resetTimeoutsForCurrentHalf}
       />
@@ -341,7 +308,7 @@ export default function BasketballBoard({
         minutesPerQuarter={board.timerState.minutesPerQuarter}
       />
 
-      {!effectiveReadOnly && (
+      {!readOnly && (
         <SmartSubSuggestion
           players={board.players}
           totalElapsedSeconds={
@@ -353,7 +320,7 @@ export default function BasketballBoard({
         />
       )}
 
-      {!effectiveReadOnly && (
+      {!readOnly && (
         <BasketballActionBar
           onOpenSquad={() => setRosterOpen(true)}
           onOpenLineups={() => setLineupPlannerOpen(true)}
@@ -369,7 +336,7 @@ export default function BasketballBoard({
       )}
 
       {/* Pre-tipoff nudge: only before the very first whistle. */}
-      {!effectiveReadOnly &&
+      {!readOnly &&
         board.timerState.currentQuarter === 1 &&
         board.timerState.elapsedSeconds === 0 &&
         !board.timerState.isRunning &&
@@ -383,7 +350,7 @@ export default function BasketballBoard({
           />
         )}
 
-      {!effectiveReadOnly && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
+      {!readOnly && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
         <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
           <span className="text-[11px] text-muted-foreground">
             Auto-subs: {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
@@ -408,7 +375,7 @@ export default function BasketballBoard({
         players={board.players}
         selectedPlayerId={board.selectedPlayerId}
         nextSubOutId={board.nextSub?.playerOut.id ?? null}
-        readOnly={effectiveReadOnly}
+        readOnly={readOnly}
         courtView={board.courtView}
         onPlayerClick={board.handlePlayerClick}
         onSlotClick={board.handleSlotClick}
@@ -418,11 +385,11 @@ export default function BasketballBoard({
         bench={board.bench}
         selectedPlayerId={board.selectedPlayerId}
         nextSubInId={board.nextSub?.playerIn.id ?? null}
-        readOnly={effectiveReadOnly}
+        readOnly={readOnly}
         onPlayerClick={board.handlePlayerClick}
       />
 
-      {!effectiveReadOnly && (board.canUndoSub || (board.timerState.scoreLog?.length ?? 0) > 0) && (
+      {!readOnly && (board.canUndoSub || (board.timerState.scoreLog?.length ?? 0) > 0) && (
         <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
           <Button
             variant="ghost"
@@ -567,7 +534,7 @@ export default function BasketballBoard({
             players={summaryPlayers}
             mvpPlayerId={board.timerState.mvpPlayerId ?? null}
             onSelectMvp={board.setMvp}
-            readOnly={effectiveReadOnly}
+            readOnly={readOnly}
             isSaved={gameSaved}
             onSaveNow={() =>
               saveGameResult(

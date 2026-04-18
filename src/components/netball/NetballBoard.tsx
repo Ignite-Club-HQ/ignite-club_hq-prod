@@ -57,7 +57,7 @@ import {
   transitionPosition,
 } from "./netballHelpers";
 import { useNetballGameSync } from "@/hooks/useNetballGameSync";
-import { useCourtSpectator } from "@/hooks/useCourtSpectator";
+import { visiblePeriods } from "@/lib/periodTypes";
 
 // Lazy-load secondary dialogs
 const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
@@ -82,12 +82,6 @@ interface NetballBoardProps {
   initialMinutesPerQuarter?: number;
   /** When provided, board state is scoped to this event. */
   eventId?: string | null;
-  /**
-   * Spectator mode — polls the coach's published state and renders read-only.
-   * No notifications, no sync writes, no game-summary save. Forces `readOnly`
-   * regardless of caller's prop.
-   */
-  spectator?: boolean;
 }
 
 const DialogLoader = () => (
@@ -104,9 +98,7 @@ export default function NetballBoard({
   readOnly = false,
   initialMinutesPerQuarter = 15,
   eventId = null,
-  spectator = false,
 }: NetballBoardProps) {
-  const effectiveReadOnly = readOnly || spectator;
   const { toast } = useToast();
   const stateKey = getNetballStateKey(teamId, eventId);
   const timerKey = getNetballTimerKey(teamId, eventId);
@@ -185,44 +177,9 @@ export default function NetballBoard({
     );
   });
 
-  // ---------- Spectator feed ----------
-  // When `spectator` is true, we poll the coach's published `active_games`
-  // row and replace local state on every fresh tick. Coaches' devices keep
-  // their own state untouched (different teamId queries).
-  const spectatorFeed = useCourtSpectator({
-    teamId,
-    sport: "netball",
-    enabled: spectator,
-  });
-  const lastSpectatorTickRef = useRef<number>(0);
-  useEffect(() => {
-    if (!spectator) return;
-    const ps = spectatorFeed.pitchState as unknown as
-      | {
-          players?: NetballPlayer[];
-          rotationMode?: RotationMode;
-          rotationIntervalMinutes?: number;
-          validationMode?: ValidationMode;
-          autoSubPlan?: NetballSubEvent[];
-          quarterLineups?: QuarterLineup[];
-        }
-      | null;
-    const ts = spectatorFeed.timerState as unknown as NetballTimerState | null;
-    if (!ps || !ts) return;
-    const incomingTick = ts.lastUpdateTime ?? 0;
-    if (incomingTick && incomingTick === lastSpectatorTickRef.current) return;
-    lastSpectatorTickRef.current = incomingTick;
-    if (ps.players) setPlayers(ps.players);
-    setTimerState(ts);
-    if (ps.rotationMode) setRotationMode(ps.rotationMode);
-    if (ps.rotationIntervalMinutes != null)
-      setRotationIntervalMinutes(ps.rotationIntervalMinutes);
-    if (ps.validationMode) setValidationMode(ps.validationMode);
-    if (ps.autoSubPlan) setAutoSubPlan(ps.autoSubPlan);
-    if (ps.quarterLineups) setQuarterLineups(ps.quarterLineups);
-  }, [spectator, spectatorFeed.pitchState, spectatorFeed.timerState]);
+  // Per-team default board settings (loaded once from team_subscriptions.court_*).
   const { defaults, isLoading: defaultsLoading, persist: persistDefaults } =
-    useCourtBoardDefaults(teamId, effectiveReadOnly);
+    useCourtBoardDefaults(teamId, readOnly);
   const defaultsAppliedRef = useRef(false);
   useEffect(() => {
     if (defaultsLoading || defaultsAppliedRef.current) return;
@@ -299,11 +256,9 @@ export default function NetballBoard({
   }, []);
 
   // Auto-open the summary the first time the game ticks over to "finished".
-  // Spectators don't see the summary — they're read-only viewers.
   useEffect(() => {
-    if (spectator) return;
     if (timerState.isGameFinished) setSummaryOpen(true);
-  }, [timerState.isGameFinished, spectator]);
+  }, [timerState.isGameFinished]);
 
   // ---------- Sub log writer (single funnel for auto + manual subs) ----------
   const appendSubLog = useCallback(
@@ -354,20 +309,16 @@ export default function NetballBoard({
   );
 
   // ---------- Persistence (local) ----------
-  // Spectators must NOT persist incoming snapshots — they'd corrupt this
-  // user's local board state if they later open the board as a coach.
   useEffect(() => {
-    if (spectator) return;
     safeSave(stateKey, boardState);
-  }, [boardState, stateKey, spectator]);
+  }, [boardState, stateKey]);
 
   useEffect(() => {
-    if (spectator) return;
     safeSave(timerKey, timerState);
-  }, [timerState, timerKey, spectator]);
+  }, [timerState, timerKey]);
 
   // ---------- Persistence (Supabase) — only when actively editing ----------
-  useNetballGameSync(boardState, timerState, !effectiveReadOnly && !spectator);
+  useNetballGameSync(boardState, timerState, !readOnly);
 
   // ---------- Time tracking ----------
   // `delta` is the real elapsed seconds since the last tick. Using a constant
@@ -440,16 +391,26 @@ export default function NetballBoard({
   const handleQuarterEnd = useCallback(
     (endedQuarter: Quarter) => {
       cueQuarterEnd();
-      const nextQuarter = (endedQuarter + 1) as Quarter;
-      if (nextQuarter > 4) {
-        toast({ title: "Game finished", description: "Q4 complete." });
+      // In halves mode the visible periods are [1, 3] — slot 1 ("H1") rolls
+      // straight to slot 3 ("H2"), skipping slot 2. Using `endedQuarter + 1`
+      // silently broke quarterLineups + quarter-break rotations for halves.
+      const periodType = timerState.periodType;
+      const periods = visiblePeriods(periodType);
+      const idx = periods.indexOf(endedQuarter);
+      const isFinalPeriod = idx === periods.length - 1;
+      const nextQuarter = (periods[idx + 1] ?? null) as Quarter | null;
+      if (isFinalPeriod || nextQuarter === null) {
+        toast({
+          title: "Game finished",
+          description: periodType === "halves" ? "H2 complete." : "Q4 complete.",
+        });
         return;
       }
       const nextLineup = quarterLineups.find((l) => l.quarter === nextQuarter);
       if (nextLineup && Object.keys(nextLineup.assignments).length > 0) {
         setPlayers((prev) => applyLineup(prev, nextLineup));
         toast({
-          title: `Q${nextQuarter} lineup applied`,
+          title: `${periodType === "halves" ? "H" + (nextQuarter <= 2 ? 1 : 2) : "Q" + nextQuarter} lineup applied`,
           description: "On-court 7 updated from your plan.",
         });
         return;
@@ -461,7 +422,7 @@ export default function NetballBoard({
         dueSubs.forEach(executeSub);
       }
     },
-    [autoSubPlan, executeSub, quarterLineups, rotationMode, toast]
+    [autoSubPlan, executeSub, quarterLineups, rotationMode, toast, timerState.periodType]
   );
 
   // ---------- Manual swap / sub interactions ----------
@@ -509,7 +470,7 @@ export default function NetballBoard({
 
   const handlePlayerClick = useCallback(
     (playerId: string) => {
-      if (effectiveReadOnly) return;
+      if (readOnly) return;
       // Swap-mode active → second tap completes the swap.
       if (selectedPlayerId) {
         if (selectedPlayerId === playerId) {
@@ -522,12 +483,12 @@ export default function NetballBoard({
       }
       setQuickActionPlayerId(playerId);
     },
-    [selectedPlayerId, performSwap, effectiveReadOnly]
+    [selectedPlayerId, performSwap, readOnly]
   );
 
   const handleSlotClick = useCallback(
     (position: NetballPosition) => {
-      if (effectiveReadOnly || !selectedPlayerId) return;
+      if (readOnly || !selectedPlayerId) return;
       // Position lock: in strict/warn mode, validate against preferredPositions
       const incoming = players.find((p) => p.id === selectedPlayerId);
       if (incoming && validationMode !== "free") {
@@ -568,7 +529,7 @@ export default function NetballBoard({
       if (logEntry) appendSubLog(logEntry);
       setSelectedPlayerId(null);
     },
-    [effectiveReadOnly, selectedPlayerId, appendSubLog, players, validationMode, toast]
+    [readOnly, selectedPlayerId, appendSubLog, players, validationMode, toast]
   );
 
   const subOff = useCallback(
@@ -926,12 +887,12 @@ export default function NetballBoard({
   };
 
   // Keep the screen awake while a coach is actively running the game.
-  useWakeLock(!effectiveReadOnly && timerState.isRunning && !timerState.isGameFinished);
+  useWakeLock(!readOnly && timerState.isRunning && !timerState.isGameFinished);
 
   // Auto-save the finished game to history (admins/coaches only — RLS guards the rest).
   const { save: saveGameResult, saved: gameSaved } = useSaveGameResult();
   useEffect(() => {
-    if (!effectiveReadOnly && timerState.isGameFinished) {
+    if (!readOnly && timerState.isGameFinished) {
       saveGameResult({
         teamId,
         eventId,
@@ -946,7 +907,7 @@ export default function NetballBoard({
       });
     }
   }, [
-    effectiveReadOnly,
+    readOnly,
     timerState.isGameFinished,
     timerState.mvpPlayerId,
     teamId,
@@ -979,7 +940,7 @@ export default function NetballBoard({
           onChange={setTimerState}
           onTick={handleTick}
           onQuarterEnd={handleQuarterEnd}
-          readOnly={effectiveReadOnly}
+          readOnly={readOnly}
         />
       </header>
 
@@ -989,7 +950,7 @@ export default function NetballBoard({
         teamId={teamId}
         teamName={teamName}
         compact
-        onLinkEvent={effectiveReadOnly ? undefined : setLinkedEventId}
+        onLinkEvent={readOnly ? undefined : setLinkedEventId}
         currentScore={{
           team: timerState.homeScore ?? 0,
           opponent: timerState.awayScore ?? 0,
@@ -1003,7 +964,7 @@ export default function NetballBoard({
         homeScore={timerState.homeScore ?? 0}
         awayScore={timerState.awayScore ?? 0}
         increments={[1]}
-        readOnly={effectiveReadOnly}
+        readOnly={readOnly}
         disabled={!!timerState.isGameFinished}
         onScore={addScore}
         onUndo={undoScore}
@@ -1020,7 +981,7 @@ export default function NetballBoard({
         homeLabel={teamName}
         awayLabel={timerState.opponentName ?? "Opponent"}
         side={timerState.centrePass ?? "home"}
-        readOnly={effectiveReadOnly}
+        readOnly={readOnly}
         onSwap={() =>
           setCentrePass((timerState.centrePass ?? "home") === "home" ? "away" : "home")
         }
@@ -1054,7 +1015,7 @@ export default function NetballBoard({
         minutesPerQuarter={timerState.minutesPerQuarter}
       />
 
-      {!effectiveReadOnly && (
+      {!readOnly && (
         <SmartSubSuggestion
           players={players}
           totalElapsedSeconds={
@@ -1066,7 +1027,7 @@ export default function NetballBoard({
         />
       )}
 
-      {!effectiveReadOnly && (
+      {!readOnly && (
         <NetballActionBar
           onOpenSquad={() => setRosterOpen(true)}
           onOpenLineups={() => setLineupPlannerOpen(true)}
@@ -1080,7 +1041,7 @@ export default function NetballBoard({
       )}
 
       {/* Pre-tipoff nudge: only before the very first whistle. */}
-      {!effectiveReadOnly &&
+      {!readOnly &&
         timerState.currentQuarter === 1 &&
         timerState.elapsedSeconds === 0 &&
         !timerState.isRunning &&
@@ -1094,7 +1055,7 @@ export default function NetballBoard({
           />
         )}
 
-      {!effectiveReadOnly && rotationMode !== "off" && autoSubPlan.length > 0 && (
+      {!readOnly && rotationMode !== "off" && autoSubPlan.length > 0 && (
         <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
           <span className="text-[11px] text-muted-foreground">
             Auto-subs: {autoSubPlan.filter((s) => s.executed).length}/{autoSubPlan.length}
@@ -1119,7 +1080,7 @@ export default function NetballBoard({
         players={players}
         selectedPlayerId={selectedPlayerId}
         nextSubOutId={nextSub?.playerOut.id ?? null}
-        readOnly={effectiveReadOnly}
+        readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
         onSlotClick={handleSlotClick}
       />
@@ -1128,11 +1089,11 @@ export default function NetballBoard({
         bench={bench}
         selectedPlayerId={selectedPlayerId}
         nextSubInId={nextSub?.playerIn.id ?? null}
-        readOnly={effectiveReadOnly}
+        readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
       />
 
-      {!effectiveReadOnly && (canUndoSub || (timerState.scoreLog?.length ?? 0) > 0) && (
+      {!readOnly && (canUndoSub || (timerState.scoreLog?.length ?? 0) > 0) && (
         <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
           <Button
             variant="ghost"

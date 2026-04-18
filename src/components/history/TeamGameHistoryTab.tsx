@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trophy, Trash2, Calendar, Star, Loader2, CalendarDays, Crown } from "lucide-react";
+import { Trophy, Trash2, Calendar, Star, Loader2, CalendarDays } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -85,48 +85,6 @@ export default function TeamGameHistoryTab({
     return { all, basketball, netball };
   }, [data]);
 
-  /**
-   * Season-level aggregates over the (filtered) game list. Surfaces the
-   * coach's bird's-eye view: record, points-for/against differential, and the
-   * stand-out scorer across all games.
-   */
-  const aggregates = useMemo(() => {
-    const rows = data ?? [];
-    if (rows.length === 0) return null;
-    let wins = 0;
-    let losses = 0;
-    let draws = 0;
-    let pointsFor = 0;
-    let pointsAgainst = 0;
-    const scorerTotals = new Map<string, { name: string; points: number }>();
-    for (const r of rows) {
-      if (r.home_score > r.away_score) wins++;
-      else if (r.home_score < r.away_score) losses++;
-      else draws++;
-      pointsFor += r.home_score;
-      pointsAgainst += r.away_score;
-      for (const p of r.player_stats ?? []) {
-        const pts = p.points ?? 0;
-        if (pts <= 0) continue;
-        const prev = scorerTotals.get(p.id) ?? { name: p.name, points: 0 };
-        prev.points += pts;
-        prev.name = p.name; // refresh in case display name changed
-        scorerTotals.set(p.id, prev);
-      }
-    }
-    const topScorer = [...scorerTotals.values()].sort((a, b) => b.points - a.points)[0] ?? null;
-    return {
-      wins,
-      losses,
-      draws,
-      pointsFor,
-      pointsAgainst,
-      diff: pointsFor - pointsAgainst,
-      topScorer,
-    };
-  }, [data]);
-
-
   const visible = useMemo(() => {
     if (!data) return [];
     if (sportFilter === "all") return data;
@@ -184,79 +142,6 @@ export default function TeamGameHistoryTab({
 
   return (
     <div className="space-y-2">
-      {/* Season-at-a-glance — only when there's enough signal to be useful. */}
-      {aggregates && aggregates.wins + aggregates.losses + aggregates.draws > 0 && (
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-          <CardContent className="p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
-                Season so far
-              </p>
-              <span className="text-[10px] text-muted-foreground tabular-nums">
-                {aggregates.wins + aggregates.losses + aggregates.draws} games
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div>
-                <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Record</p>
-                <p className="text-sm font-bold tabular-nums">
-                  <span className="text-primary">{aggregates.wins}</span>
-                  <span className="text-muted-foreground">–</span>
-                  <span className="text-destructive">{aggregates.losses}</span>
-                  {aggregates.draws > 0 && (
-                    <>
-                      <span className="text-muted-foreground">–</span>
-                      <span className="text-muted-foreground">{aggregates.draws}</span>
-                    </>
-                  )}
-                </p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Points</p>
-                <p className="text-sm font-bold tabular-nums">
-                  {aggregates.pointsFor}
-                  <span className="text-muted-foreground">–</span>
-                  {aggregates.pointsAgainst}
-                </p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Diff</p>
-                <p
-                  className={cn(
-                    "text-sm font-bold tabular-nums",
-                    aggregates.diff > 0
-                      ? "text-primary"
-                      : aggregates.diff < 0
-                        ? "text-destructive"
-                        : "text-muted-foreground"
-                  )}
-                >
-                  {aggregates.diff > 0 ? "+" : ""}
-                  {aggregates.diff}
-                </p>
-              </div>
-            </div>
-            {aggregates.topScorer && (
-              <div className="flex items-center gap-2 pt-1.5 border-t border-border/50">
-                <Crown className="h-3.5 w-3.5 text-primary shrink-0" />
-                <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
-                  <p className="text-xs truncate">
-                    <span className="text-muted-foreground">Leading scorer · </span>
-                    <span className="font-semibold">{aggregates.topScorer.name}</span>
-                  </p>
-                  <p className="text-xs font-bold tabular-nums text-primary shrink-0">
-                    {aggregates.topScorer.points}
-                    <span className="text-[10px] text-muted-foreground font-normal ml-0.5">
-                      pts
-                    </span>
-                  </p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {showFilter && (
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {(
