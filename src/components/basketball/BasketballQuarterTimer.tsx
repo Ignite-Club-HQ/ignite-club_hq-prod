@@ -15,6 +15,10 @@ interface BasketballQuarterTimerProps {
    *  hard-coded `1` causes drift after backgrounding. */
   onTick?: (elapsedSeconds: number, quarter: Quarter, deltaSeconds: number) => void;
   onQuarterEnd?: (quarter: Quarter) => void;
+  /** Called when the user confirms a full reset. Parent should wipe per-player
+   *  stats (fouls, points, FT counters, isFouledOut, minutesPlayed) + any
+   *  cached cue refs so a fresh game starts cleanly. */
+  onReset?: () => void;
   readOnly?: boolean;
 }
 
@@ -23,6 +27,7 @@ export default function BasketballQuarterTimer({
   onChange,
   onTick,
   onQuarterEnd,
+  onReset,
   readOnly = false,
 }: BasketballQuarterTimerProps) {
   const intervalRef = useRef<number | null>(null);
@@ -32,6 +37,8 @@ export default function BasketballQuarterTimer({
   onTickRef.current = onTick;
   const onQuarterEndRef = useRef(onQuarterEnd);
   onQuarterEndRef.current = onQuarterEnd;
+  const onResetRef = useRef(onReset);
+  onResetRef.current = onReset;
 
   // Wall-clock driven tick to survive backgrounding.
   useEffect(() => {
@@ -130,6 +137,8 @@ export default function BasketballQuarterTimer({
       mvpPlayerId: null,
       lastUpdateTime: Date.now(),
     });
+    // Tell the parent to wipe per-player stats + cached cue refs.
+    onResetRef.current?.();
   }, [state, onChange]);
 
   const quarterSeconds = state.minutesPerQuarter * 60;

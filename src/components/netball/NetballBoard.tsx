@@ -883,7 +883,7 @@ export default function NetballBoard({
       ),
     ]);
     toast({ title: "Plan regenerated" });
-  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, autoSubPlan, toast]);
+  }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, autoSubPlan, toast]);
 
   const onCourtForPanel = useMemo(
     () =>
