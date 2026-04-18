@@ -11,6 +11,7 @@ import {
   LogIn,
   AlertTriangle,
   X,
+  Target,
 } from "lucide-react";
 import { NetballPlayer, NETBALL_POSITION_LABELS } from "./types";
 
@@ -26,6 +27,8 @@ interface NetballQuickActionSheetProps {
   onSubOn: () => void;
   /** Toggle injured flag. */
   onToggleInjured: () => void;
+  /** Attribute a goal to this player (home side). Only meaningful for GS/GA. */
+  onScore?: () => void;
 }
 
 export default function NetballQuickActionSheet({
