@@ -47,6 +47,20 @@ interface UseBasketballBoardStateArgs {
   /** When provided, board state is scoped per-event so multiple matches
    *  on the same team don't share/overwrite state. */
   eventId?: string | null;
+  /**
+   * Spectator-mode override. When provided, the hook ignores localStorage and
+   * mirrors the incoming `players` + `timerState` snapshot from the coach's
+   * device. Caller is responsible for also setting `readOnly: true`.
+   */
+  spectatorState?: {
+    players: BasketballPlayer[] | null;
+    timerState: BasketballTimerState | null;
+    rotationMode?: RotationMode;
+    rotationIntervalMinutes?: number;
+    validationMode?: ValidationMode;
+    autoSubPlan?: BasketballSubEvent[];
+    quarterLineups?: QuarterLineup[];
+  } | null;
 }
 
 /**
@@ -59,6 +73,7 @@ export function useBasketballBoardState({
   readOnly,
   initialMinutesPerQuarter,
   eventId = null,
+  spectatorState = null,
 }: UseBasketballBoardStateArgs) {
   const { toast } = useToast();
   const stateKey = getBasketballStateKey(teamId, eventId);
@@ -274,13 +289,38 @@ export function useBasketballBoardState({
   );
 
   // ---------- Persistence ----------
+  // Spectators must NOT persist incoming snapshots — they'd corrupt the local
+  // board state if this user later opens the board as a coach on the same team.
   useEffect(() => {
+    if (spectatorState) return;
     safeSave(stateKey, boardState);
-  }, [boardState, stateKey]);
+  }, [boardState, stateKey, spectatorState]);
   useEffect(() => {
+    if (spectatorState) return;
     safeSave(timerKey, timerState);
-  }, [timerState, timerKey]);
-  useBasketballGameSync(boardState, timerState, !readOnly);
+  }, [timerState, timerKey, spectatorState]);
+  useBasketballGameSync(boardState, timerState, !readOnly && !spectatorState);
+
+  // ---------- Spectator mirror ----------
+  // When a spectator snapshot arrives from the coach's device, replace local
+  // state wholesale. We compare lastUpdateTime so unchanged polls don't churn
+  // React (the spectator hook polls every 5s but most polls return identical
+  // payloads). We never write back to localStorage in this branch.
+  const lastSpectatorTickRef = useRef<number>(0);
+  useEffect(() => {
+    if (!spectatorState || !spectatorState.timerState || !spectatorState.players) return;
+    const incomingTick = spectatorState.timerState.lastUpdateTime ?? 0;
+    if (incomingTick && incomingTick === lastSpectatorTickRef.current) return;
+    lastSpectatorTickRef.current = incomingTick;
+    setPlayers(spectatorState.players);
+    setTimerState(spectatorState.timerState);
+    if (spectatorState.rotationMode) setRotationMode(spectatorState.rotationMode);
+    if (spectatorState.rotationIntervalMinutes != null)
+      setRotationIntervalMinutes(spectatorState.rotationIntervalMinutes);
+    if (spectatorState.validationMode) setValidationMode(spectatorState.validationMode);
+    if (spectatorState.autoSubPlan) setAutoSubPlan(spectatorState.autoSubPlan);
+    if (spectatorState.quarterLineups) setQuarterLineups(spectatorState.quarterLineups);
+  }, [spectatorState]);
 
   // ---------- Sub execution ----------
   // Centralised sub log writer — every sub (auto or manual) flows through one
