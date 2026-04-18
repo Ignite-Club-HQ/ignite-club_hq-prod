@@ -456,6 +456,13 @@ export function useBasketballBoardState({
   const performSwap = useCallback(
     (aId: string, bId: string) => {
       hapticImpactMedium();
+      let logEntry: {
+        playerOutId: string;
+        playerOutName: string;
+        playerInId: string;
+        playerInName: string;
+        position: BasketballPosition;
+      } | null = null;
       setPlayers((prev) => {
         const a = prev.find((p) => p.id === aId);
         const b = prev.find((p) => p.id === bId);
@@ -471,14 +478,34 @@ export function useBasketballBoardState({
             description: `Both players are ${a.position}. Free movement allowed.`,
           });
         }
+        // Bench → court swap: log it as a sub so undo + summary stay accurate.
+        // (Court → court swaps are positional re-shuffles, not subs — skip.)
+        if (a.position === null && b.position !== null) {
+          logEntry = {
+            playerOutId: b.id,
+            playerOutName: b.name,
+            playerInId: a.id,
+            playerInName: a.name,
+            position: b.position,
+          };
+        } else if (b.position === null && a.position !== null) {
+          logEntry = {
+            playerOutId: a.id,
+            playerOutName: a.name,
+            playerInId: b.id,
+            playerInName: b.name,
+            position: a.position,
+          };
+        }
         return prev.map((p) => {
           if (p.id === a.id) return transitionPosition(p, b.position);
           if (p.id === b.id) return transitionPosition(p, a.position);
           return p;
         });
       });
+      if (logEntry) appendSubLog({ ...logEntry, source: "manual" });
     },
-    [validationMode, toast]
+    [validationMode, toast, appendSubLog]
   );
 
   const handlePlayerClick = useCallback(
