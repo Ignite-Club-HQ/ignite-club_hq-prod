@@ -111,10 +111,20 @@ serve(async (req) => {
 
     if (updateError) {
       console.error("updateUserById error:", updateError.message);
-      return new Response(JSON.stringify({ error: updateError.message || "Failed to update password" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const msg = (updateError.message || "").toLowerCase();
+      const isWeak =
+        msg.includes("weak") ||
+        msg.includes("easy to guess") ||
+        msg.includes("pwned") ||
+        msg.includes("compromised");
+      return new Response(
+        JSON.stringify({
+          error: isWeak
+            ? "Password too weak. Please choose a stronger password."
+            : updateError.message || "Failed to update password",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Audit log
