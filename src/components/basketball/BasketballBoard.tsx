@@ -339,10 +339,116 @@ export default function BasketballBoard({
   // ── LIVE / FINISHED ──────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
+      {/* ── Header — back, matchup, sync ── */}
+      <header className="flex items-center gap-2 px-2 py-2 border-b bg-card sticky top-0 z-20">
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0 h-9 w-9">
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1 min-w-0 text-center">
+          <h1 className="font-bold text-sm truncate leading-tight">
+            <span className="text-foreground">{teamName}</span>
+            <span className="text-muted-foreground mx-1.5 font-normal">vs</span>
+            <span className="text-foreground">{opponentName}</span>
+          </h1>
+        </div>
+        {!readOnly && (
+          <Popover
+            open={opponentEditOpen}
+            onOpenChange={(o) => {
+              setOpponentEditOpen(o);
+              if (o) setDraftOpponent(opponentName);
+            }}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 flex-shrink-0"
+                aria-label="Edit opponent"
+              >
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-60 p-2" align="end">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-muted-foreground">Opponent name</label>
+                <Input
+                  value={draftOpponent}
+                  onChange={(e) => setDraftOpponent(e.target.value)}
+                  placeholder="Opponent"
+                  maxLength={24}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      board.setOpponentName(draftOpponent.trim() || "Opponent");
+                      setOpponentEditOpen(false);
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    board.setOpponentName(draftOpponent.trim() || "Opponent");
+                    setOpponentEditOpen(false);
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
+        <SyncStatusIndicator />
+      </header>
 
+      {/* ── Hero timer ── */}
+      <div className="border-b">
+        <BasketballQuarterTimer
+          state={board.timerState}
+          onChange={board.setTimerState}
+          onTick={board.handleTick}
+          onQuarterEnd={board.handleQuarterEnd}
+          onReset={board.resetPlayerStats}
+          readOnly={readOnly}
+        />
+      </div>
+
+      {/* ── Scoreboard ── */}
+      <GameScoreboard
+        homeLabel={teamName}
+        awayLabel={opponentName}
+        homeScore={board.timerState.homeScore ?? 0}
+        awayScore={board.timerState.awayScore ?? 0}
+        increments={[1, 2, 3]}
+        readOnly={readOnly}
+        disabled={!!board.timerState.isGameFinished}
+        onScore={board.addScore}
+        onUndo={board.undoScore}
+        onRenameAway={board.setOpponentName}
+        canUndo={(board.timerState.scoreLog?.length ?? 0) > 0}
+      />
 
       {/* Auto-sub status — only while game is in progress. */}
       {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
+        <div className="flex items-center justify-between gap-2 px-3 py-1 bg-primary/5">
+          <span className="text-[10px] text-muted-foreground">
+            Auto-subs: {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
+            {board.autoSubPaused && <span className="ml-1.5 text-amber-600 font-medium">· Paused</span>}
+            {board.lockedPlayerIds.size > 0 && (
+              <span className="ml-1.5 text-amber-600">· {board.lockedPlayerIds.size} locked</span>
+            )}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-[10px] gap-1"
+            onClick={() => setAutoSubPanelOpen(true)}
+          >
+            <Repeat className="h-3 w-3" />
+            Subs Plan
+          </Button>
+        </div>
+      )}
         <div className="flex items-center justify-between gap-2 px-3 py-1 bg-primary/5">
           <span className="text-[10px] text-muted-foreground">
             Auto-subs: {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
