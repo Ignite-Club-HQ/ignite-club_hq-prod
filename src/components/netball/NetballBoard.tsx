@@ -14,6 +14,7 @@ import NetballBench from "./NetballBench";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import CentrePassIndicator from "@/components/scoreboard/CentrePassIndicator";
+import CentrePassStatsPanel from "./CentrePassStatsPanel";
 import BenchFairnessMeter from "@/components/scoreboard/BenchFairnessMeter";
 import MomentumStrip from "@/components/scoreboard/MomentumStrip";
 import FoulFatigueWatchlist from "@/components/scoreboard/FoulFatigueWatchlist";
