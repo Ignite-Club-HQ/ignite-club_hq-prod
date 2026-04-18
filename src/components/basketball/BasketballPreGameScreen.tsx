@@ -85,7 +85,7 @@ export default function BasketballPreGameScreen({
       {/* Title */}
       <div className="px-4 pt-4 pb-2">
         <h2 className="text-lg font-bold tracking-tight">Game Ready</h2>
-        <p className="text-xs text-muted-foreground">Tap a court slot to assign each starter.</p>
+        <p className="text-xs text-muted-foreground">Tap a bench player, then tap a court slot to place them.</p>
       </div>
 
       {/* Checklist */}
@@ -181,6 +181,15 @@ export default function BasketballPreGameScreen({
 
       </div>
 
+      {/* Bench — shown ABOVE the court so coaches see who's available before tapping a slot */}
+      <BasketballBench
+        bench={bench}
+        selectedPlayerId={selectedPlayerId}
+        nextSubInId={null}
+        readOnly={readOnly}
+        onPlayerClick={onPlayerClick}
+      />
+
       {/* Court — interactive slot assignment */}
       <BasketballCourtArea
         players={players}
@@ -190,15 +199,6 @@ export default function BasketballPreGameScreen({
         courtView={courtView}
         onPlayerClick={onPlayerClick}
         onSlotClick={onSlotClick}
-      />
-
-      {/* Bench — pick from here */}
-      <BasketballBench
-        bench={bench}
-        selectedPlayerId={selectedPlayerId}
-        nextSubInId={null}
-        readOnly={readOnly}
-        onPlayerClick={onPlayerClick}
       />
 
       {/* Sticky CTA */}
