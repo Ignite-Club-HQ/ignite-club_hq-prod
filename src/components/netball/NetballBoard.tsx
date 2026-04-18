@@ -299,9 +299,11 @@ export default function NetballBoard({
   }, []);
 
   // Auto-open the summary the first time the game ticks over to "finished".
+  // Spectators don't see the summary — they're read-only viewers.
   useEffect(() => {
+    if (spectator) return;
     if (timerState.isGameFinished) setSummaryOpen(true);
-  }, [timerState.isGameFinished]);
+  }, [timerState.isGameFinished, spectator]);
 
   // ---------- Sub log writer (single funnel for auto + manual subs) ----------
   const appendSubLog = useCallback(

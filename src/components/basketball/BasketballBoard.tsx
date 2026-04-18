@@ -180,9 +180,11 @@ export default function BasketballBoard({
   const { save: saveGameResult, saved: gameSaved } = useSaveGameResult();
 
   // Auto-open the summary the first time the game ticks over to "finished".
+  // Spectators don't see the summary — they're read-only viewers.
   useEffect(() => {
+    if (spectator) return;
     if (board.timerState.isGameFinished) setSummaryOpen(true);
-  }, [board.timerState.isGameFinished]);
+  }, [board.timerState.isGameFinished, spectator]);
 
   // Build sport-agnostic player rows for the summary dialog.
   const summaryPlayers = useMemo(
