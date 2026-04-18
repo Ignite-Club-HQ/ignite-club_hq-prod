@@ -459,6 +459,11 @@ export default function BasketballBoard({
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
+          <QuarterScoreStrip
+            scoreLog={board.timerState.scoreLog}
+            currentQuarter={board.timerState.currentQuarter}
+            periodType={board.timerState.periodType ?? "quarters"}
+          />
           <LinkedEventHeader
             eventId={linkedEventId || ""}
             teamId={teamId}
