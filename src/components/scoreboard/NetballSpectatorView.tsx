@@ -19,6 +19,7 @@ import type {
   NetballTimerState,
 } from "@/components/netball/types";
 import { isSpectatorFeedStale } from "@/components/scoreboard/spectatorTypes";
+import { totalElapsedSeconds, periodLabel } from "@/lib/periodTypes";
 
 interface NetballSpectatorViewProps {
   teamName: string;

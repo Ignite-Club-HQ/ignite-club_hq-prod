@@ -20,6 +20,7 @@ import type {
   BasketballTimerState,
 } from "@/components/basketball/types";
 import { isSpectatorFeedStale } from "@/components/scoreboard/spectatorTypes";
+import { totalElapsedSeconds, periodLabel } from "@/lib/periodTypes";
 
 interface BasketballSpectatorViewProps {
   teamName: string;
