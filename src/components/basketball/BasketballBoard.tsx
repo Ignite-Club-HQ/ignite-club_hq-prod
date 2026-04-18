@@ -239,23 +239,45 @@ export default function BasketballBoard({
     board.timerState.periodType
   );
 
+  const isLive = !!board.timerState.isRunning && !board.timerState.isGameFinished;
+  const onCourtCount = board.players.filter((p) => p.position !== null).length;
+  const lineupSet = onCourtCount >= 5;
+  const opponentName = board.timerState.opponentName ?? "Opponent";
+  const [opponentEditOpen, setOpponentEditOpen] = useState(false);
+  const [scoreBreakdownOpen, setScoreBreakdownOpen] = useState(false);
+  const [gameDetailsOpen, setGameDetailsOpen] = useState(false);
+
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
-      {/* Header — title row only, timer goes on its own row to avoid wrapping */}
-      <header className="flex items-center gap-2 p-2 border-b bg-card sticky top-0 z-20">
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0">
+      {/* ── ROW 1: Minimal header — back, matchup, sync ── */}
+      <header className="flex items-center gap-2 px-2 py-2 border-b bg-card sticky top-0 z-20">
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0 h-9 w-9">
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-sm truncate leading-tight">{teamName}</h1>
-          <p className="text-[10px] text-muted-foreground leading-tight">Basketball Game Board</p>
+        <div className="flex-1 min-w-0 text-center">
+          <h1 className="font-bold text-sm truncate leading-tight">
+            <span className="text-foreground">{teamName}</span>
+            <span className="text-muted-foreground mx-1.5 font-normal">vs</span>
+            <span className="text-foreground">{opponentName}</span>
+          </h1>
         </div>
+        {!readOnly && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 flex-shrink-0"
+            onClick={() => setOpponentEditOpen(true)}
+            aria-label="Edit opponent"
+          >
+            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
+        )}
         <SyncStatusIndicator />
         <CuesToggle />
       </header>
 
-      {/* Timer on its own row — full-width, no wrapping */}
-      <div className="px-2 py-1.5 border-b bg-card">
+      {/* ── ROW 2: Hero timer (period • clock • play • menu) ── */}
+      <div className="border-b">
         <BasketballQuarterTimer
           state={board.timerState}
           onChange={board.setTimerState}
@@ -266,23 +288,10 @@ export default function BasketballBoard({
         />
       </div>
 
-      {/* Linked event header (link/unlink a scheduled match). */}
-      <LinkedEventHeader
-        eventId={linkedEventId || ""}
-        teamId={teamId}
-        teamName={teamName}
-        compact
-        onLinkEvent={readOnly ? undefined : setLinkedEventId}
-        currentScore={{
-          team: board.timerState.homeScore ?? 0,
-          opponent: board.timerState.awayScore ?? 0,
-        }}
-        isGameInProgress={!!board.timerState.isRunning && !board.timerState.isGameFinished}
-      />
-
+      {/* ── ROW 3: Hero scoreboard (tap-to-score) ── */}
       <GameScoreboard
         homeLabel={teamName}
-        awayLabel={board.timerState.opponentName ?? "Opponent"}
+        awayLabel={opponentName}
         homeScore={board.timerState.homeScore ?? 0}
         awayScore={board.timerState.awayScore ?? 0}
         increments={[1, 2, 3]}
@@ -294,83 +303,60 @@ export default function BasketballBoard({
         canUndo={(board.timerState.scoreLog?.length ?? 0) > 0}
       />
 
-      <QuarterScoreStrip
-        scoreLog={board.timerState.scoreLog}
-        currentQuarter={board.timerState.currentQuarter}
-        periodType={board.timerState.periodType ?? "quarters"}
-      />
-
-      <TimeoutsPanel
-        homeLabel={teamName}
-        awayLabel={board.timerState.opponentName ?? "Opponent"}
-        homeRemaining={
-          board.timerState.homeTimeoutsRemaining ?? board.timerState.timeoutsPerHalf ?? 3
-        }
-        awayRemaining={
-          board.timerState.awayTimeoutsRemaining ?? board.timerState.timeoutsPerHalf ?? 3
-        }
-        perHalf={board.timerState.timeoutsPerHalf ?? 3}
-        half={board.timerState.currentQuarter <= 2 ? 1 : 2}
-        readOnly={readOnly}
-        onCall={board.callTimeout}
-        onResetHalf={board.resetTimeoutsForCurrentHalf}
-      />
-
-      {/* Coach insights — collapsed by default to keep court visible */}
-      <button
-        type="button"
-        onClick={() => setInsightsOpen((o) => !o)}
-        className="flex items-center justify-between w-full px-3 py-1.5 border-b bg-muted/30 text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
-        aria-expanded={insightsOpen}
-      >
-        <span>Coach insights {insightsOpen ? "" : "· tap to show"}</span>
-        {insightsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-      </button>
-      {insightsOpen && (
-        <>
-          <BenchFairnessMeter players={board.players} elapsedSeconds={totalElapsed} />
-          <MomentumStrip scoreLog={board.timerState.scoreLog} />
-          <FoulFatigueWatchlist
-            sport="basketball"
-            players={board.players}
+      {/* ── ROW 4: Collapsed quarter breakdown — minimised by default ── */}
+      <Collapsible open={scoreBreakdownOpen} onOpenChange={setScoreBreakdownOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center justify-between w-full px-3 py-1 border-b bg-muted/20 text-[10px] font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
+            aria-expanded={scoreBreakdownOpen}
+          >
+            <span className="uppercase tracking-wide">Score by period</span>
+            {scoreBreakdownOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <QuarterScoreStrip
+            scoreLog={board.timerState.scoreLog}
             currentQuarter={board.timerState.currentQuarter}
-            totalElapsedSeconds={totalElapsed}
-            minutesPerQuarter={board.timerState.minutesPerQuarter}
+            periodType={board.timerState.periodType ?? "quarters"}
           />
-          {!readOnly && (
-            <SmartSubSuggestion
-              players={board.players}
-              totalElapsedSeconds={totalElapsed}
-              isRunning={board.timerState.isRunning && !board.timerState.isGameFinished}
-              onApplySub={(outId, inId) => board.performSwap(outId, inId)}
-            />
-          )}
-        </>
-      )}
+        </CollapsibleContent>
+      </Collapsible>
 
-      {/* Always render so coaches/admins always see the Game Setup entry point.
-          The Settings dialog itself respects readOnly for sub-actions. */}
+      {/* ── ROW 5: Action bar — contextual primary CTA + kebab.
+          Auto-hides while the game is live to keep the court the focus. ── */}
       <BasketballActionBar
         onOpenSettings={() => setSettingsOpen(true)}
         onToggleCourtView={board.toggleCourtView}
+        onOpenLineup={() => setLineupPlannerOpen(true)}
         rotationMode={board.rotationMode}
         rotationIntervalMinutes={board.rotationIntervalMinutes}
         courtView={board.courtView}
+        onCourtCount={onCourtCount}
+        isLive={isLive}
       />
 
-      {/* Pre-tipoff nudge: only before the very first whistle. */}
+      {/* ── ROW 6: Inline lineup hint — only before tipoff & when not set ── */}
       {!readOnly &&
+        !isLive &&
+        !lineupSet &&
         board.timerState.currentQuarter === 1 &&
         board.timerState.elapsedSeconds === 0 &&
-        !board.timerState.isRunning &&
         !board.timerState.isGameFinished && (
-          <PreTipoffHint
-            required={5}
-            currentOnCourt={board.players.filter((p) => p.position !== null).length}
-            onOpenPlanner={() => setLineupPlannerOpen(true)}
-            onOpenPresets={() => setPresetsOpen(true)}
-            hasPresets={board.lineupPresets.length > 0}
-          />
+          <div className="px-3 py-2 border-b bg-primary/5 text-xs text-foreground flex items-center justify-between gap-2">
+            <span className="text-muted-foreground">
+              Tap a court slot to assign a player, or use{" "}
+              <button
+                type="button"
+                onClick={() => setPresetsOpen(true)}
+                className="text-primary font-medium underline-offset-2 hover:underline"
+              >
+                lineup presets
+              </button>
+              .
+            </span>
+          </div>
         )}
 
       {!readOnly && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
@@ -394,6 +380,7 @@ export default function BasketballBoard({
         </div>
       )}
 
+      {/* ── COURT — the dominant interaction zone ── */}
       <BasketballCourtArea
         players={board.players}
         selectedPlayerId={board.selectedPlayerId}
@@ -404,6 +391,7 @@ export default function BasketballBoard({
         onSlotClick={board.handleSlotClick}
       />
 
+      {/* ── BENCH ── */}
       <BasketballBench
         bench={board.bench}
         selectedPlayerId={board.selectedPlayerId}
@@ -411,6 +399,67 @@ export default function BasketballBoard({
         readOnly={readOnly}
         onPlayerClick={board.handlePlayerClick}
       />
+
+      {/* ── GAME DETAILS — collapsed by default. Houses linked event,
+          timeouts, and coach insights so the live UI stays clean. ── */}
+      <Collapsible open={gameDetailsOpen} onOpenChange={setGameDetailsOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center justify-between w-full px-3 py-2 border-t bg-muted/20 text-xs font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
+            aria-expanded={gameDetailsOpen}
+          >
+            <span>Game details &amp; insights</span>
+            {gameDetailsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <LinkedEventHeader
+            eventId={linkedEventId || ""}
+            teamId={teamId}
+            teamName={teamName}
+            compact
+            onLinkEvent={readOnly ? undefined : setLinkedEventId}
+            currentScore={{
+              team: board.timerState.homeScore ?? 0,
+              opponent: board.timerState.awayScore ?? 0,
+            }}
+            isGameInProgress={isLive}
+          />
+          <TimeoutsPanel
+            homeLabel={teamName}
+            awayLabel={opponentName}
+            homeRemaining={
+              board.timerState.homeTimeoutsRemaining ?? board.timerState.timeoutsPerHalf ?? 3
+            }
+            awayRemaining={
+              board.timerState.awayTimeoutsRemaining ?? board.timerState.timeoutsPerHalf ?? 3
+            }
+            perHalf={board.timerState.timeoutsPerHalf ?? 3}
+            half={board.timerState.currentQuarter <= 2 ? 1 : 2}
+            readOnly={readOnly}
+            onCall={board.callTimeout}
+            onResetHalf={board.resetTimeoutsForCurrentHalf}
+          />
+          <BenchFairnessMeter players={board.players} elapsedSeconds={totalElapsed} />
+          <MomentumStrip scoreLog={board.timerState.scoreLog} />
+          <FoulFatigueWatchlist
+            sport="basketball"
+            players={board.players}
+            currentQuarter={board.timerState.currentQuarter}
+            totalElapsedSeconds={totalElapsed}
+            minutesPerQuarter={board.timerState.minutesPerQuarter}
+          />
+          {!readOnly && (
+            <SmartSubSuggestion
+              players={board.players}
+              totalElapsedSeconds={totalElapsed}
+              isRunning={isLive}
+              onApplySub={(outId, inId) => board.performSwap(outId, inId)}
+            />
+          )}
+        </CollapsibleContent>
+      </Collapsible>
 
       {!readOnly && (board.canUndoSub || (board.timerState.scoreLog?.length ?? 0) > 0) && (
         <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
