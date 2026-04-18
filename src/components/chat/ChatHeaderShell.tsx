@@ -18,6 +18,8 @@ interface ChatHeaderShellProps {
   leftSlot?: ReactNode;
   /** Disable the tap-to-open affordance (e.g. when no details panel is wired up) */
   interactive?: boolean;
+  /** Render an "online" indicator (green dot on avatar + "Online" subtitle). */
+  showOnlineDot?: boolean;
 }
 
 /**
@@ -33,6 +35,7 @@ export function ChatHeaderShell({
   rightSlot,
   leftSlot,
   interactive = true,
+  showOnlineDot = false,
 }: ChatHeaderShellProps) {
   const TitleEl: any = interactive && onOpenDetails ? "button" : "div";
   const titleProps =
@@ -65,12 +68,20 @@ export function ChatHeaderShell({
           interactive && onOpenDetails && "active:opacity-70 transition-opacity touch-manipulation",
         )}
       >
-        <ConversationAvatar
-          type={type}
-          name={name}
-          avatarUrl={avatarUrl}
-          className="h-9 w-9 ring-1 ring-border/60 shadow-sm"
-        />
+        <div className="relative shrink-0">
+          <ConversationAvatar
+            type={type}
+            name={name}
+            avatarUrl={avatarUrl}
+            className="h-9 w-9 ring-1 ring-border/60 shadow-sm"
+          />
+          {showOnlineDot && (
+            <span
+              aria-label="Online"
+              className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
+            />
+          )}
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 min-w-0">
             <h1 className="text-[15px] font-semibold tracking-tight truncate">{name}</h1>
@@ -82,7 +93,11 @@ export function ChatHeaderShell({
               />
             )}
           </div>
-          {sublabel ? (
+          {showOnlineDot ? (
+            <p className="text-[12px] leading-tight text-emerald-600 dark:text-emerald-400 truncate mt-0.5">
+              Online
+            </p>
+          ) : sublabel ? (
             <p className="text-[12px] leading-tight text-muted-foreground truncate mt-0.5">
               {sublabel}
             </p>
