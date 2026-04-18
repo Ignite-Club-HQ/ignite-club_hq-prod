@@ -258,7 +258,6 @@ export default function BasketballBoard({
   const gameInProgress = hasGameStarted && !board.timerState.isGameFinished;
   const [opponentEditOpen, setOpponentEditOpen] = useState(false);
   const [draftOpponent, setDraftOpponent] = useState(opponentName);
-  const [scoreBreakdownOpen, setScoreBreakdownOpen] = useState(false);
   const [gameDetailsOpen, setGameDetailsOpen] = useState(false);
 
   return (
