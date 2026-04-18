@@ -1584,6 +1584,10 @@ export default function HomePage() {
         );
       })()}
 
+      {/* Resume in-progress basketball / netball game boards.
+          Soccer is already handled by GameTimerWidget above. */}
+      <CourtBoardResumeCard />
+
       {/* Quick Actions */}
       <HomeQuickActions
         onCreateTeam={() => {
