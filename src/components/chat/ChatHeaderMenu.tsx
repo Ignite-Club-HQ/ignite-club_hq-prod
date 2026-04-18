@@ -27,6 +27,23 @@ export function ChatHeaderMenu({
   const hasAnyAction = !!onRefresh || !!onEditGroup || !!onDeleteGroup || !!onSearch;
   if (!hasAnyAction) return null;
 
+  // If refresh is the only action, render it as a direct button instead of a dropdown.
+  const isRefreshOnly = !!onRefresh && !onEditGroup && !onDeleteGroup && !onSearch;
+  if (isRefreshOnly) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9 shrink-0 transition-transform active:scale-95"
+        onClick={() => void onRefresh!()}
+        disabled={isRefreshing}
+        aria-label="Refresh messages"
+      >
+        <RefreshCw className={cn("h-[18px] w-[18px]", isRefreshing && "animate-spin")} />
+      </Button>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
