@@ -23,7 +23,7 @@ import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
-import { totalElapsedSeconds } from "@/lib/periodTypes";
+import { totalElapsedSeconds, visiblePeriods } from "@/lib/periodTypes";
 
 // Lazy-load secondary dialogs
 const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
@@ -172,16 +172,25 @@ export default function BasketballBoard({
 
   const perQuarter = useMemo(() => {
     const log = board.timerState.scoreLog ?? [];
-    return [1, 2, 3, 4].map((q) => ({
-      quarter: q,
-      home: log
-        .filter((e) => e.quarter === q && e.side === "home")
-        .reduce((sum, e) => sum + e.points, 0),
-      away: log
-        .filter((e) => e.quarter === q && e.side === "away")
-        .reduce((sum, e) => sum + e.points, 0),
-    }));
-  }, [board.timerState.scoreLog]);
+    const periods = visiblePeriods(board.timerState.periodType);
+    return periods.map((slot, idx) => {
+      const matches = (q: number) =>
+        board.timerState.periodType === "halves"
+          ? idx === 0
+            ? q <= 2
+            : q >= 3
+          : q === slot;
+      return {
+        quarter: slot,
+        home: log
+          .filter((e) => matches(e.quarter) && e.side === "home")
+          .reduce((sum, e) => sum + e.points, 0),
+        away: log
+          .filter((e) => matches(e.quarter) && e.side === "away")
+          .reduce((sum, e) => sum + e.points, 0),
+      };
+    });
+  }, [board.timerState.scoreLog, board.timerState.periodType]);
 
   // Keep the screen awake while a coach is actively running the game.
   useWakeLock(!readOnly && board.timerState.isRunning && !board.timerState.isGameFinished);

@@ -862,16 +862,26 @@ export default function NetballBoard({
 
   const perQuarter = useMemo(() => {
     const log = timerState.scoreLog ?? [];
-    return [1, 2, 3, 4].map((q) => ({
-      quarter: q,
-      home: log
-        .filter((e) => e.quarter === q && e.side === "home")
-        .reduce((sum, e) => sum + e.points, 0),
-      away: log
-        .filter((e) => e.quarter === q && e.side === "away")
-        .reduce((sum, e) => sum + e.points, 0),
-    }));
-  }, [timerState.scoreLog]);
+    const periods = visiblePeriods(timerState.periodType);
+    return periods.map((slot, idx) => {
+      // In halves mode, slot 1 represents H1 (Q1+Q2), slot 3 represents H2 (Q3+Q4).
+      const matches = (q: number) =>
+        timerState.periodType === "halves"
+          ? idx === 0
+            ? q <= 2
+            : q >= 3
+          : q === slot;
+      return {
+        quarter: slot,
+        home: log
+          .filter((e) => matches(e.quarter) && e.side === "home")
+          .reduce((sum, e) => sum + e.points, 0),
+        away: log
+          .filter((e) => matches(e.quarter) && e.side === "away")
+          .reduce((sum, e) => sum + e.points, 0),
+      };
+    });
+  }, [timerState.scoreLog, timerState.periodType]);
 
   const canUndoSub = (timerState.subLog?.length ?? 0) > 0;
 
