@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 
-import { formatMessagePreview as stripMentionFormatting } from "@/lib/messagePreview";
+import { formatMessagePreview as stripMentionFormatting, extractEventIds } from "@/lib/messagePreview";
 
 interface TeamChatPreviewProps {
   teamId: string;
