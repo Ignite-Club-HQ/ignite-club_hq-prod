@@ -16,7 +16,7 @@ import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
-import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+
 import { PageLoading } from "@/components/ui/page-loading";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";

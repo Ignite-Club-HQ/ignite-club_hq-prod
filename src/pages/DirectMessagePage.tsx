@@ -15,7 +15,7 @@ import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
-import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 
