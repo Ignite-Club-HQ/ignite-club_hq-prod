@@ -275,6 +275,49 @@ export const formatTime = (seconds: number): string => {
  * Storage helpers — kept here so the root component stays thin.
  * Failures are swallowed so a corrupted localStorage entry never bricks the board.
  */
+/**
+ * Suggest a 7-player lineup for a quarter that:
+ *   1. Honours each player's preferredPositions (best fit first)
+ *   2. Falls back to zone-compatible candidates
+ *   3. Prefers players with the FEWEST minutes already played (fairness)
+ *
+ * `existingAssignments` lets the caller seed locked positions; suggested
+ * picks won't reuse those player ids or overwrite those slots.
+ */
+export const suggestQuarterLineup = (
+  players: NetballPlayer[],
+  existingAssignments: Partial<Record<NetballPosition, string>> = {}
+): Partial<Record<NetballPosition, string>> => {
+  const result: Partial<Record<NetballPosition, string>> = { ...existingAssignments };
+  const taken = new Set(Object.values(result).filter(Boolean) as string[]);
+  const open = NETBALL_POSITIONS.filter((p) => !result[p]);
+
+  const eligible = players.filter((p) => !p.isInjured);
+
+  // Score each (position, player) pair so we can pick globally-good fits first.
+  type Cand = { position: NetballPosition; player: NetballPlayer; score: number };
+  const cands: Cand[] = [];
+  for (const position of open) {
+    for (const player of eligible) {
+      if (taken.has(player.id)) continue;
+      const fit = classifySwapFit(player, position);
+      if (fit === "violation") continue;
+      // Lower score is better. Fairness gets the strongest weight.
+      const fitWeight = fit === "exact" ? 0 : fit === "zone" ? 100 : 200;
+      const minutes = player.minutesPlayed ?? 0;
+      cands.push({ position, player, score: fitWeight + minutes });
+    }
+  }
+  cands.sort((a, b) => a.score - b.score);
+
+  for (const c of cands) {
+    if (result[c.position] || taken.has(c.player.id)) continue;
+    result[c.position] = c.player.id;
+    taken.add(c.player.id);
+  }
+  return result;
+};
+
 export const safeLoad = <T>(key: string): T | null => {
   try {
     const raw = localStorage.getItem(key);
