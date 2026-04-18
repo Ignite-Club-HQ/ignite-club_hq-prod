@@ -58,6 +58,7 @@ import {
 } from "./netballHelpers";
 import { useNetballGameSync } from "@/hooks/useNetballGameSync";
 import { visiblePeriods } from "@/lib/periodTypes";
+import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX, CENTRE_PASS_LOG_MAX } from "@/lib/gameLogLimits";
 
 // Lazy-load secondary dialogs
 const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
@@ -265,16 +266,19 @@ export default function NetballBoard({
     (entry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time">) => {
       setTimerState((s) => ({
         ...s,
-        subLog: [
-          ...(s.subLog ?? []),
-          {
-            ...entry,
-            id: crypto.randomUUID(),
-            at: Date.now(),
-            quarter: s.currentQuarter,
-            time: s.elapsedSeconds,
-          },
-        ],
+        subLog: trimLog(
+          [
+            ...(s.subLog ?? []),
+            {
+              ...entry,
+              id: crypto.randomUUID(),
+              at: Date.now(),
+              quarter: s.currentQuarter,
+              time: s.elapsedSeconds,
+            },
+          ],
+          SUB_LOG_MAX
+        ),
         lastUpdateTime: Date.now(),
       }));
     },
