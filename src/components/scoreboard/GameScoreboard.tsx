@@ -80,7 +80,7 @@ const GameScoreboard = memo(function GameScoreboard({
       aria-label="Scoreboard"
     >
       {/* HOME */}
-      <div className="flex flex-col items-end min-w-0 gap-0.5">
+      <div className="flex flex-col items-center min-w-0 gap-0.5">
         <span
           className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
           title={homeLabel}
@@ -95,7 +95,7 @@ const GameScoreboard = memo(function GameScoreboard({
           onScore={(pts) => handleScore("home", pts)}
           increments={increments}
           ariaLabel={`Add points for ${homeLabel}`}
-          align="right"
+          align="center"
         />
       </div>
 
@@ -103,7 +103,7 @@ const GameScoreboard = memo(function GameScoreboard({
       <span className="text-2xl font-light text-muted-foreground/60 px-1">—</span>
 
       {/* AWAY */}
-      <div className="flex flex-col items-start min-w-0 gap-0.5">
+      <div className="flex flex-col items-center min-w-0 gap-0.5">
         <div className="flex items-center gap-1 max-w-full">
           <span
             className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate"
@@ -165,7 +165,7 @@ const GameScoreboard = memo(function GameScoreboard({
           onScore={(pts) => handleScore("away", pts)}
           increments={increments}
           ariaLabel={`Add points for ${awayLabel}`}
-          align="left"
+          align="center"
         />
       </div>
     </div>
@@ -180,7 +180,7 @@ interface ScoreButtonProps {
   onScore: (points: number) => void;
   increments: number[];
   ariaLabel: string;
-  align: "left" | "right";
+  align: "left" | "right" | "center";
 }
 
 function ScoreButton({
@@ -223,7 +223,7 @@ function ScoreButton({
       </PopoverTrigger>
       <PopoverContent
         className="w-auto p-1.5"
-        align={align === "right" ? "end" : "start"}
+        align={align === "right" ? "end" : align === "left" ? "start" : "center"}
         sideOffset={4}
       >
         <div className="flex items-center gap-1">
