@@ -175,6 +175,10 @@ export default function NetballBoard({
         elapsedSeconds: 0,
         isRunning: false,
         lastUpdateTime: Date.now(),
+        // Seed an opening centre-pass side so first-goal credit and CP stats
+        // populate from kickoff (audit fix B15/N15-init). Coach can flip via
+        // the CentrePassIndicator before tipoff.
+        centrePass: "home",
       }
     );
   });
@@ -366,6 +370,9 @@ export default function NetballBoard({
       }))
     );
   }, []);
+  // Forward ref so handleTick can call executeSub before it's declared
+  // (audit fix N14 — temporal dead zone + missing dep).
+  const executeSubRef = useRef<((sub: NetballSubEvent) => void) | null>(null);
   const handleTick = useCallback(
     (elapsed: number, quarter: Quarter, delta = 1) => {
       const safeDelta = Math.max(1, Math.floor(delta));
@@ -391,10 +398,10 @@ export default function NetballBoard({
           }
         }
         const due = findNextDueSub(autoSubPlan, quarter, elapsed);
-        if (due && !lockedPlayerIds.has(due.playerOut.id)) executeSub(due);
+        if (due && !lockedPlayerIds.has(due.playerOut.id)) executeSubRef.current?.(due);
       }
     },
-    [autoSubPlan, rotationMode, autoSubPaused, lockedPlayerIds] // executeSub stable via setState callbacks
+    [autoSubPlan, rotationMode, autoSubPaused, lockedPlayerIds]
   );
 
   // ---------- Sub execution ----------
@@ -432,6 +439,10 @@ export default function NetballBoard({
     },
     [toast, appendSubLog]
   );
+  // Wire the forward-ref so handleTick can fire executeSub safely (audit fix N14).
+  useEffect(() => {
+    executeSubRef.current = executeSub;
+  }, [executeSub]);
 
   // ---------- Quarter end → quarter-break rotations + apply next lineup ----------
   const handleQuarterEnd = useCallback(
@@ -814,9 +825,19 @@ export default function NetballBoard({
     });
   }, []);
 
-  const setCentrePass = useCallback((side: "home" | "away") => {
-    setTimerState((s) => ({ ...s, centrePass: side, lastUpdateTime: Date.now() }));
-  }, []);
+  const setCentrePass = useCallback(
+    (side: "home" | "away" | ((prev: "home" | "away") => "home" | "away")) => {
+      setTimerState((s) => ({
+        ...s,
+        // Functional form so rapid swap taps don't read a stale `s.centrePass`
+        // (audit fix N16). Existing callers passing a literal still work.
+        centrePass:
+          typeof side === "function" ? side(s.centrePass ?? "home") : side,
+        lastUpdateTime: Date.now(),
+      }));
+    },
+    []
+  );
 
   const setOpponentName = useCallback((name: string) => {
     setTimerState((s) => ({ ...s, opponentName: name, lastUpdateTime: Date.now() }));
@@ -932,14 +953,18 @@ export default function NetballBoard({
         ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
         : generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters");
     // Preserve BOTH executed AND skipped history so a regen never resurrects
-    // a sub the coach already actioned (audit fix N7). Use stable getSubKey
-    // for dedupe — composite property checks miss when the slot's playerOut
-    // changed mid-quarter via a manual swap.
+    // a sub the coach already actioned (audit fix N7).
     const history = autoSubPlan.filter((s) => s.executed || s.skipped);
     const historyKeys = new Set(history.map(getSubKey));
+    // Drop fresh subs whose playerOut is no longer on court — otherwise a
+    // manual swap that benched the planned playerOut would queue an invalid
+    // "sub-off" for an already-benched player (audit fix B14/N15).
+    const onCourtIds = new Set(players.filter((p) => p.position !== null).map((p) => p.id));
     setAutoSubPlan([
       ...history,
-      ...fresh.filter((f) => !historyKeys.has(getSubKey(f))),
+      ...fresh.filter(
+        (f) => !historyKeys.has(getSubKey(f)) && onCourtIds.has(f.playerOut.id)
+      ),
     ]);
     toast({ title: "Plan regenerated" });
   }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, autoSubPlan, toast]);
@@ -1119,7 +1144,7 @@ export default function NetballBoard({
         side={timerState.centrePass ?? "home"}
         readOnly={readOnly}
         onSwap={() =>
-          setCentrePass((timerState.centrePass ?? "home") === "home" ? "away" : "home")
+          setCentrePass((prev) => (prev === "home" ? "away" : "home"))
         }
       />
 

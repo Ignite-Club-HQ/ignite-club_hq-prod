@@ -88,7 +88,14 @@ export const applyLineup = (
   for (const [position, playerId] of Object.entries(lineup.assignments)) {
     if (playerId) positionByPlayerId.set(playerId, position as BasketballPosition);
   }
-  return players.map(p => transitionPosition(p, positionByPlayerId.get(p.id) ?? null));
+  return players.map(p => {
+    const next = positionByPlayerId.get(p.id) ?? null;
+    // Preserve `lastBenchedAt` when a benched player stays benched —
+    // applyPreset / applyLineup mid-quarter shouldn't reset rest timers
+    // for players who never moved (audit fix B16/N17).
+    if (p.position === null && next === null) return p;
+    return transitionPosition(p, next);
+  });
 };
 
 export const snapshotLineup = (
