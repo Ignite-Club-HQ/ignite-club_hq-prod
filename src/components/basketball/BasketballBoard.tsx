@@ -39,7 +39,7 @@ const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPrese
 const FreeThrowDialog = lazy(() => import("./FreeThrowDialog"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 const QuarterAutoSubControlPanel = lazy(() => import("@/components/scoreboard/QuarterAutoSubControlPanel"));
-import PreTipoffHint from "@/components/scoreboard/PreTipoffHint";
+
 
 interface BasketballBoardProps {
   teamId: string;
@@ -115,7 +115,7 @@ export default function BasketballBoard({
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
-  const [insightsOpen, setInsightsOpen] = useState(false);
+  // (insights moved into "Game details" collapsible below the bench)
   const [freeThrowSession, setFreeThrowSession] = useState<{
     playerId: string;
     playerName: string;
