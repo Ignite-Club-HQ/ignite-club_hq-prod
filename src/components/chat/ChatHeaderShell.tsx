@@ -78,7 +78,8 @@ export function ChatHeaderShell({
           {showOnlineDot && (
             <span
               aria-label="Online"
-              className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
+              className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background"
+              style={{ backgroundColor: "hsl(var(--success))" }}
             />
           )}
         </div>
@@ -94,7 +95,10 @@ export function ChatHeaderShell({
             )}
           </div>
           {showOnlineDot ? (
-            <p className="text-[12px] leading-tight text-emerald-600 dark:text-emerald-400 truncate mt-0.5">
+            <p
+              className="text-[12px] leading-tight truncate mt-0.5"
+              style={{ color: "hsl(var(--success))" }}
+            >
               Online
             </p>
           ) : sublabel ? (
