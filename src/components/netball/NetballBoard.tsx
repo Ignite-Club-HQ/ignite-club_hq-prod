@@ -1062,17 +1062,30 @@ export default function NetballBoard({
             open={settingsOpen}
             onOpenChange={setSettingsOpen}
             minutesPerQuarter={timerState.minutesPerQuarter}
-            onMinutesPerQuarterChange={(n) =>
-              setTimerState((s) => ({ ...s, minutesPerQuarter: n, lastUpdateTime: Date.now() }))
-            }
+            onMinutesPerQuarterChange={(n) => {
+              setTimerState((s) => ({ ...s, minutesPerQuarter: n, lastUpdateTime: Date.now() }));
+              persistDefaults({ court_minutes_per_quarter: n });
+            }}
             rotationMode={rotationMode}
-            onRotationModeChange={setRotationMode}
+            onRotationModeChange={(m) => {
+              setRotationMode(m);
+              persistDefaults({ court_rotation_mode: m });
+            }}
             rotationIntervalMinutes={rotationIntervalMinutes}
-            onRotationIntervalChange={setRotationIntervalMinutes}
+            onRotationIntervalChange={(n) => {
+              setRotationIntervalMinutes(n);
+              persistDefaults({ court_rotation_interval_minutes: n });
+            }}
             validationMode={validationMode}
-            onValidationModeChange={setValidationMode}
+            onValidationModeChange={(m) => {
+              setValidationMode(m);
+              persistDefaults({ court_validation_mode: m });
+            }}
             periodType={timerState.periodType ?? "quarters"}
-            onPeriodTypeChange={setPeriodType}
+            onPeriodTypeChange={(p) => {
+              setPeriodType(p);
+              persistDefaults({ court_period_type: p });
+            }}
           />
         )}
         {lineupPlannerOpen && (
