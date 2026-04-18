@@ -750,13 +750,13 @@ export default function NetballBoard({
     }
     if (rotationMode === "time-based") {
       setAutoSubPlan(
-        generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter)
+        generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
       );
     } else if (rotationMode === "quarter-break") {
-      setAutoSubPlan(generateQuarterBreakRotationPlan(players, 2));
+      setAutoSubPlan(generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters"));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, rosterSignature]);
+  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, rosterSignature]);
 
   // ---------- Auto-sub control panel handlers ----------
   const findUpcomingSub = useCallback(() => {
@@ -811,8 +811,8 @@ export default function NetballBoard({
     }
     const fresh =
       rotationMode === "time-based"
-        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter)
-        : generateQuarterBreakRotationPlan(players, 2);
+        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
+        : generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters");
     const executed = autoSubPlan.filter((s) => s.executed);
     setAutoSubPlan([
       ...executed,
