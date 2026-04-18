@@ -1363,6 +1363,7 @@ export default function MessagesPage() {
                     author={item.lastMessage?.author}
                     hasUnread={hasUnread}
                     fallback="Official announcements and updates"
+                    eventTitles={eventTitleMap}
                   />
                 </p>
               </div>
@@ -1481,7 +1482,7 @@ export default function MessagesPage() {
                     {isOwn && <span className="text-muted-foreground">You:</span>}
                     {conv?.last_message?.image_url && <ImageIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                     <span className="truncate">
-                      {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text) : 
+                      {conv?.last_message?.text ? stripMentionFormatting(conv.last_message.text, eventTitleMap) : 
                        conv?.last_message?.image_url ? "Image" : "Start a conversation"}
                     </span>
                   </span>
@@ -1537,6 +1538,7 @@ export default function MessagesPage() {
                   author={item.lastMessage?.author}
                   hasUnread={hasUnread}
                   fallback="No messages yet"
+                  eventTitles={eventTitleMap}
                 />
               </p>
             </div>
@@ -1584,6 +1586,7 @@ export default function MessagesPage() {
                   hasUnread={hasUnread}
                   fallback={item.type === 'club' ? "Club-wide announcements" : "No messages yet"}
                   isAnnouncement={(item.lastMessage as any)?.is_announcement}
+                  eventTitles={eventTitleMap}
                 />
               </p>
             </div>
