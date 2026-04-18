@@ -59,6 +59,7 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const AccountPage = lazy(() => import("./pages/AccountPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
+const OnlineUsersPage = lazy(() => import("./pages/OnlineUsersPage"));
 const EditProfilePage = lazy(() => import("./pages/EditProfilePage"));
 const MyRolesPage = lazy(() => import("./pages/MyRolesPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
@@ -286,6 +287,7 @@ const App = () => {
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/account" element={<AccountPage />} />
                   <Route path="/admin" element={<AdminPage />} />
+                  <Route path="/admin/online-users" element={<OnlineUsersPage />} />
                   <Route path="/edit-profile" element={<EditProfilePage />} />
                   <Route path="/roles" element={<MyRolesPage />} />
                   <Route path="/children" element={<ChildrenPage />} />
