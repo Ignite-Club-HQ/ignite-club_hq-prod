@@ -57,7 +57,7 @@ import {
   transitionPosition,
 } from "./netballHelpers";
 import { useNetballGameSync } from "@/hooks/useNetballGameSync";
-import { visiblePeriods } from "@/lib/periodTypes";
+import { visiblePeriods, totalElapsedSeconds } from "@/lib/periodTypes";
 import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX, CENTRE_PASS_LOG_MAX } from "@/lib/gameLogLimits";
 
 // Lazy-load secondary dialogs
@@ -750,13 +750,13 @@ export default function NetballBoard({
     }
     if (rotationMode === "time-based") {
       setAutoSubPlan(
-        generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter)
+        generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
       );
     } else if (rotationMode === "quarter-break") {
-      setAutoSubPlan(generateQuarterBreakRotationPlan(players, 2));
+      setAutoSubPlan(generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters"));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, rosterSignature]);
+  }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, rosterSignature]);
 
   // ---------- Auto-sub control panel handlers ----------
   const findUpcomingSub = useCallback(() => {
@@ -811,8 +811,8 @@ export default function NetballBoard({
     }
     const fresh =
       rotationMode === "time-based"
-        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter)
-        : generateQuarterBreakRotationPlan(players, 2);
+        ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
+        : generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters");
     const executed = autoSubPlan.filter((s) => s.executed);
     setAutoSubPlan([
       ...executed,
@@ -862,16 +862,26 @@ export default function NetballBoard({
 
   const perQuarter = useMemo(() => {
     const log = timerState.scoreLog ?? [];
-    return [1, 2, 3, 4].map((q) => ({
-      quarter: q,
-      home: log
-        .filter((e) => e.quarter === q && e.side === "home")
-        .reduce((sum, e) => sum + e.points, 0),
-      away: log
-        .filter((e) => e.quarter === q && e.side === "away")
-        .reduce((sum, e) => sum + e.points, 0),
-    }));
-  }, [timerState.scoreLog]);
+    const periods = visiblePeriods(timerState.periodType);
+    return periods.map((slot, idx) => {
+      // In halves mode, slot 1 represents H1 (Q1+Q2), slot 3 represents H2 (Q3+Q4).
+      const matches = (q: number) =>
+        timerState.periodType === "halves"
+          ? idx === 0
+            ? q <= 2
+            : q >= 3
+          : q === slot;
+      return {
+        quarter: slot,
+        home: log
+          .filter((e) => matches(e.quarter) && e.side === "home")
+          .reduce((sum, e) => sum + e.points, 0),
+        away: log
+          .filter((e) => matches(e.quarter) && e.side === "away")
+          .reduce((sum, e) => sum + e.points, 0),
+      };
+    });
+  }, [timerState.scoreLog, timerState.periodType]);
 
   const canUndoSub = (timerState.subLog?.length ?? 0) > 0;
 
@@ -979,6 +989,7 @@ export default function NetballBoard({
       <QuarterScoreStrip
         scoreLog={timerState.scoreLog}
         currentQuarter={timerState.currentQuarter}
+        periodType={timerState.periodType ?? "quarters"}
       />
 
       <CentrePassIndicator
@@ -1000,10 +1011,12 @@ export default function NetballBoard({
 
       <BenchFairnessMeter
         players={players}
-        elapsedSeconds={
-          timerState.elapsedSeconds +
-          (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
-        }
+        elapsedSeconds={totalElapsedSeconds(
+          timerState.currentQuarter,
+          timerState.elapsedSeconds,
+          timerState.minutesPerQuarter,
+          timerState.periodType
+        )}
       />
 
       <MomentumStrip scoreLog={timerState.scoreLog} />
@@ -1012,20 +1025,24 @@ export default function NetballBoard({
         sport="netball"
         players={players}
         currentQuarter={timerState.currentQuarter}
-        totalElapsedSeconds={
-          timerState.elapsedSeconds +
-          (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
-        }
+        totalElapsedSeconds={totalElapsedSeconds(
+          timerState.currentQuarter,
+          timerState.elapsedSeconds,
+          timerState.minutesPerQuarter,
+          timerState.periodType
+        )}
         minutesPerQuarter={timerState.minutesPerQuarter}
       />
 
       {!readOnly && (
         <SmartSubSuggestion
           players={players}
-          totalElapsedSeconds={
-            timerState.elapsedSeconds +
-            (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
-          }
+          totalElapsedSeconds={totalElapsedSeconds(
+            timerState.currentQuarter,
+            timerState.elapsedSeconds,
+            timerState.minutesPerQuarter,
+            timerState.periodType
+          )}
           isRunning={timerState.isRunning && !timerState.isGameFinished}
           onApplySub={(outId, inId) => performSwap(outId, inId)}
         />

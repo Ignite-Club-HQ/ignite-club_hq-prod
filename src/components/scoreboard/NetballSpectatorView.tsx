@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Eye, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ import type {
   NetballTimerState,
 } from "@/components/netball/types";
 import { isSpectatorFeedStale } from "@/components/scoreboard/spectatorTypes";
+import { totalElapsedSeconds, periodLabel } from "@/lib/periodTypes";
 
 interface NetballSpectatorViewProps {
   teamName: string;
@@ -52,9 +53,17 @@ export default function NetballSpectatorView({
   const players = (board.players ?? []) as NetballPlayer[];
   const bench = useMemo(() => getBench(players), [players]);
   const minutesPerQuarter = timer.minutesPerQuarter ?? 15;
-  const currentQuarter = timer.currentQuarter ?? 1;
+  const currentQuarter = (timer.currentQuarter ?? 1) as 1 | 2 | 3 | 4;
   const elapsedSeconds = timer.elapsedSeconds ?? 0;
-  const totalElapsed = elapsedSeconds + (currentQuarter - 1) * minutesPerQuarter * 60;
+  const periodType = timer.periodType ?? "quarters";
+  const totalElapsed = totalElapsedSeconds(currentQuarter, elapsedSeconds, minutesPerQuarter, periodType);
+
+  // Tick once a second so the "feed stale" indicator flips automatically.
+  const [, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
   const stale = isSpectatorFeedStale(receivedAt);
 
   return (
@@ -77,7 +86,7 @@ export default function NetballSpectatorView({
           )}
         >
           <span className="text-[9px] uppercase tracking-wide font-semibold">
-            Q{currentQuarter}
+            {periodLabel(currentQuarter, periodType)}
           </span>
           <span className="text-sm font-black tabular-nums">
             {formatClock(elapsedSeconds, minutesPerQuarter)}
@@ -109,6 +118,7 @@ export default function NetballSpectatorView({
       <QuarterScoreStrip
         scoreLog={timer.scoreLog}
         currentQuarter={currentQuarter}
+        periodType={periodType}
       />
 
       <CentrePassIndicator

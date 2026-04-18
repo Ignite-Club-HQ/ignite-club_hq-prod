@@ -35,3 +35,24 @@ export const periodLabel = (
 /** All period slots (1..4) that are user-facing for the given period type. */
 export const visiblePeriods = (pt: PeriodType | undefined): (1 | 2 | 3 | 4)[] =>
   pt === "halves" ? [1, 3] : [1, 2, 3, 4];
+
+/**
+ * Cumulative elapsed seconds across the whole game so far, accounting for
+ * the period type. In halves mode the underlying quarter slot jumps Q1→Q3,
+ * so we must NOT multiply by `(currentQuarter - 1)` blindly — that double-
+ * counts H1's length.
+ *
+ *   quarters: Q1=0, Q2=1×len, Q3=2×len, Q4=3×len
+ *   halves:   H1 (q=1) = 0,   H2 (q=3) = 1×len
+ */
+export const totalElapsedSeconds = (
+  currentQuarter: 1 | 2 | 3 | 4,
+  elapsedSeconds: number,
+  minutesPerPeriod: number,
+  pt: PeriodType | undefined
+): number => {
+  const periods = visiblePeriods(pt);
+  const idx = Math.max(0, periods.indexOf(currentQuarter));
+  return elapsedSeconds + idx * minutesPerPeriod * 60;
+};
+

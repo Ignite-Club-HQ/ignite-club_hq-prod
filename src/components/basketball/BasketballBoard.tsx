@@ -23,6 +23,7 @@ import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
+import { totalElapsedSeconds, visiblePeriods } from "@/lib/periodTypes";
 
 // Lazy-load secondary dialogs
 const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
@@ -171,16 +172,25 @@ export default function BasketballBoard({
 
   const perQuarter = useMemo(() => {
     const log = board.timerState.scoreLog ?? [];
-    return [1, 2, 3, 4].map((q) => ({
-      quarter: q,
-      home: log
-        .filter((e) => e.quarter === q && e.side === "home")
-        .reduce((sum, e) => sum + e.points, 0),
-      away: log
-        .filter((e) => e.quarter === q && e.side === "away")
-        .reduce((sum, e) => sum + e.points, 0),
-    }));
-  }, [board.timerState.scoreLog]);
+    const periods = visiblePeriods(board.timerState.periodType);
+    return periods.map((slot, idx) => {
+      const matches = (q: number) =>
+        board.timerState.periodType === "halves"
+          ? idx === 0
+            ? q <= 2
+            : q >= 3
+          : q === slot;
+      return {
+        quarter: slot,
+        home: log
+          .filter((e) => matches(e.quarter) && e.side === "home")
+          .reduce((sum, e) => sum + e.points, 0),
+        away: log
+          .filter((e) => matches(e.quarter) && e.side === "away")
+          .reduce((sum, e) => sum + e.points, 0),
+      };
+    });
+  }, [board.timerState.scoreLog, board.timerState.periodType]);
 
   // Keep the screen awake while a coach is actively running the game.
   useWakeLock(!readOnly && board.timerState.isRunning && !board.timerState.isGameFinished);
@@ -269,6 +279,7 @@ export default function BasketballBoard({
       <QuarterScoreStrip
         scoreLog={board.timerState.scoreLog}
         currentQuarter={board.timerState.currentQuarter}
+        periodType={board.timerState.periodType ?? "quarters"}
       />
 
       <TimeoutsPanel
@@ -289,10 +300,12 @@ export default function BasketballBoard({
 
       <BenchFairnessMeter
         players={board.players}
-        elapsedSeconds={
-          board.timerState.elapsedSeconds +
-          (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
-        }
+        elapsedSeconds={totalElapsedSeconds(
+          board.timerState.currentQuarter,
+          board.timerState.elapsedSeconds,
+          board.timerState.minutesPerQuarter,
+          board.timerState.periodType
+        )}
       />
 
       <MomentumStrip scoreLog={board.timerState.scoreLog} />
@@ -301,20 +314,24 @@ export default function BasketballBoard({
         sport="basketball"
         players={board.players}
         currentQuarter={board.timerState.currentQuarter}
-        totalElapsedSeconds={
-          board.timerState.elapsedSeconds +
-          (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
-        }
+        totalElapsedSeconds={totalElapsedSeconds(
+          board.timerState.currentQuarter,
+          board.timerState.elapsedSeconds,
+          board.timerState.minutesPerQuarter,
+          board.timerState.periodType
+        )}
         minutesPerQuarter={board.timerState.minutesPerQuarter}
       />
 
       {!readOnly && (
         <SmartSubSuggestion
           players={board.players}
-          totalElapsedSeconds={
-            board.timerState.elapsedSeconds +
-            (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
-          }
+          totalElapsedSeconds={totalElapsedSeconds(
+            board.timerState.currentQuarter,
+            board.timerState.elapsedSeconds,
+            board.timerState.minutesPerQuarter,
+            board.timerState.periodType
+          )}
           isRunning={board.timerState.isRunning && !board.timerState.isGameFinished}
           onApplySub={(outId, inId) => board.performSwap(outId, inId)}
         />
