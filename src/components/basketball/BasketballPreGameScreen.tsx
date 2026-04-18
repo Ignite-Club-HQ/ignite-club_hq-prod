@@ -197,10 +197,14 @@ export default function BasketballPreGameScreen({
             size="lg"
             className="w-full h-12 text-base font-semibold"
             disabled={!lineupReady}
-            onClick={onStartGame}
+            onClick={squadEmpty ? onOpenSquad : onStartGame}
           >
             <Play className="h-5 w-5 mr-2" />
-            {lineupReady ? "Start Game" : `Pick Starting 5 (${onCourtCount}/5)`}
+            {squadEmpty
+              ? "Add players to start"
+              : lineupReady
+              ? "Start Game"
+              : `Pick Starting 5 (${onCourtCount}/5)`}
           </Button>
         </div>
       )}
