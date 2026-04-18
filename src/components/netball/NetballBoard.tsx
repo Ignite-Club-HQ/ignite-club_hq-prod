@@ -549,17 +549,26 @@ export default function NetballBoard({
         const incoming = prev.find((p) => p.id === selectedPlayerId);
         if (!incoming) return prev;
         const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
-        if (incoming.position === null) {
+        // Only log a sub when the incoming was on the bench AND a real player
+        // was displaced. Empty-slot fills aren't subs (no playerOut) — logging
+        // them with playerOutId="" would orphan the entry and break undo.
+        if (incoming.position === null && displaced) {
           logEntry = {
-            playerOutId: displaced?.id ?? "",
-            playerOutName: displaced?.name ?? "(empty)",
+            playerOutId: displaced.id,
+            playerOutName: displaced.name,
             playerInId: incoming.id,
             playerInName: incoming.name,
             position,
             source: "manual",
           };
         }
-        return prev.map((p) => (p.id === selectedPlayerId ? { ...p, position } : p));
+        return prev.map((p) => {
+          if (p.id === incoming.id) return transitionPosition(p, position);
+          // CRITICAL: bench the displaced player. Without this both players
+          // would hold the same position simultaneously (data corruption).
+          if (p.id === displaced?.id) return transitionPosition(p, null);
+          return p;
+        });
       });
       if (logEntry) appendSubLog(logEntry);
       setSelectedPlayerId(null);
