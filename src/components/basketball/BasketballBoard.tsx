@@ -245,6 +245,15 @@ export default function BasketballBoard({
   const onCourtCount = board.players.filter((p) => p.position !== null).length;
   const lineupSet = onCourtCount >= 5;
   const opponentName = board.timerState.opponentName ?? "Opponent";
+  // Pre-game = before the first whistle AND no scores logged yet.
+  // Drives a calmer, setup-focused layout: scoreboard goes compact,
+  // scoring controls + undo + auto-sub status hide entirely.
+  const hasGameStarted =
+    board.timerState.currentQuarter > 1 ||
+    board.timerState.elapsedSeconds > 0 ||
+    (board.timerState.scoreLog?.length ?? 0) > 0 ||
+    board.timerState.isGameFinished;
+  const isPreGame = !hasGameStarted;
   const [opponentEditOpen, setOpponentEditOpen] = useState(false);
   const [draftOpponent, setDraftOpponent] = useState(opponentName);
   const [scoreBreakdownOpen, setScoreBreakdownOpen] = useState(false);
