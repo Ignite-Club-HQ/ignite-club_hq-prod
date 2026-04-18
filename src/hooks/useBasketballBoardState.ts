@@ -80,46 +80,22 @@ export function useBasketballBoardState({
 
   const buildInitialPlayers = (): BasketballPlayer[] => {
     if (savedStateRef.current?.players?.length) return savedStateRef.current.players;
-    // ROSTER SEEDING: only `player` role gets auto-placed on court. Everyone
-    // else on the team (parents, coaches, team_admins, basic_users) is still
-    // available in the squad pool so coaches can sub them in if needed —
-    // but they always START on the bench. Only club-level admin and bot
-    // accounts are excluded.
-    const EXCLUDED_ROLES = new Set([
-      "club_admin",
-      "app_admin",
-      "league_admin",
-      "committee_member",
-    ]);
-    const sorted = [...members]
-      .filter((m) => !EXCLUDED_ROLES.has(m.role))
-      .sort((a, b) => {
-        const order = (r: string) =>
-          r === "player" ? 0 : r === "parent" ? 1 : r === "coach" ? 2 : 3;
-        return order(a.role) - order(b.role);
-      });
-    return sorted
-      .slice(0, 12)
-      .map((m, idx) => {
-        const isPlayer = m.role === "player";
-        // Only seed the first 5 *players* into court positions.
-        const playerOrder = sorted
-          .filter((x) => x.role === "player")
-          .findIndex((x) => x.id === m.id);
-        const position =
-          isPlayer && playerOrder >= 0 && playerOrder < 5
-            ? BASKETBALL_POSITIONS[playerOrder]
-            : null;
-        return {
-          id: m.id,
-          name: m.profiles?.display_name?.trim() || `Player ${idx + 1}`,
-          position,
-          minutesPlayed: 0,
-          fouls: 0,
-          points: 0,
-          preferredPositions: [],
-        };
-      });
+    // ROSTER SEEDING: strictly player-role only. Children assigned to the
+    // team are passed in as role:"player" by the parent, so they appear here
+    // too. Parents, coaches, and admins are NOT part of the squad.
+    const playersOnly = members.filter((m) => m.role === "player");
+    return playersOnly.slice(0, 12).map((m, idx) => {
+      const position = idx < 5 ? BASKETBALL_POSITIONS[idx] : null;
+      return {
+        id: m.id,
+        name: m.profiles?.display_name?.trim() || `Player ${idx + 1}`,
+        position,
+        minutesPlayed: 0,
+        fouls: 0,
+        points: 0,
+        preferredPositions: [],
+      };
+    });
   };
 
   // ---------- Core state ----------
@@ -135,6 +111,7 @@ export function useBasketballBoardState({
     setPlayers(buildInitialPlayers());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [members]);
+
   const [rotationMode, setRotationMode] = useState<RotationMode>(
     savedStateRef.current?.rotationMode ?? "off"
   );
