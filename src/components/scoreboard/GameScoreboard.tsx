@@ -73,7 +73,7 @@ const GameScoreboard = memo(function GameScoreboard({
   return (
     <div
       className={cn(
-        "grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2 bg-card",
+        "flex items-center justify-center gap-4 px-3 py-2 bg-card",
         className
       )}
       role="group"
