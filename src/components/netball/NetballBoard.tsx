@@ -604,6 +604,17 @@ export default function NetballBoard({
         at: Date.now(),
       };
       const cpLog = [...(s.centrePassLog ?? [])];
+      // First goal of the game? Seed the opening centre-pass entry so it can
+      // be credited if the side that took it scored first.
+      if (cpLog.length === 0) {
+        cpLog.push({
+          id: crypto.randomUUID(),
+          quarter: s.currentQuarter,
+          side: s.centrePass ?? "home",
+          converted: false,
+          at: Date.now() - 1,
+        });
+      }
       // Walk backwards to find the most recent UNCONVERTED CP for the scoring
       // side in this quarter. If we score before the CP flips again, we win it.
       for (let i = cpLog.length - 1; i >= 0; i--) {
