@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight } from "lucide-react";
+import { ArrowLeft, Loader2, User, Bell, Moon, Sun, Smartphone, Download, Send, MessageSquare, Calendar, Image, Users, LayoutGrid, Mail, Gift, Trophy, Settings, Fingerprint, ChevronRight, Lock } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Capacitor } from "@capacitor/core";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePWAInstall } from "@/hooks/usePWAInstall";
 import { usePasskey } from "@/hooks/usePasskey";
 import { PasskeyManagementDialog } from "@/components/PasskeyManagementDialog";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 
 // Check if we're on native platform at module load time
 let isNativePlatform = false;
@@ -64,6 +65,7 @@ export default function SettingsPage() {
   const { setTheme, theme } = useTheme();
   const { isAvailable: biometricsAvailable, isRegistered: hasPasskey, loading: passkeyLoading, registerPasskey } = usePasskey();
   const [passkeyDialogOpen, setPasskeyDialogOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [isAppAdmin, setIsAppAdmin] = useState(false);
 
   // Check if user is app admin
@@ -334,6 +336,25 @@ export default function SettingsPage() {
             <div>
               <span className="font-medium">Edit Profile</span>
               <p className="text-xs text-muted-foreground">Name, photo, and email</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </CardContent>
+      </Card>
+
+      {/* Change Password */}
+      <Card
+        className="cursor-pointer hover:border-primary/50 transition-colors"
+        onClick={() => setChangePasswordOpen(true)}
+      >
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Lock className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <span className="font-medium">Change Password</span>
+              <p className="text-xs text-muted-foreground">Update your account password</p>
             </div>
           </div>
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -779,6 +800,9 @@ export default function SettingsPage() {
 
       {/* Passkey Management Dialog */}
       <PasskeyManagementDialog open={passkeyDialogOpen} onOpenChange={setPasskeyDialogOpen} />
+
+      {/* Change Password Dialog */}
+      <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
     </div>
   );
 }
