@@ -567,24 +567,71 @@ export default function ProfilePage() {
     <div className="py-6 space-y-6">
       {/* Profile Header */}
       <div className="flex items-center gap-4">
-        <Avatar className="h-20 w-20 border-4 border-primary/20">
-          <AvatarImage src={profile?.avatar_url || undefined} />
-          <AvatarFallback className="bg-muted flex items-center justify-center p-0">
-            {activeThemeData?.logoUrl ? (
-              <img src={activeThemeData.logoUrl} alt={activeThemeData.clubName} className="h-14 w-14 object-contain" />
-            ) : (
-              <img src={igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
-            )}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{profile?.display_name}</h1>
-          <p className="text-sm text-muted-foreground">{user?.email}</p>
-        </div>
-        <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} className="relative">
+        <button
+          onClick={() => navigate("/edit-profile")}
+          className="relative group rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
+          aria-label="Edit profile"
+        >
+          <Avatar className="h-20 w-20 border-4 border-primary/20">
+            <AvatarImage src={profile?.avatar_url || undefined} />
+            <AvatarFallback className="bg-muted flex items-center justify-center p-0">
+              {activeThemeData?.logoUrl ? (
+                <img src={activeThemeData.logoUrl} alt={activeThemeData.clubName} className="h-14 w-14 object-contain" />
+              ) : (
+                <img src={igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
+              )}
+            </AvatarFallback>
+          </Avatar>
+          <span className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center border-2 border-background shadow-sm">
+            <Pencil className="h-3.5 w-3.5" />
+          </span>
+        </button>
+        <button
+          onClick={() => navigate("/edit-profile")}
+          className="flex-1 text-left min-w-0"
+          aria-label="Edit profile"
+        >
+          <h1 className="text-2xl font-bold truncate">{profile?.display_name}</h1>
+          <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
+        </button>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} className="relative" aria-label="Settings">
           <Settings className="h-5 w-5" />
           {notificationNudge.shouldShowNudge && (
             <span className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
+          )}
+        </Button>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-auto flex-col gap-1 py-3"
+          onClick={() => navigate("/edit-profile")}
+        >
+          <Pencil className="h-4 w-4" />
+          <span className="text-xs">Edit Profile</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-auto flex-col gap-1 py-3"
+          onClick={() => setChangePasswordOpen(true)}
+        >
+          <KeyRound className="h-4 w-4" />
+          <span className="text-xs">Password</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-auto flex-col gap-1 py-3 relative"
+          onClick={() => navigate("/settings")}
+        >
+          <Settings className="h-4 w-4" />
+          <span className="text-xs">Settings</span>
+          {notificationNudge.shouldShowNudge && (
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive animate-pulse" />
           )}
         </Button>
       </div>
@@ -595,88 +642,17 @@ export default function ProfilePage() {
       {/* Team history — current + past teams from season memberships */}
       <ProfileTeamHistory profileId={user?.id} />
 
-      {/* My Clubs and Teams Section */}
-      <Collapsible open={myClubsTeamsOpen} onOpenChange={setMyClubsTeamsOpen}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 transition-colors">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                My Clubs and Teams
-                <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${myClubsTeamsOpen ? "rotate-180" : ""}`} />
-              </CardTitle>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="pt-0 space-y-4">
-              {myClubsAndTeams?.clubs && myClubsAndTeams.clubs.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Clubs</p>
-                  {myClubsAndTeams.clubs.map((club: any) => (
-                    <div
-                      key={club.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/clubs/${club.id}`)}
-                    >
-                      {club.logo_url ? (
-                        <img src={club.logo_url} alt={club.name} className="h-10 w-10 rounded-lg object-cover" />
-                      ) : (
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Building2 className="h-5 w-5 text-primary" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{club.name}</p>
-                        {club.sport && <p className="text-xs text-muted-foreground">{getSportEmoji(club.sport)} {club.sport}</p>}
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              )}
+      {/* Discover / Create Club */}
+      <Button variant="outline" className="w-full" onClick={() => navigate("/clubs")}>
+        <Plus className="h-4 w-4 mr-2" />
+        Discover or Create Club
+      </Button>
 
-              {myClubsAndTeams?.teams && myClubsAndTeams.teams.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Teams</p>
-                  {myClubsAndTeams.teams.map((team: any) => (
-                    <div
-                      key={team.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/teams/${team.id}`)}
-                    >
-                      <div className="h-10 w-10 rounded-lg bg-secondary/50 flex items-center justify-center">
-                        <Users className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{team.name}</p>
-                        {team.clubs && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {getSportEmoji(team.clubs.sport)} {team.clubs.name}
-                          </p>
-                        )}
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {(!myClubsAndTeams?.clubs?.length && !myClubsAndTeams?.teams?.length) && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  You're not a member of any clubs or teams yet.
-                </p>
-              )}
-
-              <Button variant="outline" className="w-full" onClick={() => navigate("/clubs")}>
-                <Plus className="h-4 w-4 mr-2" />
-                Discover or Create Club
-              </Button>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
+      {/* Manage section */}
       <div className="space-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+          Manage
+        </h2>
         <MenuCard icon={Baby} label="Manage Children" onClick={() => navigate("/children")} />
         <MenuCard icon={Users} label="My Roles" onClick={() => navigate("/roles")} />
         {(isAppAdmin || isTeamAdminOrCoach) && (
