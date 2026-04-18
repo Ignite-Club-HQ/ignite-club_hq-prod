@@ -39,8 +39,10 @@ export default function BasketballCourtArea({
   const aspect = courtView === "full" ? "aspect-square" : "aspect-[5/7]";
 
   return (
-    <div className="relative flex items-center justify-center bg-muted/40 p-2">
-      <div className={cn("relative w-full max-w-sm mx-auto", aspect)}>
+    <div className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 p-2">
+      {/* Width is derived from available height so the whole court is always visible
+          without scrolling. max-w-sm caps it on tall/narrow screens. */}
+      <div className={cn("relative h-full max-h-full mx-auto", aspect)} style={{ maxWidth: "100%" }}>
         {courtView === "full" ? (
           <BasketballFullCourt className="absolute inset-0 w-full h-full rounded-lg" />
         ) : (
