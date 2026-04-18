@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Repeat, Trophy, Undo2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Loader2, Repeat, Trophy, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { LinkedEventHeader } from "@/components/pitch/LinkedEventHeader";
 import { SyncStatusIndicator } from "@/components/pitch/SyncStatusIndicator";
@@ -110,6 +110,7 @@ export default function BasketballBoard({
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
   const [freeThrowSession, setFreeThrowSession] = useState<{
     playerId: string;
     playerName: string;
@@ -226,19 +227,30 @@ export default function BasketballBoard({
     saveGameResult,
   ]);
 
+  const totalElapsed = totalElapsedSeconds(
+    board.timerState.currentQuarter,
+    board.timerState.elapsedSeconds,
+    board.timerState.minutesPerQuarter,
+    board.timerState.periodType
+  );
+
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <header className="flex items-center justify-between gap-2 p-2 border-b bg-card">
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+    <div className="flex flex-col h-full bg-background overflow-y-auto">
+      {/* Header — title row only, timer goes on its own row to avoid wrapping */}
+      <header className="flex items-center gap-2 p-2 border-b bg-card sticky top-0 z-20">
+        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="flex-shrink-0">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-sm truncate">{teamName}</h1>
-          <p className="text-[10px] text-muted-foreground">Basketball Game Board</p>
+          <h1 className="font-bold text-sm truncate leading-tight">{teamName}</h1>
+          <p className="text-[10px] text-muted-foreground leading-tight">Basketball Game Board</p>
         </div>
         <SyncStatusIndicator />
         <CuesToggle />
+      </header>
+
+      {/* Timer on its own row — full-width, no wrapping */}
+      <div className="px-2 py-1.5 border-b bg-card">
         <BasketballQuarterTimer
           state={board.timerState}
           onChange={board.setTimerState}
@@ -247,7 +259,7 @@ export default function BasketballBoard({
           onReset={board.resetPlayerStats}
           readOnly={readOnly}
         />
-      </header>
+      </div>
 
       {/* Linked event header (link/unlink a scheduled match). */}
       <LinkedEventHeader
@@ -299,43 +311,36 @@ export default function BasketballBoard({
         onResetHalf={board.resetTimeoutsForCurrentHalf}
       />
 
-      <BenchFairnessMeter
-        players={board.players}
-        elapsedSeconds={totalElapsedSeconds(
-          board.timerState.currentQuarter,
-          board.timerState.elapsedSeconds,
-          board.timerState.minutesPerQuarter,
-          board.timerState.periodType
-        )}
-      />
-
-      <MomentumStrip scoreLog={board.timerState.scoreLog} />
-
-      <FoulFatigueWatchlist
-        sport="basketball"
-        players={board.players}
-        currentQuarter={board.timerState.currentQuarter}
-        totalElapsedSeconds={totalElapsedSeconds(
-          board.timerState.currentQuarter,
-          board.timerState.elapsedSeconds,
-          board.timerState.minutesPerQuarter,
-          board.timerState.periodType
-        )}
-        minutesPerQuarter={board.timerState.minutesPerQuarter}
-      />
-
-      {!readOnly && (
-        <SmartSubSuggestion
-          players={board.players}
-          totalElapsedSeconds={totalElapsedSeconds(
-            board.timerState.currentQuarter,
-            board.timerState.elapsedSeconds,
-            board.timerState.minutesPerQuarter,
-            board.timerState.periodType
+      {/* Coach insights — collapsed by default to keep court visible */}
+      <button
+        type="button"
+        onClick={() => setInsightsOpen((o) => !o)}
+        className="flex items-center justify-between w-full px-3 py-1.5 border-b bg-muted/30 text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
+        aria-expanded={insightsOpen}
+      >
+        <span>Coach insights {insightsOpen ? "" : "· tap to show"}</span>
+        {insightsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+      </button>
+      {insightsOpen && (
+        <>
+          <BenchFairnessMeter players={board.players} elapsedSeconds={totalElapsed} />
+          <MomentumStrip scoreLog={board.timerState.scoreLog} />
+          <FoulFatigueWatchlist
+            sport="basketball"
+            players={board.players}
+            currentQuarter={board.timerState.currentQuarter}
+            totalElapsedSeconds={totalElapsed}
+            minutesPerQuarter={board.timerState.minutesPerQuarter}
+          />
+          {!readOnly && (
+            <SmartSubSuggestion
+              players={board.players}
+              totalElapsedSeconds={totalElapsed}
+              isRunning={board.timerState.isRunning && !board.timerState.isGameFinished}
+              onApplySub={(outId, inId) => board.performSwap(outId, inId)}
+            />
           )}
-          isRunning={board.timerState.isRunning && !board.timerState.isGameFinished}
-          onApplySub={(outId, inId) => board.performSwap(outId, inId)}
-        />
+        </>
       )}
 
       {/* Always render so coaches/admins always see the Game Setup entry point.
