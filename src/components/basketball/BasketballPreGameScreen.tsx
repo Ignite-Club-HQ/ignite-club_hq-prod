@@ -179,17 +179,6 @@ export default function BasketballPreGameScreen({
           <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
         </button>
 
-        {/* Squad — quieter secondary action (hidden when squad-empty CTA is shown above) */}
-        {!readOnly && !squadEmpty && (
-          <button
-            type="button"
-            onClick={onOpenSquad}
-            className="flex items-center gap-2.5 px-3 py-2 w-full text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Users className="h-3.5 w-3.5" />
-            Manage squad
-          </button>
-        )}
       </div>
 
       {/* Court — interactive slot assignment */}
