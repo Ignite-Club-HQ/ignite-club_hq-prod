@@ -1,10 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trophy, Gift, Loader2, CheckCircle2, Clock, ChevronRight, Star, Users, QrCode, Building2, Lock } from "lucide-react";
+import { Trophy, Gift, Loader2, CheckCircle2, Clock, ChevronRight, Star, Users, QrCode, Building2, Lock, Flame, HelpCircle, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
+import PointsHowToEarnSheet from "@/components/PointsHowToEarnSheet";
+import { useCountUp } from "@/hooks/useCountUp";
 import {
   Dialog,
   DialogContent,
