@@ -29,8 +29,19 @@ export function useSaveGameResult() {
 
   const save = useCallback(
     async (input: SaveGameResultInput, opts?: { silent?: boolean; force?: boolean }) => {
-      const key = `${input.teamId}:${input.eventId ?? "no-event"}:${input.sport}`;
-      // De-dupe within a session, unless caller explicitly forces (e.g. MVP changed).
+      // Include scores/opponent/MVP in the dedupe key (audit fix B11) so
+      // post-game edits (rename opponent, set MVP, late score correction)
+      // re-save instead of being silently swallowed.
+      const key = [
+        input.teamId,
+        input.eventId ?? "no-event",
+        input.sport,
+        input.homeScore,
+        input.awayScore,
+        input.awayLabel,
+        input.mvpPlayerId ?? "no-mvp",
+      ].join(":");
+      // De-dupe within a session, unless caller explicitly forces.
       if (!opts?.force && (savedKeyRef.current === key || inFlightRef.current)) return;
       inFlightRef.current = true;
 
