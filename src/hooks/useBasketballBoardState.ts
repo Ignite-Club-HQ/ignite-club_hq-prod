@@ -652,6 +652,57 @@ export function useBasketballBoardState({
     [readOnly, selectedPlayerId, appendSubLog]
   );
 
+  /**
+   * Direct drag-and-drop assignment. Moves `playerId` to `position` (or to bench
+   * if `position` is null). If a different player already occupies that slot,
+   * they are pushed to the bench (sub) — same semantics as handleSlotClick but
+   * without needing the two-step select-then-tap flow.
+   */
+  const assignToPosition = useCallback(
+    (playerId: string, position: BasketballPosition | null) => {
+      if (readOnly) return;
+      let logEntry: {
+        playerOutId: string;
+        playerOutName: string;
+        playerInId: string;
+        playerInName: string;
+        position: BasketballPosition;
+      } | null = null;
+      setPlayers((prev) => {
+        const incoming = prev.find((p) => p.id === playerId);
+        if (!incoming) return prev;
+        if (incoming.position === position) return prev;
+        if (position === null) {
+          // Drag off court → bench
+          return prev.map((p) =>
+            p.id === incoming.id ? transitionPosition(p, null) : p
+          );
+        }
+        const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
+        if (incoming.position === null && displaced) {
+          logEntry = {
+            playerOutId: displaced.id,
+            playerOutName: displaced.name,
+            playerInId: incoming.id,
+            playerInName: incoming.name,
+            position,
+          };
+        }
+        return prev.map((p) => {
+          if (p.id === incoming.id) return transitionPosition(p, position);
+          if (p.position === position && p.id !== incoming.id) {
+            // If incoming was already on court, swap. Otherwise displaced → bench.
+            return transitionPosition(p, incoming.position);
+          }
+          return p;
+        });
+      });
+      if (logEntry) appendSubLog({ ...logEntry, source: "manual" });
+      setSelectedPlayerId(null);
+    },
+    [readOnly, appendSubLog]
+  );
+
   const subOff = useCallback(
     (playerId: string) => {
       let outName: string | null = null;
