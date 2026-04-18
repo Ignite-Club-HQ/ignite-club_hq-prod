@@ -605,6 +605,15 @@ export default function NetballBoard({
     setTimerState((s) => ({ ...s, opponentName: name, lastUpdateTime: Date.now() }));
   }, []);
 
+  // Default the opponent name from the linked event once, if the coach hasn't set one.
+  useEffect(() => {
+    if (!linkedEvent?.opponent) return;
+    setTimerState((s) => {
+      if (s.opponentName && s.opponentName !== "Opponent") return s;
+      return { ...s, opponentName: linkedEvent.opponent!, lastUpdateTime: Date.now() };
+    });
+  }, [linkedEvent?.opponent]);
+
   // ---------- Period type (quarters vs halves) ----------
   const setPeriodType = useCallback((next: "quarters" | "halves") => {
     setTimerState((s) => {
@@ -828,6 +837,7 @@ export default function NetballBoard({
           <h1 className="font-bold text-sm truncate">{teamName}</h1>
           <p className="text-[10px] text-muted-foreground">Netball Game Board</p>
         </div>
+        <SyncStatusIndicator />
         <CuesToggle />
         <NetballQuarterTimer
           state={timerState}
@@ -837,6 +847,20 @@ export default function NetballBoard({
           readOnly={readOnly}
         />
       </header>
+
+      {/* Linked event header (link/unlink a scheduled match). */}
+      <LinkedEventHeader
+        eventId={linkedEventId || ""}
+        teamId={teamId}
+        teamName={teamName}
+        compact
+        onLinkEvent={readOnly ? undefined : setLinkedEventId}
+        currentScore={{
+          team: timerState.homeScore ?? 0,
+          opponent: timerState.awayScore ?? 0,
+        }}
+        isGameInProgress={!!timerState.isRunning && !timerState.isGameFinished}
+      />
 
       <GameScoreboard
         homeLabel={teamName}
