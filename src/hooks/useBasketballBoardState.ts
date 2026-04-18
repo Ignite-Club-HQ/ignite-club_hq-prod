@@ -142,6 +142,10 @@ export function useBasketballBoardState({
         periodType: "quarters",
       }
   );
+  // Mirror into a ref so callbacks can read the latest periodType / quarter
+  // without taking it as a dep (avoids stale closures + needless re-binds).
+  const timerStateRef = useRef(timerState);
+  timerStateRef.current = timerState;
 
   // UI state
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
