@@ -11,6 +11,7 @@ import {
   QuarterLineup,
   NETBALL_POSITIONS,
 } from "./types";
+import { visiblePeriods, type PeriodType } from "@/lib/periodTypes";
 
 export const getSubKey = (sub: NetballSubEvent): string =>
   `${sub.quarter}-${sub.time}-${sub.playerOut.id}-${sub.position}`;
@@ -169,7 +170,8 @@ export const snapshotLineup = (
 export const generateTimeBasedRotationPlan = (
   players: NetballPlayer[],
   intervalMinutes: number,
-  minutesPerQuarter: number
+  minutesPerQuarter: number,
+  periodType: PeriodType = "quarters"
 ): NetballSubEvent[] => {
   const plan: NetballSubEvent[] = [];
   const intervalSeconds = intervalMinutes * 60;
@@ -178,7 +180,7 @@ export const generateTimeBasedRotationPlan = (
   // Track a rolling bench rotation index so we cycle through fairly.
   let benchCursor = 0;
 
-  for (let q = 1; q <= 4; q++) {
+  for (const q of visiblePeriods(periodType)) {
     let t = intervalSeconds;
     while (t < quarterSeconds) {
       const bench = getBench(players);
@@ -216,14 +218,17 @@ export const generateTimeBasedRotationPlan = (
  */
 export const generateQuarterBreakRotationPlan = (
   players: NetballPlayer[],
-  swapsPerBreak = 2
+  swapsPerBreak = 2,
+  periodType: PeriodType = "quarters"
 ): NetballSubEvent[] => {
   const plan: NetballSubEvent[] = [];
   const bench = getBench(players);
   if (bench.length === 0) return plan;
 
   let benchCursor = 0;
-  for (const q of [2, 3, 4] as Quarter[]) {
+  // Skip the first period — no "break" before tipoff.
+  const breaks = visiblePeriods(periodType).slice(1) as Quarter[];
+  for (const q of breaks) {
     const onCourt = getOnCourt(players);
     const sortedOnCourt = [...onCourt].sort(
       (a, b) => (b.minutesPlayed ?? 0) - (a.minutesPlayed ?? 0)

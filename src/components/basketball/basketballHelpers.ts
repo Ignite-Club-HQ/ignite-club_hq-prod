@@ -10,6 +10,7 @@ import {
   QuarterLineup,
   BASKETBALL_POSITIONS,
 } from "./types";
+import { visiblePeriods, type PeriodType } from "@/lib/periodTypes";
 
 export const getSubKey = (sub: BasketballSubEvent): string =>
   `${sub.quarter}-${sub.time}-${sub.playerOut.id}-${sub.position}`;
@@ -109,13 +110,14 @@ export const snapshotLineup = (
 export const generateTimeBasedRotationPlan = (
   players: BasketballPlayer[],
   intervalMinutes: number,
-  minutesPerQuarter: number
+  minutesPerQuarter: number,
+  periodType: PeriodType = "quarters"
 ): BasketballSubEvent[] => {
   const plan: BasketballSubEvent[] = [];
   const intervalSeconds = intervalMinutes * 60;
   const quarterSeconds = minutesPerQuarter * 60;
 
-  for (let q = 1; q <= 4; q++) {
+  for (const q of visiblePeriods(periodType)) {
     let t = intervalSeconds;
     while (t < quarterSeconds) {
       const bench = getBench(players);
@@ -151,13 +153,16 @@ export const generateTimeBasedRotationPlan = (
  */
 export const generateQuarterBreakRotationPlan = (
   players: BasketballPlayer[],
-  swapsPerBreak = 3
+  swapsPerBreak = 3,
+  periodType: PeriodType = "quarters"
 ): BasketballSubEvent[] => {
   const plan: BasketballSubEvent[] = [];
   const bench = getBench(players);
   if (bench.length === 0) return plan;
 
-  for (const q of [2, 3, 4] as Quarter[]) {
+  // Use visible periods MINUS the first one (no break before tipoff).
+  const breaks = visiblePeriods(periodType).slice(1) as Quarter[];
+  for (const q of breaks) {
     const onCourt = getOnCourt(players);
     const sortedOnCourt = [...onCourt].sort(
       (a, b) => (b.minutesPlayed ?? 0) - (a.minutesPlayed ?? 0)
