@@ -248,6 +248,7 @@ export default function BasketballBoard({
   // timeout) until finished. We use this — not isLive — to hide setup UI so
   // pausing the clock doesn't suddenly leak "Set starting 5" back on screen.
   const hasGameStarted =
+    board.timerState.isRunning ||
     board.timerState.currentQuarter > 1 ||
     board.timerState.elapsedSeconds > 0 ||
     (board.timerState.scoreLog?.length ?? 0) > 0 ||
