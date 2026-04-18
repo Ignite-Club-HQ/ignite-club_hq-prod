@@ -39,7 +39,7 @@ export default function BasketballCourtArea({
   const aspect = courtView === "full" ? "aspect-square" : "aspect-[5/7]";
 
   return (
-    <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-muted/40 p-2">
+    <div className="relative flex items-center justify-center bg-muted/40 p-2">
       <div className={cn("relative w-full max-w-sm mx-auto", aspect)}>
         {courtView === "full" ? (
           <BasketballFullCourt className="absolute inset-0 w-full h-full rounded-lg" />
