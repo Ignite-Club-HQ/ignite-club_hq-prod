@@ -357,29 +357,8 @@ export default function BasketballBoard({
         compact={isPreGame}
       />
 
-      {/* ── ROW 4: Quarter breakdown — only meaningful once scoring has begun.
-          Hidden entirely pre-game; collapsed by default once live. ── */}
-      {!isPreGame && (
-        <Collapsible open={scoreBreakdownOpen} onOpenChange={setScoreBreakdownOpen}>
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center justify-between w-full px-3 py-1 border-b bg-muted/20 text-[10px] font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
-              aria-expanded={scoreBreakdownOpen}
-            >
-              <span className="uppercase tracking-wide">Score by period</span>
-              {scoreBreakdownOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <QuarterScoreStrip
-              scoreLog={board.timerState.scoreLog}
-              currentQuarter={board.timerState.currentQuarter}
-              periodType={board.timerState.periodType ?? "quarters"}
-            />
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      {/* Score by period moved into "Game details" drawer — keeps the live
+          view clean (only timer • score • court • bench above the fold). */}
 
       {/* ── ROW 5: Action bar — pre-game only.
           Auto-hides the moment the game starts so the court owns the screen. ── */}
