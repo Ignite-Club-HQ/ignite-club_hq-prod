@@ -6,13 +6,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Pencil, Undo2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ScoreEntry {
-  /** Sequential id for stable keys/undo */
   id: string;
-  /** "home" = our team, "away" = opponent */
   side: "home" | "away";
   points: number;
   at: number;
@@ -23,27 +21,30 @@ interface GameScoreboardProps {
   awayLabel: string;
   homeScore: number;
   awayScore: number;
-  /** Allowed point increments. Basketball: [1,2,3]. Netball: [1] (or [1,2] for super shot). */
+  /** Allowed point increments. Basketball: [1,2,3]. Netball: [1] (or [1,2]). */
   increments: number[];
   readOnly?: boolean;
   onScore: (side: "home" | "away", points: number) => void;
   onUndo: () => void;
   onRenameAway: (name: string) => void;
   canUndo: boolean;
-  /** When true, scoring (+N) buttons are disabled. Undo + rename remain available. */
+  /** When true, scoring buttons disabled (e.g. game finished). */
   disabled?: boolean;
   /**
-   * Compact pre-game variant: single horizontal row, no +N buttons, no undo,
-   * no rename popover. Used before tipoff to keep the focus on lineup setup.
+   * Compact pre-game variant: single horizontal row, no scoring controls.
+   * Used before tipoff to keep focus on lineup setup.
    */
   compact?: boolean;
   className?: string;
 }
 
 /**
- * Compact, big-finger-friendly scoreboard for live game scoring.
- * Shared between basketball and netball boards. Sport-specific point values
- * are passed in via `increments` so the same UI works for any score-by-N sport.
+ * Single dominant scoreboard bar:
+ *   [ HOME ]   12 — 8   [ AWAY ]
+ *
+ * Live mode: tap a score → opens a popover with +1/+2/+3 buttons.
+ * No inline "VS", no inline undo (undo lives in the bottom action strip).
+ * Pre-game (compact): same shape, scores at 0, no popover.
  */
 const GameScoreboard = memo(function GameScoreboard({
   homeLabel,
@@ -53,105 +54,82 @@ const GameScoreboard = memo(function GameScoreboard({
   increments,
   readOnly = false,
   onScore,
-  onUndo,
   onRenameAway,
-  canUndo,
   disabled = false,
   compact = false,
   className,
 }: GameScoreboardProps) {
   const [renameOpen, setRenameOpen] = useState(false);
   const [draftAway, setDraftAway] = useState(awayLabel);
+  const [scorePopover, setScorePopover] = useState<"home" | "away" | null>(null);
 
-  // ── PRE-GAME COMPACT: single horizontal row, no controls ──
-  if (compact) {
-    return (
-      <div
-        className={cn(
-          "flex items-center justify-center gap-3 px-3 py-2 border-b bg-card",
-          className
-        )}
-        role="group"
-        aria-label="Scoreboard"
-      >
-        <span className="text-xs font-semibold uppercase text-muted-foreground truncate max-w-[35%] text-right">
-          {homeLabel}
-        </span>
-        <span className="text-xl font-bold tabular-nums text-foreground">
-          {homeScore}
-        </span>
-        <span className="text-xs text-muted-foreground">—</span>
-        <span className="text-xl font-bold tabular-nums text-foreground">
-          {awayScore}
-        </span>
-        <span className="text-xs font-semibold uppercase text-muted-foreground truncate max-w-[35%] text-left">
-          {awayLabel}
-        </span>
-      </div>
-    );
-  }
+  const interactive = !readOnly && !disabled && !compact;
+
+  const handleScore = (side: "home" | "away", pts: number) => {
+    onScore(side, pts);
+    setScorePopover(null);
+  };
 
   return (
     <div
       className={cn(
-        "flex items-stretch gap-2 px-2 py-1.5 border-b bg-card",
+        "grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-2.5 border-b bg-card",
         className
       )}
       role="group"
-      aria-label="Live scoreboard"
+      aria-label="Scoreboard"
     >
       {/* HOME */}
-      <ScoreColumn
-        label={homeLabel}
-        score={homeScore}
-        increments={increments}
-        readOnly={readOnly}
-        disabled={disabled}
-        onScore={(pts) => onScore("home", pts)}
-        align="left"
-      />
-
-      {/* DIVIDER + UNDO */}
-      <div className="flex flex-col items-center justify-center gap-1 px-1">
-        <span className="text-[9px] uppercase tracking-wide text-muted-foreground font-semibold">
-          vs
+      <div className="flex flex-col items-end min-w-0">
+        <span
+          className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground truncate max-w-full"
+          title={homeLabel}
+        >
+          {homeLabel}
         </span>
-        {!readOnly && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={onUndo}
-            disabled={!canUndo}
-            aria-label="Undo last score"
-          >
-            <Undo2 className="h-3.5 w-3.5" />
-          </Button>
-        )}
+        <ScoreButton
+          score={homeScore}
+          interactive={interactive}
+          open={scorePopover === "home"}
+          onOpenChange={(o) => setScorePopover(o ? "home" : null)}
+          onScore={(pts) => handleScore("home", pts)}
+          increments={increments}
+          ariaLabel={`Add points for ${homeLabel}`}
+          align="right"
+        />
       </div>
 
+      {/* DASH (no "VS", no undo here) */}
+      <span className="text-2xl font-light text-muted-foreground/60 px-1">—</span>
+
       {/* AWAY */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        <div className="flex items-center justify-end gap-1">
-          <span className="text-[10px] font-semibold uppercase truncate text-muted-foreground">
+      <div className="flex flex-col items-start min-w-0">
+        <div className="flex items-center gap-1 max-w-full">
+          <span
+            className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground truncate"
+            title={awayLabel}
+          >
             {awayLabel}
           </span>
-          {!readOnly && (
-            <Popover open={renameOpen} onOpenChange={(o) => {
-              setRenameOpen(o);
-              if (o) setDraftAway(awayLabel);
-            }}>
+          {!readOnly && !compact && (
+            <Popover
+              open={renameOpen}
+              onOpenChange={(o) => {
+                setRenameOpen(o);
+                if (o) setDraftAway(awayLabel);
+              }}
+            >
               <PopoverTrigger asChild>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-4 w-4"
+                  className="h-4 w-4 -ml-0.5"
                   aria-label="Rename opponent"
                 >
                   <Pencil className="h-2.5 w-2.5" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-56 p-2" align="end">
+              <PopoverContent className="w-56 p-2" align="start">
                 <div className="flex flex-col gap-2">
                   <Input
                     value={draftAway}
@@ -179,84 +157,89 @@ const GameScoreboard = memo(function GameScoreboard({
             </Popover>
           )}
         </div>
-        <ScoreColumn
-          label={null}
+        <ScoreButton
           score={awayScore}
+          interactive={interactive}
+          open={scorePopover === "away"}
+          onOpenChange={(o) => setScorePopover(o ? "away" : null)}
+          onScore={(pts) => handleScore("away", pts)}
           increments={increments}
-          readOnly={readOnly}
-          disabled={disabled}
-          onScore={(pts) => onScore("away", pts)}
-          align="right"
+          ariaLabel={`Add points for ${awayLabel}`}
+          align="left"
         />
       </div>
     </div>
   );
 });
 
-interface ScoreColumnProps {
-  label: string | null;
+interface ScoreButtonProps {
   score: number;
-  increments: number[];
-  readOnly: boolean;
-  disabled?: boolean;
+  interactive: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onScore: (points: number) => void;
+  increments: number[];
+  ariaLabel: string;
   align: "left" | "right";
 }
 
-function ScoreColumn({
-  label,
+function ScoreButton({
   score,
-  increments,
-  readOnly,
-  disabled = false,
+  interactive,
+  open,
+  onOpenChange,
   onScore,
+  increments,
+  ariaLabel,
   align,
-}: ScoreColumnProps) {
-  return (
-    <div
+}: ScoreButtonProps) {
+  const display = (
+    <span
       className={cn(
-        "flex-1 min-w-0 flex flex-col",
-        align === "right" && "items-end"
+        "text-5xl font-extrabold tabular-nums leading-none text-foreground landscape:text-6xl",
+        interactive && "active:scale-95 transition-transform cursor-pointer"
       )}
+      aria-live="polite"
     >
-      {label !== null && (
-        <span className="text-[10px] font-semibold uppercase truncate text-muted-foreground">
-          {label}
-        </span>
-      )}
-      <div
-        className={cn(
-          "flex items-center gap-1.5",
-          align === "right" && "flex-row-reverse"
-        )}
-      >
-        <span
-          className="text-2xl font-extrabold tabular-nums leading-none text-foreground landscape:text-4xl"
-          aria-live="polite"
+      {score}
+    </span>
+  );
+
+  if (!interactive) {
+    return display;
+  }
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="bg-transparent border-0 p-0 m-0 outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md"
+          aria-label={ariaLabel}
         >
-          {score}
-        </span>
-        {!readOnly && (
-          <div className="flex items-center gap-1 landscape:gap-2">
-            {increments.map((pts) => (
-              <Button
-                key={pts}
-                size="sm"
-                variant="secondary"
-                // Landscape = sideline coach holding the phone in one hand —
-                // double the tap target so they never miss a score.
-                className="h-7 min-w-7 px-1.5 text-xs font-bold landscape:h-12 landscape:min-w-12 landscape:px-3 landscape:text-base active:scale-95 transition-transform"
-                onClick={() => onScore(pts)}
-                disabled={disabled}
-                aria-label={`Add ${pts} point${pts === 1 ? "" : "s"}`}
-              >
-                +{pts}
-              </Button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+          {display}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto p-2"
+        align={align === "right" ? "end" : "start"}
+        sideOffset={6}
+      >
+        <div className="flex items-center gap-1.5">
+          {increments.map((pts) => (
+            <Button
+              key={pts}
+              size="sm"
+              className="h-11 min-w-12 px-3 text-base font-bold"
+              onClick={() => onScore(pts)}
+              aria-label={`Add ${pts} point${pts === 1 ? "" : "s"}`}
+            >
+              +{pts}
+            </Button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
