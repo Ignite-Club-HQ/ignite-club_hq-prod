@@ -14,10 +14,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 
 import BasketballQuarterTimer from "./BasketballQuarterTimer";
-import BasketballActionBar from "./BasketballActionBar";
 import BasketballCourtArea from "./BasketballCourtArea";
 import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
+import BasketballPreGameScreen from "./BasketballPreGameScreen";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import TimeoutsPanel from "@/components/scoreboard/TimeoutsPanel";
@@ -33,8 +33,7 @@ import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
 import { totalElapsedSeconds, visiblePeriods } from "@/lib/periodTypes";
 
 // Lazy-load secondary dialogs
-const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
-const BasketballQuarterLineupPlanner = lazy(() => import("./BasketballQuarterLineupPlanner"));
+const BasketballGameSettingsDialog = lazy(() => import("./BasketballGameSettingsDialog"));
 const BasketballRosterDialog = lazy(() => import("./BasketballRosterDialog"));
 const BasketballQuickActionSheet = lazy(() => import("./BasketballQuickActionSheet"));
 const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPresetsDialog"));
