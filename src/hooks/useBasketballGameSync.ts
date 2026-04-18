@@ -155,18 +155,26 @@ export function useBasketballGameSync(
     }
   }, [user?.id, enabled, state, timerState, deactivateOtherGames]);
 
+  // Keep a ref to the latest syncNow so the interval doesn't tear down +
+  // rebuild on every state change (audit fix B10). Previously the 10s
+  // throttle never fired because the effect re-ran each tick.
+  const syncNowRef = useRef(syncNow);
+  useEffect(() => {
+    syncNowRef.current = syncNow;
+  }, [syncNow]);
+
   useEffect(() => {
     if (!enabled) return;
     // First sync on mount is forced so the spectator sees state immediately.
-    syncNow(true);
-    intervalRef.current = setInterval(() => syncNow(false), SYNC_INTERVAL);
+    syncNowRef.current(true);
+    intervalRef.current = setInterval(() => syncNowRef.current(false), SYNC_INTERVAL);
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [enabled, syncNow]);
+  }, [enabled]);
 
   useEffect(() => {
     return () => {
