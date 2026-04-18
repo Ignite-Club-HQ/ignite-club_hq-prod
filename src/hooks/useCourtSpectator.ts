@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type {
@@ -39,12 +39,51 @@ interface ActiveGameRow {
   is_active: boolean;
 }
 
+/**
+ * Heuristic sport-detection fallback for legacy rows written before
+ * `pitch.sport` / `timer.sport` were stamped. Looks at the player position
+ * vocabulary on the board, falling back gracefully for empty rosters.
+ */
+const detectSport = (
+  pitch: Record<string, unknown>,
+  timer: Record<string, unknown>
+): SpectatorSport | null => {
+  const tagged = (pitch.sport ?? timer.sport) as SpectatorSport | undefined;
+  if (tagged === "basketball" || tagged === "netball" || tagged === "soccer") return tagged;
+
+  // Field hints — basketball-only / netball-only fields appear on their
+  // respective timer states.
+  if (typeof timer.timeoutsPerHalf === "number") return "basketball";
+  if (timer.centrePass === "home" || timer.centrePass === "away") return "netball";
+  if (Array.isArray(timer.centrePassLog)) return "netball";
+
+  // Position vocabulary — netball positions vs basketball positions.
+  const players = (pitch.players ?? []) as Array<{ position?: string | null }>;
+  const positions = new Set(
+    players
+      .map((p) => p?.position)
+      .filter((v): v is string => typeof v === "string")
+  );
+  if (
+    positions.has("GS") || positions.has("GA") || positions.has("WA") ||
+    positions.has("WD") || positions.has("GD") || positions.has("GK")
+  ) {
+    return "netball";
+  }
+  if (
+    positions.has("PG") || positions.has("SG") || positions.has("SF") ||
+    positions.has("PF") || positions.has("C")
+  ) {
+    return "basketball";
+  }
+  return null;
+};
+
 const projectRow = (row: ActiveGameRow | null): CourtSpectatorState | null => {
   if (!row) return null;
   const pitch = (row.pitch_state ?? {}) as Record<string, unknown>;
   const timer = (row.timer_state ?? {}) as Record<string, unknown>;
-  // Sport tag was added when boards started writing — fall back gracefully.
-  const sport = (pitch.sport ?? timer.sport ?? null) as SpectatorSport | null;
+  const sport = detectSport(pitch, timer);
   if (sport !== "basketball" && sport !== "netball") return null;
   const receivedAt = row.updated_at ? Date.parse(row.updated_at) : Date.now();
   if (sport === "basketball") {
@@ -68,7 +107,11 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
   const [isLoading, setIsLoading] = useState(true);
   const [noActiveGame, setNoActiveGame] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeRowId, setActiveRowId] = useState<string | null>(null);
+
+  // Tracked via ref (not state) so the realtime subscription effect doesn't
+  // re-run when the active row id rotates — that previously caused a
+  // tear-down/re-subscribe loop on every coach update.
+  const activeRowIdRef = useRef<string | null>(null);
 
   // Initial fetch — most recently updated active row for this team.
   useEffect(() => {
@@ -80,6 +123,7 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
     setIsLoading(true);
     setError(null);
     setNoActiveGame(false);
+    activeRowIdRef.current = null;
     (async () => {
       const { data, error: err } = await supabase
         .from("active_games")
@@ -100,7 +144,7 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
         setIsLoading(false);
         return;
       }
-      setActiveRowId(data.id);
+      activeRowIdRef.current = data.id;
       setState(projectRow(data as ActiveGameRow));
       setIsLoading(false);
     })();
@@ -109,9 +153,8 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
     };
   }, [teamId]);
 
-  // Realtime subscription on the team's row(s). We listen broadly to all
-  // changes for this team_id and re-project on every payload, since the
-  // active row id may rotate (e.g. coach restarts a game).
+  // Realtime subscription — bound to teamId only. The subscription is created
+  // once per team and stays alive for as long as the spectator is on the page.
   useEffect(() => {
     if (!teamId) return;
     const channel = supabase
@@ -129,14 +172,15 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
           if (!row) return;
           // Coach ended this game — clear state if it was the one we watched.
           if (!row.is_active) {
-            if (activeRowId && row.id === activeRowId) {
+            if (activeRowIdRef.current && row.id === activeRowIdRef.current) {
               setState(null);
               setNoActiveGame(true);
+              activeRowIdRef.current = null;
             }
             return;
           }
           // New active row (or update to the existing one) — adopt + project.
-          setActiveRowId(row.id);
+          activeRowIdRef.current = row.id;
           setNoActiveGame(false);
           setState(projectRow(row));
         }
@@ -146,7 +190,7 @@ export function useCourtSpectator(teamId: string | null | undefined): UseCourtSp
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [teamId, activeRowId]);
+  }, [teamId]);
 
   return { state, isLoading, noActiveGame, error };
 }
