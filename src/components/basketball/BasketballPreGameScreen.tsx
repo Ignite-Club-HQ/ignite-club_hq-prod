@@ -90,15 +90,15 @@ export default function BasketballPreGameScreen({
 
       {/* Checklist */}
       <div className="px-3 pb-3 space-y-2">
-        {/* Empty squad call-out — replaces the starting-5 row when no players exist */}
+        {/* Squad — always visible, prominent. Becomes the primary CTA when empty. */}
         {squadEmpty ? (
-          <div className="flex items-center justify-between gap-3 px-3 py-3 rounded-lg border border-dashed bg-muted/20">
+          <div className="flex items-center justify-between gap-3 px-3 py-3 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5">
             <div className="flex items-center gap-2.5 min-w-0">
-              <Users className="h-5 w-5 text-muted-foreground shrink-0" />
+              <Users className="h-5 w-5 text-primary shrink-0" />
               <div className="min-w-0">
                 <div className="text-sm font-semibold leading-tight">No players in squad</div>
                 <div className="text-[11px] text-muted-foreground">
-                  Add players to your team before tip-off.
+                  Add players before you can pick a starting 5.
                 </div>
               </div>
             </div>
@@ -109,6 +109,28 @@ export default function BasketballPreGameScreen({
             )}
           </div>
         ) : (
+          <button
+            type="button"
+            onClick={readOnly ? undefined : onOpenSquad}
+            disabled={readOnly}
+            className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border bg-card w-full text-left hover:bg-muted/30 transition-colors disabled:opacity-60"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Users className="h-5 w-5 text-primary shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm font-semibold leading-tight">Squad</div>
+                <div className="text-[11px] text-muted-foreground tabular-nums">
+                  {players.length} player{players.length === 1 ? "" : "s"} · tap to manage
+                </div>
+              </div>
+            </div>
+            {!readOnly && (
+              <span className="text-[11px] font-medium text-primary shrink-0">Manage</span>
+            )}
+          </button>
+        )}
+
+        {!squadEmpty && (
           /* Starting 5 */
           <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border bg-card">
             <div className="flex items-center gap-2.5 min-w-0">
