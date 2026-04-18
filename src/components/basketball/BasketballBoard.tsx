@@ -450,11 +450,11 @@ export default function BasketballBoard({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="flex items-center justify-between w-full px-3 py-2 border-t bg-muted/20 text-xs font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
+            className="flex items-center justify-between w-full px-3 py-1.5 border-t bg-muted/10 text-[11px] font-medium text-muted-foreground/80 hover:bg-muted/30 transition-colors"
             aria-expanded={gameDetailsOpen}
           >
-            <span>Game details &amp; insights</span>
-            {gameDetailsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            <span>Game details</span>
+            {gameDetailsOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
