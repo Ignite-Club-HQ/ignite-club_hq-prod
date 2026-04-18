@@ -261,6 +261,58 @@ export default function RewardRedemptionCard() {
     enabled: !!user,
   });
 
+  // Weekly points delta (last 7 days) for the user
+  const { data: weeklyDelta = 0 } = useQuery({
+    queryKey: ["points-weekly-delta", user?.id, activeClubFilter],
+    queryFn: async () => {
+      const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      let q = supabase
+        .from("points_history")
+        .select("amount")
+        .eq("user_id", user!.id)
+        .gt("amount", 0)
+        .gte("created_at", sinceIso);
+      if (activeClubFilter) q = q.eq("club_id", activeClubFilter);
+      const { data } = await q;
+      return (data || []).reduce((sum: number, row: any) => sum + (row.amount || 0), 0);
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Next reward thresholds across the user's clubs (sorted ascending by points)
+  const { data: rewardThresholds = [] } = useQuery({
+    queryKey: ["next-reward-thresholds", user?.id, activeClubFilter],
+    queryFn: async () => {
+      let clubIds: string[] = [];
+      if (activeClubFilter) {
+        clubIds = [activeClubFilter];
+      } else {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("club_id, teams(club_id)")
+          .eq("user_id", user!.id);
+        const set = new Set<string>();
+        (roles || []).forEach((r: any) => {
+          if (r.club_id) set.add(r.club_id);
+          if (r.teams?.club_id) set.add(r.teams.club_id);
+        });
+        clubIds = Array.from(set);
+      }
+      if (clubIds.length === 0) return [];
+      const { data } = await supabase
+        .from("club_rewards")
+        .select("id, name, points_required")
+        .in("club_id", clubIds)
+        .eq("is_active", true)
+        .neq("reward_type", "player_of_match")
+        .order("points_required", { ascending: true });
+      return (data || []) as { id: string; name: string; points_required: number }[];
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const redeemMutation = useMutation({
     mutationFn: async ({ reward, forChildId }: { reward: ClubReward; forChildId: string | null }) => {
       // Determine whose points to use
