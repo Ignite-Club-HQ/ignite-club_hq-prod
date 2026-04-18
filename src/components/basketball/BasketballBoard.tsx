@@ -111,7 +111,6 @@ export default function BasketballBoard({
   // Local UI-only state for which secondary dialog is open.
   // Kept here (not in the hook) so the hook stays focused on game logic.
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [lineupPlannerOpen, setLineupPlannerOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
