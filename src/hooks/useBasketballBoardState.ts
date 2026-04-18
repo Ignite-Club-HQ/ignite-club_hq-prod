@@ -333,8 +333,12 @@ export function useBasketballBoardState({
           return p;
         });
       });
+      // Match by stable key — `regenerateAutoSubPlan` rebuilds the plan
+      // with new object identities, so `s === sub` would silently miss and
+      // the sub would re-fire every tick (audit fix B1/N1).
+      const subKey = getSubKey(sub);
       setAutoSubPlan((prev) =>
-        prev.map((s) => (s === sub ? { ...s, executed: true } : s))
+        prev.map((s) => (getSubKey(s) === subKey ? { ...s, executed: true } : s))
       );
       appendSubLog({
         playerOutId: sub.playerOut.id,
