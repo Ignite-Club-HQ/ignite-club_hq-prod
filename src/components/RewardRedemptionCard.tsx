@@ -536,6 +536,69 @@ export default function RewardRedemptionCard() {
   const hasClubs = userClubs.length > 0;
   const isLoadingClubsWithNoCache = isLoadingClubs && userClubs.length === 0;
 
+  // Persist + restore the last selected child for the rewards card focus
+  useEffect(() => {
+    if (!user) return;
+    if (activeChildId) return;
+    try {
+      const stored = localStorage.getItem(`ignite-rewards-active-child-${user.id}`);
+      if (stored && children.some(c => c.id === stored)) {
+        setActiveChildId(stored);
+      }
+    } catch {
+      // localStorage unavailable
+    }
+  }, [user, children, activeChildId]);
+
+  useEffect(() => {
+    if (!user || !activeChildId) return;
+    try {
+      localStorage.setItem(`ignite-rewards-active-child-${user.id}`, activeChildId);
+    } catch {
+      // localStorage unavailable
+    }
+  }, [activeChildId, user]);
+
+  // Determine the focus context: the active child (if any) or the user themselves.
+  const activeChild = useMemo(
+    () => (activeChildId ? children.find(c => c.id === activeChildId) ?? null : null),
+    [activeChildId, children]
+  );
+  const focusName = activeChild?.name ?? (profile?.display_name || "You");
+  const focusPoints = activeChild?.ignite_points ?? currentPoints;
+  const focusInitials = focusName
+    .split(/\s+/)
+    .map(n => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  // Cheapest reward the focus context cannot yet afford → next milestone
+  const nextRewardTarget = useMemo(() => {
+    const above = rewardThresholds.find(r => r.points_required > focusPoints);
+    return above ?? rewardThresholds[rewardThresholds.length - 1] ?? null;
+  }, [rewardThresholds, focusPoints]);
+
+  const progressMax = nextRewardTarget?.points_required ?? 0;
+  const progressPct = progressMax > 0 ? Math.min(100, (focusPoints / progressMax) * 100) : 0;
+  const pointsToGo = Math.max(0, progressMax - focusPoints);
+  const animatedPoints = useCountUp(focusPoints);
+  const pointsLabel = (userClubs[0] as any)?.points_display_name || 'Reward Points';
+  const pointsIcon = (userClubs[0] as any)?.points_icon_url as string | undefined;
+
+  const openDefaultRewards = () => {
+    const proClubs = userClubs.filter((club: any) => isAppAdmin || club.hasPro);
+    if (proClubs.length === 1) {
+      setSelectedClubId(proClubs[0].id);
+    } else if (proClubs.length > 1) {
+      // Surface the existing club picker UI by leaving selectedClubId null —
+      // user can tap a club from the in-card list. As a shortcut we open the
+      // first pro club so a single tap on the card does something useful.
+      setSelectedClubId(proClubs[0].id);
+    }
+  };
+
 
   // If user has a pending redemption, show it prominently
   if (pendingRedemptions.length > 0) {
