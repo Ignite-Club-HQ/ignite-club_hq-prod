@@ -206,6 +206,17 @@ export default function TeamChatPage() {
     }
   }, [targetMessageId]);
 
+  // Pinned messages
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("team", teamId);
+  const handleJumpToMessage = (mid: string) =>
+    jumpToMessageInChat(mid, setHighlightedMessageId);
+
   const { data: team, isLoading: loadingTeam } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
@@ -1435,6 +1446,11 @@ export default function TeamChatPage() {
                         isPending={msg.id.startsWith("queued-")}
                         contextId={teamId || ""}
                         isClubAnnouncement={msg.is_club_announcement}
+                        isPinned={pinnedMessageIds.has(msg.id)}
+                        canPin={!msg.is_club_announcement && !msg.id.startsWith("queued-")}
+                        pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                        onPin={pinMessage}
+                        onUnpin={unpinMessage}
                       />
                     </div>
                   </div>
