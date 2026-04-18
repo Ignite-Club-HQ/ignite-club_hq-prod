@@ -270,10 +270,7 @@ export default function BasketballBoard({
           opponentName={opponentName}
           players={board.players}
           bench={board.bench}
-          selectedPlayerId={board.selectedPlayerId}
-          courtView={board.courtView}
-          onPlayerClick={board.handlePlayerClick}
-          onSlotClick={board.handleSlotClick}
+          onAssign={board.assignToPosition}
           minutesPerQuarter={board.timerState.minutesPerQuarter}
           periodType={board.timerState.periodType ?? "quarters"}
           onOpenSettings={() => setSettingsOpen(true)}
