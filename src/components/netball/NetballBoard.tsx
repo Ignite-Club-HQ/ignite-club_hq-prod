@@ -58,7 +58,7 @@ import {
   transitionPosition,
 } from "./netballHelpers";
 import { useNetballGameSync } from "@/hooks/useNetballGameSync";
-import { visiblePeriods, totalElapsedSeconds } from "@/lib/periodTypes";
+import { visiblePeriods, totalElapsedSeconds, periodLabel } from "@/lib/periodTypes";
 import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX, CENTRE_PASS_LOG_MAX } from "@/lib/gameLogLimits";
 
 // Lazy-load secondary dialogs
@@ -438,6 +438,12 @@ export default function NetballBoard({
       const idx = periods.indexOf(endedQuarter);
       const isFinalPeriod = idx === periods.length - 1;
       const nextQuarter = (periods[idx + 1] ?? null) as Quarter | null;
+      // Purge stale sub-cue keys for the ended quarter so cuedSubIdsRef
+      // can't grow unbounded across long sessions (audit fix L5).
+      const stalePrefix = `${endedQuarter}:`;
+      cuedSubIdsRef.current.forEach((k) => {
+        if (k.startsWith(stalePrefix)) cuedSubIdsRef.current.delete(k);
+      });
       if (isFinalPeriod || nextQuarter === null) {
         toast({
           title: "Game finished",
@@ -468,66 +474,78 @@ export default function NetballBoard({
   const performSwap = useCallback(
     (aId: string, bId: string) => {
       hapticImpactMedium();
-      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
-      setPlayers((prev) => {
-        const a = prev.find((p) => p.id === aId);
-        const b = prev.find((p) => p.id === bId);
-        if (!a || !b) return prev;
+      // Resolve players + validate BEFORE entering the state updater so we
+      // never fire toasts inside setPlayers (audit fix N9 — toasts in
+      // updaters can fire twice in StrictMode and during re-render storms).
+      const a = players.find((p) => p.id === aId);
+      const b = players.find((p) => p.id === bId);
+      if (!a || !b) return;
 
-        const enforce = (who: NetballPlayer, pos: NetballPosition | null): boolean => {
-          if (!pos) return true;
-          if (validationMode === "free") return true;
-          const ok = isPositionAllowedForPlayer(who, pos);
-          if (!ok && validationMode === "warn") {
-            toast({
+      const validate = (
+        who: NetballPlayer,
+        pos: NetballPosition | null
+      ): { ok: boolean; toast?: { title: string; description: string; variant?: "destructive" } } => {
+        if (!pos) return { ok: true };
+        if (validationMode === "free") return { ok: true };
+        const allowed = isPositionAllowedForPlayer(who, pos);
+        if (allowed) return { ok: true };
+        if (validationMode === "warn") {
+          return {
+            ok: true,
+            toast: {
               title: "Position warning",
               description: `${who.name} isn't a preferred ${pos}.`,
-            });
-            return true;
-          }
-          if (!ok && validationMode === "strict") {
-            toast({
-              title: "Move blocked",
-              description: `${who.name} can't play ${pos} in strict mode.`,
-              variant: "destructive",
-            });
-            return false;
-          }
-          return true;
-        };
-
-        if (!enforce(a, b.position) || !enforce(b, a.position)) return prev;
-
-        // Bench → court swap counts as a sub for undo + summary purposes.
-        if (a.position === null && b.position !== null) {
-          logEntry = {
-            playerOutId: b.id,
-            playerOutName: b.name,
-            playerInId: a.id,
-            playerInName: a.name,
-            position: b.position,
-            source: "manual",
-          };
-        } else if (b.position === null && a.position !== null) {
-          logEntry = {
-            playerOutId: a.id,
-            playerOutName: a.name,
-            playerInId: b.id,
-            playerInName: b.name,
-            position: a.position,
-            source: "manual",
+            },
           };
         }
+        return {
+          ok: false,
+          toast: {
+            title: "Move blocked",
+            description: `${who.name} can't play ${pos} in strict mode.`,
+            variant: "destructive",
+          },
+        };
+      };
 
-        return prev.map((p) => {
+      const va = validate(a, b.position);
+      const vb = validate(b, a.position);
+      if (va.toast) toast(va.toast);
+      if (vb.toast) toast(vb.toast);
+      if (!va.ok || !vb.ok) return;
+
+      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
+      // Bench → court swap counts as a sub for undo + summary purposes.
+      if (a.position === null && b.position !== null) {
+        logEntry = {
+          playerOutId: b.id,
+          playerOutName: b.name,
+          playerInId: a.id,
+          playerInName: a.name,
+          position: b.position,
+          source: "manual",
+        };
+      } else if (b.position === null && a.position !== null) {
+        logEntry = {
+          playerOutId: a.id,
+          playerOutName: a.name,
+          playerInId: b.id,
+          playerInName: b.name,
+          position: a.position,
+          source: "manual",
+        };
+      }
+
+      setPlayers((prev) =>
+        prev.map((p) => {
           if (p.id === a.id) return { ...p, position: b.position };
           if (p.id === b.id) return { ...p, position: a.position };
           return p;
-        });
-      });
+        })
+      );
       if (logEntry) appendSubLog(logEntry);
     },
-    [validationMode, toast, appendSubLog]
+    [players, validationMode, toast, appendSubLog]
   );
 
   const handlePlayerClick = useCallback(
@@ -759,12 +777,15 @@ export default function NetballBoard({
         );
       }
       // Roll back the centre-pass log too: drop the auto-pushed "next" CP and
-      // unconvert the previous CP we credited.
+      // unconvert the previous CP we credited. CRITICAL: stop walking at the
+      // quarter boundary (audit fix N8) — otherwise an undo could un-credit
+      // a goal scored in a previous quarter and corrupt historical CP stats.
       const cpLog = [...(s.centrePassLog ?? [])];
       if (cpLog.length > 0 && !cpLog[cpLog.length - 1].converted) {
         cpLog.pop();
       }
       for (let i = cpLog.length - 1; i >= 0; i--) {
+        if (cpLog[i].quarter !== last.quarter) break;
         if (cpLog[i].side === last.side && cpLog[i].converted) {
           cpLog[i] = { ...cpLog[i], converted: false };
           break;
@@ -844,24 +865,22 @@ export default function NetballBoard({
   }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, rosterSignature]);
 
   // ---------- Auto-sub control panel handlers ----------
+  // Scoped to the CURRENT quarter only (audit fix N-equivalent of B8) — keep
+  // manual controls consistent with `findNextDueSub`. Pulling forward a Q3
+  // sub during Q1 yanks a starter and breaks the coach's mental model.
   const findUpcomingSub = useCallback(() => {
-    return (
-      autoSubPlan.find(
-        (s) =>
-          !s.executed &&
-          !s.skipped &&
-          s.quarter === timerState.currentQuarter &&
-          s.time >= timerState.elapsedSeconds
-      ) ||
-      autoSubPlan.find((s) => !s.executed && !s.skipped && s.quarter > timerState.currentQuarter) ||
-      autoSubPlan.find((s) => !s.executed && !s.skipped)
+    return autoSubPlan.find(
+      (s) =>
+        !s.executed &&
+        !s.skipped &&
+        s.quarter === timerState.currentQuarter
     );
-  }, [autoSubPlan, timerState.currentQuarter, timerState.elapsedSeconds]);
+  }, [autoSubPlan, timerState.currentQuarter]);
 
   const executeNextSubNow = useCallback(() => {
     const target = findUpcomingSub();
     if (!target) {
-      toast({ title: "No subs queued" });
+      toast({ title: "No subs queued this period" });
       return;
     }
     executeSub(target);
@@ -869,7 +888,10 @@ export default function NetballBoard({
 
   const skipNextSub = useCallback(() => {
     const target = findUpcomingSub();
-    if (!target) return;
+    if (!target) {
+      toast({ title: "No subs queued this period" });
+      return;
+    }
     setAutoSubPlan((prev) =>
       prev.map((s) =>
         !s.executed && !s.skipped && s.quarter === target.quarter && s.time === target.time
@@ -898,16 +920,15 @@ export default function NetballBoard({
       rotationMode === "time-based"
         ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
         : generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters");
-    const executed = autoSubPlan.filter((s) => s.executed);
+    // Preserve BOTH executed AND skipped history so a regen never resurrects
+    // a sub the coach already actioned (audit fix N7). Use stable getSubKey
+    // for dedupe — composite property checks miss when the slot's playerOut
+    // changed mid-quarter via a manual swap.
+    const history = autoSubPlan.filter((s) => s.executed || s.skipped);
+    const historyKeys = new Set(history.map(getSubKey));
     setAutoSubPlan([
-      ...executed,
-      ...fresh.filter(
-        (f) =>
-          !executed.some(
-            (e) =>
-              e.quarter === f.quarter && e.time === f.time && e.playerOut.id === f.playerOut.id
-          )
-      ),
+      ...history,
+      ...fresh.filter((f) => !historyKeys.has(getSubKey(f))),
     ]);
     toast({ title: "Plan regenerated" });
   }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, autoSubPlan, toast]);
@@ -974,17 +995,18 @@ export default function NetballBoard({
 
   const applyNextLineupNow = () => {
     const nextQ = timerState.currentQuarter;
+    const label = periodLabel(nextQ, timerState.periodType);
     const lineup = quarterLineups.find((l) => l.quarter === nextQ);
     if (!lineup || Object.keys(lineup.assignments).length === 0) {
       toast({
         title: "No lineup planned",
-        description: `Open the Lineup Planner to set up Q${nextQ}.`,
+        description: `Open the Lineup Planner to set up ${label}.`,
         variant: "destructive",
       });
       return;
     }
     setPlayers((prev) => applyLineup(prev, lineup));
-    toast({ title: `Q${nextQ} lineup applied` });
+    toast({ title: `${label} lineup applied` });
   };
 
   // Keep the screen awake while a coach is actively running the game.

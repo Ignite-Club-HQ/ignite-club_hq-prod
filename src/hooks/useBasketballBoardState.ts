@@ -32,7 +32,7 @@ import {
 import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
 import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
 import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
-import { visiblePeriods } from "@/lib/periodTypes";
+import { visiblePeriods, periodLabel } from "@/lib/periodTypes";
 import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX } from "@/lib/gameLogLimits";
 
 interface Member {
@@ -442,6 +442,12 @@ export function useBasketballBoardState({
           lastUpdateTime: Date.now(),
         }));
       }
+      // Purge stale cue keys for the ended quarter so cuedSubIdsRef can't
+      // grow unbounded across long sessions (audit fix L5).
+      const stalePrefix = `${endedQuarter}:`;
+      cuedSubIdsRef.current.forEach((k) => {
+        if (k.startsWith(stalePrefix)) cuedSubIdsRef.current.delete(k);
+      });
       if (isFinalPeriod || nextQuarter === null) {
         toast({
           title: "Game finished",
@@ -485,7 +491,7 @@ export function useBasketballBoardState({
       prev.map((s) => (skipped.has(s) ? { ...s, skipped: true } : s))
     );
     setPendingQuarterSubs(null);
-    toast({ title: "Subs skipped", description: `Q${pendingQuarterSubs.quarter} rotation cleared.` });
+    toast({ title: "Subs skipped", description: `${periodLabel(pendingQuarterSubs.quarter, timerStateRef.current.periodType)} rotation cleared.` });
   }, [pendingQuarterSubs, toast]);
 
   // ---------- Manual swap ----------
@@ -713,38 +719,41 @@ export function useBasketballBoardState({
   }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, rosterSignature]);
 
   // ---------- Auto-sub control panel handlers ----------
-  /** Execute the next due (or upcoming) sub immediately, regardless of clock. */
+  /**
+   * Execute the next due (or upcoming) sub immediately, regardless of clock.
+   * Scoped to the CURRENT quarter only (audit fix B8) — staying consistent
+   * with `findNextDueSub`. Pulling forward a Q3 sub during Q1 yanks a starter
+   * for no reason and breaks coach mental model.
+   */
   const executeNextSubNow = useCallback(() => {
-    const target =
-      autoSubPlan.find(
-        (s) =>
-          !s.executed &&
-          !s.skipped &&
-          s.quarter === timerState.currentQuarter &&
-          s.time >= timerState.elapsedSeconds
-      ) ||
-      autoSubPlan.find((s) => !s.executed && !s.skipped && s.quarter > timerState.currentQuarter) ||
-      autoSubPlan.find((s) => !s.executed && !s.skipped);
+    const target = autoSubPlan.find(
+      (s) =>
+        !s.executed &&
+        !s.skipped &&
+        s.quarter === timerState.currentQuarter
+    );
     if (!target) {
-      toast({ title: "No subs queued" });
+      toast({ title: "No subs queued this period" });
       return;
     }
     executeSub(target);
-  }, [autoSubPlan, timerState.currentQuarter, timerState.elapsedSeconds, executeSub, toast]);
+  }, [autoSubPlan, timerState.currentQuarter, executeSub, toast]);
 
-  /** Mark the next pending sub (or batch at same quarter+time) as skipped. */
+  /**
+   * Mark the next pending sub (or batch at same quarter+time) as skipped.
+   * Scoped to the current quarter only (audit fix B8).
+   */
   const skipNextSub = useCallback(() => {
-    const target =
-      autoSubPlan.find(
-        (s) =>
-          !s.executed &&
-          !s.skipped &&
-          s.quarter === timerState.currentQuarter &&
-          s.time >= timerState.elapsedSeconds
-      ) ||
-      autoSubPlan.find((s) => !s.executed && !s.skipped && s.quarter > timerState.currentQuarter) ||
-      autoSubPlan.find((s) => !s.executed && !s.skipped);
-    if (!target) return;
+    const target = autoSubPlan.find(
+      (s) =>
+        !s.executed &&
+        !s.skipped &&
+        s.quarter === timerState.currentQuarter
+    );
+    if (!target) {
+      toast({ title: "No subs queued this period" });
+      return;
+    }
     setAutoSubPlan((prev) =>
       prev.map((s) =>
         !s.executed && !s.skipped && s.quarter === target.quarter && s.time === target.time
@@ -753,7 +762,7 @@ export function useBasketballBoardState({
       )
     );
     toast({ title: "Sub skipped" });
-  }, [autoSubPlan, timerState.currentQuarter, timerState.elapsedSeconds, toast]);
+  }, [autoSubPlan, timerState.currentQuarter, toast]);
 
   /** Drop the entire pending plan (rotation mode stays on; user can regenerate). */
   const cancelAutoSubPlan = useCallback(() => {
@@ -763,7 +772,7 @@ export function useBasketballBoardState({
     toast({ title: "Plan cancelled", description: "All pending auto-subs cleared." });
   }, [toast]);
 
-  /** Re-build the plan from current roster + settings (preserves executed history). */
+  /** Re-build the plan from current roster + settings (preserves executed/skipped history). */
   const regenerateAutoSubPlan = useCallback(() => {
     if (rotationMode === "off") {
       toast({
@@ -777,9 +786,13 @@ export function useBasketballBoardState({
       rotationMode === "time-based"
         ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
         : generateQuarterBreakRotationPlan(players, 3, timerState.periodType ?? "quarters");
-    // Preserve the historical record of executed subs so the timeline still shows them.
-    const executed = autoSubPlan.filter((s) => s.executed);
-    setAutoSubPlan([...executed, ...fresh.filter((f) => !executed.some((e) => e.quarter === f.quarter && e.time === f.time && e.playerOut.id === f.playerOut.id))]);
+    // Preserve BOTH executed AND skipped history so a regen never resurrects
+    // a sub the coach already actioned (audit fix B7). Use stable getSubKey
+    // for dedupe — quarter+time+playerOutId+position — instead of fragile
+    // composite checks that miss when the slot's playerOut has changed.
+    const history = autoSubPlan.filter((s) => s.executed || s.skipped);
+    const historyKeys = new Set(history.map(getSubKey));
+    setAutoSubPlan([...history, ...fresh.filter((f) => !historyKeys.has(getSubKey(f)))]);
     toast({ title: "Plan regenerated" });
   }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, autoSubPlan, toast]);
 
@@ -802,18 +815,19 @@ export function useBasketballBoardState({
 
   const applyNextLineupNow = useCallback(() => {
     const nextQ = timerState.currentQuarter;
+    const label = periodLabel(nextQ, timerState.periodType);
     const lineup = quarterLineups.find((l) => l.quarter === nextQ);
     if (!lineup || Object.keys(lineup.assignments).length === 0) {
       toast({
         title: "No lineup planned",
-        description: `Open the Lineup Planner to set up Q${nextQ}.`,
+        description: `Open the Lineup Planner to set up ${label}.`,
         variant: "destructive",
       });
       return;
     }
     setPlayers((prev) => applyLineup(prev, lineup));
-    toast({ title: `Q${nextQ} lineup applied` });
-  }, [quarterLineups, timerState.currentQuarter, toast]);
+    toast({ title: `${label} lineup applied` });
+  }, [quarterLineups, timerState.currentQuarter, timerState.periodType, toast]);
 
   const applyPreset = useCallback(
     (preset: BasketballLineupPreset) => {
@@ -952,15 +966,18 @@ export function useBasketballBoardState({
         )
       );
       // Add the made FTs to the team score as a single 1pt-each event chain
-      // so QuarterScoreStrip + final score reflect the change.
+      // so QuarterScoreStrip + final score reflect the change. Stagger
+      // timestamps by index so events with shared `at` don't collide and
+      // collapse into a single dot in MomentumStrip (audit fix B9).
       if (safeMade > 0) {
         setTimerState((s) => {
-          const events = Array.from({ length: safeMade }).map(() => ({
+          const baseAt = Date.now();
+          const events = Array.from({ length: safeMade }).map((_, i) => ({
             id: crypto.randomUUID(),
             side: "home" as const,
             points: 1,
             quarter: s.currentQuarter,
-            at: Date.now(),
+            at: baseAt + i,
             playerId,
           }));
           return {
