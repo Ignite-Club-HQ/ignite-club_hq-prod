@@ -39,9 +39,11 @@ export default function NetballQuickActionSheet({
   onSubOff,
   onSubOn,
   onToggleInjured,
+  onScore,
 }: NetballQuickActionSheetProps) {
   if (!player) return null;
   const onCourt = player.position !== null;
+  const canScore = !!onScore && (player.position === "GS" || player.position === "GA");
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
