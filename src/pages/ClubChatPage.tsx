@@ -14,6 +14,7 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 
 import { PageLoading } from "@/components/ui/page-loading";
@@ -1198,7 +1199,7 @@ export default function ClubChatPage() {
       <ChatHeaderShell
         type="club"
         name={club?.name || "Club"}
-        sublabel="Club chat"
+        sublabel={clubHeaderSublabel}
         avatarUrl={club?.logo_url}
         onOpenDetails={() => setMembersOpen(true)}
         leftSlot={

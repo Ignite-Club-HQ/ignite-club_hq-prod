@@ -18,6 +18,7 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 
 import { PageLoading } from "@/components/ui/page-loading";
@@ -1552,13 +1553,7 @@ export default function GroupChatPage() {
       <ChatHeaderShell
         type={group.team_id || group.club_id ? "group" : "group"}
         name={group.name}
-        sublabel={
-          group.team_id
-            ? "Team group"
-            : group.club_id
-            ? "Club group"
-            : "Personal group"
-        }
+        sublabel={groupHeaderSublabel}
         onOpenDetails={() => setMembersOpen(true)}
         leftSlot={
           <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />

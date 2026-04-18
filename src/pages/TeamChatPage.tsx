@@ -15,6 +15,7 @@ import { SecureAvatar } from "@/components/SecureAvatar";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 
 import { PageLoading } from "@/components/ui/page-loading";
@@ -1287,7 +1288,7 @@ export default function TeamChatPage() {
       <ChatHeaderShell
         type="team"
         name={team.name}
-        sublabel={team.clubs?.name}
+        sublabel={teamHeaderSublabel}
         avatarUrl={team.logo_url || team.clubs?.logo_url}
         onOpenDetails={() => setMembersOpen(true)}
         leftSlot={
