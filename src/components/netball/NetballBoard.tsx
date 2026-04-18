@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, AlertTriangle, Loader2, Trophy, Undo2, Repeat } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { LinkedEventHeader } from "@/components/pitch/LinkedEventHeader";
+import { SyncStatusIndicator } from "@/components/pitch/SyncStatusIndicator";
 
 import NetballQuarterTimer from "./NetballQuarterTimer";
 import NetballActionBar from "./NetballActionBar";
