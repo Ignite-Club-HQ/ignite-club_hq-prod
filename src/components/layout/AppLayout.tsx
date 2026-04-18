@@ -5,6 +5,7 @@ import { BottomNav } from "./BottomNav";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useChatRouteOverscrollLock } from "@/hooks/useChatRouteOverscrollLock";
+import { useTrackPresence } from "@/hooks/useUserPresence";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
@@ -22,6 +23,7 @@ export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized, profileResolved } = useAuth();
   useAdMobInit();
   useActivityTracking();
+  useTrackPresence(user?.id);
   const { isThemeReady } = useClubTheme();
   const location = useLocation();
   const [retrying, setRetrying] = useState(false);
