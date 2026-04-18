@@ -16,6 +16,8 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
@@ -171,6 +173,7 @@ export default function DirectMessagePage() {
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
