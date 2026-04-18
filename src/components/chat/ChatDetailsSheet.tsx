@@ -210,7 +210,7 @@ export function ChatDetailsSheet({
                   groupAllowedRoles={groupAllowedRoles}
                   enabled={open}
                   onBeforeNavigate={close}
-                  scrollClassName="h-auto"
+                  inline
                 />
               </Section>
             )}
