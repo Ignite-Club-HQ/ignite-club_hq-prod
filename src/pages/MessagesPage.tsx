@@ -1262,6 +1262,34 @@ export default function MessagesPage() {
     filteredDMs, user?.id, showIgniteSupport, systemMessage,
   ]);
 
+  // Resolve event titles referenced in any conversation preview so they
+  // display the actual event name instead of a generic "Event" placeholder.
+  const referencedEventIds = useMemo(() => {
+    const set = new Set<string>();
+    unifiedConversations.forEach((c) => {
+      extractEventIds(c.lastMessage?.text).forEach((id) => set.add(id));
+    });
+    return Array.from(set);
+  }, [unifiedConversations]);
+
+  const { data: eventTitleMap = {} } = useQuery({
+    queryKey: ["messages-page-event-titles", referencedEventIds.join(",")],
+    queryFn: async () => {
+      if (referencedEventIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("events")
+        .select("id, title")
+        .in("id", referencedEventIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((e) => {
+        if (e?.id && e?.title) map[e.id.toLowerCase()] = e.title;
+      });
+      return map;
+    },
+    enabled: referencedEventIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Split into unread and recent
   const unreadItems = useMemo(() => {
     return unifiedConversations
