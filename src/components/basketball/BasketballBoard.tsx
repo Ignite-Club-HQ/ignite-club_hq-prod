@@ -521,6 +521,12 @@ export default function BasketballBoard({
               onApplySub={(outId, inId) => board.performSwap(outId, inId)}
             />
           )}
+          {/* Audio cues toggle — moved out of the always-visible header to
+              cut chrome. Sits with the other game-detail tools. */}
+          <div className="flex items-center justify-between px-3 py-2 border-t">
+            <span className="text-xs text-muted-foreground">Audio cues</span>
+            <CuesToggle />
+          </div>
         </CollapsibleContent>
       </Collapsible>
 
