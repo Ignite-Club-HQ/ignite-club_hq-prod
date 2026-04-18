@@ -15,7 +15,8 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
-import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
+import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
@@ -1548,40 +1549,52 @@ export default function GroupChatPage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <ChatBackButton />
-        <button
-          className="flex items-center gap-3 flex-1 min-w-0 min-h-[44px] active:opacity-70 transition-opacity rounded-lg"
-          onClick={() => setMembersOpen(true)}
-        >
-          <div className="flex-1 min-w-0 text-left">
-            <h1 className="font-semibold truncate">{group.name}</h1>
-          </div>
-        </button>
-        <div className="flex items-center shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          <ChatMuteButton chatType="group" chatId={groupId!} />
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-            onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
-            onDeleteGroup={isAdmin ? () => setShowDeleteGroupDialog(true) : undefined}
-          />
-          <ChatMembersSheet
-            chatType="group"
-            chatId={groupId!}
-            chatName={group.name}
-            teamId={group.team_id || undefined}
-            clubId={group.club_id || undefined}
-            groupAllowedRoles={group.allowed_roles}
-            externalOpen={membersOpen}
-            onExternalOpenChange={setMembersOpen}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type={group.team_id || group.club_id ? "group" : "group"}
+        name={group.name}
+        sublabel={
+          group.team_id
+            ? "Team group"
+            : group.club_id
+            ? "Club group"
+            : "Personal group"
+        }
+        onOpenDetails={() => setMembersOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatMuteButton chatType="group" chatId={groupId!} />
+            <ChatHeaderMenu
+              onRefresh={handleManualRefresh}
+              isRefreshing={isAnyRefreshing}
+              onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
+              onDeleteGroup={isAdmin ? () => setShowDeleteGroupDialog(true) : undefined}
+            />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={membersOpen}
+        onOpenChange={setMembersOpen}
+        chatType="group"
+        chatId={groupId!}
+        name={group.name}
+        sublabel={
+          group.team_id
+            ? "Team group"
+            : group.club_id
+            ? "Club group"
+            : "Personal group"
+        }
+        teamId={group.team_id || undefined}
+        clubId={group.club_id || undefined}
+        groupAllowedRoles={group.allowed_roles}
+      />
 
 
       {/* Notification Nudge */}

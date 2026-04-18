@@ -12,7 +12,8 @@ import { ArrowLeft, Send, Loader2, Search, UserPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
-import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
+import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
@@ -1283,52 +1284,45 @@ export default function TeamChatPage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <ChatBackButton />
-        <button
-          className="flex items-center gap-3 flex-1 min-w-0 min-h-[44px] active:opacity-70 transition-opacity rounded-lg"
-          onClick={() => setMembersOpen(true)}
-        >
-          <SecureAvatar 
-            src={team.logo_url || team.clubs?.logo_url} 
-            fallback={team.name?.charAt(0)?.toUpperCase() || "T"}
-            className="h-10 w-10"
-            fallbackClassName="bg-secondary text-secondary-foreground"
-          />
-          <div className="flex-1 min-w-0 text-left">
-            <h1 className="font-semibold truncate">{team.name}</h1>
-            <p className="text-xs text-muted-foreground truncate">{team.clubs?.name}</p>
-          </div>
-        </button>
-        <div className="flex items-center shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          <ChatMuteButton chatType="team" chatId={teamId!} />
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-          />
-          <ChatMembersSheet
-            chatType="team"
-            chatId={teamId!}
-            chatName={team.name}
-            externalOpen={membersOpen}
-            onExternalOpenChange={setMembersOpen}
-          />
-          <AddTeamMemberSheet
-            teamId={teamId!}
-            teamName={team.name}
-            clubId={team.club_id}
-            teamType={(team as any).team_type || "mixed"}
-            canBulkInvite={!!isAdmin}
-            triggerVariant="none"
-            externalOpen={inviteSheetOpen}
-            onExternalOpenChange={setInviteSheetOpen}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type="team"
+        name={team.name}
+        sublabel={team.clubs?.name}
+        avatarUrl={team.logo_url || team.clubs?.logo_url}
+        onOpenDetails={() => setMembersOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatMuteButton chatType="team" chatId={teamId!} />
+            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={membersOpen}
+        onOpenChange={setMembersOpen}
+        chatType="team"
+        chatId={teamId!}
+        name={team.name}
+        sublabel={team.clubs?.name}
+        avatarUrl={team.logo_url || team.clubs?.logo_url}
+        clubId={team.club_id || undefined}
+      />
+      <AddTeamMemberSheet
+        teamId={teamId!}
+        teamName={team.name}
+        clubId={team.club_id}
+        teamType={(team as any).team_type || "mixed"}
+        canBulkInvite={!!isAdmin}
+        triggerVariant="none"
+        externalOpen={inviteSheetOpen}
+        onExternalOpenChange={setInviteSheetOpen}
+      />
       {/* Inline invite banner below header */}
       <button
         onClick={() => setInviteSheetOpen(true)}

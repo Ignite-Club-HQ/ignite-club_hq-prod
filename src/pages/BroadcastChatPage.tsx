@@ -938,26 +938,31 @@ export default function BroadcastChatPage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background sticky top-0 z-10 shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <ChatBackButton />
-        <div className="p-1.5 rounded-lg shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-          <Flame className="h-5 w-5 text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-semibold truncate">Announcements</h1>
-          <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
-        </div>
-        <div className="flex items-center shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type="broadcast"
+        name="Announcements"
+        sublabel="Official updates & news"
+        onOpenDetails={() => setDetailsOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        chatType="broadcast"
+        chatId="broadcast"
+        name="Announcements"
+        sublabel="Official updates & news"
+      />
 
       {/* Notification Nudge */}
       {notificationNudge.shouldShowNudge && (
