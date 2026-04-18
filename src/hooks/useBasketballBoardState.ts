@@ -377,8 +377,17 @@ export function useBasketballBoardState({
   const handleQuarterEnd = useCallback(
     (endedQuarter: Quarter) => {
       cueQuarterEnd();
-      const nextQuarter = (endedQuarter + 1) as Quarter;
-      // Reset half-based timeouts when crossing into the second half (Q3 starts).
+      // In halves mode the visible periods are [1, 3], so "next" after slot 1
+      // is slot 3 — NOT slot 2. Using +1 silently broke quarterLineups lookups
+      // and quarter-break subs whenever a coach ran the game in halves mode.
+      const periodType = stateRef_periodType();
+      const periods = visiblePeriods(periodType);
+      const idx = periods.indexOf(endedQuarter);
+      const isFinalPeriod = idx === periods.length - 1;
+      const nextQuarter = (periods[idx + 1] ?? null) as Quarter | null;
+
+      // Reset half-based timeouts when crossing into the second half.
+      // Quarters mode → Q3 is the start of H2. Halves mode → slot 3 ("H2") is the second half.
       if (nextQuarter === 3) {
         setTimerState((s) => ({
           ...s,
@@ -388,15 +397,18 @@ export function useBasketballBoardState({
           lastUpdateTime: Date.now(),
         }));
       }
-      if (nextQuarter > 4) {
-        toast({ title: "Game finished", description: "Q4 complete." });
+      if (isFinalPeriod || nextQuarter === null) {
+        toast({
+          title: "Game finished",
+          description: periodType === "halves" ? "H2 complete." : "Q4 complete.",
+        });
         return;
       }
       const nextLineup = quarterLineups.find((l) => l.quarter === nextQuarter);
       if (nextLineup && Object.keys(nextLineup.assignments).length > 0) {
         setPlayers((prev) => applyLineup(prev, nextLineup));
         toast({
-          title: `Q${nextQuarter} lineup applied`,
+          title: `${periodType === "halves" ? "H" + (nextQuarter <= 2 ? 1 : 2) : "Q" + nextQuarter} lineup applied`,
           description: "On-court 5 updated from your plan.",
         });
         return;
@@ -411,6 +423,7 @@ export function useBasketballBoardState({
         }
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [autoSubPlan, quarterLineups, rotationMode, toast]
   );
 
