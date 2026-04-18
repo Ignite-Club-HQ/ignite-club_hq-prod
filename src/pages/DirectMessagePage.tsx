@@ -1026,45 +1026,37 @@ export default function DirectMessagePage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <ChatBackButton />
-          {isIgniteSupportConversation ? (
-            <>
-              <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                <Flame className="h-5 w-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="font-semibold">Ignite Support</h1>
-                <p className="text-xs text-muted-foreground">Welcome & tips</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <Avatar className="h-10 w-10 shrink-0">
-                <AvatarImage src={otherUser?.avatar_url || undefined} />
-                <AvatarFallback>{otherUser?.display_name?.charAt(0).toUpperCase() || "?"}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <h1 className="font-semibold truncate">{otherUser?.display_name || "Unknown User"}</h1>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          {!isIgniteSupportConversation && (
-            <ChatMuteButton chatType="dm" chatId={conversationId!} />
-          )}
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type={isIgniteSupportConversation ? "support" : "dm"}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
+        avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
+        onOpenDetails={() => setDetailsOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            {!isIgniteSupportConversation && (
+              <ChatMuteButton chatType="dm" chatId={conversationId!} />
+            )}
+            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        chatType={isIgniteSupportConversation ? "support" : "dm"}
+        chatId={conversationId!}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
+        avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
+        otherUserId={otherUserId || undefined}
+      />
 
 
 
