@@ -338,6 +338,26 @@ export default function NetballBoard({
   // wall-clock but per-player minutes wouldn't).
   // Track sub-cue de-dupe so we don't beep every second.
   const cuedSubIdsRef = useRef<Set<string>>(new Set());
+
+  // ---------- Full reset (called from the timer's reset button) ----------
+  // Wipes per-player stats AND any cached cue/sub state so a fresh game
+  // starts cleanly. Without this, stale "ghost" sub cues would re-fire and
+  // old goals/minutes would persist visually after a confirmed reset.
+  const resetPlayerStats = useCallback(() => {
+    cuedSubIdsRef.current = new Set();
+    setAutoSubPlan((prev) => prev.map((s) => ({ ...s, executed: false, skipped: false })));
+    setLockedPlayerIds(new Set());
+    setAutoSubPaused(false);
+    setPlayers((prev) =>
+      prev.map((p) => ({
+        ...p,
+        minutesPlayed: 0,
+        goals: 0,
+        isInjured: false,
+        lastBenchedAt: null,
+      }))
+    );
+  }, []);
   const handleTick = useCallback(
     (elapsed: number, quarter: Quarter, delta = 1) => {
       const safeDelta = Math.max(1, Math.floor(delta));
@@ -1014,6 +1034,7 @@ export default function NetballBoard({
           onChange={setTimerState}
           onTick={handleTick}
           onQuarterEnd={handleQuarterEnd}
+          onReset={resetPlayerStats}
           readOnly={readOnly}
         />
       </header>
