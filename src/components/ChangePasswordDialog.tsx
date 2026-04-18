@@ -82,24 +82,24 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Change Password</DialogTitle>
-          <DialogDescription>
-            Enter a new password. Must be at least 8 characters with uppercase, lowercase, and a number.
+      <DialogContent className="sm:max-w-md w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-full p-5 sm:p-6 rounded-xl gap-4">
+        <DialogHeader className="text-left space-y-1.5">
+          <DialogTitle className="text-lg">Change Password</DialogTitle>
+          <DialogDescription className="text-sm leading-snug">
+            At least 8 characters with uppercase, lowercase, and a number.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="new-password">New password</Label>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="new-password" className="text-sm">New password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 id="new-password"
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
-                className="pl-10 pr-10"
+                className="pl-10 pr-10 h-11 text-base"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
@@ -107,7 +107,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center text-muted-foreground rounded-md hover:bg-muted"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -115,15 +115,15 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm new password</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm-password" className="text-sm">Confirm new password</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 id="confirm-password"
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
-                className="pl-10"
+                className="pl-10 h-11 text-base"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
@@ -132,11 +132,11 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleClose} className="flex-1" disabled={loading}>
+          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1">
+            <Button variant="outline" onClick={handleClose} className="sm:flex-1 h-11" disabled={loading}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={loading} className="flex-1">
+            <Button onClick={handleSubmit} disabled={loading} className="sm:flex-1 h-11">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Password"}
             </Button>
           </div>
