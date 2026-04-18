@@ -87,7 +87,8 @@ export function useChatOnlineCount(
 
       const { data, error } = await query;
       if (error || !data) return [];
-      return [...new Set(data.map((r: { user_id: string }) => r.user_id))];
+      const ids = (data as Array<{ user_id: string }>).map((r) => r.user_id);
+      return [...new Set(ids)];
     },
     enabled: enabled && !!chatId,
     staleTime: 1000 * 60 * 5,
