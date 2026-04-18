@@ -45,6 +45,7 @@ export function useBasketballGameSync(
   const syncNow = useCallback(async () => {
     if (!user?.id || !enabled || !state || !timerState) return;
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    setSyncStatus({ status: "syncing", lastSyncTime: Date.now() });
 
     const isFinished = !!timerState.isGameFinished;
     if (isFinished) {
