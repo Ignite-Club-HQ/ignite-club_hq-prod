@@ -90,7 +90,7 @@ export default function BasketballSpectatorView({
           )}
         >
           <span className="text-[9px] uppercase tracking-wide font-semibold">
-            Q{currentQuarter}
+            {periodLabel(currentQuarter, periodType)}
           </span>
           <span className="text-sm font-black tabular-nums">
             {formatClock(elapsedSeconds, minutesPerQuarter)}
@@ -122,6 +122,7 @@ export default function BasketballSpectatorView({
       <QuarterScoreStrip
         scoreLog={timer.scoreLog}
         currentQuarter={currentQuarter}
+        periodType={periodType}
       />
 
       <TimeoutsPanel
