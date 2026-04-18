@@ -185,7 +185,42 @@ export default function NetballBoard({
     );
   });
 
-  // Per-team default board settings (loaded once from team_subscriptions.court_*).
+  // ---------- Spectator feed ----------
+  // When `spectator` is true, we poll the coach's published `active_games`
+  // row and replace local state on every fresh tick. Coaches' devices keep
+  // their own state untouched (different teamId queries).
+  const spectatorFeed = useCourtSpectator({
+    teamId,
+    sport: "netball",
+    enabled: spectator,
+  });
+  const lastSpectatorTickRef = useRef<number>(0);
+  useEffect(() => {
+    if (!spectator) return;
+    const ps = spectatorFeed.pitchState as
+      | {
+          players?: NetballPlayer[];
+          rotationMode?: RotationMode;
+          rotationIntervalMinutes?: number;
+          validationMode?: ValidationMode;
+          autoSubPlan?: NetballSubEvent[];
+          quarterLineups?: QuarterLineup[];
+        }
+      | null;
+    const ts = spectatorFeed.timerState as NetballTimerState | null;
+    if (!ps || !ts) return;
+    const incomingTick = ts.lastUpdateTime ?? 0;
+    if (incomingTick && incomingTick === lastSpectatorTickRef.current) return;
+    lastSpectatorTickRef.current = incomingTick;
+    if (ps.players) setPlayers(ps.players);
+    setTimerState(ts);
+    if (ps.rotationMode) setRotationMode(ps.rotationMode);
+    if (ps.rotationIntervalMinutes != null)
+      setRotationIntervalMinutes(ps.rotationIntervalMinutes);
+    if (ps.validationMode) setValidationMode(ps.validationMode);
+    if (ps.autoSubPlan) setAutoSubPlan(ps.autoSubPlan);
+    if (ps.quarterLineups) setQuarterLineups(ps.quarterLineups);
+  }, [spectator, spectatorFeed.pitchState, spectatorFeed.timerState]);
   const { defaults, isLoading: defaultsLoading, persist: persistDefaults } =
     useCourtBoardDefaults(teamId, readOnly);
   const defaultsAppliedRef = useRef(false);
