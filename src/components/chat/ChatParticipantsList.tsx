@@ -33,6 +33,8 @@ interface ChatParticipantsListProps {
   onBeforeNavigate?: () => void;
   className?: string;
   scrollClassName?: string;
+  /** When true, render the list inline (no inner ScrollArea) so the parent container scrolls. */
+  inline?: boolean;
 }
 
 interface Member {
