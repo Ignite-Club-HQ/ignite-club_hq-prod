@@ -338,15 +338,15 @@ export default function BasketballBoard({
         />
       )}
 
-      {!readOnly && (
-        <BasketballActionBar
-          onOpenSettings={() => setSettingsOpen(true)}
-          onToggleCourtView={board.toggleCourtView}
-          rotationMode={board.rotationMode}
-          rotationIntervalMinutes={board.rotationIntervalMinutes}
-          courtView={board.courtView}
-        />
-      )}
+      {/* Always render so coaches/admins always see the Game Setup entry point.
+          The Settings dialog itself respects readOnly for sub-actions. */}
+      <BasketballActionBar
+        onOpenSettings={() => setSettingsOpen(true)}
+        onToggleCourtView={board.toggleCourtView}
+        rotationMode={board.rotationMode}
+        rotationIntervalMinutes={board.rotationIntervalMinutes}
+        courtView={board.courtView}
+      />
 
       {/* Pre-tipoff nudge: only before the very first whistle. */}
       {!readOnly &&
