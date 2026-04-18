@@ -488,9 +488,43 @@ export function useBasketballBoardState({
 
   const confirmPendingQuarterSubs = useCallback(() => {
     if (!pendingQuarterSubs) return;
-    pendingQuarterSubs.subs.forEach(executeSub);
+    // Apply ALL subs in one atomic setPlayers pass — calling executeSub in a
+    // forEach loop runs each through its own setPlayers updater, and earlier
+    // subs displace players to the bench so later subs see "playerOut not on
+    // court" or "playerIn not on bench" and silently skip (audit fix B22).
+    const subs = pendingQuarterSubs.subs;
+    const subKeys = new Set(subs.map(getSubKey));
+    setPlayers((prev) => {
+      let next = prev;
+      // Reserve target positions per sub up-front so we can detect collisions.
+      for (const sub of subs) {
+        const out = next.find((p) => p.id === sub.playerOut.id);
+        const inP = next.find((p) => p.id === sub.playerIn.id);
+        if (!out?.position || !inP || inP.position !== null) continue;
+        next = next.map((p) => {
+          if (p.id === out.id) return transitionPosition(p, null);
+          if (p.id === inP.id) return transitionPosition(p, sub.position);
+          return p;
+        });
+      }
+      return next;
+    });
+    // Mark all of them executed in one pass and append a single batched log.
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (subKeys.has(getSubKey(s)) ? { ...s, executed: true } : s))
+    );
+    subs.forEach((sub) =>
+      appendSubLog({
+        playerOutId: sub.playerOut.id,
+        playerOutName: sub.playerOut.name,
+        playerInId: sub.playerIn.id,
+        playerInName: sub.playerIn.name,
+        position: sub.position,
+        source: "auto",
+      })
+    );
     setPendingQuarterSubs(null);
-  }, [executeSub, pendingQuarterSubs]);
+  }, [pendingQuarterSubs, appendSubLog]);
 
   const skipPendingQuarterSubs = useCallback(() => {
     if (!pendingQuarterSubs) return;
