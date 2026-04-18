@@ -1204,7 +1204,10 @@ export default function TeamDetailPage() {
               </Badge>
             </Button>
           )}
-          {((isSoccerClub && (hasProFootball || isAppAdmin)) || isNetballClub) && (
+          {(
+            (isSoccerClub && (hasProFootball || isAppAdmin)) ||
+            ((isNetballClub || isBasketballClub) && (isTeamPro || isAppAdmin))
+          ) && (
             <Button 
               variant="outline"
               className="w-full h-9 text-xs font-medium justify-start gap-2"
