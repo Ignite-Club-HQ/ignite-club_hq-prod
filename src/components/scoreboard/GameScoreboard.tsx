@@ -223,7 +223,7 @@ function ScoreButton({
       </PopoverTrigger>
       <PopoverContent
         className="w-auto p-1.5"
-        align={align === "right" ? "end" : "start"}
+        align={align === "right" ? "end" : align === "left" ? "start" : "center"}
         sideOffset={4}
       >
         <div className="flex items-center gap-1">
