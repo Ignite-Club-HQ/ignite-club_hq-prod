@@ -49,7 +49,7 @@ const LiveScoreboardBar = memo(function LiveScoreboardBar({
 
   return (
     <div
-      className="flex items-center gap-1.5 px-1.5 py-1 bg-card border-b"
+      className="flex items-center gap-2 px-2 py-1 bg-card"
       role="group"
       aria-label="Live scoreboard"
     >
@@ -64,7 +64,7 @@ const LiveScoreboardBar = memo(function LiveScoreboardBar({
         side="home"
       />
 
-      <span className="text-base font-light text-muted-foreground/50 px-0.5 leading-none shrink-0">
+      <span className="text-xl font-light text-muted-foreground/50 px-1 leading-none shrink-0">
         —
       </span>
 
@@ -111,7 +111,7 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
           key={pts}
           size="sm"
           variant="secondary"
-          className="h-7 min-h-0 min-w-7 px-1.5 text-[11px] font-bold rounded leading-none"
+          className="h-6 min-h-0 min-w-6 px-1 text-[10px] font-bold rounded leading-none"
           onClick={() => onScore(pts)}
           aria-label={`Add ${pts} point${pts === 1 ? "" : "s"} for ${label}`}
         >
@@ -129,14 +129,14 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
       )}
     >
       <span
-        className="text-[8px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
+        className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/70 truncate max-w-full"
         title={label}
       >
         {label}
       </span>
       <span
         className={cn(
-          "text-2xl font-extrabold tabular-nums leading-none text-foreground transition-transform mt-0.5",
+          "text-4xl font-black tabular-nums leading-none text-foreground transition-transform mt-0.5",
           pulse && "scale-110 text-primary",
         )}
         aria-live="polite"
