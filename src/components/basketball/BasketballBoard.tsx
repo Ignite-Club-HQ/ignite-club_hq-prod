@@ -324,7 +324,7 @@ export default function BasketballBoard({
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* ── COURT — full-bleed primary surface with floating HUD overlay ── */}
-      <div className="relative flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0 flex flex-col">
         {/* Floating back chip — top-left, doesn't compete with HUD */}
         <Button
           variant="secondary"
@@ -361,9 +361,9 @@ export default function BasketballBoard({
           trailingSlot={<SyncStatusIndicator />}
         />
 
-        {/* Auto-sub status — small floating chip, top-right under HUD */}
+        {/* Auto-sub status — small floating chip below HUD */}
         {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
-          <div className="absolute top-[96px] right-2 z-20">
+          <div className="absolute top-[100px] right-2 z-20">
             <Button
               size="sm"
               variant="secondary"
