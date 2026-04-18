@@ -323,16 +323,16 @@ export default function BasketballBoard({
   //   BOTTOM — bench (who comes on next)
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
-      {/* ── Compact top: back + scoreboard (with inline scoring) ── */}
+      {/* ── Single-row top strip: back · period · clock · play · scores+scoring · sync ── */}
       <div className="flex items-stretch border-b bg-card sticky top-0 z-20">
         <Button
           variant="ghost"
           size="icon"
           onClick={onClose}
           aria-label="Close"
-          className="flex-shrink-0 h-auto w-9 rounded-none"
+          className="flex-shrink-0 h-auto w-8 rounded-none"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1 min-w-0">
           <LiveScoreboardBar
@@ -344,23 +344,20 @@ export default function BasketballBoard({
             readOnly={readOnly}
             disabled={!!board.timerState.isGameFinished}
             onScore={board.addScore}
+            leadingSlot={
+              <BasketballQuarterTimer
+                state={board.timerState}
+                onChange={board.setTimerState}
+                onTick={board.handleTick}
+                onQuarterEnd={board.handleQuarterEnd}
+                onReset={board.resetPlayerStats}
+                readOnly={readOnly}
+                compact
+              />
+            }
+            trailingSlot={<SyncStatusIndicator />}
           />
         </div>
-        <div className="flex items-center px-1.5">
-          <SyncStatusIndicator />
-        </div>
-      </div>
-
-      {/* ── Timer row: period + clock + play/pause ── */}
-      <div className="border-b">
-        <BasketballQuarterTimer
-          state={board.timerState}
-          onChange={board.setTimerState}
-          onTick={board.handleTick}
-          onQuarterEnd={board.handleQuarterEnd}
-          onReset={board.resetPlayerStats}
-          readOnly={readOnly}
-        />
       </div>
 
       {/* Auto-sub status — only while game is in progress. */}
