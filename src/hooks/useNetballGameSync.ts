@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { setSyncStatus } from "./useSyncStatus";
 import type { Json } from "@/integrations/supabase/types";
 import type { NetballBoardState, NetballTimerState } from "@/components/netball/types";
 
