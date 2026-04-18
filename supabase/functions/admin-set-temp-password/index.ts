@@ -111,8 +111,8 @@ serve(async (req) => {
 
     if (updateError) {
       console.error("updateUserById error:", updateError.message);
-      return new Response(JSON.stringify({ error: "Failed to update password" }), {
-        status: 500,
+      return new Response(JSON.stringify({ error: updateError.message || "Failed to update password" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

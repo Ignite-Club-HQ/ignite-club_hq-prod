@@ -12,14 +12,35 @@ import { useToast } from "@/hooks/use-toast";
 import { PageLoading } from "@/components/ui/page-loading";
 
 function generatePassword(): string {
+  // High-entropy random password to satisfy HIBP/strength checks
   const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const lower = "abcdefghjkmnpqrstuvwxyz";
   const nums = "23456789";
-  const all = upper + lower + nums;
-  const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
-  let pw = pick(upper) + pick(lower) + pick(nums);
-  for (let i = 0; i < 9; i++) pw += pick(all);
-  return pw.split("").sort(() => Math.random() - 0.5).join("");
+  const syms = "!@#$%^&*?";
+  const all = upper + lower + nums + syms;
+  const rand = (n: number) => {
+    const buf = new Uint32Array(n);
+    crypto.getRandomValues(buf);
+    return buf;
+  };
+  const pickFrom = (s: string, r: number) => s[r % s.length];
+  const r = rand(20);
+  // Guarantee one of each class
+  let pw =
+    pickFrom(upper, r[0]) +
+    pickFrom(lower, r[1]) +
+    pickFrom(nums, r[2]) +
+    pickFrom(syms, r[3]);
+  // Add 14 more random chars from full set => 18 total
+  for (let i = 0; i < 14; i++) pw += pickFrom(all, r[i + 4]);
+  // Shuffle
+  const arr = pw.split("");
+  const r2 = rand(arr.length);
+  return arr
+    .map((c, i) => ({ c, k: r2[i] }))
+    .sort((a, b) => a.k - b.k)
+    .map((x) => x.c)
+    .join("");
 }
 
 export default function AdminTempPasswordPage() {
