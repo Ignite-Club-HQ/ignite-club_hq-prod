@@ -269,6 +269,7 @@ export default function BasketballBoard({
       <QuarterScoreStrip
         scoreLog={board.timerState.scoreLog}
         currentQuarter={board.timerState.currentQuarter}
+        periodType={board.timerState.periodType ?? "quarters"}
       />
 
       <TimeoutsPanel
@@ -289,10 +290,12 @@ export default function BasketballBoard({
 
       <BenchFairnessMeter
         players={board.players}
-        elapsedSeconds={
-          board.timerState.elapsedSeconds +
-          (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
-        }
+        elapsedSeconds={totalElapsedSeconds(
+          board.timerState.currentQuarter,
+          board.timerState.elapsedSeconds,
+          board.timerState.minutesPerQuarter,
+          board.timerState.periodType
+        )}
       />
 
       <MomentumStrip scoreLog={board.timerState.scoreLog} />
@@ -301,20 +304,24 @@ export default function BasketballBoard({
         sport="basketball"
         players={board.players}
         currentQuarter={board.timerState.currentQuarter}
-        totalElapsedSeconds={
-          board.timerState.elapsedSeconds +
-          (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
-        }
+        totalElapsedSeconds={totalElapsedSeconds(
+          board.timerState.currentQuarter,
+          board.timerState.elapsedSeconds,
+          board.timerState.minutesPerQuarter,
+          board.timerState.periodType
+        )}
         minutesPerQuarter={board.timerState.minutesPerQuarter}
       />
 
       {!readOnly && (
         <SmartSubSuggestion
           players={board.players}
-          totalElapsedSeconds={
-            board.timerState.elapsedSeconds +
-            (board.timerState.currentQuarter - 1) * board.timerState.minutesPerQuarter * 60
-          }
+          totalElapsedSeconds={totalElapsedSeconds(
+            board.timerState.currentQuarter,
+            board.timerState.elapsedSeconds,
+            board.timerState.minutesPerQuarter,
+            board.timerState.periodType
+          )}
           isRunning={board.timerState.isRunning && !board.timerState.isGameFinished}
           onApplySub={(outId, inId) => board.performSwap(outId, inId)}
         />

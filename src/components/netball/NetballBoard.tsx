@@ -979,6 +979,7 @@ export default function NetballBoard({
       <QuarterScoreStrip
         scoreLog={timerState.scoreLog}
         currentQuarter={timerState.currentQuarter}
+        periodType={timerState.periodType ?? "quarters"}
       />
 
       <CentrePassIndicator
@@ -1000,10 +1001,12 @@ export default function NetballBoard({
 
       <BenchFairnessMeter
         players={players}
-        elapsedSeconds={
-          timerState.elapsedSeconds +
-          (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
-        }
+        elapsedSeconds={totalElapsedSeconds(
+          timerState.currentQuarter,
+          timerState.elapsedSeconds,
+          timerState.minutesPerQuarter,
+          timerState.periodType
+        )}
       />
 
       <MomentumStrip scoreLog={timerState.scoreLog} />
@@ -1012,20 +1015,24 @@ export default function NetballBoard({
         sport="netball"
         players={players}
         currentQuarter={timerState.currentQuarter}
-        totalElapsedSeconds={
-          timerState.elapsedSeconds +
-          (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
-        }
+        totalElapsedSeconds={totalElapsedSeconds(
+          timerState.currentQuarter,
+          timerState.elapsedSeconds,
+          timerState.minutesPerQuarter,
+          timerState.periodType
+        )}
         minutesPerQuarter={timerState.minutesPerQuarter}
       />
 
       {!readOnly && (
         <SmartSubSuggestion
           players={players}
-          totalElapsedSeconds={
-            timerState.elapsedSeconds +
-            (timerState.currentQuarter - 1) * timerState.minutesPerQuarter * 60
-          }
+          totalElapsedSeconds={totalElapsedSeconds(
+            timerState.currentQuarter,
+            timerState.elapsedSeconds,
+            timerState.minutesPerQuarter,
+            timerState.periodType
+          )}
           isRunning={timerState.isRunning && !timerState.isGameFinished}
           onApplySub={(outId, inId) => performSwap(outId, inId)}
         />
