@@ -140,33 +140,12 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
     }
   }, [score]);
 
-  const buttons = interactive && (
-    <div className="flex items-center gap-0.5 shrink-0">
-      {increments.map((pts) => (
-        <Button
-          key={pts}
-          size="sm"
-          variant="secondary"
-          className={cn(
-            "h-6 min-h-0 min-w-6 px-1 text-[10px] font-bold rounded leading-none",
-            "bg-secondary/70 hover:bg-secondary transition-all duration-100",
-            "active:scale-90 active:bg-primary/20",
-          )}
-          onClick={() => onScore(pts)}
-          aria-label={`Add ${pts} point${pts === 1 ? "" : "s"} for ${label}`}
-        >
-          +{pts}
-        </Button>
-      ))}
-    </div>
-  );
-
   return (
     <div className="flex flex-col min-w-0">
-      {/* Team name — spans full column, fades on overflow */}
+      {/* Team name */}
       <span
         className={cn(
-          "text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/55 leading-none mb-1",
+          "text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/55 leading-none mb-0.5",
           "overflow-hidden whitespace-nowrap",
           side === "home" ? "text-right" : "text-left",
           side === "home"
@@ -178,25 +157,37 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
         {label}
       </span>
 
-      {/* Score + buttons row — baseline aligned */}
-      <div
-        className={cn(
-          "flex items-center gap-1.5 min-w-0",
-          side === "home" ? "justify-end" : "justify-start",
-        )}
-      >
-        {side === "home" ? (
-          <>
-            {buttons}
-            <ScoreNumber score={score} label={label} pulse={pulse} />
-          </>
-        ) : (
-          <>
-            <ScoreNumber score={score} label={label} pulse={pulse} />
-            {buttons}
-          </>
-        )}
+      {/* Score */}
+      <div className={cn("flex", side === "home" ? "justify-end" : "justify-start")}>
+        <ScoreNumber score={score} label={label} pulse={pulse} />
       </div>
+
+      {/* Scoring buttons — own row, larger tap targets */}
+      {interactive && (
+        <div
+          className={cn(
+            "flex items-center gap-1 mt-1.5",
+            side === "home" ? "justify-end" : "justify-start",
+          )}
+        >
+          {increments.map((pts) => (
+            <Button
+              key={pts}
+              size="sm"
+              variant="secondary"
+              className={cn(
+                "h-8 min-h-0 min-w-9 px-2 text-xs font-bold rounded-md leading-none",
+                "bg-secondary/80 hover:bg-secondary transition-all duration-100",
+                "active:scale-90 active:bg-primary/30",
+              )}
+              onClick={() => onScore(pts)}
+              aria-label={`Add ${pts} point${pts === 1 ? "" : "s"} for ${label}`}
+            >
+              +{pts}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
