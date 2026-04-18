@@ -486,7 +486,7 @@ export default function TeamDetailPage() {
   // All team members can view pitch board (read-only); only team admins/coaches can edit
   // Subs Manager duty check is done dynamically when the pitch board opens with a linkedEventId
   const canAccessPitchBoard = isMember;
-  const canEditPitchBoard = isCoachOrAdmin; // Non-coaches/admins get view-only (Subs Manager override handled via linkedEventId)
+  const canEditPitchBoard = isCoachOrAdmin || isClubAdmin; // Club admins, team admins, and coaches can edit; others view-only
 
   // Check if user has "Subs Manager" duty for the linked event
   const { data: isSubsManager } = useQuery({
