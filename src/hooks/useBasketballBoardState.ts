@@ -25,6 +25,7 @@ import {
   generateQuarterBreakRotationPlan,
   findNextDueSub,
   getSubKey,
+  pickLikeForLikeBenchPlayer,
   safeLoad,
   safeSave,
   transitionPosition,
@@ -405,7 +406,15 @@ export function useBasketballBoardState({
             : p
         )
       );
-      if (rotationMode !== "off" && !autoSubPaused) {
+      // B23 audit fix: when the timer credits the final partial second of a
+      // quarter, `onQuarterEnd` is fired immediately afterwards and may apply
+      // the next quarter's lineup. If we also fire an auto-sub here, the
+      // lineup overwrites the swap but the sub-log entry remains, leaving
+      // an orphaned record. Skip auto-sub firing on the quarter-end credit
+      // tick — quarter-break rotations have their own path.
+      const quarterSeconds = timerStateRef.current.minutesPerQuarter * 60;
+      const isQuarterEndCredit = elapsed >= quarterSeconds;
+      if (rotationMode !== "off" && !autoSubPaused && !isQuarterEndCredit) {
         // Cue the coach ~10s before a sub fires so they have time to react.
         const upcoming = findNextDueSub(autoSubPlan, quarter, elapsed + 10);
         if (
@@ -684,16 +693,44 @@ export function useBasketballBoardState({
       let newCount = 0;
       let playerName = "";
       let wasOnCourt = false;
-      setPlayers((prev) =>
-        prev.map((p) => {
-          if (p.id === playerId) {
-            newCount = Math.min(6, (p.fouls ?? 0) + 1);
-            playerName = p.name;
-            wasOnCourt = p.position !== null;
+      let backfillSub: {
+        playerOutId: string;
+        playerOutName: string;
+        playerInId: string;
+        playerInName: string;
+        position: BasketballPosition;
+      } | null = null;
+      setPlayers((prev) => {
+        const target = prev.find((p) => p.id === playerId);
+        if (!target) return prev;
+        newCount = Math.min(6, (target.fouls ?? 0) + 1);
+        playerName = target.name;
+        wasOnCourt = target.position !== null;
+        const fouledOut = newCount >= 5;
+        // B25 audit fix: when a player fouls out from the court, backfill
+        // the vacated position from the bench (like-for-like) and append
+        // a sub-log entry — otherwise the team plays 4-on-5 silently.
+        let replacement: BasketballPlayer | undefined;
+        if (fouledOut && wasOnCourt && target.position) {
+          const benchPool = prev.filter(
+            (p) => p.id !== target.id && p.position === null
+          );
+          replacement = pickLikeForLikeBenchPlayer(target.position, benchPool);
+          if (replacement) {
+            backfillSub = {
+              playerOutId: target.id,
+              playerOutName: target.name,
+              playerInId: replacement.id,
+              playerInName: replacement.name,
+              position: target.position,
+            };
+          }
+        }
+        return prev.map((p) => {
+          if (p.id === target.id) {
             // At 5 fouls (FIBA) → fouled out: bench immediately and lock out
             // via a dedicated `isFouledOut` flag (NOT isInjured — that was
             // misleading the UI to show an injury badge).
-            const fouledOut = newCount >= 5;
             const next = transitionPosition(p, fouledOut ? null : p.position);
             return {
               ...next,
@@ -701,20 +738,28 @@ export function useBasketballBoardState({
               isFouledOut: fouledOut ? true : p.isFouledOut,
             };
           }
+          if (replacement && p.id === replacement.id && backfillSub) {
+            return transitionPosition(p, backfillSub.position);
+          }
           return p;
-        })
-      );
+        });
+      });
+      if (backfillSub) {
+        appendSubLog({ ...backfillSub, source: "auto" });
+      }
       if (newCount >= 5) {
         toast({
           title: "Fouled out",
           description: wasOnCourt
-            ? `${playerName} (${newCount}F) sent to bench.`
+            ? backfillSub
+              ? `${playerName} (${newCount}F) → ${(backfillSub as { playerInName: string }).playerInName} ON at ${(backfillSub as { position: string }).position}.`
+              : `${playerName} (${newCount}F) sent to bench. No bench replacement available.`
             : `${playerName} has ${newCount} fouls and is locked out.`,
           variant: "destructive",
         });
       }
     },
-    [toast]
+    [toast, appendSubLog]
   );
 
   /** Coach override — clear a foul-out flag (e.g. miscount). */
