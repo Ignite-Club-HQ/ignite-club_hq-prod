@@ -47,7 +47,6 @@ export default function BasketballRosterDialog({
   onSave,
 }: BasketballRosterDialogProps) {
   const [draft, setDraft] = useState<BasketballPlayer[]>(players);
-  const [newName, setNewName] = useState("");
 
   const togglePosition = (playerId: string, pos: BasketballPosition) => {
     setDraft(prev =>
@@ -85,35 +84,39 @@ export default function BasketballRosterDialog({
     );
   };
 
-  const addMockPlayer = (overrideName?: string) => {
-    const trimmed = (overrideName ?? newName).trim();
-    const mockCount = draft.filter(p => p.id.startsWith(MOCK_ID_PREFIX)).length;
-    const fallback = `Mock ${mockCount + 1}`;
-    const name = trimmed || fallback;
-    const id = `${MOCK_ID_PREFIX}${Date.now()}-${mockCount}`;
-    setDraft(prev => [
-      ...prev,
-      {
-        id,
-        name,
-        position: null,
-        minutesPlayed: 0,
-        fouls: 0,
-        points: 0,
-        preferredPositions: [],
-      },
-    ]);
-    setNewName("");
+  const buildMockPlayer = (index: number, baseTime: number): BasketballPlayer => ({
+    id: `${MOCK_ID_PREFIX}${baseTime}-${index}`,
+    name: `Mock Player ${index + 1}`,
+    position: null,
+    minutesPlayed: 0,
+    fouls: 0,
+    points: 0,
+    preferredPositions: [],
+  });
+
+  const fillMockSquad = () => {
+    // One-tap dev shortcut: replace any existing mocks with a fresh squad of 12.
+    // Real (non-mock) players are kept untouched at the top of the list.
+    const real = draft.filter(p => !p.id.startsWith(MOCK_ID_PREFIX));
+    const baseTime = Date.now();
+    const mocks = Array.from({ length: 12 }, (_, i) => buildMockPlayer(i, baseTime));
+    setDraft([...real, ...mocks]);
   };
 
   const removeMockPlayer = (playerId: string) => {
     setDraft(prev => prev.filter(p => p.id !== playerId));
   };
 
+  const removeAllMocks = () => {
+    setDraft(prev => prev.filter(p => !p.id.startsWith(MOCK_ID_PREFIX)));
+  };
+
   const handleSave = () => {
     onSave(draft);
     onOpenChange(false);
   };
+
+  const mockCount = draft.filter(p => p.id.startsWith(MOCK_ID_PREFIX)).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -127,31 +130,41 @@ export default function BasketballRosterDialog({
           Empty = eligible for any position.
         </p>
 
-        {/* Add mock player — for fill-ins or trialists not in the team roster. */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed bg-muted/20">
-          <UserPlus className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Input
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            placeholder="Add mock player (name optional)"
-            className="h-8 text-sm flex-1 min-w-0"
-            maxLength={24}
-            onKeyDown={e => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addMockPlayer();
-              }
-            }}
-          />
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => addMockPlayer()}
-            className="h-8 px-2 shrink-0"
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Add
-          </Button>
+        {/* One-tap mock squad — for testing the board without a real roster. */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-dashed bg-muted/20">
+          <div className="flex items-center gap-2 min-w-0">
+            <UserPlus className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <div className="text-xs font-semibold leading-tight">Mock squad</div>
+              <div className="text-[10px] text-muted-foreground">
+                {mockCount > 0
+                  ? `${mockCount} mock player${mockCount === 1 ? "" : "s"} added`
+                  : "Fill the bench with 12 test players"}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {mockCount > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 px-2 text-[11px]"
+                onClick={removeAllMocks}
+              >
+                Clear
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              onClick={fillMockSquad}
+              className="h-8 px-2"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add 12
+            </Button>
+          </div>
         </div>
 
         <ScrollArea className="flex-1 -mx-6 px-6">
