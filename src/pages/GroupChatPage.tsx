@@ -1532,6 +1532,21 @@ export default function GroupChatPage() {
     onError: () => toast.error("Failed to delete group"),
   });
 
+  // Live online count for the group — shown in the header sublabel.
+  const groupOnlineCount = useChatOnlineCount("group", groupId, {
+    teamId: group?.team_id ?? null,
+    clubId: group?.club_id ?? null,
+    groupAllowedRoles: (group?.allowed_roles as any) ?? null,
+    enabled: !!group,
+  });
+  const groupBaseSublabel = group?.team_id
+    ? "Team group"
+    : group?.club_id
+    ? "Club group"
+    : "Personal group";
+  const groupHeaderSublabel =
+    groupOnlineCount > 0 ? `${groupBaseSublabel} · ${groupOnlineCount} online` : groupBaseSublabel;
+
   if (groupLoading) {
     return <PageLoading message="Loading group chat..." />;
   }

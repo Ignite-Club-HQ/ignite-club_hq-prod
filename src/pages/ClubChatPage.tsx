@@ -1193,6 +1193,11 @@ export default function ClubChatPage() {
     );
   }
 
+  // Live online count for the club — shown in the header sublabel.
+  const clubOnlineCount = useChatOnlineCount("club", clubId);
+  const clubHeaderSublabel =
+    clubOnlineCount > 0 ? `Club chat · ${clubOnlineCount} online` : "Club chat";
+
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
