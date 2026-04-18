@@ -72,7 +72,7 @@ export default function BasketballCourtArea({
                   onClick={() => onPlayerClick(player.id)}
                   readOnly={readOnly}
                 />
-              ) : (
+              ) : hideEmptySlots ? null : (
                 <button
                   type="button"
                   onClick={() => onSlotClick(pos)}
