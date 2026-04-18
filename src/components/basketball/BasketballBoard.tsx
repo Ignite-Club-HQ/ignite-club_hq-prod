@@ -74,6 +74,33 @@ export default function BasketballBoard({
     eventId,
   });
 
+  // Per-team default board settings (minutes, rotation, validation, period type, timeouts).
+  // Loaded once from `team_subscriptions.court_*`; in-game changes persist back via the
+  // settings dialog handlers below.
+  const { defaults, isLoading: defaultsLoading, persist: persistDefaults } =
+    useCourtBoardDefaults(teamId, readOnly);
+  const defaultsAppliedRef = useRef(false);
+  useEffect(() => {
+    if (defaultsLoading || defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
+    if (defaults.minutesPerQuarter != null) {
+      board.setTimerState((s) => ({
+        ...s,
+        minutesPerQuarter: defaults.minutesPerQuarter!,
+        lastUpdateTime: Date.now(),
+      }));
+    }
+    if (defaults.rotationMode) board.setRotationMode(defaults.rotationMode);
+    if (defaults.rotationIntervalMinutes != null)
+      board.setRotationIntervalMinutes(defaults.rotationIntervalMinutes);
+    if (defaults.validationMode === "free" || defaults.validationMode === "structured") {
+      board.setValidationMode(defaults.validationMode);
+    }
+    if (defaults.periodType) board.setPeriodType(defaults.periodType);
+    if (defaults.timeoutsPerHalf != null) board.setTimeoutsPerHalf(defaults.timeoutsPerHalf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultsLoading]);
+
   // Local UI-only state for which secondary dialog is open.
   // Kept here (not in the hook) so the hook stays focused on game logic.
   const [settingsOpen, setSettingsOpen] = useState(false);
