@@ -33,6 +33,31 @@ export const isPositionAllowedForPlayer = (
 };
 
 /**
+ * Strength of the swap fit between an outgoing player's position and an
+ * incoming player. Used to grade sub suggestions and to back the "warn" mode
+ * when no preferredPositions are set.
+ *   - "exact"      → incoming has the position in preferredPositions
+ *   - "zone"       → incoming's preferred positions share a court zone
+ *   - "any"        → no preferred positions known
+ *   - "violation"  → preferred positions exist but none overlap zones
+ */
+export type SwapFit = "exact" | "zone" | "any" | "violation";
+
+export const classifySwapFit = (
+  incoming: NetballPlayer,
+  position: NetballPosition
+): SwapFit => {
+  const prefs = incoming.preferredPositions ?? [];
+  if (prefs.length === 0) return "any";
+  if (prefs.includes(position)) return "exact";
+  const targetZones = new Set(POSITION_ALLOWED_ZONES[position]);
+  const zoneOverlap = prefs.some((pp) =>
+    POSITION_ALLOWED_ZONES[pp].some((z) => targetZones.has(z))
+  );
+  return zoneOverlap ? "zone" : "violation";
+};
+
+/**
  * Find the closest valid like-for-like swap candidate from the bench
  * for a player coming off a given position.
  * Preference order:
