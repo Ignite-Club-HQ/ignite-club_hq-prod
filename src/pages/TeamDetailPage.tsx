@@ -1234,7 +1234,7 @@ export default function TeamDetailPage() {
               }}
             >
               <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
-              {isNetballClub ? "Game Board" : "Pitch Board"}
+              {(isNetballClub || isBasketballClub) ? "Game Board" : "Pitch Board"}
             </Button>
           )}
         </div>
