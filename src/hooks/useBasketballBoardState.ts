@@ -1193,6 +1193,7 @@ export function useBasketballBoardState({
     handleSlotClick,
     performSwap,
     subOff,
+    assignToPosition,
     toggleInjured,
     addFoul,
     clearFoulOut,
