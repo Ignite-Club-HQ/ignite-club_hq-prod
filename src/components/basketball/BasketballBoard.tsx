@@ -100,6 +100,23 @@ export default function BasketballBoard({
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
+  // HUD dock position (top/bottom of court) — persists across sessions.
+  const [hudPosition, setHudPosition] = useState<"top" | "bottom">(() => {
+    if (typeof window === "undefined") return "top";
+    const saved = window.localStorage.getItem("basketball:hudPosition");
+    return saved === "bottom" ? "bottom" : "top";
+  });
+  const toggleHudPosition = () => {
+    setHudPosition((prev) => {
+      const next = prev === "top" ? "bottom" : "top";
+      try {
+        window.localStorage.setItem("basketball:hudPosition", next);
+      } catch {
+        /* ignore storage errors (private mode, quota, etc.) */
+      }
+      return next;
+    });
+  };
   // (insights moved into "Game details" collapsible below the bench)
   const [freeThrowSession, setFreeThrowSession] = useState<{
     playerId: string;
@@ -358,6 +375,8 @@ export default function BasketballBoard({
               compact
             />
           }
+          position={hudPosition}
+          onTogglePosition={toggleHudPosition}
         />
 
         {/* Auto-sub status — small floating chip below HUD */}
