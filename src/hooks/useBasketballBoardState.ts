@@ -80,15 +80,25 @@ export function useBasketballBoardState({
 
   const buildInitialPlayers = (): BasketballPlayer[] => {
     if (savedStateRef.current?.players?.length) return savedStateRef.current.players;
-    // ROSTER SEEDING: only `player` role gets auto-placed on court. Parents
-    // and coaches are still in the pool (so coaches can sub them in if a
-    // junior team is short) but always START on the bench.
-    const sorted = [...members].sort((a, b) => {
-      const order = (r: string) => (r === "player" ? 0 : r === "parent" ? 1 : 2);
-      return order(a.role) - order(b.role);
-    });
+    // ROSTER SEEDING: only `player` role gets auto-placed on court. Everyone
+    // else on the team (parents, coaches, team_admins, basic_users) is still
+    // available in the squad pool so coaches can sub them in if needed —
+    // but they always START on the bench. Only club-level admin and bot
+    // accounts are excluded.
+    const EXCLUDED_ROLES = new Set([
+      "club_admin",
+      "app_admin",
+      "league_admin",
+      "committee_member",
+    ]);
+    const sorted = [...members]
+      .filter((m) => !EXCLUDED_ROLES.has(m.role))
+      .sort((a, b) => {
+        const order = (r: string) =>
+          r === "player" ? 0 : r === "parent" ? 1 : r === "coach" ? 2 : 3;
+        return order(a.role) - order(b.role);
+      });
     return sorted
-      .filter((m) => m.role === "player" || m.role === "parent" || m.role === "coach")
       .slice(0, 12)
       .map((m, idx) => {
         const isPlayer = m.role === "player";
