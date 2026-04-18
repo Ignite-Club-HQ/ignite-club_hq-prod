@@ -10,7 +10,7 @@ import BasketballCourtArea from "./BasketballCourtArea";
 import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
 import BasketballPreGameScreen from "./BasketballPreGameScreen";
-import LiveScoreboardBar from "@/components/scoreboard/LiveScoreboardBar";
+import LiveGameHUD from "./LiveGameHUD";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
@@ -323,81 +323,72 @@ export default function BasketballBoard({
   //   BOTTOM — bench (who comes on next)
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
-      {/* ── Two-row top header ── */}
-      <div className="flex flex-col border-b bg-card sticky top-0 z-20">
-        {/* Row 1: Back + Dominant Score (primary visual) */}
-        <div className="flex items-center px-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex-shrink-0 h-9 w-8 rounded-none"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <LiveScoreboardBar
-              homeLabel={teamName}
-              awayLabel={opponentName}
-              homeScore={board.timerState.homeScore ?? 0}
-              awayScore={board.timerState.awayScore ?? 0}
-              increments={[1, 2, 3]}
+      {/* ── COURT — full-bleed primary surface with floating HUD overlay ── */}
+      <div className="relative flex-1 min-h-0">
+        {/* Floating back chip — top-left, doesn't compete with HUD */}
+        <Button
+          variant="secondary"
+          size="icon"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-2 left-2 z-30 h-8 w-8 rounded-full bg-card/85 backdrop-blur-md border border-border/40 shadow-md"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+
+        {/* Floating HUD — scoreboard + timer over the court */}
+        <LiveGameHUD
+          homeLabel={teamName}
+          awayLabel={opponentName}
+          homeScore={board.timerState.homeScore ?? 0}
+          awayScore={board.timerState.awayScore ?? 0}
+          increments={[1, 2, 3]}
+          readOnly={readOnly}
+          disabled={!!board.timerState.isGameFinished}
+          onScore={board.addScore}
+          suppressed={!!board.selectedPlayerId}
+          controlSlot={
+            <BasketballQuarterTimer
+              state={board.timerState}
+              onChange={board.setTimerState}
+              onTick={board.handleTick}
+              onQuarterEnd={board.handleQuarterEnd}
+              onReset={board.resetPlayerStats}
               readOnly={readOnly}
-              disabled={!!board.timerState.isGameFinished}
-              onScore={board.addScore}
-              trailingSlot={<SyncStatusIndicator />}
+              compact
             />
+          }
+          trailingSlot={<SyncStatusIndicator />}
+        />
+
+        {/* Auto-sub status — small floating chip, top-right under HUD */}
+        {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
+          <div className="absolute top-[96px] right-2 z-20">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-6 text-[10px] gap-1 bg-card/85 backdrop-blur-md border border-border/40 shadow-sm px-2"
+              onClick={() => setAutoSubPanelOpen(true)}
+            >
+              <Repeat className="h-3 w-3" />
+              {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
+              {board.autoSubPaused && <span className="ml-1 text-amber-600">·P</span>}
+            </Button>
           </div>
-        </div>
+        )}
 
-        {/* Row 2: Compact timer + controls (secondary) */}
-        <div className="flex items-center justify-center gap-3 px-2 py-0.5 border-t border-border/30">
-          <BasketballQuarterTimer
-            state={board.timerState}
-            onChange={board.setTimerState}
-            onTick={board.handleTick}
-            onQuarterEnd={board.handleQuarterEnd}
-            onReset={board.resetPlayerStats}
-            readOnly={readOnly}
-            compact
-          />
-        </div>
+        {/* Court fills the surface — HUD floats above */}
+        <BasketballCourtArea
+          players={board.players}
+          selectedPlayerId={board.selectedPlayerId}
+          nextSubOutId={board.nextSub?.playerOut.id ?? null}
+          readOnly={readOnly}
+          courtView={board.courtView}
+          hideEmptySlots
+          onPlayerClick={board.handlePlayerClick}
+          onSlotClick={board.handleSlotClick}
+        />
       </div>
-
-      {/* Auto-sub status — only while game is in progress. */}
-      {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
-        <div className="flex items-center justify-between gap-2 px-3 py-1 bg-primary/5">
-          <span className="text-[10px] text-muted-foreground">
-            Auto-subs: {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
-            {board.autoSubPaused && <span className="ml-1.5 text-amber-600 font-medium">· Paused</span>}
-            {board.lockedPlayerIds.size > 0 && (
-              <span className="ml-1.5 text-amber-600">· {board.lockedPlayerIds.size} locked</span>
-            )}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 text-[10px] gap-1"
-            onClick={() => setAutoSubPanelOpen(true)}
-          >
-            <Repeat className="h-3 w-3" />
-            Subs Plan
-          </Button>
-        </div>
-      )}
-
-      {/* ── COURT — secondary but clean. No dotted placeholders mid-game. ── */}
-      <BasketballCourtArea
-        players={board.players}
-        selectedPlayerId={board.selectedPlayerId}
-        nextSubOutId={board.nextSub?.playerOut.id ?? null}
-        readOnly={readOnly}
-        courtView={board.courtView}
-        hideEmptySlots
-        onPlayerClick={board.handlePlayerClick}
-        onSlotClick={board.handleSlotClick}
-      />
 
       {/* ── BENCH — tap to sub. Lowest-minutes player is highlighted as "next up". ── */}
       <BasketballBench
