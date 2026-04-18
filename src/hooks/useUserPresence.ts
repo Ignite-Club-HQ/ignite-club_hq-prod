@@ -144,3 +144,40 @@ export function useIsUserOnline(userId: string | null | undefined): boolean {
 
   return online;
 }
+
+/**
+ * Reactive: returns how many of the given user IDs are currently online.
+ * Pass the current user's ID via `excludeUserId` to omit "me" from the count.
+ */
+export function useOnlineCount(
+  userIds: string[] | null | undefined,
+  excludeUserId?: string | null,
+): number {
+  // Stable key so the effect doesn't re-run when the array identity changes
+  // but the contents don't.
+  const key = (userIds || []).join(",") + "|" + (excludeUserId || "");
+
+  const compute = (set: Set<string>): number => {
+    if (!userIds?.length) return 0;
+    let n = 0;
+    for (const id of userIds) {
+      if (id === excludeUserId) continue;
+      if (set.has(id)) n++;
+    }
+    return n;
+  };
+
+  const [count, setCount] = useState<number>(() => compute(onlineUsers));
+
+  useEffect(() => {
+    const handler: Listener = (set) => setCount(compute(set));
+    listeners.add(handler);
+    setCount(compute(onlineUsers));
+    return () => {
+      listeners.delete(handler);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  return count;
+}
