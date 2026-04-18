@@ -427,23 +427,39 @@ export default function BasketballBoard({
             open={settingsOpen}
             onOpenChange={setSettingsOpen}
             minutesPerQuarter={board.timerState.minutesPerQuarter}
-            onMinutesPerQuarterChange={(n) =>
+            onMinutesPerQuarterChange={(n) => {
               board.setTimerState((s) => ({
                 ...s,
                 minutesPerQuarter: n,
                 lastUpdateTime: Date.now(),
-              }))
-            }
+              }));
+              persistDefaults({ court_minutes_per_quarter: n });
+            }}
             rotationMode={board.rotationMode}
-            onRotationModeChange={board.setRotationMode}
+            onRotationModeChange={(m) => {
+              board.setRotationMode(m);
+              persistDefaults({ court_rotation_mode: m });
+            }}
             rotationIntervalMinutes={board.rotationIntervalMinutes}
-            onRotationIntervalChange={board.setRotationIntervalMinutes}
+            onRotationIntervalChange={(n) => {
+              board.setRotationIntervalMinutes(n);
+              persistDefaults({ court_rotation_interval_minutes: n });
+            }}
             validationMode={board.validationMode}
-            onValidationModeChange={board.setValidationMode}
+            onValidationModeChange={(m) => {
+              board.setValidationMode(m);
+              persistDefaults({ court_validation_mode: m });
+            }}
             timeoutsPerHalf={board.timerState.timeoutsPerHalf ?? 3}
-            onTimeoutsPerHalfChange={board.setTimeoutsPerHalf}
+            onTimeoutsPerHalfChange={(n) => {
+              board.setTimeoutsPerHalf(n);
+              persistDefaults({ court_timeouts_per_half: n });
+            }}
             periodType={board.timerState.periodType ?? "quarters"}
-            onPeriodTypeChange={board.setPeriodType}
+            onPeriodTypeChange={(p) => {
+              board.setPeriodType(p);
+              persistDefaults({ court_period_type: p });
+            }}
           />
         )}
         {lineupPlannerOpen && (
