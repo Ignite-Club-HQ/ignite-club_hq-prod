@@ -1256,6 +1256,13 @@ export default function ClubChatPage() {
         </div>
       )}
 
+      {/* Pinned messages banner */}
+      <PinnedMessagesBanner
+        pins={pinnedMessages}
+        onJumpToMessage={handleJumpToMessage}
+        onUnpin={unpinMessage}
+      />
+
       <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (
           <div className="space-y-4">
@@ -1330,6 +1337,11 @@ export default function ClubChatPage() {
                         isLastMessage={index === filteredMessages.length - 1}
                         isPending={msg.id.startsWith("queued-")}
                         contextId={clubId || ""}
+                        isPinned={pinnedMessageIds.has(msg.id)}
+                        canPin={!msg.id.startsWith("queued-")}
+                        pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                        onPin={pinMessage}
+                        onUnpin={unpinMessage}
                       />
                     </div>
                   </div>

@@ -1680,6 +1680,10 @@ export default function GroupChatPage() {
                   deleteMessageMutation={deleteMessageMutation}
                   toggleReactionMutation={toggleReactionMutation}
                   groupId={groupId || ""}
+                  isPinned={pinnedMessageIds.has(msg.id)}
+                  pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                  onPin={pinMessage}
+                  onUnpin={unpinMessage}
                 />
               </div>
             );
