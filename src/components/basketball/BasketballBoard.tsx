@@ -404,8 +404,8 @@ export default function BasketballBoard({
 
       {/* Auto-sub status — only while game is in progress. */}
       {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
-        <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
-          <span className="text-[11px] text-muted-foreground">
+        <div className="flex items-center justify-between gap-2 px-3 py-1 bg-primary/5">
+          <span className="text-[10px] text-muted-foreground">
             Auto-subs: {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
             {board.autoSubPaused && <span className="ml-1.5 text-amber-600 font-medium">· Paused</span>}
             {board.lockedPlayerIds.size > 0 && (
@@ -415,10 +415,10 @@ export default function BasketballBoard({
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-xs gap-1"
+            className="h-6 text-[10px] gap-1"
             onClick={() => setAutoSubPanelOpen(true)}
           >
-            <Repeat className="h-3.5 w-3.5" />
+            <Repeat className="h-3 w-3" />
             Subs Plan
           </Button>
         </div>
@@ -450,11 +450,11 @@ export default function BasketballBoard({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="flex items-center justify-between w-full px-3 py-2 border-t bg-muted/20 text-xs font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
+            className="flex items-center justify-between w-full px-3 py-1.5 border-t bg-muted/10 text-[11px] font-medium text-muted-foreground/80 hover:bg-muted/30 transition-colors"
             aria-expanded={gameDetailsOpen}
           >
-            <span>Game details &amp; insights</span>
-            {gameDetailsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            <span>Game details</span>
+            {gameDetailsOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
@@ -517,24 +517,24 @@ export default function BasketballBoard({
       </Collapsible>
 
       {!readOnly && (board.canUndoSub || (board.timerState.scoreLog?.length ?? 0) > 0) && (
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
+        <div className="flex items-center justify-between gap-2 px-2 py-1 border-t bg-muted/10">
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 text-xs"
+            className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
             onClick={board.undoLastSub}
             disabled={!board.canUndoSub}
           >
-            <Undo2 className="h-3.5 w-3.5 mr-1" />
-            Undo last sub
+            <Undo2 className="h-3 w-3 mr-1" />
+            Undo
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="h-8 text-xs"
+            className="h-7 text-[11px]"
             onClick={() => setSummaryOpen(true)}
           >
-            <Trophy className="h-3.5 w-3.5 mr-1" />
+            <Trophy className="h-3 w-3 mr-1" />
             Game summary
           </Button>
         </div>
