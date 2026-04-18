@@ -47,7 +47,6 @@ export default function BasketballRosterDialog({
   onSave,
 }: BasketballRosterDialogProps) {
   const [draft, setDraft] = useState<BasketballPlayer[]>(players);
-  const [newName, setNewName] = useState("");
 
   const togglePosition = (playerId: string, pos: BasketballPosition) => {
     setDraft(prev =>
