@@ -188,6 +188,15 @@ export const generateQuarterBreakRotationPlan = (
   return plan;
 };
 
+/**
+ * Next un-executed sub that's due **in the current quarter only**.
+ *
+ * We deliberately do NOT cascade un-executed subs from previous quarters
+ * (B1 audit fix). If a sub from Q1 was missed, the coach has either skipped
+ * it or paused auto-subs — re-firing it at the start of Q2 would yank a
+ * starter off in the middle of a fresh quarter. Quarter-break rotations are
+ * handled separately via `handleQuarterEnd` + `pendingQuarterSubs`.
+ */
 export const findNextDueSub = (
   plan: BasketballSubEvent[],
   currentQuarter: Quarter,
@@ -195,10 +204,7 @@ export const findNextDueSub = (
 ): BasketballSubEvent | undefined => {
   return plan
     .filter(s => !s.executed && !s.skipped)
-    .find(s =>
-      s.quarter < currentQuarter ||
-      (s.quarter === currentQuarter && s.time <= elapsedSeconds)
-    );
+    .find(s => s.quarter === currentQuarter && s.time <= elapsedSeconds);
 };
 
 export const formatTime = (seconds: number): string => {
