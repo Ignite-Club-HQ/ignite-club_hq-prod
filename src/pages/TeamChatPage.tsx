@@ -15,6 +15,7 @@ import { SecureAvatar } from "@/components/SecureAvatar";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 
 import { PageLoading } from "@/components/ui/page-loading";
@@ -1273,6 +1274,13 @@ export default function TeamChatPage() {
     }
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
+  // Live online count for the team — shown in the header sublabel.
+  const teamOnlineCount = useChatOnlineCount("team", teamId);
+  const teamHeaderSublabel =
+    teamOnlineCount > 0
+      ? `${team?.clubs?.name ? `${team.clubs.name} · ` : ""}${teamOnlineCount} online`
+      : team?.clubs?.name;
+
   if (loadingTeam) {
     return <PageLoading message="Loading team chat..." />;
   }
@@ -1287,7 +1295,7 @@ export default function TeamChatPage() {
       <ChatHeaderShell
         type="team"
         name={team.name}
-        sublabel={team.clubs?.name}
+        sublabel={teamHeaderSublabel}
         avatarUrl={team.logo_url || team.clubs?.logo_url}
         onOpenDetails={() => setMembersOpen(true)}
         leftSlot={

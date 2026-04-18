@@ -18,6 +18,7 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
 import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 
 import { PageLoading } from "@/components/ui/page-loading";
@@ -1531,6 +1532,21 @@ export default function GroupChatPage() {
     onError: () => toast.error("Failed to delete group"),
   });
 
+  // Live online count for the group — shown in the header sublabel.
+  const groupOnlineCount = useChatOnlineCount("group", groupId, {
+    teamId: group?.team_id ?? null,
+    clubId: group?.club_id ?? null,
+    groupAllowedRoles: (group?.allowed_roles as any) ?? null,
+    enabled: !!group,
+  });
+  const groupBaseSublabel = group?.team_id
+    ? "Team group"
+    : group?.club_id
+    ? "Club group"
+    : "Personal group";
+  const groupHeaderSublabel =
+    groupOnlineCount > 0 ? `${groupBaseSublabel} · ${groupOnlineCount} online` : groupBaseSublabel;
+
   if (groupLoading) {
     return <PageLoading message="Loading group chat..." />;
   }
@@ -1552,13 +1568,7 @@ export default function GroupChatPage() {
       <ChatHeaderShell
         type={group.team_id || group.club_id ? "group" : "group"}
         name={group.name}
-        sublabel={
-          group.team_id
-            ? "Team group"
-            : group.club_id
-            ? "Club group"
-            : "Personal group"
-        }
+        sublabel={groupHeaderSublabel}
         onOpenDetails={() => setMembersOpen(true)}
         leftSlot={
           <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
