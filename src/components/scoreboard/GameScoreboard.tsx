@@ -196,8 +196,9 @@ function ScoreButton({
   const display = (
     <span
       className={cn(
-        "text-5xl font-extrabold tabular-nums leading-none text-foreground landscape:text-6xl",
-        interactive && "active:scale-95 transition-transform cursor-pointer"
+        "text-6xl font-extrabold tabular-nums leading-none text-foreground landscape:text-7xl px-3 py-1 rounded-lg",
+        interactive &&
+          "bg-muted/40 hover:bg-muted/60 active:bg-muted/70 active:scale-95 transition-all cursor-pointer"
       )}
       aria-live="polite"
     >
@@ -214,23 +215,23 @@ function ScoreButton({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="bg-transparent border-0 p-0 m-0 outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md"
+          className="bg-transparent border-0 p-0 m-0 outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
           aria-label={ariaLabel}
         >
           {display}
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto p-2"
+        className="w-auto p-1.5"
         align={align === "right" ? "end" : "start"}
-        sideOffset={6}
+        sideOffset={4}
       >
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           {increments.map((pts) => (
             <Button
               key={pts}
               size="sm"
-              className="h-11 min-w-12 px-3 text-base font-bold"
+              className="h-12 min-w-14 px-3 text-lg font-bold"
               onClick={() => onScore(pts)}
               aria-label={`Add ${pts} point${pts === 1 ? "" : "s"}`}
             >
