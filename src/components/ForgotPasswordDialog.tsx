@@ -52,21 +52,26 @@ export function ForgotPasswordDialog({ open, onOpenChange, defaultEmail = "" }: 
     }
 
     setLoading(true);
-    
+
+    // Use the public web domain so the link works regardless of which
+    // device/browser opens the email. Native apps will intercept via
+    // Universal Links / deep-link handler.
+    const redirectTo = Capacitor.isNativePlatform()
+      ? RESET_PASSWORD_REDIRECT
+      : `${window.location.origin}/reset-password`;
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo,
     });
 
     setLoading(false);
 
+    // Always show the same success state to avoid leaking which emails
+    // are registered (email enumeration protection).
     if (error) {
-      toast({
-        title: "Unable to send reset email",
-        description: error.message,
-      });
-    } else {
-      setSent(true);
+      console.error("[ForgotPassword] resetPasswordForEmail error:", error);
     }
+    setSent(true);
   };
 
   const handleClose = () => {
