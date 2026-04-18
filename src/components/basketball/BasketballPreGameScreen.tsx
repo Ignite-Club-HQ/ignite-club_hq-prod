@@ -57,6 +57,7 @@ export default function BasketballPreGameScreen({
   const lineupReady = onCourtCount >= 5;
   const periodLabel = periodType === "halves" ? "half" : "quarter";
   const periodCount = periodType === "halves" ? 2 : 4;
+  const squadEmpty = players.length === 0;
 
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto">
@@ -89,33 +90,53 @@ export default function BasketballPreGameScreen({
 
       {/* Checklist */}
       <div className="px-3 pb-3 space-y-2">
-        {/* Starting 5 */}
-        <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border bg-card">
-          <div className="flex items-center gap-2.5 min-w-0">
-            {lineupReady ? (
-              <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
-            ) : (
-              <Circle className="h-5 w-5 text-muted-foreground shrink-0" />
-            )}
-            <div className="min-w-0">
-              <div className="text-sm font-semibold leading-tight">Starting 5</div>
-              <div
-                className={cn(
-                  "text-[11px] tabular-nums",
-                  lineupReady ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                {onCourtCount} / 5 selected
+        {/* Empty squad call-out — replaces the starting-5 row when no players exist */}
+        {squadEmpty ? (
+          <div className="flex items-center justify-between gap-3 px-3 py-3 rounded-lg border border-dashed bg-muted/20">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Users className="h-5 w-5 text-muted-foreground shrink-0" />
+              <div className="min-w-0">
+                <div className="text-sm font-semibold leading-tight">No players in squad</div>
+                <div className="text-[11px] text-muted-foreground">
+                  Add players to your team before tip-off.
+                </div>
               </div>
             </div>
+            {!readOnly && (
+              <Button size="sm" onClick={onOpenSquad} className="h-8 text-xs shrink-0">
+                Add players
+              </Button>
+            )}
           </div>
-          {hasPresets && !readOnly && (
-            <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={onOpenPresets}>
-              <Bookmark className="h-3.5 w-3.5 mr-1" />
-              Presets
-            </Button>
-          )}
-        </div>
+        ) : (
+          /* Starting 5 */
+          <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border bg-card">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {lineupReady ? (
+                <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
+              ) : (
+                <Circle className="h-5 w-5 text-muted-foreground shrink-0" />
+              )}
+              <div className="min-w-0">
+                <div className="text-sm font-semibold leading-tight">Starting 5</div>
+                <div
+                  className={cn(
+                    "text-[11px] tabular-nums",
+                    lineupReady ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  {onCourtCount} / 5 selected
+                </div>
+              </div>
+            </div>
+            {hasPresets && !readOnly && (
+              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={onOpenPresets}>
+                <Bookmark className="h-3.5 w-3.5 mr-1" />
+                Presets
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Game length */}
         <button
@@ -136,8 +157,8 @@ export default function BasketballPreGameScreen({
           <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
         </button>
 
-        {/* Squad — quieter secondary action */}
-        {!readOnly && (
+        {/* Squad — quieter secondary action (hidden when squad-empty CTA is shown above) */}
+        {!readOnly && !squadEmpty && (
           <button
             type="button"
             onClick={onOpenSquad}
@@ -176,10 +197,14 @@ export default function BasketballPreGameScreen({
             size="lg"
             className="w-full h-12 text-base font-semibold"
             disabled={!lineupReady}
-            onClick={onStartGame}
+            onClick={squadEmpty ? onOpenSquad : onStartGame}
           >
             <Play className="h-5 w-5 mr-2" />
-            {lineupReady ? "Start Game" : `Pick Starting 5 (${onCourtCount}/5)`}
+            {squadEmpty
+              ? "Add players to start"
+              : lineupReady
+              ? "Start Game"
+              : `Pick Starting 5 (${onCourtCount}/5)`}
           </Button>
         </div>
       )}
