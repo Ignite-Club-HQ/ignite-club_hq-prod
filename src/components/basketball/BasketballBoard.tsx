@@ -23,6 +23,7 @@ import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
+import { useCourtSpectator } from "@/hooks/useCourtSpectator";
 
 // Lazy-load secondary dialogs
 const BasketballSettingsDialog = lazy(() => import("./BasketballSettingsDialog"));
