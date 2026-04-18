@@ -2326,6 +2326,7 @@ export default function TeamDetailPage() {
                 setPitchBoardMembersOverride([]);
               }}
               readOnly={!canEditPitchBoard && !isSubsManager}
+              eventId={linkedEventId}
             />
           </div>
         </Suspense>,
@@ -2353,6 +2354,7 @@ export default function TeamDetailPage() {
                 setPitchBoardMembersOverride([]);
               }}
               readOnly={!canEditPitchBoard && !isSubsManager}
+              eventId={linkedEventId}
             />
           </div>
         </Suspense>,
