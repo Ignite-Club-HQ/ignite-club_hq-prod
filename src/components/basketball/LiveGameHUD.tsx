@@ -111,19 +111,6 @@ const LiveGameHUD = memo(function LiveGameHUD({
           interactive={interactive}
           onScore={(pts) => handleScore("away", pts)}
           side="away"
-      </div>
-
-        <span className="text-xl font-light text-muted-foreground/50 px-0.5 leading-none shrink-0">
-          —
-        </span>
-
-        <TeamSide
-          label={awayLabel}
-          score={awayScore}
-          increments={increments}
-          interactive={interactive}
-          onScore={(pts) => handleScore("away", pts)}
-          side="away"
         />
       </div>
     </div>
