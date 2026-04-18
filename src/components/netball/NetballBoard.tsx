@@ -719,12 +719,14 @@ export default function NetballBoard({
       };
       const cpLog = [...(s.centrePassLog ?? [])];
       // First goal of the game? Seed the opening centre-pass entry so it can
-      // be credited if the side that took it scored first.
-      if (cpLog.length === 0) {
+      // be credited if the side that took it scored first. Only seed when we
+      // actually know which side took it (audit fix N13) — defaulting to
+      // "home" silently mis-credited possession when the toss wasn't set.
+      if (cpLog.length === 0 && s.centrePass) {
         cpLog.push({
           id: crypto.randomUUID(),
           quarter: s.currentQuarter,
-          side: s.centrePass ?? "home",
+          side: s.centrePass,
           converted: false,
           at: Date.now() - 1,
         });
