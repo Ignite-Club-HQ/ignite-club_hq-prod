@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NetballPlayer, NetballPosition, POSITION_COLORS } from "./types";
@@ -15,6 +15,8 @@ interface NetballPlayerTokenProps {
   isDragging?: boolean;
   isNextSub?: boolean;
   onClick?: () => void;
+  /** Long-press (~500ms) opens the quick action sheet. Tap = direct sub-mode. */
+  onLongPress?: () => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
   onTouchStart?: (e: React.TouchEvent) => void;
