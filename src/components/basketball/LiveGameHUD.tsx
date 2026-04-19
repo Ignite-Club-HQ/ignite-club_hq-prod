@@ -190,6 +190,26 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
           ))}
         </div>
       )}
+      {/* When scoring is gated (e.g. game not started), show subtle dimmed
+          buttons so the coach knows where +1/+2/+3 will appear. */}
+      {!interactive && (
+        <div
+          className={cn(
+            "flex items-center gap-1 mt-1 opacity-40",
+            side === "home" ? "justify-end" : "justify-start",
+          )}
+          aria-hidden
+        >
+          {increments.map((pts) => (
+            <span
+              key={pts}
+              className="h-7 min-w-8 px-1.5 text-[11px] font-bold rounded-md leading-none inline-flex items-center justify-center bg-secondary/30 text-muted-foreground"
+            >
+              +{pts}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
