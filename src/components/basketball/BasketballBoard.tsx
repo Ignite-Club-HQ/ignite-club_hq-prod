@@ -18,6 +18,8 @@ import { useBasketballCoachAssistant } from "@/hooks/useBasketballCoachAssistant
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
+import { useSubConfirm } from "@/hooks/useSubConfirm";
+import SubConfirmDialog from "@/components/scoreboard/SubConfirmDialog";
 import { totalElapsedSeconds, visiblePeriods } from "@/lib/periodTypes";
 
 // Lazy-load secondary dialogs
