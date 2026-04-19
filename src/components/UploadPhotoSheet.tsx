@@ -15,7 +15,8 @@ import { isVideoFile, validateVideo } from "@/lib/videoUtils";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker, ensurePhotoLibraryPermission, PhotoPermissionDeniedError, isPhotoPermissionError } from "@/lib/nativePhotoPicker";
+import { showPhotoPermissionDeniedToast } from "@/lib/showPhotoPermissionDeniedToast";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
