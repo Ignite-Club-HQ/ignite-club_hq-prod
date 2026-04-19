@@ -1226,7 +1226,7 @@ export default function DirectMessagePage() {
                 <button 
                   onClick={handleSend} 
                   disabled={(!message.trim() && !dmImageUrl) || sendMessageMutation.isPending}
-                  className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
+                  className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
                 >
                   {sendMessageMutation.isPending ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
