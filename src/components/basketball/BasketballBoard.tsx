@@ -290,6 +290,10 @@ export default function BasketballBoard({
           periodType={board.timerState.periodType ?? "quarters"}
           rotationMode={board.rotationMode}
           rotationIntervalMinutes={board.rotationIntervalMinutes}
+          onToggleAutoSub={(next) => {
+            board.setRotationMode(next);
+            persistDefaults({ court_rotation_mode: next });
+          }}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSquad={() => setRosterOpen(true)}
           onOpenPresets={() => setPresetsOpen(true)}

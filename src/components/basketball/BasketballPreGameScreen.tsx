@@ -15,10 +15,12 @@ interface BasketballPreGameScreenProps {
   minutesPerQuarter: number;
   periodType: PeriodType;
 
-  /** Auto-sub plan summary — shown as a small pill in the controls row so the
-   *  coach can confirm/edit rotation before tip-off without leaving pre-game. */
+  /** Auto-sub plan toggle — coaches flip rotation on/off directly from the
+   *  pre-game controls row. When ON we use a sensible default (time-based @ 4m)
+   *  unless the coach previously chose another mode/interval. */
   rotationMode?: RotationMode;
   rotationIntervalMinutes?: number;
+  onToggleAutoSub?: (next: RotationMode) => void;
 
   onOpenSettings: () => void;
   onOpenSquad: () => void;
@@ -47,6 +49,7 @@ export default function BasketballPreGameScreen({
   periodType,
   rotationMode = "off",
   rotationIntervalMinutes = 4,
+  onToggleAutoSub,
   onOpenSettings,
   onOpenSquad,
   onOpenPresets,
@@ -60,13 +63,12 @@ export default function BasketballPreGameScreen({
   const periodLabel = periodType === "halves" ? "half" : "quarter";
   const periodCount = periodType === "halves" ? 2 : 4;
   const squadEmpty = players.length === 0;
-  const autoSubLabel =
-    rotationMode === "off"
-      ? "Manual"
-      : rotationMode === "time-based"
-      ? `${rotationIntervalMinutes}m rotation`
-      : "Period rotation";
   const autoSubActive = rotationMode !== "off";
+  const autoSubLabel = autoSubActive
+    ? rotationMode === "time-based"
+      ? `On · every ${rotationIntervalMinutes}m`
+      : "On · per period"
+    : "Off";
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
@@ -132,15 +134,17 @@ export default function BasketballPreGameScreen({
         <span className="text-muted-foreground/50">·</span>
         <button
           type="button"
-          onClick={onOpenSettings}
-          disabled={readOnly}
+          onClick={() => onToggleAutoSub?.(autoSubActive ? "off" : "time-based")}
+          disabled={readOnly || !onToggleAutoSub}
+          role="switch"
+          aria-checked={autoSubActive}
           className={cn(
-            "inline-flex items-center gap-1 transition-colors disabled:opacity-60",
+            "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 transition-colors disabled:opacity-60",
             autoSubActive
-              ? "text-primary hover:underline font-medium"
+              ? "bg-primary/15 text-primary font-semibold"
               : "text-muted-foreground hover:text-foreground"
           )}
-          aria-label="Configure auto-sub plan"
+          aria-label={autoSubActive ? "Turn auto-subs off" : "Turn auto-subs on"}
         >
           <Repeat className="h-3.5 w-3.5" />
           <span className="font-medium">Auto-subs · {autoSubLabel}</span>
