@@ -80,105 +80,91 @@ function useThreadLabels(rows: ScheduledMessageRow[]) {
     queryKey: ["scheduled-message-thread-labels", key],
     queryFn: async () => {
       const labels: Record<string, ThreadInfo> = {};
-
       const tasks: Promise<void>[] = [];
 
       if (teamIds.length > 0) {
-        tasks.push(
-          supabase
+        tasks.push((async () => {
+          const { data } = await supabase
             .from("teams")
             .select("id, name, clubs(name)")
-            .in("id", teamIds)
-            .then(({ data }) => {
-              (data || []).forEach((t: any) => {
-                labels[`team:${t.id}`] = {
-                  label: `${t.name} chat`,
-                  sublabel: t.clubs?.name,
-                  href: `/teams/${t.id}/chat`,
-                };
-              });
-            }),
-        );
+            .in("id", teamIds);
+          (data || []).forEach((t: any) => {
+            labels[`team:${t.id}`] = {
+              label: `${t.name} chat`,
+              sublabel: t.clubs?.name,
+              href: `/teams/${t.id}/chat`,
+            };
+          });
+        })());
       }
       if (clubIds.length > 0) {
-        tasks.push(
-          supabase
-            .from("clubs")
-            .select("id, name")
-            .in("id", clubIds)
-            .then(({ data }) => {
-              (data || []).forEach((c: any) => {
-                labels[`club:${c.id}`] = {
-                  label: `${c.name} club chat`,
-                  href: `/clubs/${c.id}/chat`,
-                };
-              });
-            }),
-        );
+        tasks.push((async () => {
+          const { data } = await supabase.from("clubs").select("id, name").in("id", clubIds);
+          (data || []).forEach((c: any) => {
+            labels[`club:${c.id}`] = {
+              label: `${c.name} club chat`,
+              href: `/clubs/${c.id}/chat`,
+            };
+          });
+        })());
       }
       if (groupIds.length > 0) {
-        tasks.push(
-          supabase
+        tasks.push((async () => {
+          const { data } = await supabase
             .from("chat_groups")
             .select("id, name")
-            .in("id", groupIds)
-            .then(({ data }) => {
-              (data || []).forEach((g: any) => {
-                labels[`group:${g.id}`] = {
-                  label: g.name,
-                  sublabel: "Group chat",
-                  href: `/groups/${g.id}/chat`,
-                };
-              });
-            }),
-        );
+            .in("id", groupIds);
+          (data || []).forEach((g: any) => {
+            labels[`group:${g.id}`] = {
+              label: g.name,
+              sublabel: "Group chat",
+              href: `/groups/${g.id}/chat`,
+            };
+          });
+        })());
       }
       if (dmConvIds.length > 0) {
-        tasks.push(
-          supabase
+        tasks.push((async () => {
+          const { data } = await supabase
             .from("direct_conversations")
             .select("id, participant_1, participant_2")
-            .in("id", dmConvIds)
-            .then(async ({ data }) => {
-              const convs = data || [];
-              const userIds = [
-                ...new Set(convs.flatMap((c: any) => [c.participant_1, c.participant_2])),
-              ];
-              const { data: profiles } = await supabase
-                .from("profiles")
-                .select("id, display_name")
-                .in("id", userIds);
-              const profMap: Record<string, string> = {};
-              (profiles || []).forEach((p: any) => {
-                profMap[p.id] = p.display_name || "Unknown";
-              });
-              const me = (await supabase.auth.getUser()).data.user?.id;
-              convs.forEach((c: any) => {
-                const otherId = c.participant_1 === me ? c.participant_2 : c.participant_1;
-                labels[`direct:${c.id}`] = {
-                  label: profMap[otherId] || "Direct message",
-                  sublabel: "Direct message",
-                  href: `/messages/dm/${c.id}`,
-                };
-              });
-            }),
-        );
+            .in("id", dmConvIds);
+          const convs = data || [];
+          const userIds = [
+            ...new Set(convs.flatMap((c: any) => [c.participant_1, c.participant_2])),
+          ];
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, display_name")
+            .in("id", userIds);
+          const profMap: Record<string, string> = {};
+          (profiles || []).forEach((p: any) => {
+            profMap[p.id] = p.display_name || "Unknown";
+          });
+          const me = (await supabase.auth.getUser()).data.user?.id;
+          convs.forEach((c: any) => {
+            const otherId = c.participant_1 === me ? c.participant_2 : c.participant_1;
+            labels[`direct:${c.id}`] = {
+              label: profMap[otherId] || "Direct message",
+              sublabel: "Direct message",
+              href: `/messages/dm/${c.id}`,
+            };
+          });
+        })());
       }
       if (adminConvIds.length > 0) {
-        tasks.push(
-          supabase
+        tasks.push((async () => {
+          const { data } = await supabase
             .from("club_admin_conversations")
             .select("id, club_id, clubs(name)")
-            .in("id", adminConvIds)
-            .then(({ data }) => {
-              (data || []).forEach((c: any) => {
-                labels[`club_admin:${c.id}`] = {
-                  label: `${c.clubs?.name || "Club"} admin`,
-                  sublabel: "Club admin chat",
-                };
-              });
-            }),
-        );
+            .in("id", adminConvIds);
+          (data || []).forEach((c: any) => {
+            labels[`club_admin:${c.id}`] = {
+              label: `${c.clubs?.name || "Club"} admin`,
+              sublabel: "Club admin chat",
+            };
+          });
+        })());
       }
 
       await Promise.all(tasks);
