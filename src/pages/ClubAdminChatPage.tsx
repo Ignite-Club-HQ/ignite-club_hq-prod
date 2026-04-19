@@ -714,7 +714,7 @@ export default function ClubAdminChatPage() {
           />
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
+        <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
           <button
             type="button"
             onClick={() => setPollDialogOpen(true)}
