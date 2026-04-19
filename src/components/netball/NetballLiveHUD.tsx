@@ -83,7 +83,8 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
         "rounded-xl border border-border bg-card",
         "shadow-[0_4px_14px_-6px_hsl(var(--foreground)/0.25)]",
         "transition-[opacity,filter,transform] duration-200 ease-out",
-        suppressed && "opacity-40 blur-[1px] pointer-events-none scale-[0.99]",
+        // Suppressed mode (sub-mode) keeps the HUD readable — only the timer
+        // controls dim slightly so the score remains crystal-clear.
       )}
       role="group"
       aria-label="Live game HUD"
@@ -100,7 +101,12 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        <div className="flex-1 min-w-0 flex items-center justify-center gap-1.5">
+        <div
+          className={cn(
+            "flex-1 min-w-0 flex items-center justify-center gap-1.5 transition-opacity",
+            suppressed && "opacity-50",
+          )}
+        >
           {controlSlot}
         </div>
 
@@ -136,6 +142,7 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
           score={homeScore}
           interactive={interactive}
           onScore={() => handleScore("home")}
+          onLongPress={onScoreLongPress ? () => handleScoreLongPress("home") : undefined}
           side="home"
         />
 
@@ -148,6 +155,7 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
           score={awayScore}
           interactive={interactive}
           onScore={() => handleScore("away")}
+          onLongPress={onScoreLongPress ? () => handleScoreLongPress("away") : undefined}
           side="away"
         />
       </div>
