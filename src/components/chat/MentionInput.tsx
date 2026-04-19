@@ -20,6 +20,8 @@ interface MentionInputProps {
   clubId?: string;
   groupId?: string;
   showEmojiPicker?: boolean;
+  /** Optional: enables a "GIF" tab in the emoji picker. Receives the selected GIF URL. */
+  onGifSelect?: (gifUrl: string) => void;
 }
 
 interface SuggestedUser {
