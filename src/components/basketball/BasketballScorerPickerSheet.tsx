@@ -48,7 +48,12 @@ export default function BasketballScorerPickerSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[80vh] flex flex-col p-0">
+      <SheetContent
+        side="bottom"
+        className="max-h-[80vh] flex flex-col p-0"
+        onInteractOutside={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+      >
         <SheetHeader className="px-4 pt-4 pb-2 text-left">
           <SheetTitle className="flex items-center gap-2 text-base">
             <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-primary text-primary-foreground px-2 text-sm font-bold tabular-nums">
