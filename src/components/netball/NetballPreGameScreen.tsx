@@ -244,7 +244,7 @@ export default function NetballPreGameScreen({
         onValueChange={(v) => setTab(v as PreGameTab)}
         className="flex-1 min-h-0 flex flex-col"
       >
-        <TabsList className="mx-2 mt-1.5 mb-1 grid grid-cols-3 h-8 bg-muted/60">
+        <TabsList className="mx-2 mt-1.5 mb-1 grid grid-cols-2 h-8 bg-muted/60">
           <TabsTrigger value="lineup" className="text-[11px] font-semibold">
             Lineup
           </TabsTrigger>
@@ -261,9 +261,6 @@ export default function NetballPreGameScreen({
                 {autoSubPlan.length}
               </span>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="stats" className="text-[11px] font-semibold">
-            Stats
           </TabsTrigger>
         </TabsList>
 
@@ -351,19 +348,6 @@ export default function NetballPreGameScreen({
           />
         </TabsContent>
 
-        <TabsContent
-          value="stats"
-          className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden p-6 text-center text-sm text-muted-foreground flex items-center justify-center"
-        >
-          <div className="space-y-2 max-w-xs">
-            <Sparkles className="h-8 w-8 mx-auto opacity-50" />
-            <p className="font-medium text-foreground">Squad stats</p>
-            <p className="text-xs">
-              Player minutes, centre-pass conversion and shooting stats
-              will live here once the game is underway.
-            </p>
-          </div>
-        </TabsContent>
       </Tabs>
 
       {/* ── BOTTOM ACTION BAR ───────────────────────────────────── */}
