@@ -28,7 +28,13 @@ const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPrese
 const FreeThrowDialog = lazy(() => import("./FreeThrowDialog"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 const QuarterAutoSubControlPanel = lazy(() => import("@/components/scoreboard/QuarterAutoSubControlPanel"));
-const BasketballScorerPickerSheet = lazy(() => import("./BasketballScorerPickerSheet"));
+// IMPORTANT: ScorerPickerSheet must NOT be lazy. It is the immediate response
+// to a +1/+2/+3 tap and any Suspense fallback / lazy chunk fetch on the first
+// score tap was preventing the sheet from ever appearing (audit fix: the
+// Sheet would be queued behind the fallback while React batched the
+// addScore + setPendingScore updates, then the body's pointer-events lock
+// from a sibling Radix dialog left it stuck closed).
+import BasketballScorerPickerSheet from "./BasketballScorerPickerSheet";
 
 
 interface BasketballBoardProps {
