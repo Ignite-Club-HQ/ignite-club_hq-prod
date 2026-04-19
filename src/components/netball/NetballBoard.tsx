@@ -1663,6 +1663,18 @@ export default function NetballBoard({
           onPlayerClick={handlePlayerClick}
           onPlayerLongPress={handlePlayerLongPress}
           onSlotClick={handleSlotClick}
+          onDragSwap={(srcId, tgtId) => {
+            // Drag-drop = same confirm flow as tap-tap. Reuse handlePlayerClick
+            // by simulating a select then a target tap so the SubConfirmDialog
+            // surfaces, matching project memory ("every sub & swap confirms").
+            setSelectedPlayerId(srcId);
+            // Defer one tick so React applies the selection before the second tap.
+            setTimeout(() => handlePlayerClick(tgtId), 0);
+          }}
+          onDragToSlot={(srcId, position) => {
+            setSelectedPlayerId(srcId);
+            setTimeout(() => handleSlotClick(position), 0);
+          }}
         />
       </div>
 
@@ -1675,6 +1687,10 @@ export default function NetballBoard({
         readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
         onPlayerLongPress={handlePlayerLongPress}
+        onDragSwap={(srcId, tgtId) => {
+          setSelectedPlayerId(srcId);
+          setTimeout(() => handlePlayerClick(tgtId), 0);
+        }}
       />
 
       {/* ── LIVE ACTION BAR — sub / auto-subs / next break, with setup actions in overflow ── */}
