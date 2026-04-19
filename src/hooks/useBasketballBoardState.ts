@@ -691,10 +691,15 @@ export function useBasketballBoardState({
           return p;
         });
       });
-      if (logEntry) appendSubLog({ ...logEntry, source: "manual" });
+      if (logEntry) {
+        appendSubLog({ ...logEntry, source: "manual" });
+        flashRecentSwap([logEntry.playerInId, logEntry.playerOutId]);
+      } else {
+        flashRecentSwap([selectedPlayerId]);
+      }
       setSelectedPlayerId(null);
     },
-    [readOnly, selectedPlayerId, appendSubLog]
+    [readOnly, selectedPlayerId, appendSubLog, flashRecentSwap]
   );
 
   /**
