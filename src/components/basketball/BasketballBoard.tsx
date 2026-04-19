@@ -12,6 +12,7 @@ import BasketballBench from "./BasketballBench";
 import BasketballQuarterBreakDialog from "./BasketballQuarterBreakDialog";
 import BasketballPreGameScreen from "./BasketballPreGameScreen";
 import LiveGameHUD from "./LiveGameHUD";
+import SubModeBanner from "./SubModeBanner";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
@@ -339,72 +340,105 @@ export default function BasketballBoard({
   //   TOP    — scoreboard (dominant scores) + timer strip (secondary)
   //   MIDDLE — court (who is playing)
   //   BOTTOM — bench (who comes on next)
+  // Selected player + bench/court partition for the new sub-flow visuals.
+  const selectedPlayer = board.selectedPlayerId
+    ? board.players.find((p) => p.id === board.selectedPlayerId) ?? null
+    : null;
+  const selectedIsOnCourt = !!selectedPlayer && selectedPlayer.position !== null;
+  const selectedIsOnBench = !!selectedPlayer && selectedPlayer.position === null;
+
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* ── COURT — full-bleed primary surface with floating HUD overlay ── */}
       <div className="relative flex-1 min-h-0 flex flex-col">
-        {/* Floating back chip — always on the left */}
-        <Button
-          variant="secondary"
-          size="icon"
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute z-40 top-2 left-2 h-8 w-8 rounded-full bg-card/85 backdrop-blur-md border border-border/40 shadow-md"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        {/* Tap-outside-to-cancel — invisible scrim that swallows taps in the
+            empty court area while a player is selected. Sits below tokens
+            and the banner but above the court SVG. */}
+        {selectedPlayer && (
+          <button
+            type="button"
+            aria-label="Cancel substitution"
+            onClick={() => board.setSelectedPlayerId(null)}
+            className="absolute inset-0 z-10 cursor-default bg-transparent"
+          />
+        )}
 
-        {/* Floating HUD — scoreboard + timer over the court */}
-        <LiveGameHUD
-          homeLabel={teamName}
-          awayLabel={opponentName}
-          homeScore={board.timerState.homeScore ?? 0}
-          awayScore={board.timerState.awayScore ?? 0}
-          increments={[1, 2, 3]}
-          readOnly={readOnly}
-          disabled={!!board.timerState.isGameFinished}
-          onScore={board.addScore}
-          suppressed={!!board.selectedPlayerId}
-          controlSlot={
-            <BasketballQuarterTimer
-              state={board.timerState}
-              onChange={board.setTimerState}
-              onTick={board.handleTick}
-              onQuarterEnd={board.handleQuarterEnd}
-              onReset={board.resetPlayerStats}
-              readOnly={readOnly}
-              compact
-            />
-          }
-          position={hudPosition}
-          onTogglePosition={toggleHudPosition}
-        />
-
-        {/* Auto-sub status — small floating chip below HUD */}
-        {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
-          <div className="absolute top-[100px] right-2 z-20">
+        {/* Sub-mode banner — replaces the back chip + HUD scoreboard while a
+            sub is in progress so the coach has zero ambiguity. */}
+        {selectedPlayer ? (
+          <SubModeBanner
+            selectedPlayer={selectedPlayer}
+            onCancel={() => board.setSelectedPlayerId(null)}
+          />
+        ) : (
+          <>
+            {/* Floating back chip — always on the left */}
             <Button
-              size="sm"
               variant="secondary"
-              className="h-6 text-[10px] gap-1 bg-card/85 backdrop-blur-md border border-border/40 shadow-sm px-2"
-              onClick={() => setAutoSubPanelOpen(true)}
+              size="icon"
+              onClick={onClose}
+              aria-label="Close"
+              className="absolute z-40 top-2 left-2 h-8 w-8 rounded-full bg-card/85 backdrop-blur-md border border-border/40 shadow-md"
             >
-              <Repeat className="h-3 w-3" />
-              {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
-              {board.autoSubPaused && <span className="ml-1 text-amber-600">·P</span>}
+              <ArrowLeft className="h-4 w-4" />
             </Button>
-          </div>
+
+            {/* Floating HUD — scoreboard + timer over the court */}
+            <LiveGameHUD
+              homeLabel={teamName}
+              awayLabel={opponentName}
+              homeScore={board.timerState.homeScore ?? 0}
+              awayScore={board.timerState.awayScore ?? 0}
+              increments={[1, 2, 3]}
+              readOnly={readOnly}
+              disabled={!!board.timerState.isGameFinished}
+              onScore={board.addScore}
+              suppressed={!!board.selectedPlayerId}
+              controlSlot={
+                <BasketballQuarterTimer
+                  state={board.timerState}
+                  onChange={board.setTimerState}
+                  onTick={board.handleTick}
+                  onQuarterEnd={board.handleQuarterEnd}
+                  onReset={board.resetPlayerStats}
+                  readOnly={readOnly}
+                  compact
+                />
+              }
+              position={hudPosition}
+              onTogglePosition={toggleHudPosition}
+            />
+
+            {/* Auto-sub status — small floating chip below HUD */}
+            {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
+              <div className="absolute top-[100px] right-2 z-20">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-6 text-[10px] gap-1 bg-card/85 backdrop-blur-md border border-border/40 shadow-sm px-2"
+                  onClick={() => setAutoSubPanelOpen(true)}
+                >
+                  <Repeat className="h-3 w-3" />
+                  {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
+                  {board.autoSubPaused && <span className="ml-1 text-amber-600">·P</span>}
+                </Button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Court fills the surface — HUD floats above */}
         <BasketballCourtArea
           players={board.players}
           selectedPlayerId={board.selectedPlayerId}
+          selectedIsOnBench={selectedIsOnBench}
+          recentlySwappedIds={board.recentlySwappedIds}
           nextSubOutId={board.nextSub?.playerOut.id ?? null}
           readOnly={readOnly}
           courtView={board.courtView}
           hideEmptySlots
           onPlayerClick={board.handlePlayerClick}
+          onPlayerLongPress={board.handlePlayerLongPress}
           onSlotClick={board.handleSlotClick}
         />
       </div>
@@ -413,9 +447,12 @@ export default function BasketballBoard({
       <BasketballBench
         bench={board.bench}
         selectedPlayerId={board.selectedPlayerId}
+        selectedIsOnCourt={selectedIsOnCourt}
+        recentlySwappedIds={board.recentlySwappedIds}
         nextSubInId={board.nextSub?.playerIn.id ?? null}
         readOnly={readOnly}
         onPlayerClick={board.handlePlayerClick}
+        onPlayerLongPress={board.handlePlayerLongPress}
       />
 
       {!readOnly && (board.canUndoSub || (board.timerState.scoreLog?.length ?? 0) > 0) && (

@@ -543,6 +543,29 @@ export function useBasketballBoardState({
     toast({ title: "Subs skipped", description: `${periodLabel(pendingQuarterSubs.quarter, timerStateRef.current.periodType)} rotation cleared.` });
   }, [pendingQuarterSubs, toast]);
 
+  // ---------- Recently-swapped highlight ----------
+  // Brief glow on the two tokens involved in the most recent swap, so the
+  // coach's eye tracks the change. Cleared after ~700ms.
+  const [recentlySwappedIds, setRecentlySwappedIds] = useState<string[]>([]);
+  const recentClearTimerRef = useRef<number | null>(null);
+  const flashRecentSwap = useCallback((ids: string[]) => {
+    setRecentlySwappedIds(ids);
+    if (recentClearTimerRef.current != null) {
+      window.clearTimeout(recentClearTimerRef.current);
+    }
+    recentClearTimerRef.current = window.setTimeout(() => {
+      setRecentlySwappedIds([]);
+      recentClearTimerRef.current = null;
+    }, 700);
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (recentClearTimerRef.current != null) {
+        window.clearTimeout(recentClearTimerRef.current);
+      }
+    };
+  }, []);
+
   // ---------- Manual swap ----------
   const performSwap = useCallback(
     (aId: string, bId: string) => {
@@ -594,11 +617,21 @@ export function useBasketballBoardState({
           return p;
         });
       });
+      flashRecentSwap([aId, bId]);
       if (logEntry) appendSubLog({ ...logEntry, source: "manual" });
     },
-    [validationMode, toast, appendSubLog]
+    [validationMode, toast, appendSubLog, flashRecentSwap]
   );
 
+  /**
+   * Tap-first sub flow (matches the live-gameplay UX spec):
+   *   1. First tap on ANY player (bench or court) selects them.
+   *   2. Second tap on another player swaps them — instantly, no dialog.
+   *   3. Tap the same player again to deselect.
+   *
+   * Quick actions (score, foul, injury) live behind a long-press to keep the
+   * primary tap surface fast and unambiguous.
+   */
   const handlePlayerClick = useCallback(
     (playerId: string) => {
       if (readOnly) return;
@@ -611,9 +644,21 @@ export function useBasketballBoardState({
         setSelectedPlayerId(null);
         return;
       }
-      setQuickActionPlayerId(playerId);
+      hapticSelectionTick();
+      setSelectedPlayerId(playerId);
     },
     [selectedPlayerId, performSwap, readOnly]
+  );
+
+  /** Long-press → quick action sheet (score, foul, injury, manual swap…). */
+  const handlePlayerLongPress = useCallback(
+    (playerId: string) => {
+      if (readOnly) return;
+      // If we're mid-sub-mode, drop it so the sheet's actions aren't ambiguous.
+      if (selectedPlayerId) setSelectedPlayerId(null);
+      setQuickActionPlayerId(playerId);
+    },
+    [readOnly, selectedPlayerId]
   );
 
   const handleSlotClick = useCallback(
@@ -646,10 +691,15 @@ export function useBasketballBoardState({
           return p;
         });
       });
-      if (logEntry) appendSubLog({ ...logEntry, source: "manual" });
+      if (logEntry) {
+        appendSubLog({ ...logEntry, source: "manual" });
+        flashRecentSwap([logEntry.playerInId, logEntry.playerOutId]);
+      } else {
+        flashRecentSwap([selectedPlayerId]);
+      }
       setSelectedPlayerId(null);
     },
-    [readOnly, selectedPlayerId, appendSubLog]
+    [readOnly, selectedPlayerId, appendSubLog, flashRecentSwap]
   );
 
   /**
@@ -1190,7 +1240,9 @@ export function useBasketballBoardState({
     handleTick,
     handleQuarterEnd,
     handlePlayerClick,
+    handlePlayerLongPress,
     handleSlotClick,
+    recentlySwappedIds,
     performSwap,
     subOff,
     assignToPosition,
