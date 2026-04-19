@@ -151,12 +151,15 @@ interface ScoreSideProps {
   score: number;
   interactive: boolean;
   onScore: () => void;
+  onLongPress?: () => void;
   side: "home" | "away";
 }
 
-function ScoreSide({ label, score, interactive, onScore, side }: ScoreSideProps) {
+function ScoreSide({ label, score, interactive, onScore, onLongPress, side }: ScoreSideProps) {
   const [pulse, setPulse] = useState(false);
   const prev = useRef(score);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
 
   useEffect(() => {
     if (prev.current !== score) {
@@ -167,6 +170,30 @@ function ScoreSide({ label, score, interactive, onScore, side }: ScoreSideProps)
     }
   }, [score]);
 
+  const clearLongPress = () => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  const handlePointerDown = () => {
+    if (!interactive || !onLongPress) return;
+    longPressFiredRef.current = false;
+    clearLongPress();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      onLongPress();
+    }, 450);
+  };
+  const handlePointerEnd = () => clearLongPress();
+  const handleClick = () => {
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    onScore();
+  };
+
   const isHome = side === "home";
 
   return (
@@ -176,10 +203,15 @@ function ScoreSide({ label, score, interactive, onScore, side }: ScoreSideProps)
         isHome ? "justify-start" : "justify-end flex-row-reverse",
       )}
     >
-      {/* Tap-the-score = +1. Big number + tiny team name beneath. */}
+      {/* Tap-the-score = +1. Long-press = scorer sheet. */}
       <button
         type="button"
-        onClick={onScore}
+        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onPointerLeave={handlePointerEnd}
+        onContextMenu={(e) => e.preventDefault()}
         disabled={!interactive}
         aria-label={`Add 1 point for ${label}`}
         className={cn(

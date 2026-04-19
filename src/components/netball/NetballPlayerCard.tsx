@@ -5,7 +5,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { ArrowLeftRight, Bench, Clock, Target, AlertTriangle, Pin } from "lucide-react";
+import { ArrowLeftRight, Clock, Target, AlertTriangle, Pin } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NetballPlayer, NetballPosition } from "./types";
 import { cn } from "@/lib/utils";
