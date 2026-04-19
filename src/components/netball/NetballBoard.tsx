@@ -8,6 +8,7 @@ import { SyncStatusIndicator } from "@/components/pitch/SyncStatusIndicator";
 import { supabase } from "@/integrations/supabase/client";
 
 import NetballQuarterTimer from "./NetballQuarterTimer";
+import LiveGameHUD from "@/components/basketball/LiveGameHUD";
 import NetballActionBar from "./NetballActionBar";
 import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
