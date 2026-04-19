@@ -78,8 +78,7 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
   return (
     <div
       className={cn(
-        "absolute left-2 right-2 z-30 mx-auto max-w-md",
-        isBottom ? "bottom-2" : "top-2",
+        "relative z-30 mx-2 my-2 max-w-md self-center w-[calc(100%-1rem)]",
         "rounded-xl border border-border bg-card",
         "shadow-[0_4px_14px_-6px_hsl(var(--foreground)/0.25)]",
         "transition-[opacity,filter,transform] duration-200 ease-out",
