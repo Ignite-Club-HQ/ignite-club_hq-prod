@@ -266,8 +266,8 @@ export default function NetballPreGameScreen({
           </TabsTrigger>
         </TabsList>
 
-        {/* Auto-sub speed sub-row — only relevant in lineup tab */}
-        {tab === "lineup" && showSpeedPicker && (
+        {/* Auto-sub speed sub-row — only relevant in rotation tab */}
+        {tab === "rotation" && showSpeedPicker && (
           <div className="px-3 pb-1 flex items-center gap-2">
             <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
               Rotate every
