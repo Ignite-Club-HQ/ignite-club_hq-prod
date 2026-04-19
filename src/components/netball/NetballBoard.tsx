@@ -530,39 +530,9 @@ export default function NetballBoard({
           (s) => !s.executed && !s.skipped && s.quarter === nextQuarter && s.time === 0
         );
         if (dueSubs.length > 0) {
-          // N19 audit fix (mirrors basketball B22): apply ALL quarter-break
-          // subs in ONE atomic setPlayers pass. `dueSubs.forEach(executeSub)`
-          // runs each through its own setPlayers updater — earlier subs
-          // displace players to the bench, so later subs see "playerOut not
-          // on court" or "playerIn not on bench" and silently no-op.
-          const subKeys = new Set(dueSubs.map(getSubKey));
-          setPlayers((prev) => {
-            let next = prev;
-            for (const sub of dueSubs) {
-              const out = next.find((p) => p.id === sub.playerOut.id);
-              const inP = next.find((p) => p.id === sub.playerIn.id);
-              if (!out?.position || !inP || inP.position !== null) continue;
-              next = next.map((p) => {
-                if (p.id === out.id) return transitionPosition(p, null);
-                if (p.id === inP.id) return transitionPosition(p, sub.position);
-                return p;
-              });
-            }
-            return next;
-          });
-          setAutoSubPlan((prev) =>
-            prev.map((s) => (subKeys.has(getSubKey(s)) ? { ...s, executed: true } : s))
-          );
-          dueSubs.forEach((sub) =>
-            appendSubLog({
-              playerOutId: sub.playerOut.id,
-              playerOutName: sub.playerOut.name,
-              playerInId: sub.playerIn.id,
-              playerInName: sub.playerIn.name,
-              position: sub.position,
-              source: "auto",
-            })
-          );
+          // Surface the planned subs in NetballQuarterBreakDialog so the
+          // coach approves them — mirrors basketball.
+          setPendingQuarterSubs({ quarter: nextQuarter, subs: dueSubs });
         }
       }
     },
