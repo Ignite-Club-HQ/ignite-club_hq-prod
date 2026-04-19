@@ -49,7 +49,7 @@ export function ScheduleRecurrenceField({
         <SelectTrigger>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="z-[100000]">
           {OPTIONS.map((o) => (
             <SelectItem key={o.value} value={o.value}>
               {o.label}
