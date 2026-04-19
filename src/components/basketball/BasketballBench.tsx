@@ -50,7 +50,7 @@ export default function BasketballBench({
   const isEmpty = bench.length === 0;
 
   return (
-    <div className="border-t bg-card flex-shrink-0">
+    <div className="relative bg-card flex-shrink-0 before:content-[''] before:absolute before:inset-x-0 before:-top-3 before:h-3 before:bg-gradient-to-b before:from-transparent before:to-card before:pointer-events-none">
       <div
         className={cn(
           "flex items-center justify-between px-3 py-0.5",
