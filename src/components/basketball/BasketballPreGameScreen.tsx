@@ -66,8 +66,8 @@ export default function BasketballPreGameScreen({
   const autoSubActive = rotationMode !== "off";
   const autoSubLabel = autoSubActive
     ? rotationMode === "time-based"
-      ? `On · every ${rotationIntervalMinutes}m`
-      : "On · per period"
+      ? `${rotationIntervalMinutes}m`
+      : "Per period"
     : "Off";
 
   return (
@@ -147,7 +147,7 @@ export default function BasketballPreGameScreen({
           aria-label={autoSubActive ? "Turn auto-subs off" : "Turn auto-subs on"}
         >
           <Repeat className="h-3.5 w-3.5" />
-          <span className="font-medium">Auto-subs · {autoSubLabel}</span>
+          <span className="font-medium whitespace-nowrap">Auto-subs · {autoSubLabel}</span>
         </button>
         {hasPresets && !readOnly && (
           <>
