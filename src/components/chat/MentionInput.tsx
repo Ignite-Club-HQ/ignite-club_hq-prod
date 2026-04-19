@@ -20,6 +20,8 @@ interface MentionInputProps {
   clubId?: string;
   groupId?: string;
   showEmojiPicker?: boolean;
+  /** Optional: enables a "GIF" tab in the emoji picker. Receives the selected GIF URL. */
+  onGifSelect?: (gifUrl: string) => void;
 }
 
 interface SuggestedUser {
@@ -261,6 +263,7 @@ export function MentionInput({
   clubId,
   groupId,
   showEmojiPicker = true,
+  onGifSelect,
 }: MentionInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
@@ -567,7 +570,7 @@ export function MentionInput({
       <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-[22px] bg-muted/60 px-1 min-h-[44px] transition-all duration-150">
         {showEmojiPicker && !isKeyboardOpen && (
           <div className="flex items-center h-[44px] opacity-60 transition-all duration-200 animate-in fade-in zoom-in-95">
-            <EmojiPicker onEmojiSelect={handleEmojiSelect} disabled={disabled} />
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
         <div className="relative flex-1 min-w-0 max-w-full overflow-hidden">

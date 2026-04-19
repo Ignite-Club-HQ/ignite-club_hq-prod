@@ -1400,6 +1400,7 @@ export default function ClubChatPage() {
               onKeyPress={handleKeyPress}
               disabled={sendMutation.isPending}
               clubId={clubId}
+              onGifSelect={setImageUrl}
             />
             {scheduleTarget && (
               <ScheduleMessageButton

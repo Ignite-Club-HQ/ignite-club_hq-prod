@@ -1518,6 +1518,7 @@ export default function TeamChatPage() {
             disabled={sendMessageMutation.isPending}
             teamId={teamId}
             clubId={team.club_id}
+            onGifSelect={setImageUrl}
           />
           {scheduleTarget && (
             <ScheduleMessageButton
