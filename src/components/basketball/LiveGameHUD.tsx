@@ -69,17 +69,17 @@ const LiveGameHUD = memo(function LiveGameHUD({
       role="group"
       aria-label="Live game HUD"
     >
-      {/* Row 1 — small control strip */}
-      <div className="flex items-center justify-center gap-2 px-2 pt-0.5 pb-0">
+      {/* Row 1 — small control strip (tightened vertical spacing). */}
+      <div className="flex items-center justify-center gap-2 px-2 pt-px pb-0">
         <div className="flex items-center gap-1">{controlSlot}</div>
         {trailingSlot && (
-          <div className="absolute right-2 top-0.5 flex items-center">{trailingSlot}</div>
+          <div className="absolute right-2 top-px flex items-center">{trailingSlot}</div>
         )}
         {onTogglePosition && (
           <Button
             size="icon"
             variant="ghost"
-            className="absolute right-1 top-0.5 h-6 w-6 min-h-0 min-w-0 rounded-full bg-background/70 border border-border/60 text-foreground/80 hover:text-foreground hover:bg-background shadow-sm"
+            className="absolute right-1 top-px h-6 w-6 min-h-0 min-w-0 rounded-full bg-background/70 border border-border/60 text-foreground/80 hover:text-foreground hover:bg-background shadow-sm"
             onClick={onTogglePosition}
             aria-label={position === "top" ? "Move HUD to bottom" : "Move HUD to top"}
           >
@@ -92,8 +92,8 @@ const LiveGameHUD = memo(function LiveGameHUD({
         )}
       </div>
 
-      {/* Row 2 — dominant scores + scoring buttons */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 pb-1">
+      {/* Row 2 — dominant scores + scoring buttons (tightened). */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 pb-0.5">
         <TeamSide
           label={homeLabel}
           score={homeScore}

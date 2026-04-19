@@ -179,23 +179,20 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
           {player.number}
         </span>
       )}
-      {/* Explicit bench-side hint badges replace the old ambiguous rings.
-          "Next" = coach's planned next sub-in. "Fresh" = lowest minutes played. */}
+      {/* Subtle visual indicators on bench tokens — no text labels.
+          • Next sub-in    → soft emerald glow + small dot
+          • Lowest mins    → small neutral dot only */}
       {variant === "bench" && !isSelected && isNextSub && (
         <span
-          className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 px-1.5 py-[1px] rounded-full bg-emerald-600 text-white text-[8.5px] font-bold uppercase tracking-wide shadow-sm border border-background"
+          className="absolute -top-1 right-0 z-20 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background shadow-[0_0_8px_hsl(142_72%_45%/0.7)]"
           aria-label="Next sub in"
-        >
-          Next
-        </span>
+        />
       )}
       {variant === "bench" && !isSelected && !isNextSub && isLowestMinutes && (
         <span
-          className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 px-1.5 py-[1px] rounded-full bg-muted text-foreground/80 text-[8.5px] font-semibold uppercase tracking-wide shadow-sm border border-border"
-          aria-label="Lowest minutes — most rested"
-        >
-          Fresh
-        </span>
+          className="absolute -top-1 right-0 z-20 h-2 w-2 rounded-full bg-muted-foreground/60 ring-2 ring-background"
+          aria-label="Most rested"
+        />
       )}
       <div className="relative">
         <Avatar
@@ -271,12 +268,11 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         </span>
       ) : (
         <>
-          {/* Extra top margin clears the bottom-attached position badge.
-              Comfortable spacing between name and time so nothing feels cramped. */}
+          {/* Clear visual hierarchy: name (secondary) > time (tertiary, muted). */}
           <span className="mt-2 text-[11px] font-semibold text-foreground leading-tight text-center max-w-full truncate">
             {player.name.split(" ")[0]}
           </span>
-          <span className="mt-0.5 text-[9.5px] text-muted-foreground leading-none tabular-nums">
+          <span className="mt-1 text-[9px] text-muted-foreground/70 leading-none tabular-nums font-normal">
             {restSeconds > 0 ? formatRest(restSeconds) : `${minutes}m`}
             {fouls > 0 && (
               <span className={cn("ml-1", fouled && "text-destructive font-semibold")}>

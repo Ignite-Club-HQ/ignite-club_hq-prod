@@ -511,19 +511,16 @@ export default function BasketballBoard({
                     variant="ghost"
                     className={cn(
                       "h-6 text-[10.5px] font-semibold gap-1.5 px-2 shadow-sm rounded-full backdrop-blur transition-colors",
-                      subDue
-                        ? "bg-primary text-primary-foreground border border-primary hover:bg-primary/90 animate-pulse"
-                        : "bg-card/70 hover:bg-card border border-border/50 text-foreground/75",
+                      // Always low-emphasis. Only the dot indicates urgency.
+                      "bg-card/70 hover:bg-card border border-border/50 text-foreground/75",
                     )}
                     onClick={() => setAutoSubPanelOpen(true)}
                   >
-                    <Repeat className={cn("h-3 w-3", subDue ? "text-primary-foreground" : "text-muted-foreground")} />
+                    <Repeat className="h-3 w-3 text-muted-foreground" />
                     {board.autoSubPlan.length === 0 ? (
                       <span>Auto-subs</span>
                     ) : board.autoSubPaused ? (
                       <span>Paused</span>
-                    ) : subDue ? (
-                      <span className="uppercase tracking-wide">Sub due</span>
                     ) : board.nextSub ? (
                       <>
                         <span className="opacity-70">Next</span>
@@ -540,6 +537,12 @@ export default function BasketballBoard({
                         Subs {board.autoSubPlan.filter((s) => s.executed).length}/
                         {board.autoSubPlan.length}
                       </span>
+                    )}
+                    {subDue && (
+                      <span
+                        className="ml-0.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)] animate-pulse"
+                        aria-label="Sub due"
+                      />
                     )}
                   </Button>
                 </div>

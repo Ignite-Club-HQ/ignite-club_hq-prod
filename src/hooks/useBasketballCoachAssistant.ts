@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cueSubDue } from "@/lib/gameCues";
 import type { BasketballPlayer } from "@/components/basketball/types";
 
@@ -49,7 +49,6 @@ export function useBasketballCoachAssistant({
   totalElapsedSeconds,
   readOnly,
 }: UseBasketballCoachAssistantArgs) {
-  const { toast } = useToast();
 
   const eligible = useMemo(
     () => players.filter((p) => !p.isInjured && !p.isFouledOut),
@@ -132,12 +131,11 @@ export function useBasketballCoachAssistant({
     armedRef.current = false;
     lastAlertSubjectRef.current = subject;
     cueSubDue();
-    toast({
-      title: "Sub suggested",
-      description: `${suggestion.in.name} ON for ${suggestion.out.name}`,
-      duration: 4000,
+    // Compact, single-line sonner toast — never blocks gameplay UI.
+    toast(`Sub: ${suggestion.in.name} → ${suggestion.out.name}`, {
+      duration: 3000,
     });
-  }, [suggestion, isRunning, isGameFinished, paused, totalElapsedSeconds, readOnly, toast, onCourt, bench]);
+  }, [suggestion, isRunning, isGameFinished, paused, totalElapsedSeconds, readOnly, onCourt, bench]);
 
   return {
     overplayedOnCourtId,

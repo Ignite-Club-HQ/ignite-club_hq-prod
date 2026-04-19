@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, ArrowLeftRight, ArrowUpCircle } from "lucide-react";
+import { Users, ArrowLeftRight } from "lucide-react";
 import BasketballPlayerToken from "./BasketballPlayerToken";
 import { BasketballPlayer } from "./types";
 import { cn } from "@/lib/utils";
@@ -62,22 +62,20 @@ export default function BasketballBench({
       )}
     >
       <div className="flex items-center justify-between px-3 pt-1.5 pb-1">
-        <h2 className="text-[11px] font-bold flex items-center gap-1 text-muted-foreground">
+        <h2 className="text-[11px] font-bold flex items-center gap-1.5 text-muted-foreground">
           <Users className="h-3 w-3" /> Bench ({bench.length})
+          {/* Subtle dot replaces the noisy "Sub due" pill. */}
           {showSubDueBadge && !selectedPlayerId && (
-            <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-primary/15 text-primary px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide">
-              Sub due
-            </span>
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)] animate-pulse"
+              aria-label="Sub due"
+            />
           )}
         </h2>
         {!isEmpty && selectedPlayerId ? (
           <span className="text-[10px] text-primary font-medium flex items-center gap-1">
             <ArrowLeftRight className="h-3 w-3" />
             {selectedIsOnCourt ? "Tap a bench player" : "Tap to deselect"}
-          </span>
-        ) : !isEmpty && (nextSubInId || underplayedBenchIds.length > 0 || lowestMinutesId) ? (
-          <span className="text-[10px] text-primary font-medium flex items-center gap-1">
-            <ArrowUpCircle className="h-3 w-3" /> Next up
           </span>
         ) : null}
       </div>
