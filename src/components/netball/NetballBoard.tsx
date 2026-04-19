@@ -65,12 +65,14 @@ import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX, CENTRE_PASS_LOG_MAX } from "@/lib/
 
 // Lazy-load secondary dialogs
 const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
+const NetballGameSettingsDialog = lazy(() => import("./NetballGameSettingsDialog"));
 const QuarterLineupPlanner = lazy(() => import("./QuarterLineupPlanner"));
 const NetballLineupPresetsDialog = lazy(() => import("./NetballLineupPresetsDialog"));
 const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
 const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
-import PreTipoffHint from "@/components/scoreboard/PreTipoffHint";
+import NetballPreGameScreen from "./NetballPreGameScreen";
+import NetballQuarterBreakDialog from "./NetballQuarterBreakDialog";
 
 interface NetballBoardProps {
   teamId: string;
