@@ -49,7 +49,6 @@ export function useBasketballCoachAssistant({
   totalElapsedSeconds,
   readOnly,
 }: UseBasketballCoachAssistantArgs) {
-  const { toast } = useToast();
 
   const eligible = useMemo(
     () => players.filter((p) => !p.isInjured && !p.isFouledOut),
