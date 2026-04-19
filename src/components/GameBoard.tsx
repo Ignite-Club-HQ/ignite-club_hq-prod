@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
-import { Loader2 } from "lucide-react";
 import { detectGameBoardKind, GameBoardKind } from "@/lib/sportDetection";
+import SportLoadingIndicator from "@/components/SportLoadingIndicator";
 
 /**
  * GameBoard dispatcher.
@@ -45,12 +45,6 @@ interface GameBoardProps {
   };
 }
 
-const Loading = () => (
-  <div className="flex-1 flex items-center justify-center min-h-[300px] bg-card">
-    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-  </div>
-);
-
 export default function GameBoard({
   sport,
   teamId,
@@ -64,7 +58,7 @@ export default function GameBoard({
   const kind: GameBoardKind = detectGameBoardKind(sport);
 
   return (
-    <Suspense fallback={<Loading />}>
+    <Suspense fallback={<SportLoadingIndicator kind={kind === "basketball" ? "basketball" : kind === "netball" ? "netball" : "default"} />}>
       {kind === "basketball" ? (
         <BasketballBoard
           teamId={teamId}
