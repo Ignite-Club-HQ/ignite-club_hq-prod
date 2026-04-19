@@ -65,12 +65,14 @@ import { trimLog, SUB_LOG_MAX, SCORE_LOG_MAX, CENTRE_PASS_LOG_MAX } from "@/lib/
 
 // Lazy-load secondary dialogs
 const NetballSettingsDialog = lazy(() => import("./NetballSettingsDialog"));
+const NetballGameSettingsDialog = lazy(() => import("./NetballGameSettingsDialog"));
 const QuarterLineupPlanner = lazy(() => import("./QuarterLineupPlanner"));
 const NetballLineupPresetsDialog = lazy(() => import("./NetballLineupPresetsDialog"));
 const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
 const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
-import PreTipoffHint from "@/components/scoreboard/PreTipoffHint";
+import NetballPreGameScreen from "./NetballPreGameScreen";
+import NetballQuarterBreakDialog from "./NetballQuarterBreakDialog";
 
 interface NetballBoardProps {
   teamId: string;
@@ -140,19 +142,33 @@ export default function NetballBoard({
 
   const buildInitialPlayers = (): NetballPlayer[] => {
     if (savedStateRef.current?.players?.length) return savedStateRef.current.players;
-    return members
-      .filter((m) => m.role === "player" || m.role === "parent" || m.role === "coach")
-      .slice(0, 14)
-      .map((m, idx) => ({
-        id: m.id,
-        name: m.profiles?.display_name?.trim() || `Player ${idx + 1}`,
-        position: idx < 7 ? NETBALL_POSITIONS[idx] : null,
-        minutesPlayed: 0,
-        preferredPositions: [],
-      }));
+    // ROSTER SEEDING: strictly player-role only (matches basketball board).
+    // Children assigned to the team are passed in as role:"player" too.
+    // Parents, coaches, and admins are NOT part of the squad — coaches add
+    // them via the roster dialog or via the "Add 12 mocks" shortcut.
+    const playersOnly = members.filter((m) => m.role === "player");
+    return playersOnly.slice(0, 14).map((m, idx) => ({
+      id: m.id,
+      name: m.profiles?.display_name?.trim() || `Player ${idx + 1}`,
+      position: idx < 7 ? NETBALL_POSITIONS[idx] : null,
+      minutesPlayed: 0,
+      goals: 0,
+      preferredPositions: [],
+    }));
   };
 
   const [players, setPlayers] = useState<NetballPlayer[]>(buildInitialPlayers);
+
+  // Hydrate squad once members arrive (fetch is async — on first mount
+  // `members` is often empty, and without this effect the roster dialog
+  // would stay empty forever).
+  useEffect(() => {
+    if (players.length > 0) return;
+    if (!members || members.length === 0) return;
+    if (savedStateRef.current?.players?.length) return;
+    setPlayers(buildInitialPlayers());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members]);
   const [rotationMode, setRotationMode] = useState<RotationMode>(
     savedStateRef.current?.rotationMode ?? "off"
   );
@@ -256,6 +272,33 @@ export default function NetballBoard({
   );
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // Pending quarter-break subs — surfaced in NetballQuarterBreakDialog so the
+  // coach approves rotations instead of having them apply silently.
+  const [pendingQuarterSubs, setPendingQuarterSubs] = useState<{
+    quarter: Quarter;
+    subs: NetballSubEvent[];
+  } | null>(null);
+  // Brief glow on the two tokens involved in the most recent swap.
+  const [recentlySwappedIds, setRecentlySwappedIds] = useState<string[]>([]);
+  const recentClearTimerRef = useRef<number | null>(null);
+  const flashRecentSwap = useCallback((ids: string[]) => {
+    setRecentlySwappedIds(ids);
+    if (recentClearTimerRef.current != null) {
+      window.clearTimeout(recentClearTimerRef.current);
+    }
+    recentClearTimerRef.current = window.setTimeout(() => {
+      setRecentlySwappedIds([]);
+      recentClearTimerRef.current = null;
+    }, 700);
+  }, []);
+  useEffect(
+    () => () => {
+      if (recentClearTimerRef.current != null) {
+        window.clearTimeout(recentClearTimerRef.current);
+      }
+    },
+    []
+  );
   // Auto-sub control panel state
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [autoSubPaused, setAutoSubPaused] = useState(
@@ -487,39 +530,9 @@ export default function NetballBoard({
           (s) => !s.executed && !s.skipped && s.quarter === nextQuarter && s.time === 0
         );
         if (dueSubs.length > 0) {
-          // N19 audit fix (mirrors basketball B22): apply ALL quarter-break
-          // subs in ONE atomic setPlayers pass. `dueSubs.forEach(executeSub)`
-          // runs each through its own setPlayers updater — earlier subs
-          // displace players to the bench, so later subs see "playerOut not
-          // on court" or "playerIn not on bench" and silently no-op.
-          const subKeys = new Set(dueSubs.map(getSubKey));
-          setPlayers((prev) => {
-            let next = prev;
-            for (const sub of dueSubs) {
-              const out = next.find((p) => p.id === sub.playerOut.id);
-              const inP = next.find((p) => p.id === sub.playerIn.id);
-              if (!out?.position || !inP || inP.position !== null) continue;
-              next = next.map((p) => {
-                if (p.id === out.id) return transitionPosition(p, null);
-                if (p.id === inP.id) return transitionPosition(p, sub.position);
-                return p;
-              });
-            }
-            return next;
-          });
-          setAutoSubPlan((prev) =>
-            prev.map((s) => (subKeys.has(getSubKey(s)) ? { ...s, executed: true } : s))
-          );
-          dueSubs.forEach((sub) =>
-            appendSubLog({
-              playerOutId: sub.playerOut.id,
-              playerOutName: sub.playerOut.name,
-              playerInId: sub.playerIn.id,
-              playerInName: sub.playerIn.name,
-              position: sub.position,
-              source: "auto",
-            })
-          );
+          // Surface the planned subs in NetballQuarterBreakDialog so the
+          // coach approves them — mirrors basketball.
+          setPendingQuarterSubs({ quarter: nextQuarter, subs: dueSubs });
         }
       }
     },
@@ -732,6 +745,114 @@ export default function NetballBoard({
       prev.map((p) => (p.id === playerId ? { ...p, isInjured: !p.isInjured } : p))
     );
   }, []);
+
+  /**
+   * Direct drag-and-drop assignment used by the pre-game lineup picker.
+   * Mirrors basketball's assignToPosition semantics with netball validation.
+   */
+  const assignToPosition = useCallback(
+    (playerId: string, position: NetballPosition | null) => {
+      if (readOnly) return;
+      // Validate up-front (avoid toasts inside setPlayers — audit fix N9).
+      if (position) {
+        const incoming = players.find((p) => p.id === playerId);
+        if (incoming && validationMode !== "free") {
+          const allowed = isPositionAllowedForPlayer(incoming, position);
+          if (!allowed) {
+            if (validationMode === "strict") {
+              toast({
+                title: "Move blocked",
+                description: `${incoming.name} can't play ${position} in strict mode.`,
+                variant: "destructive",
+              });
+              return;
+            }
+            toast({
+              title: "Position warning",
+              description: `${incoming.name} isn't a preferred ${position}.`,
+            });
+          }
+        }
+      }
+      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
+      setPlayers((prev) => {
+        const incoming = prev.find((p) => p.id === playerId);
+        if (!incoming) return prev;
+        if (incoming.position === position) return prev;
+        if (position === null) {
+          return prev.map((p) =>
+            p.id === incoming.id ? transitionPosition(p, null) : p
+          );
+        }
+        const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
+        if (incoming.position === null && displaced) {
+          logEntry = {
+            playerOutId: displaced.id,
+            playerOutName: displaced.name,
+            playerInId: incoming.id,
+            playerInName: incoming.name,
+            position,
+            source: "manual",
+          };
+        }
+        return prev.map((p) => {
+          if (p.id === incoming.id) return transitionPosition(p, position);
+          if (p.position === position && p.id !== incoming.id) {
+            return transitionPosition(p, incoming.position);
+          }
+          return p;
+        });
+      });
+      if (logEntry) appendSubLog(logEntry);
+    },
+    [readOnly, players, validationMode, toast, appendSubLog]
+  );
+
+  // ---------- Pending quarter-break dialog handlers ----------
+  const confirmPendingQuarterSubs = useCallback(() => {
+    if (!pendingQuarterSubs) return;
+    const subs = pendingQuarterSubs.subs;
+    const subKeys = new Set(subs.map(getSubKey));
+    setPlayers((prev) => {
+      let next = prev;
+      for (const sub of subs) {
+        const out = next.find((p) => p.id === sub.playerOut.id);
+        const inP = next.find((p) => p.id === sub.playerIn.id);
+        if (!out?.position || !inP || inP.position !== null) continue;
+        next = next.map((p) => {
+          if (p.id === out.id) return transitionPosition(p, null);
+          if (p.id === inP.id) return transitionPosition(p, sub.position);
+          return p;
+        });
+      }
+      return next;
+    });
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (subKeys.has(getSubKey(s)) ? { ...s, executed: true } : s))
+    );
+    subs.forEach((sub) =>
+      appendSubLog({
+        playerOutId: sub.playerOut.id,
+        playerOutName: sub.playerOut.name,
+        playerInId: sub.playerIn.id,
+        playerInName: sub.playerIn.name,
+        position: sub.position,
+        source: "auto",
+      })
+    );
+    setPendingQuarterSubs(null);
+  }, [pendingQuarterSubs, appendSubLog]);
+
+  const skipPendingQuarterSubs = useCallback(() => {
+    if (!pendingQuarterSubs) return;
+    const skippedKeys = new Set(pendingQuarterSubs.subs.map(getSubKey));
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (skippedKeys.has(getSubKey(s)) ? { ...s, skipped: true } : s))
+    );
+    setPendingQuarterSubs(null);
+    toast({ title: "Subs skipped", description: `Q${pendingQuarterSubs.quarter} rotation cleared.` });
+  }, [pendingQuarterSubs, toast]);
+
 
   // ---------- Undo last sub ----------
   const undoLastSub = useCallback(() => {
@@ -1225,22 +1346,7 @@ export default function NetballBoard({
               trailingSlot={<SyncStatusIndicator />}
             />
 
-            {/* Pre-tipoff nudge — only before the very first whistle. */}
-            {!readOnly &&
-              timerState.currentQuarter === 1 &&
-              timerState.elapsedSeconds === 0 &&
-              !timerState.isRunning &&
-              !timerState.isGameFinished && (
-                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-1rem)] max-w-md">
-                  <PreTipoffHint
-                    required={7}
-                    currentOnCourt={getOnCourt(players).length}
-                    onOpenPlanner={() => setLineupPlannerOpen(true)}
-                    onOpenPresets={() => setPresetsOpen(true)}
-                    hasPresets={lineupPresets.length > 0}
-                  />
-                </div>
-              )}
+            {/* Pre-tipoff nudge replaced by full pre-game screen branch above. */}
 
             {/* Centre-pass chip — soft floating pill near the bottom. */}
             <div className="absolute bottom-1.5 left-2 z-20">
