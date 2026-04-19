@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import NetballQuarterTimer from "./NetballQuarterTimer";
 import LiveGameHUD from "@/components/basketball/LiveGameHUD";
 import NetballLiveHUD from "./NetballLiveHUD";
-import NetballCentrePassChip from "./NetballCentrePassChip";
+
 import NetballLiveActionBar from "./NetballLiveActionBar";
 import NetballActionBar from "./NetballActionBar";
 import NetballCourtArea from "./NetballCourtArea";
@@ -1710,25 +1710,6 @@ export default function NetballBoard({
               onTogglePosition={toggleHudPosition}
             />
 
-            {/* ── COMPACT CENTRE-PASS CHIP — small overlay above court bottom.
-                Shifts up when the HUD is pinned to the bottom so it doesn't
-                collide with the timer/score bar. ── */}
-            <div
-              className={cn(
-                "absolute left-1/2 -translate-x-1/2 z-20",
-                hudPosition === "bottom" ? "bottom-[5.25rem]" : "bottom-1.5",
-              )}
-            >
-              <NetballCentrePassChip
-                homeLabel={teamName}
-                awayLabel={opponentName}
-                side={timerState.centrePass ?? "home"}
-                readOnly={readOnly}
-                onSwap={() =>
-                  setCentrePass((prev) => (prev === "home" ? "away" : "home"))
-                }
-              />
-            </div>
           </>
         )}
 
