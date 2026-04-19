@@ -22,9 +22,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import NetballPreGameLineup from "./NetballPreGameLineup";
+import NetballRotationPreview from "./NetballRotationPreview";
 import {
   NetballPlayer,
   NetballPosition,
+  NetballSubEvent,
   NETBALL_POSITIONS,
   PeriodType,
   RotationMode,
@@ -54,6 +56,8 @@ interface NetballPreGameScreenProps {
   onRotationIntervalChange?: (n: number) => void;
   onPreviewPlan?: () => void;
   hasAutoSubPlan?: boolean;
+  /** Full plan — drives the inline preview card and the Rotation tab. */
+  autoSubPlan?: NetballSubEvent[];
 
   validationMode?: ValidationMode;
 
@@ -100,6 +104,7 @@ export default function NetballPreGameScreen({
   onRotationIntervalChange,
   onPreviewPlan,
   hasAutoSubPlan = false,
+  autoSubPlan = [],
   validationMode = "warn",
   onOpenSettings,
   onOpenSquad,
@@ -243,8 +248,19 @@ export default function NetballPreGameScreen({
           <TabsTrigger value="lineup" className="text-[11px] font-semibold">
             Lineup
           </TabsTrigger>
-          <TabsTrigger value="rotation" className="text-[11px] font-semibold">
+          <TabsTrigger
+            value="rotation"
+            className="text-[11px] font-semibold gap-1"
+          >
             Rotation
+            {autoSubActive && hasAutoSubPlan && (
+              <span
+                className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-bold tabular-nums"
+                aria-label={`${autoSubPlan.length} swaps planned`}
+              >
+                {autoSubPlan.length}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="stats" className="text-[11px] font-semibold">
             Stats
@@ -319,16 +335,20 @@ export default function NetballPreGameScreen({
 
         <TabsContent
           value="rotation"
-          className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden p-6 text-center text-sm text-muted-foreground flex items-center justify-center"
+          className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden flex flex-col overflow-hidden"
         >
-          <div className="space-y-2 max-w-xs">
-            <Repeat className="h-8 w-8 mx-auto opacity-50" />
-            <p className="font-medium text-foreground">Rotation planner</p>
-            <p className="text-xs">
-              Visualise auto-sub rotations and like-for-like swaps before
-              the whistle. Coming soon.
-            </p>
-          </div>
+          <NetballRotationPreview
+            rotationMode={rotationMode}
+            rotationIntervalMinutes={rotationIntervalMinutes}
+            autoSubPlan={autoSubPlan}
+            players={players}
+            minutesPerQuarter={minutesPerQuarter}
+            periodType={periodType}
+            onEditPlan={() => onOpenLineups?.()}
+            onPreviewPlan={() => onPreviewPlan?.()}
+            onToggleAutoSub={(next) => onToggleAutoSub?.(next)}
+            readOnly={readOnly}
+          />
         </TabsContent>
 
         <TabsContent

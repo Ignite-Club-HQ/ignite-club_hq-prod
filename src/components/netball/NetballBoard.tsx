@@ -82,6 +82,7 @@ const NetballPlayerCard = lazy(() => import("./NetballPlayerCard"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 import NetballPreGameScreen from "./NetballPreGameScreen";
 import NetballQuarterBreakDialog from "./NetballQuarterBreakDialog";
+import NetballKickoffConfirm from "./NetballKickoffConfirm";
 
 interface NetballBoardProps {
   teamId: string;
@@ -341,6 +342,12 @@ export default function NetballBoard({
   );
   // Auto-sub control panel state
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
+  // True when the panel was opened from the pre-game screen — drives previewMode.
+  const [autoSubPanelPreview, setAutoSubPanelPreview] = useState(false);
+  // Tracks whether coach has previewed the plan this session — if not, the
+  // kickoff reminder fires when they tap "Ready to start" with auto-subs on.
+  const [hasReviewedAutoSubs, setHasReviewedAutoSubs] = useState(false);
+  const [kickoffConfirmOpen, setKickoffConfirmOpen] = useState(false);
   const [autoSubPaused, setAutoSubPaused] = useState(
     savedStateRef.current?.autoSubPaused ?? false
   );
@@ -1258,6 +1265,8 @@ export default function NetballBoard({
     } else if (rotationMode === "quarter-break") {
       setAutoSubPlan(generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters"));
     }
+    // Plan changed → coach must review again before kickoff.
+    setHasReviewedAutoSubs(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, rosterSignature]);
 
@@ -1497,21 +1506,31 @@ export default function NetballBoard({
             setRotationIntervalMinutes(n);
             persistDefaults({ court_rotation_interval_minutes: n });
           }}
-          onPreviewPlan={() => setAutoSubPanelOpen(true)}
+          onPreviewPlan={() => {
+            setHasReviewedAutoSubs(true);
+            setAutoSubPanelPreview(true);
+            setAutoSubPanelOpen(true);
+          }}
           hasAutoSubPlan={autoSubPlan.some((s) => !s.executed && !s.skipped)}
+          autoSubPlan={autoSubPlan}
           validationMode={validationMode}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSquad={() => setRosterOpen(true)}
           onOpenPresets={() => setPresetsOpen(true)}
           onOpenLineups={() => setLineupPlannerOpen(true)}
           hasPresets={lineupPresets.length > 0}
-          onStartGame={() =>
+          onStartGame={() => {
+            const hasPending = autoSubPlan.some((s) => !s.executed && !s.skipped);
+            if (rotationMode !== "off" && hasPending && !hasReviewedAutoSubs) {
+              setKickoffConfirmOpen(true);
+              return;
+            }
             setTimerState((s) => ({
               ...s,
               isRunning: true,
               lastUpdateTime: Date.now(),
-            }))
-          }
+            }));
+          }}
           onBack={onClose}
           readOnly={readOnly}
         />
@@ -1567,7 +1586,10 @@ export default function NetballBoard({
           {autoSubPanelOpen && (
             <QuarterAutoSubControlPanel
               open={autoSubPanelOpen}
-              onClose={() => setAutoSubPanelOpen(false)}
+              onClose={() => {
+                setAutoSubPanelOpen(false);
+                setAutoSubPanelPreview(false);
+              }}
               autoSubPlan={autoSubPlan}
               onPlayers={onCourtForPanel}
               currentQuarter={timerState.currentQuarter}
@@ -1582,9 +1604,34 @@ export default function NetballBoard({
               onCancelPlan={cancelAutoSubPlan}
               onRegeneratePlan={regenerateAutoSubPlan}
               onToggleLockPlayer={toggleLockPlayer}
+              onEditPlan={() => setLineupPlannerOpen(true)}
+              previewMode={autoSubPanelPreview}
             />
           )}
         </Suspense>
+
+        <NetballKickoffConfirm
+          open={kickoffConfirmOpen}
+          onOpenChange={setKickoffConfirmOpen}
+          rotationIntervalMinutes={rotationIntervalMinutes}
+          plannedSubsCount={
+            autoSubPlan.filter((s) => !s.executed && !s.skipped).length
+          }
+          onPreview={() => {
+            setHasReviewedAutoSubs(true);
+            setAutoSubPanelPreview(true);
+            setAutoSubPanelOpen(true);
+          }}
+          onConfirm={() => {
+            setKickoffConfirmOpen(false);
+            setHasReviewedAutoSubs(true);
+            setTimerState((s) => ({
+              ...s,
+              isRunning: true,
+              lastUpdateTime: Date.now(),
+            }));
+          }}
+        />
       </>
     );
   }
