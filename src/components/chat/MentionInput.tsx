@@ -271,7 +271,6 @@ export function MentionInput({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
-  const isKeyboardOpen = useKeyboardOpen();
 
   // Parse segments from raw value
   const segments = useMemo(() => parseRawValue(value), [value]);
