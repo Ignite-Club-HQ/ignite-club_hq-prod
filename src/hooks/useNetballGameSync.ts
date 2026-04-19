@@ -116,6 +116,9 @@ export function useNetballGameSync(
         if (error) {
           console.error("[netball-sync] update failed", error);
           activeGameIdRef.current = null;
+          setSyncStatus({ status: "error", lastSyncTime: Date.now(), error: error.message });
+        } else {
+          setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
         }
         return;
       }
