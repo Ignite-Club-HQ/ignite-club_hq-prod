@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import {
   Pause, Play, Lock, Unlock, X, Check, Pencil, Clock,
   ChevronDown, ChevronUp, SkipForward, RefreshCcw,
@@ -320,7 +320,7 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
           {/* Timeline */}
           {showTimeline && (
             <div className="rounded-xl border border-border overflow-hidden">
-              <ScrollArea className="max-h-[50vh]">
+              <div>
                 <div className="divide-y divide-border">
                   {periodsToShow.map((q) => {
                     // For halves, group Q1+Q2 under H1, Q3+Q4 under H2
@@ -462,7 +462,7 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           )}
 
