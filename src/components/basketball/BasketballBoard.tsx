@@ -294,6 +294,12 @@ export default function BasketballBoard({
             board.setRotationMode(next);
             persistDefaults({ court_rotation_mode: next });
           }}
+          onRotationIntervalChange={(n) => {
+            board.setRotationIntervalMinutes(n);
+            persistDefaults({ court_rotation_interval_minutes: n });
+          }}
+          onPreviewPlan={() => setAutoSubPanelOpen(true)}
+          hasAutoSubPlan={board.autoSubPlan.some((s) => !s.executed && !s.skipped)}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSquad={() => setRosterOpen(true)}
           onOpenPresets={() => setPresetsOpen(true)}
