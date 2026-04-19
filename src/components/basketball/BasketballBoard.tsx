@@ -455,12 +455,21 @@ export default function BasketballBoard({
               awayScore={board.timerState.awayScore ?? 0}
               increments={[1, 2, 3]}
               readOnly={readOnly}
-              disabled={!!board.timerState.isGameFinished}
+              // Scoring buttons stay disabled until the game is actually
+              // in progress (clock has started, not yet finished).
+              disabled={!gameInProgress || !!board.timerState.isGameFinished}
               onScore={(side, pts) => {
                 // Away score → straight through. Home score → ask which
                 // on-court player to credit (coach can also pick "Team only").
                 if (side === "away") {
                   board.addScore("away", pts);
+                  return;
+                }
+                // No on-court players to attribute → team-only directly so
+                // the tap isn't silently swallowed by an empty picker.
+                const onCourt = board.players.filter((p) => p.position !== null);
+                if (onCourt.length === 0) {
+                  board.addScore("home", pts);
                   return;
                 }
                 setPendingScore(pts);
