@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { ZoomIn } from "lucide-react";
 import {
   BasketballPlayer,
   BasketballPosition,
@@ -11,6 +12,7 @@ import BasketballCourt from "./BasketballCourt";
 import BasketballFullCourt from "./BasketballFullCourt";
 import BasketballPlayerToken from "./BasketballPlayerToken";
 import { findPlayerInPosition } from "./basketballHelpers";
+import { usePinchZoom } from "@/hooks/usePinchZoom";
 
 interface BasketballCourtAreaProps {
   players: BasketballPlayer[];
@@ -55,11 +57,34 @@ export default function BasketballCourtArea({
   const slots = courtView === "full" ? POSITION_SLOTS_FULL : POSITION_SLOTS;
   const aspect = courtView === "full" ? "aspect-square" : "aspect-[5/7]";
 
+  const {
+    scale,
+    translateX,
+    translateY,
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd,
+    resetZoom,
+  } = usePinchZoom(1, 4);
+
+  const isZoomed = scale > 1.01;
+
   return (
-    <div className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 p-2">
+    <div className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 p-2 overflow-hidden">
       {/* Width is derived from available height so the whole court is always visible
           without scrolling. max-w-sm caps it on tall/narrow screens. */}
-      <div className={cn("relative h-full max-h-full mx-auto", aspect)} style={{ maxWidth: "100%" }}>
+      <div
+        className={cn("relative h-full max-h-full mx-auto touch-none select-none", aspect)}
+        style={{
+          maxWidth: "100%",
+          transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`,
+          transformOrigin: "center center",
+          transition: isZoomed ? "none" : "transform 0.2s ease-out",
+        }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
         {courtView === "full" ? (
           <BasketballFullCourt className="absolute inset-0 w-full h-full rounded-lg" />
         ) : (
@@ -115,6 +140,18 @@ export default function BasketballCourtArea({
           );
         })}
       </div>
+
+      {isZoomed && (
+        <button
+          type="button"
+          onClick={resetZoom}
+          className="absolute top-2 right-2 z-10 h-8 px-2 rounded-md bg-background/90 backdrop-blur border border-border text-xs font-medium text-foreground shadow-md flex items-center gap-1 active:scale-95 transition"
+          aria-label="Reset zoom"
+        >
+          <ZoomIn className="h-3.5 w-3.5" />
+          {scale.toFixed(1)}× · Reset
+        </button>
+      )}
     </div>
   );
 }
