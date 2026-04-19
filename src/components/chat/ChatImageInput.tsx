@@ -483,31 +483,10 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   </div>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setGifPickerOpen(true);
-                }}
-                disabled={disabled || uploading}
-                className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
-                aria-label="Send a GIF"
-              >
-                <Sparkles className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
-                <div className="flex flex-col items-start leading-tight">
-                  <span className="text-sm font-medium">Send a GIF</span>
-                  <span className="text-[11px] text-muted-foreground">Search GIPHY</span>
-                </div>
-              </button>
             </div>
           </PopoverContent>
         </Popover>
       )}
-      <GifPickerSheet
-        open={gifPickerOpen}
-        onOpenChange={setGifPickerOpen}
-        onSelect={(gifUrl) => onImageUploaded(gifUrl)}
-      />
     </div>
   );
 }
