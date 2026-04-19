@@ -229,24 +229,22 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         )}
       </div>
       {/* Backed name+minutes label. On-court players get a high-contrast pill
-          so text never sits directly on the court. Bench keeps the lighter
-          treatment so the court visually dominates. */}
+          that slightly overlaps the token so the two read as a single piece. */}
       {variant === "court" ? (
         <span
           className={cn(
-            "mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md",
-            "bg-background/95 border border-border shadow-sm backdrop-blur-sm",
-            "text-[10px] font-semibold text-foreground leading-none max-w-[72px]"
+            "-mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md",
+            "bg-background/95 border border-border shadow-md backdrop-blur-sm",
+            "text-[10.5px] leading-none max-w-[76px]"
           )}
         >
-          <span className="truncate">{player.name.split(" ")[0]}</span>
-          <span className="text-muted-foreground font-medium">·</span>
-          <span className="tabular-nums text-foreground/80">
+          <span className="truncate font-bold text-foreground">{player.name.split(" ")[0]}</span>
+          <span className="tabular-nums font-medium text-muted-foreground">
             {`${minutes}m`}
           </span>
           {fouls > 0 && (
-            <span className={cn("tabular-nums", fouled ? "text-destructive font-bold" : "text-muted-foreground")}>
-              · {fouls}F
+            <span className={cn("tabular-nums font-medium", fouled ? "text-destructive font-bold" : "text-muted-foreground")}>
+              {fouls}F
             </span>
           )}
         </span>
