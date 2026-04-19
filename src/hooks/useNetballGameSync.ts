@@ -63,7 +63,7 @@ export function useNetballGameSync(
     if (!force && signature === lastSignatureRef.current) return;
     lastSignatureRef.current = signature;
 
-    setSyncStatus({ status: "syncing", lastSyncTime: Date.now() });
+    setSyncStatus({ status: "syncing", lastSyncTime: null });
 
     const isFinished = !!timerState.isGameFinished;
     if (isFinished) {
@@ -75,6 +75,7 @@ export function useNetballGameSync(
           .eq("id", activeGameIdRef.current);
         activeGameIdRef.current = null;
       }
+      setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
       return;
     }
 
@@ -115,6 +116,9 @@ export function useNetballGameSync(
         if (error) {
           console.error("[netball-sync] update failed", error);
           activeGameIdRef.current = null;
+          setSyncStatus({ status: "error", lastSyncTime: Date.now(), error: error.message });
+        } else {
+          setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
         }
         return;
       }
