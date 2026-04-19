@@ -1,8 +1,15 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Bookmark, Play, Repeat, Settings, Users } from "lucide-react";
+import { ArrowLeft, Bookmark, Eye, Play, Repeat, Settings, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import BasketballPreGameLineup from "./BasketballPreGameLineup";
 import { BasketballPlayer, BasketballPosition, PeriodType, RotationMode } from "./types";
+
+/** Speed options shown in the inline rotation selector. Mirrors soccer's coach UX. */
+const ROTATION_SPEEDS: { minutes: number; label: string }[] = [
+  { minutes: 3, label: "3m" },
+  { minutes: 4, label: "4m" },
+  { minutes: 5, label: "5m" },
+];
 
 interface BasketballPreGameScreenProps {
   teamName: string;
@@ -21,6 +28,12 @@ interface BasketballPreGameScreenProps {
   rotationMode?: RotationMode;
   rotationIntervalMinutes?: number;
   onToggleAutoSub?: (next: RotationMode) => void;
+  /** Direct-set the rotation interval (used by the inline 3m/4m/5m selector). */
+  onRotationIntervalChange?: (n: number) => void;
+  /** Open the auto-sub plan preview sheet. Hidden when no plan exists. */
+  onPreviewPlan?: () => void;
+  /** True when the auto-sub plan has at least one upcoming sub. */
+  hasAutoSubPlan?: boolean;
 
   onOpenSettings: () => void;
   onOpenSquad: () => void;
@@ -50,6 +63,9 @@ export default function BasketballPreGameScreen({
   rotationMode = "off",
   rotationIntervalMinutes = 4,
   onToggleAutoSub,
+  onRotationIntervalChange,
+  onPreviewPlan,
+  hasAutoSubPlan = false,
   onOpenSettings,
   onOpenSquad,
   onOpenPresets,
@@ -64,11 +80,10 @@ export default function BasketballPreGameScreen({
   const periodCount = periodType === "halves" ? 2 : 4;
   const squadEmpty = players.length === 0;
   const autoSubActive = rotationMode !== "off";
-  const autoSubLabel = autoSubActive
-    ? rotationMode === "time-based"
-      ? `${rotationIntervalMinutes}m`
-      : "Per period"
-    : "Off";
+  // Time-based is the speed-driven mode. Quarter-break stays available via
+  // Settings → here we only expose the inline quick-speed picker.
+  const showSpeedPicker = autoSubActive && rotationMode === "time-based";
+  const canPreview = autoSubActive && hasAutoSubPlan && lineupReady && !!onPreviewPlan;
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
@@ -132,23 +147,70 @@ export default function BasketballPreGameScreen({
           </span>
         </button>
         <span className="text-muted-foreground/50">·</span>
-        <button
-          type="button"
-          onClick={() => onToggleAutoSub?.(autoSubActive ? "off" : "time-based")}
-          disabled={readOnly || !onToggleAutoSub}
-          role="switch"
-          aria-checked={autoSubActive}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 transition-colors disabled:opacity-60",
-            autoSubActive
-              ? "bg-primary/15 text-primary font-semibold"
-              : "text-muted-foreground hover:text-foreground"
+        {/* Auto-sub toggle: tap "Auto-subs" to flip on/off; when on, pick a speed inline. */}
+        <div className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onToggleAutoSub?.(autoSubActive ? "off" : "time-based")}
+            disabled={readOnly || !onToggleAutoSub}
+            role="switch"
+            aria-checked={autoSubActive}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 transition-colors disabled:opacity-60",
+              autoSubActive
+                ? "bg-primary/15 text-primary font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            aria-label={autoSubActive ? "Turn auto-subs off" : "Turn auto-subs on"}
+          >
+            <Repeat className="h-3.5 w-3.5" />
+            <span className="font-medium whitespace-nowrap">
+              Auto-subs{!autoSubActive && " · Off"}
+            </span>
+          </button>
+
+          {showSpeedPicker && (
+            <div
+              role="radiogroup"
+              aria-label="Rotation speed"
+              className="inline-flex items-center rounded-full border border-border/60 bg-background/60 p-0.5"
+            >
+              {ROTATION_SPEEDS.map((opt) => {
+                const active = rotationIntervalMinutes === opt.minutes;
+                return (
+                  <button
+                    key={opt.minutes}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={readOnly || !onRotationIntervalChange}
+                    onClick={() => onRotationIntervalChange?.(opt.minutes)}
+                    className={cn(
+                      "px-1.5 h-5 rounded-full text-[10px] font-semibold tabular-nums transition-colors disabled:opacity-60",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
-          aria-label={autoSubActive ? "Turn auto-subs off" : "Turn auto-subs on"}
-        >
-          <Repeat className="h-3.5 w-3.5" />
-          <span className="font-medium whitespace-nowrap">Auto-subs · {autoSubLabel}</span>
-        </button>
+
+          {canPreview && (
+            <button
+              type="button"
+              onClick={onPreviewPlan}
+              className="inline-flex items-center gap-1 text-primary hover:underline font-medium ml-0.5"
+              aria-label="Preview auto-sub plan"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span className="whitespace-nowrap">Preview</span>
+            </button>
+          )}
+        </div>
         {hasPresets && !readOnly && (
           <>
             <span className="text-muted-foreground/50">·</span>

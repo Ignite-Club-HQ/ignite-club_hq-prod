@@ -294,6 +294,12 @@ export default function BasketballBoard({
             board.setRotationMode(next);
             persistDefaults({ court_rotation_mode: next });
           }}
+          onRotationIntervalChange={(n) => {
+            board.setRotationIntervalMinutes(n);
+            persistDefaults({ court_rotation_interval_minutes: n });
+          }}
+          onPreviewPlan={() => setAutoSubPanelOpen(true)}
+          hasAutoSubPlan={board.autoSubPlan.some((s) => !s.executed && !s.skipped)}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSquad={() => setRosterOpen(true)}
           onOpenPresets={() => setPresetsOpen(true)}
@@ -356,6 +362,26 @@ export default function BasketballBoard({
               presets={board.lineupPresets}
               onSave={board.setLineupPresets}
               onApply={board.applyPreset}
+            />
+          )}
+          {autoSubPanelOpen && (
+            <QuarterAutoSubControlPanel
+              open={autoSubPanelOpen}
+              onClose={() => setAutoSubPanelOpen(false)}
+              autoSubPlan={board.autoSubPlan}
+              onPlayers={board.players.filter((p) => p.position !== null) as any}
+              currentQuarter={board.timerState.currentQuarter}
+              currentElapsedSeconds={board.timerState.elapsedSeconds}
+              minutesPerQuarter={board.timerState.minutesPerQuarter}
+              periodType={board.timerState.periodType ?? "quarters"}
+              autoSubPaused={board.autoSubPaused}
+              lockedPlayerIds={board.lockedPlayerIds}
+              onTogglePause={board.toggleAutoSubPaused}
+              onExecuteNow={board.executeNextSubNow}
+              onSkipNext={board.skipNextSub}
+              onCancelPlan={board.cancelAutoSubPlan}
+              onRegeneratePlan={board.regenerateAutoSubPlan}
+              onToggleLockPlayer={board.toggleLockPlayer}
             />
           )}
         </Suspense>
