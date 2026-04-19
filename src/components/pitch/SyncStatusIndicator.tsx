@@ -2,12 +2,27 @@ import { useSyncStatus, SyncStatus } from "@/hooks/useSyncStatus";
 import { Cloud, CloudOff, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
 
 export function SyncStatusIndicator() {
   const { status, lastSyncTime } = useSyncStatus();
+  // Tick once a second so a stale "syncing" status (e.g. left over in
+  // localStorage from a previous session that crashed before resolving)
+  // is reclassified as idle and the spinner disappears.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (status !== "syncing") return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [status]);
+  // If "syncing" has been showing for >5s without a lastSyncTime update,
+  // treat it as stale and hide the indicator entirely.
+  const syncAge = lastSyncTime ? now - lastSyncTime : Infinity;
+  const effectiveStatus: SyncStatus =
+    status === "syncing" && syncAge > 5000 ? "idle" : status;
 
-  const getStatusConfig = (status: SyncStatus) => {
-    switch (status) {
+  const getStatusConfig = (s: SyncStatus) => {
+    switch (s) {
       case "syncing":
         return {
           icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
@@ -35,11 +50,11 @@ export function SyncStatusIndicator() {
     }
   };
 
-  const config = getStatusConfig(status);
+  const config = getStatusConfig(effectiveStatus);
   const timeAgo = lastSyncTime ? Math.floor((Date.now() - lastSyncTime) / 1000) : null;
 
   // Only show when actively syncing or has an error - hide the green tick when synced
-  if (status === "idle" || status === "synced") return null;
+  if (effectiveStatus === "idle" || effectiveStatus === "synced") return null;
 
   return (
     <TooltipProvider>
@@ -50,7 +65,7 @@ export function SyncStatusIndicator() {
             config.color
           )}>
             {config.icon}
-            <span className="hidden sm:inline">{status === "syncing" ? "Syncing" : "Error"}</span>
+            <span className="hidden sm:inline">{effectiveStatus === "syncing" ? "Syncing" : "Error"}</span>
           </div>
         </TooltipTrigger>
         <TooltipContent>
