@@ -1,89 +1,110 @@
 import { useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, ArrowLeftRight, ArrowUpCircle } from "lucide-react";
+import { Users, ArrowLeftRight } from "lucide-react";
 import NetballPlayerToken from "./NetballPlayerToken";
 import { NetballPlayer } from "./types";
+import { cn } from "@/lib/utils";
 
 interface NetballBenchProps {
   bench: NetballPlayer[];
   selectedPlayerId: string | null;
-  /** Bench player who is queued to come on next (from auto-sub plan). */
-  nextSubInId?: string | null;
-  /** True when the currently-selected player is on the court (so bench tokens
-   * are valid swap targets — drives the "ON" pulse badge). */
+  /** True when the selected player is on the court — bench tokens become swap targets. */
   selectedIsOnCourt?: boolean;
+  /** Bench player queued to come on next (from auto-sub plan). */
+  nextSubInId?: string | null;
+  /** Top under-played bench ids — drives "most rested" dot. */
+  underplayedBenchIds?: string[];
+  /** Subtle dot next to the bench label when a sub is due. */
+  showSubDueBadge?: boolean;
+  recentlySwappedIds?: string[];
   readOnly?: boolean;
   onPlayerClick: (playerId: string) => void;
-  /** Long-press opens the player's quick action sheet (mark injured, etc.). */
   onPlayerLongPress?: (playerId: string) => void;
 }
 
+/**
+ * Restyled to mirror BasketballBench: subtle muted bench tray, dot
+ * indicators instead of loud text labels, comfortable padding so chip ·
+ * name · time read with breathing room.
+ */
 export default function NetballBench({
   bench,
   selectedPlayerId,
-  nextSubInId = null,
   selectedIsOnCourt = false,
+  nextSubInId = null,
+  underplayedBenchIds = [],
+  showSubDueBadge = false,
+  recentlySwappedIds = [],
   readOnly = false,
   onPlayerClick,
   onPlayerLongPress,
 }: NetballBenchProps) {
-  // Fallback: highlight bench player with lowest minutes when no auto-sub
-  // is queued — gives the coach a "next up" cue based on equal-time fairness.
   const lowestMinutesId = useMemo(() => {
     if (nextSubInId) return null;
+    if (underplayedBenchIds.length > 0) return null;
     const eligible = bench.filter((p) => !p.isInjured);
     if (eligible.length === 0) return null;
     return eligible.reduce((lo, p) =>
-      (p.minutesPlayed ?? 0) < (lo.minutesPlayed ?? 0) ? p : lo
+      (p.minutesPlayed ?? 0) < (lo.minutesPlayed ?? 0) ? p : lo,
     ).id;
-  }, [bench, nextSubInId]);
+  }, [bench, nextSubInId, underplayedBenchIds]);
+
+  const isEmpty = bench.length === 0;
 
   return (
-    <div className="border-t bg-card">
-      <div className="flex items-center justify-between px-3 py-1.5">
-        <h2 className="text-xs font-bold flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" /> Bench ({bench.length})
+    <div
+      className={cn(
+        "relative flex-shrink-0",
+        "bg-muted/40 border-t border-border/60",
+        "pb-[max(0.5rem,env(safe-area-inset-bottom))]",
+        "before:content-[''] before:absolute before:inset-x-0 before:-top-3 before:h-3 before:bg-gradient-to-b before:from-transparent before:to-muted/40 before:pointer-events-none",
+      )}
+    >
+      <div className="flex items-center justify-between px-3 pt-1.5 pb-1">
+        <h2 className="text-[11px] font-bold flex items-center gap-1.5 text-muted-foreground">
+          <Users className="h-3 w-3" /> Bench ({bench.length})
+          {showSubDueBadge && !selectedPlayerId && (
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)] animate-pulse"
+              aria-label="Sub due"
+            />
+          )}
         </h2>
-        {selectedPlayerId ? (
-          <span className="text-[10px] text-primary font-bold flex items-center gap-1 animate-pulse">
-            <ArrowLeftRight className="h-3 w-3" />
-            {selectedIsOnCourt ? "Tap a bench player to sub on" : "Tap a court slot or player"}
-          </span>
-        ) : (nextSubInId || lowestMinutesId) ? (
+        {!isEmpty && selectedPlayerId ? (
           <span className="text-[10px] text-primary font-medium flex items-center gap-1">
-            <ArrowUpCircle className="h-3 w-3" /> Next up
+            <ArrowLeftRight className="h-3 w-3" />
+            {selectedIsOnCourt ? "Tap a bench player" : "Tap to deselect"}
           </span>
         ) : null}
       </div>
-      <ScrollArea className="w-full">
-        <div className="flex gap-2 px-3 pb-3 min-h-[68px]">
-          {bench.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic py-3">No bench players.</p>
-          ) : (
-            bench.map((p) => (
-              <NetballPlayerToken
-                key={p.id}
-                player={p}
-                variant="bench"
-                isSelected={selectedPlayerId === p.id}
-                // Bench tokens are valid swap targets only when the picked-up
-                // player is on the court (court→bench sub). Bench→bench swaps
-                // are nonsensical, so we don't pulse them.
-                isSwapTarget={
-                  !!selectedPlayerId &&
-                  selectedPlayerId !== p.id &&
-                  selectedIsOnCourt &&
-                  !p.isInjured
-                }
-                isNextSub={nextSubInId === p.id || lowestMinutesId === p.id}
-                onClick={() => onPlayerClick(p.id)}
-                onLongPress={onPlayerLongPress ? () => onPlayerLongPress(p.id) : undefined}
-                readOnly={readOnly}
-              />
-            ))
-          )}
-        </div>
-      </ScrollArea>
+      {!isEmpty && (
+        <ScrollArea className="w-full">
+          <div className="flex gap-2.5 px-2.5 pt-2 pb-3">
+            {bench.map((p) => {
+              const isSelected = selectedPlayerId === p.id;
+              const isSwapTarget = !!selectedPlayerId && selectedIsOnCourt && !isSelected;
+              const isUnderplayed = underplayedBenchIds.includes(p.id);
+              return (
+                <NetballPlayerToken
+                  key={p.id}
+                  player={p}
+                  variant="bench"
+                  isSelected={isSelected}
+                  isSwapTarget={isSwapTarget}
+                  isRecentlySwapped={recentlySwappedIds.includes(p.id)}
+                  isNextSub={nextSubInId === p.id}
+                  isLowestMinutes={isUnderplayed || lowestMinutesId === p.id}
+                  onClick={() => onPlayerClick(p.id)}
+                  onLongPress={
+                    onPlayerLongPress ? () => onPlayerLongPress(p.id) : undefined
+                  }
+                  readOnly={readOnly}
+                />
+              );
+            })}
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
 }

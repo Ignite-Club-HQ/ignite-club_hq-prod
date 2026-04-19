@@ -1,9 +1,31 @@
 import { memo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { NetballPlayer, NetballPosition, POSITION_COLORS } from "./types";
+import { NetballPlayer, NetballPosition } from "./types";
 import { Pin, AlertTriangle } from "lucide-react";
 import { useNowTick, formatRest } from "@/hooks/useNowTick";
+
+/**
+ * Netball player token — restyled to mirror BasketballPlayerToken.
+ *
+ * Solid, high-contrast position colours; glossy avatar with strong shadow;
+ * bottom-attached position pill; on-court tokens get a name+minutes "label
+ * pill" so the chip + label read as a single physical piece on the court.
+ *
+ * Position colours are intentionally redefined here (not from types.ts) so
+ * the court tokens stop using the soft translucent fills that bled into
+ * the netball court background.
+ */
+
+const POSITION_TOKEN_COLORS: Record<NetballPosition, { bg: string; text: string; border: string }> = {
+  GS: { bg: "bg-red-600",     text: "text-white", border: "border-red-300" },
+  GA: { bg: "bg-orange-600",  text: "text-white", border: "border-orange-300" },
+  WA: { bg: "bg-amber-600",   text: "text-white", border: "border-amber-300" },
+  C:  { bg: "bg-emerald-600", text: "text-white", border: "border-emerald-300" },
+  WD: { bg: "bg-sky-600",     text: "text-white", border: "border-sky-300" },
+  GD: { bg: "bg-indigo-600",  text: "text-white", border: "border-indigo-300" },
+  GK: { bg: "bg-violet-600",  text: "text-white", border: "border-violet-300" },
+};
 
 interface NetballPlayerTokenProps {
   player: NetballPlayer;
@@ -12,8 +34,13 @@ interface NetballPlayerTokenProps {
   isSelected?: boolean;
   isSwapTarget?: boolean;
   isInvalidTarget?: boolean;
+  /** When true, dims this token so the user's eye is drawn to swap targets. */
+  isDimmed?: boolean;
+  /** Briefly glows the token after a recent swap. */
+  isRecentlySwapped?: boolean;
   isDragging?: boolean;
   isNextSub?: boolean;
+  isLowestMinutes?: boolean;
   onClick?: () => void;
   /** Long-press (~500ms) opens the quick action sheet. Tap = direct sub-mode. */
   onLongPress?: () => void;
@@ -31,8 +58,11 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
   isSelected = false,
   isSwapTarget = false,
   isInvalidTarget = false,
+  isDimmed = false,
+  isRecentlySwapped = false,
   isDragging = false,
   isNextSub = false,
+  isLowestMinutes = false,
   onClick,
   onLongPress,
   onDragStart,
@@ -41,25 +71,7 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
   readOnly = false,
   style,
 }: NetballPlayerTokenProps) {
-  const initials = player.name
-    .split(" ")
-    .map(n => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-
-  const pos = position ?? player.position;
-  const colors = pos ? POSITION_COLORS[pos] : null;
-  const minutes = Math.floor((player.minutesPlayed ?? 0) / 60);
-  const now = useNowTick(5000);
-  const restSeconds =
-    variant === "bench" && player.lastBenchedAt
-      ? Math.max(0, Math.floor((now - player.lastBenchedAt) / 1000))
-      : 0;
-
-  // Long-press detection — 500ms hold opens the quick action sheet without
-  // hijacking the tap-to-swap flow. We bail if the pointer moves >8px
-  // (treat as a drag start) or lifts before the timer fires.
+  // Long-press detection — 500ms hold opens the quick action sheet.
   const longPressTimerRef = useRef<number | null>(null);
   const longPressFiredRef = useRef(false);
   const pressStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -87,8 +99,6 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
   };
   const handlePointerUp = () => clearLongPress();
   const handleClick = () => {
-    // Suppress the synthetic click that follows a long-press release so we
-    // don't fire both the menu AND the sub-mode toggle.
     if (longPressFiredRef.current) {
       longPressFiredRef.current = false;
       return;
@@ -96,8 +106,22 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
     onClick?.();
   };
 
-  const showOffBadge = isSelected && variant === "court";
-  const showOnBadge = isSwapTarget && !isInvalidTarget;
+  const initials = player.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  const pos = position ?? player.position;
+  const colors = pos ? POSITION_TOKEN_COLORS[pos] : null;
+  const minutes = Math.floor((player.minutesPlayed ?? 0) / 60);
+  const goals = player.goals ?? 0;
+  const now = useNowTick(5000);
+  const restSeconds =
+    variant === "bench" && player.lastBenchedAt
+      ? Math.max(0, Math.floor((now - player.lastBenchedAt) / 1000))
+      : 0;
 
   return (
     <button
@@ -114,82 +138,130 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
       onDragEnd={onDragEnd}
       onTouchStart={onTouchStart}
       style={style}
-      aria-label={`${player.name}${pos ? ` at ${pos}` : " on bench"}`}
+      aria-label={`${player.name}${pos ? ` at ${pos}` : " on bench"}${goals > 0 ? `, ${goals} goals` : ""}`}
       className={cn(
-        "relative flex flex-col items-center gap-1 transition-all touch-manipulation select-none",
-        variant === "court" ? "w-14" : "w-12",
+        "relative flex flex-col items-center gap-0 touch-manipulation select-none",
+        "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
+        "active:scale-[0.92] active:duration-75",
+        variant === "court" ? "w-16" : "w-12",
         isDragging && "opacity-40 scale-90",
-        isSelected && "scale-110 z-20 drop-shadow-[0_0_8px_hsl(var(--primary)/0.6)]",
-        isSwapTarget && !isInvalidTarget && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background rounded-full animate-pulse",
-        isInvalidTarget && "opacity-50",
-        isNextSub && !isSelected && !isSwapTarget && "animate-pulse",
-        readOnly && "pointer-events-none"
+        isSelected &&
+          "scale-110 z-20 drop-shadow-[0_0_16px_hsl(var(--primary)/0.75)] ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
+        isSwapTarget && !isInvalidTarget &&
+          "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background rounded-full animate-pulse",
+        isInvalidTarget &&
+          "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full opacity-60",
+        isDimmed && !isSelected && !isSwapTarget && "opacity-40",
+        isRecentlySwapped && "drop-shadow-[0_0_16px_hsl(var(--primary)/0.85)] animate-fade-in",
+        isNextSub && !isSelected && variant === "court" &&
+          "ring-2 ring-orange-400 ring-offset-2 ring-offset-background rounded-full animate-pulse drop-shadow-[0_0_12px_rgba(251,146,60,0.7)]",
+        readOnly && "pointer-events-none",
       )}
     >
-      {showOffBadge && (
-        <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 bg-primary text-primary-foreground text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-md">
-          OFF
-        </span>
-      )}
-      {showOnBadge && (
-        <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 bg-emerald-500 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-md animate-pulse">
-          ON
-        </span>
-      )}
-      {player.isInjured && (
-        <span className="absolute -top-1 -right-1 z-10 bg-destructive text-destructive-foreground rounded-full p-0.5">
+      {/* Status badges */}
+      {player.isInjured ? (
+        <span
+          className="absolute -top-1 -right-1 z-10 bg-destructive text-destructive-foreground rounded-full p-0.5"
+          title="Injured"
+        >
           <AlertTriangle className="h-3 w-3" />
         </span>
-      )}
-      {player.isFillIn && (
-        <span className="absolute -top-1 -left-1 z-10 bg-amber-500 text-white rounded-full p-0.5">
+      ) : player.isFillIn ? (
+        <span className="absolute -top-1 -right-1 z-10 bg-amber-500 text-white rounded-full p-0.5">
           <Pin className="h-3 w-3" />
         </span>
-      )}
+      ) : null}
       {player.number !== undefined && (
         <span
-          className={cn(
-            "absolute -top-1 -left-1 z-10 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-background border border-border text-[10px] font-bold text-foreground shadow-sm",
-            player.isFillIn && "left-auto -right-1"
-          )}
+          className="absolute -top-1 -left-1 z-10 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-background border border-border text-[10px] font-bold text-foreground shadow-sm"
           aria-hidden
         >
           {player.number}
         </span>
       )}
+      {/* Bench-side subtle dot indicators (no text labels) */}
+      {variant === "bench" && !isSelected && isNextSub && (
+        <span
+          className="absolute -top-1 right-0 z-20 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background shadow-[0_0_8px_hsl(142_72%_45%/0.7)]"
+          aria-label="Next sub in"
+        />
+      )}
+      {variant === "bench" && !isSelected && !isNextSub && isLowestMinutes && (
+        <span
+          className="absolute -top-1 right-0 z-20 h-2 w-2 rounded-full bg-muted-foreground/60 ring-2 ring-background"
+          aria-label="Most rested"
+        />
+      )}
+
       <div className="relative">
         <Avatar
           className={cn(
-            "border-2 shadow-md",
-            variant === "court" ? "h-11 w-11" : "h-10 w-10",
-            colors?.border ?? "border-border"
+            "shadow-[0_3px_8px_rgba(0,0,0,0.35),0_1px_2px_rgba(0,0,0,0.25)] transition-shadow",
+            "ring-2 ring-black/30",
+            variant === "court" ? "h-13 w-13 border-[3px]" : "h-10 w-10 border-2",
+            colors?.border ?? "border-border",
           )}
+          style={variant === "court" ? { height: "3.25rem", width: "3.25rem" } : undefined}
         >
-          <AvatarFallback className={cn("text-xs font-bold", colors?.bg, colors?.text)}>
-            {initials}
+          <AvatarFallback
+            className={cn(
+              "font-extrabold relative",
+              variant === "court" ? "text-sm" : "text-xs",
+              colors?.bg,
+              colors?.text,
+              "before:absolute before:inset-0 before:rounded-full before:pointer-events-none",
+              "before:bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0)_55%)]",
+            )}
+          >
+            <span className="relative z-10">{initials}</span>
           </AvatarFallback>
         </Avatar>
         {pos && (
           <span
             className={cn(
-              "absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold rounded px-1 border",
+              "absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-20 text-[9px] font-bold rounded px-1.5 py-px border shadow-sm leading-none",
               colors?.bg,
               colors?.text,
-              colors?.border
+              colors?.border,
             )}
           >
             {pos}
           </span>
         )}
+        {goals > 0 && (
+          <span
+            className="absolute -bottom-1 -right-1 z-10 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-sm ring-1 ring-background"
+            aria-hidden
+          >
+            {goals}
+          </span>
+        )}
       </div>
-      <span className="text-[10px] font-medium text-foreground/90 leading-tight text-center max-w-full truncate">
-        {player.name.split(" ")[0]}
-      </span>
-      <span className="text-[9px] text-muted-foreground leading-none">
-        {variant === "bench" && restSeconds > 0
-          ? `rest ${formatRest(restSeconds)}`
-          : `${minutes}m`}
-      </span>
+
+      {/* Label — on-court players get a high-contrast pill; bench gets stacked text. */}
+      {variant === "court" ? (
+        <span
+          className={cn(
+            "mt-2 inline-flex items-center justify-center gap-1.5 px-2.5 py-[3px] rounded-md",
+            "bg-background border border-border shadow-[0_1px_3px_rgba(0,0,0,0.25)]",
+            "text-[10.5px] leading-none min-w-[3.25rem] max-w-[84px]",
+          )}
+        >
+          <span className="truncate font-bold tracking-tight text-foreground">
+            {player.name.split(" ")[0]}
+          </span>
+          <span className="tabular-nums font-normal text-muted-foreground">{`${minutes}m`}</span>
+        </span>
+      ) : (
+        <>
+          <span className="mt-2 text-[11px] font-semibold text-foreground leading-tight text-center max-w-full truncate">
+            {player.name.split(" ")[0]}
+          </span>
+          <span className="mt-1 text-[9px] text-muted-foreground/70 leading-none tabular-nums font-normal">
+            {restSeconds > 0 ? formatRest(restSeconds) : `${minutes}m`}
+          </span>
+        </>
+      )}
     </button>
   );
 });

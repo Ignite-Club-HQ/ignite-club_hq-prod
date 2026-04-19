@@ -1145,120 +1145,142 @@ export default function NetballBoard({
     saveGameResult,
   ]);
 
-  // ---------- Render ----------
+  // ---------- Render — three-zone shell mirroring BasketballBoard ----------
+  // TOP    — full-bleed court with floating LiveGameHUD overlay (back chip,
+  //          scoreboard, timer, scoring buttons). The court fills the viewport.
+  // MIDDLE — bench tray (clean muted surface, dot indicators).
+  // BOTTOM — undo + game summary actions.
+  // All netball-specific panels (centre-pass stats, momentum, watchlist,
+  // settings, lineup planner, presets, roster) are reachable via the action
+  // bar that lives below the bench, so the live court isn't visually noisy.
+  const selectedIsOnCourt = !!selectedPlayer && selectedPlayer.position !== null;
+  const selectedIsOnBench = !!selectedPlayer && selectedPlayer.position === null;
+  const opponentName = timerState.opponentName ?? "Opponent";
+  const gameInProgress =
+    !!timerState.isRunning ||
+    timerState.currentQuarter > 1 ||
+    timerState.elapsedSeconds > 0 ||
+    (timerState.scoreLog?.length ?? 0) > 0;
+
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <header className="flex items-center justify-between gap-2 p-2 border-b bg-card">
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-sm truncate">{teamName}</h1>
-          <p className="text-[10px] text-muted-foreground">Netball Game Board</p>
-        </div>
-        <SyncStatusIndicator />
-        <CuesToggle />
-        <NetballQuarterTimer
-          state={timerState}
-          onChange={setTimerState}
-          onTick={handleTick}
-          onQuarterEnd={handleQuarterEnd}
-          onReset={resetPlayerStats}
-          readOnly={readOnly}
-        />
-      </header>
-
-      {/* Linked event header (link/unlink a scheduled match). */}
-      <LinkedEventHeader
-        eventId={linkedEventId || ""}
-        teamId={teamId}
-        teamName={teamName}
-        compact
-        onLinkEvent={readOnly ? undefined : setLinkedEventId}
-        currentScore={{
-          team: timerState.homeScore ?? 0,
-          opponent: timerState.awayScore ?? 0,
-        }}
-        isGameInProgress={!!timerState.isRunning && !timerState.isGameFinished}
-      />
-
-      <GameScoreboard
-        homeLabel={teamName}
-        awayLabel={timerState.opponentName ?? "Opponent"}
-        homeScore={timerState.homeScore ?? 0}
-        awayScore={timerState.awayScore ?? 0}
-        increments={[1]}
-        readOnly={readOnly}
-        disabled={!!timerState.isGameFinished}
-        onScore={addScore}
-        onUndo={undoScore}
-        onRenameAway={setOpponentName}
-        canUndo={(timerState.scoreLog?.length ?? 0) > 0}
-      />
-
-      <QuarterScoreStrip
-        scoreLog={timerState.scoreLog}
-        currentQuarter={timerState.currentQuarter}
-        periodType={timerState.periodType ?? "quarters"}
-      />
-
-      <CentrePassIndicator
-        homeLabel={teamName}
-        awayLabel={timerState.opponentName ?? "Opponent"}
-        side={timerState.centrePass ?? "home"}
-        readOnly={readOnly}
-        onSwap={() =>
-          setCentrePass((prev) => (prev === "home" ? "away" : "home"))
-        }
-      />
-
-      <CentrePassStatsPanel
-        homeLabel={teamName}
-        awayLabel={timerState.opponentName ?? "Opponent"}
-        log={timerState.centrePassLog}
-        currentQuarter={timerState.currentQuarter}
-      />
-
-      <BenchFairnessMeter
-        players={players}
-        elapsedSeconds={totalElapsedSeconds(
-          timerState.currentQuarter,
-          timerState.elapsedSeconds,
-          timerState.minutesPerQuarter,
-          timerState.periodType
+    <div className="flex flex-col h-full bg-background overflow-hidden">
+      {/* ── COURT — full-bleed primary surface with floating HUD overlay ── */}
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* Tap-outside-to-cancel scrim while a player is selected. */}
+        {selectedPlayer && (
+          <button
+            type="button"
+            aria-label="Cancel substitution"
+            onClick={() => setSelectedPlayerId(null)}
+            className="absolute inset-0 z-10 cursor-default bg-transparent"
+          />
         )}
-      />
 
-      <MomentumStrip scoreLog={timerState.scoreLog} />
+        {selectedPlayer ? (
+          <SubModeBanner
+            selectedPlayer={selectedPlayer}
+            onCancel={() => setSelectedPlayerId(null)}
+          />
+        ) : (
+          <>
+            {/* Floating back chip */}
+            <Button
+              size="icon"
+              onClick={onClose}
+              aria-label="Close"
+              className="absolute z-40 top-2 left-2 h-9 w-9 rounded-full bg-foreground text-background hover:bg-foreground/90 border-2 border-background shadow-xl"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
 
-      <FoulFatigueWatchlist
-        sport="netball"
-        players={players}
-        currentQuarter={timerState.currentQuarter}
-        totalElapsedSeconds={totalElapsedSeconds(
-          timerState.currentQuarter,
-          timerState.elapsedSeconds,
-          timerState.minutesPerQuarter,
-          timerState.periodType
+            {/* Floating HUD — scoreboard + compact timer over the court. */}
+            <LiveGameHUD
+              homeLabel={teamName}
+              awayLabel={opponentName}
+              homeScore={timerState.homeScore ?? 0}
+              awayScore={timerState.awayScore ?? 0}
+              increments={[1]}
+              readOnly={readOnly}
+              disabled={!gameInProgress || !!timerState.isGameFinished}
+              onScore={(side, pts) => addScore(side, pts)}
+              suppressed={!!selectedPlayerId}
+              controlSlot={
+                <NetballQuarterTimer
+                  state={timerState}
+                  onChange={setTimerState}
+                  onTick={handleTick}
+                  onQuarterEnd={handleQuarterEnd}
+                  onReset={resetPlayerStats}
+                  readOnly={readOnly}
+                  compact
+                  onOpenAutoSubPlan={
+                    !readOnly && rotationMode !== "off"
+                      ? () => setAutoSubPanelOpen(true)
+                      : undefined
+                  }
+                  hasAutoSubPlan={autoSubPlan.length > 0}
+                />
+              }
+              trailingSlot={<SyncStatusIndicator />}
+            />
+
+            {/* Pre-tipoff nudge — only before the very first whistle. */}
+            {!readOnly &&
+              timerState.currentQuarter === 1 &&
+              timerState.elapsedSeconds === 0 &&
+              !timerState.isRunning &&
+              !timerState.isGameFinished && (
+                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-1rem)] max-w-md">
+                  <PreTipoffHint
+                    required={7}
+                    currentOnCourt={getOnCourt(players).length}
+                    onOpenPlanner={() => setLineupPlannerOpen(true)}
+                    onOpenPresets={() => setPresetsOpen(true)}
+                    hasPresets={lineupPresets.length > 0}
+                  />
+                </div>
+              )}
+
+            {/* Centre-pass chip — soft floating pill near the bottom. */}
+            <div className="absolute bottom-1.5 left-2 z-20">
+              <CentrePassIndicator
+                homeLabel={teamName}
+                awayLabel={opponentName}
+                side={timerState.centrePass ?? "home"}
+                readOnly={readOnly}
+                onSwap={() =>
+                  setCentrePass((prev) => (prev === "home" ? "away" : "home"))
+                }
+              />
+            </div>
+          </>
         )}
-        minutesPerQuarter={timerState.minutesPerQuarter}
-      />
 
-      {!readOnly && (
-        <SmartSubSuggestion
+        <NetballCourtArea
           players={players}
-          totalElapsedSeconds={totalElapsedSeconds(
-            timerState.currentQuarter,
-            timerState.elapsedSeconds,
-            timerState.minutesPerQuarter,
-            timerState.periodType
-          )}
-          isRunning={timerState.isRunning && !timerState.isGameFinished}
-          onApplySub={(outId, inId) => performSwap(outId, inId)}
+          selectedPlayerId={selectedPlayerId}
+          selectedIsOnBench={selectedIsOnBench}
+          nextSubOutId={nextSub?.playerOut.id ?? null}
+          readOnly={readOnly}
+          hideEmptySlots
+          onPlayerClick={handlePlayerClick}
+          onPlayerLongPress={handlePlayerLongPress}
+          onSlotClick={handleSlotClick}
         />
-      )}
+      </div>
 
+      {/* ── BENCH ── */}
+      <NetballBench
+        bench={bench}
+        selectedPlayerId={selectedPlayerId}
+        selectedIsOnCourt={selectedIsOnCourt}
+        nextSubInId={nextSub?.playerIn.id ?? null}
+        readOnly={readOnly}
+        onPlayerClick={handlePlayerClick}
+        onPlayerLongPress={handlePlayerLongPress}
+      />
+
+      {/* ── ACTION BAR — opens netball-specific panels (squad, lineups, settings) ── */}
       {!readOnly && (
         <NetballActionBar
           onOpenSquad={() => setRosterOpen(true)}
@@ -1272,103 +1294,27 @@ export default function NetballBoard({
         />
       )}
 
-      {/* Pre-tipoff nudge: only before the very first whistle. */}
-      {!readOnly &&
-        timerState.currentQuarter === 1 &&
-        timerState.elapsedSeconds === 0 &&
-        !timerState.isRunning &&
-        !timerState.isGameFinished && (
-          <PreTipoffHint
-            required={7}
-            currentOnCourt={getOnCourt(players).length}
-            onOpenPlanner={() => setLineupPlannerOpen(true)}
-            onOpenPresets={() => setPresetsOpen(true)}
-            hasPresets={lineupPresets.length > 0}
-          />
-        )}
-
-      {!readOnly && rotationMode !== "off" && autoSubPlan.length > 0 && (
-        <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-primary/5">
-          <span className="text-[11px] text-muted-foreground">
-            Auto-subs: {autoSubPlan.filter((s) => s.executed).length}/{autoSubPlan.length}
-            {autoSubPaused && <span className="ml-1.5 text-amber-600 font-medium">· Paused</span>}
-            {lockedPlayerIds.size > 0 && (
-              <span className="ml-1.5 text-amber-600">· {lockedPlayerIds.size} locked</span>
-            )}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs gap-1"
-            onClick={() => setAutoSubPanelOpen(true)}
-          >
-            <Repeat className="h-3.5 w-3.5" />
-            Subs Plan
-          </Button>
-        </div>
-      )}
-
-      {/* Sub-mode banner: persistent affordance so coaches always know who
-          they've picked up and how to back out. Soccer-pitch-board parity. */}
-      {!readOnly && selectedPlayer && (
-        <SubModeBanner
-          selectedPlayer={selectedPlayer}
-          onCancel={() => setSelectedPlayerId(null)}
-        />
-      )}
-
-      <NetballCourtArea
-        players={players}
-        selectedPlayerId={selectedPlayerId}
-        nextSubOutId={nextSub?.playerOut.id ?? null}
-        readOnly={readOnly}
-        onPlayerClick={handlePlayerClick}
-        onPlayerLongPress={handlePlayerLongPress}
-        onSlotClick={handleSlotClick}
-      />
-
-      <NetballBench
-        bench={bench}
-        selectedPlayerId={selectedPlayerId}
-        nextSubInId={nextSub?.playerIn.id ?? null}
-        selectedIsOnCourt={selectedPlayer?.position != null}
-        readOnly={readOnly}
-        onPlayerClick={handlePlayerClick}
-        onPlayerLongPress={handlePlayerLongPress}
-      />
-
       {!readOnly && (canUndoSub || (timerState.scoreLog?.length ?? 0) > 0) && (
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t bg-muted/20">
+        <div className="flex items-center justify-between gap-2 px-2 py-1 border-t bg-muted/10">
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 text-xs"
-            onClick={undoLastSub}
-            disabled={!canUndoSub}
+            className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
+            onClick={(timerState.scoreLog?.length ?? 0) > 0 ? undoScore : undoLastSub}
+            disabled={!canUndoSub && (timerState.scoreLog?.length ?? 0) === 0}
           >
-            <Undo2 className="h-3.5 w-3.5 mr-1" />
-            Undo last sub
+            <Undo2 className="h-3 w-3 mr-1" />
+            Undo
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="h-8 text-xs"
+            className="h-7 text-[11px]"
             onClick={() => setSummaryOpen(true)}
           >
-            <Trophy className="h-3.5 w-3.5 mr-1" />
+            <Trophy className="h-3 w-3 mr-1" />
             Game summary
           </Button>
-        </div>
-      )}
-
-      {validationMode !== "free" && (
-        <div className="px-3 py-1 bg-muted/40 border-t flex items-center gap-1.5">
-          <AlertTriangle className="h-3 w-3 text-muted-foreground" />
-          <p className="text-[10px] text-muted-foreground">
-            {validationMode === "strict"
-              ? "Strict mode: invalid moves are blocked."
-              : "Warn mode: invalid moves trigger a warning."}
-          </p>
         </div>
       )}
 
