@@ -698,6 +698,16 @@ export default function NetballBoard({
     [selectedPlayerId, performSwap, readOnly, players, subConfirm]
   );
 
+  const handlePlayerLongPress = useCallback(
+    (playerId: string) => {
+      if (readOnly) return;
+      // Long-press always opens the action sheet (score, mark injured, etc.)
+      // — clear any in-progress swap first so the user isn't fighting state.
+      setSelectedPlayerId(null);
+      setQuickActionPlayerId(playerId);
+    },
+    [readOnly]
+  );
 
   const handleSlotClick = useCallback(
     (position: NetballPosition) => {
@@ -722,36 +732,100 @@ export default function NetballBoard({
           });
         }
       }
-      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
-      setPlayers((prev) => {
-        const incoming = prev.find((p) => p.id === selectedPlayerId);
-        if (!incoming) return prev;
-        const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
-        // Only log a sub when the incoming was on the bench AND a real player
-        // was displaced. Empty-slot fills aren't subs (no playerOut) — logging
-        // them with playerOutId="" would orphan the entry and break undo.
-        if (incoming.position === null && displaced) {
-          logEntry = {
-            playerOutId: displaced.id,
-            playerOutName: displaced.name,
-            playerInId: incoming.id,
-            playerInName: incoming.name,
-            position,
-            source: "manual",
-          };
+  const handleSlotClick = useCallback(
+    (position: NetballPosition) => {
+      if (readOnly || !selectedPlayerId) return;
+      // Position lock: in strict/warn mode, validate against preferredPositions
+      const incoming = players.find((p) => p.id === selectedPlayerId);
+      if (incoming && validationMode !== "free") {
+        const ok = isPositionAllowedForPlayer(incoming, position);
+        if (!ok) {
+          if (validationMode === "strict") {
+            toast({
+              title: "Move blocked",
+              description: `${incoming.name} can't play ${position} in strict mode.`,
+              variant: "destructive",
+            });
+            setSelectedPlayerId(null);
+            return;
+          }
+          toast({
+            title: "Position warning",
+            description: `${incoming.name} isn't a preferred ${position}.`,
+          });
         }
-        return prev.map((p) => {
-          if (p.id === incoming.id) return transitionPosition(p, position);
-          // CRITICAL: bench the displaced player. Without this both players
-          // would hold the same position simultaneously (data corruption).
-          if (p.id === displaced?.id) return transitionPosition(p, null);
-          return p;
+      }
+      // Build the actual mutation as a deferred closure so the confirm
+      // dialog can fire it on user approval.
+      const commit = () => {
+        let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
+        setPlayers((prev) => {
+          const incoming = prev.find((p) => p.id === selectedPlayerId);
+          if (!incoming) return prev;
+          const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
+          // Only log a sub when the incoming was on the bench AND a real player
+          // was displaced. Empty-slot fills aren't subs (no playerOut) — logging
+          // them with playerOutId="" would orphan the entry and break undo.
+          if (incoming.position === null && displaced) {
+            logEntry = {
+              playerOutId: displaced.id,
+              playerOutName: displaced.name,
+              playerInId: incoming.id,
+              playerInName: incoming.name,
+              position,
+              source: "manual",
+            };
+          }
+          return prev.map((p) => {
+            if (p.id === incoming.id) return transitionPosition(p, position);
+            // CRITICAL: bench the displaced player. Without this both players
+            // would hold the same position simultaneously (data corruption).
+            if (p.id === displaced?.id) return transitionPosition(p, null);
+            return p;
+          });
         });
-      });
-      if (logEntry) appendSubLog(logEntry);
-      setSelectedPlayerId(null);
+        if (logEntry) appendSubLog(logEntry);
+        setSelectedPlayerId(null);
+      };
+
+      const displaced = players.find(
+        (p) => p.position === position && p.id !== selectedPlayerId,
+      );
+      const incomingFromBench = incoming && incoming.position === null;
+      if (incomingFromBench && displaced) {
+        // Bench → court substitution (replacing a player).
+        subConfirm.request(
+          {
+            kind: "sub-on",
+            primaryName: incoming.name,
+            secondaryName: displaced.name,
+            position,
+          },
+          commit,
+        );
+      } else if (incoming && incoming.position !== null && displaced) {
+        // Court → court swap into an occupied slot.
+        subConfirm.request(
+          {
+            kind: "swap-court",
+            primaryName: incoming.name,
+            secondaryName: displaced.name,
+            position,
+          },
+          commit,
+        );
+      } else if (incomingFromBench && !displaced) {
+        // Bench → empty slot (still a sub-on, just no displacement).
+        subConfirm.request(
+          { kind: "sub-on", primaryName: incoming!.name, position },
+          commit,
+        );
+      } else {
+        // Court → empty slot — same player, just repositioning. No confirm needed.
+        commit();
+      }
     },
-    [readOnly, selectedPlayerId, appendSubLog, players, validationMode, toast]
+    [readOnly, selectedPlayerId, appendSubLog, players, validationMode, toast, subConfirm]
   );
 
   const subOff = useCallback(
