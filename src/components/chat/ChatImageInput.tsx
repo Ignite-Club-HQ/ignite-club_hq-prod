@@ -357,10 +357,11 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   }
 
   // Show photo button inline; event + poll behind a "+" popover.
-  // Photo upload is ALSO mirrored inside the "+" popover because many users
+  // Photo upload is ALWAYS mirrored inside the "+" popover because many users
   // (e.g. parents coming from WhatsApp/Messenger) instinctively look for
   // attachments behind a "+" rather than tapping the dedicated image icon.
-  const hasExtraActions = (showEventPicker && onEventSelect) || (showPollCreator && onPollCreate) || (showBoardPicker && onBoardPick);
+  // The "+" button is therefore shown unconditionally, even when there are no
+  // event/poll/board extras to surface.
 
   return (
     <div className="flex shrink-0 items-center gap-2 self-end pl-2">
