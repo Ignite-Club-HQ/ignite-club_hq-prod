@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Bookmark, Play, Settings, Users } from "lucide-react";
+import { ArrowLeft, Bookmark, Play, Repeat, Settings, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import BasketballPreGameLineup from "./BasketballPreGameLineup";
-import { BasketballPlayer, BasketballPosition, PeriodType } from "./types";
+import { BasketballPlayer, BasketballPosition, PeriodType, RotationMode } from "./types";
 
 interface BasketballPreGameScreenProps {
   teamName: string;
@@ -14,6 +14,11 @@ interface BasketballPreGameScreenProps {
 
   minutesPerQuarter: number;
   periodType: PeriodType;
+
+  /** Auto-sub plan summary — shown as a small pill in the controls row so the
+   *  coach can confirm/edit rotation before tip-off without leaving pre-game. */
+  rotationMode?: RotationMode;
+  rotationIntervalMinutes?: number;
 
   onOpenSettings: () => void;
   onOpenSquad: () => void;
@@ -40,6 +45,8 @@ export default function BasketballPreGameScreen({
   onAssign,
   minutesPerQuarter,
   periodType,
+  rotationMode = "off",
+  rotationIntervalMinutes = 4,
   onOpenSettings,
   onOpenSquad,
   onOpenPresets,
@@ -53,6 +60,13 @@ export default function BasketballPreGameScreen({
   const periodLabel = periodType === "halves" ? "half" : "quarter";
   const periodCount = periodType === "halves" ? 2 : 4;
   const squadEmpty = players.length === 0;
+  const autoSubLabel =
+    rotationMode === "off"
+      ? "Manual"
+      : rotationMode === "time-based"
+      ? `${rotationIntervalMinutes}m rotation`
+      : "Period rotation";
+  const autoSubActive = rotationMode !== "off";
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
@@ -92,8 +106,8 @@ export default function BasketballPreGameScreen({
         </span>
       </div>
 
-      {/* Compact subtle controls row */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-card/40 text-[11px]">
+      {/* Compact subtle controls row — wraps so the Auto-subs pill always fits */}
+      <div className="flex items-center flex-wrap gap-x-2 gap-y-1 px-3 py-1.5 border-b bg-card/40 text-[11px]">
         <button
           type="button"
           onClick={readOnly ? undefined : onOpenSquad}
@@ -114,6 +128,22 @@ export default function BasketballPreGameScreen({
           <span className="font-medium tabular-nums">
             {periodCount} × {minutesPerQuarter}m {periodLabel}s
           </span>
+        </button>
+        <span className="text-muted-foreground/50">·</span>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          disabled={readOnly}
+          className={cn(
+            "inline-flex items-center gap-1 transition-colors disabled:opacity-60",
+            autoSubActive
+              ? "text-primary hover:underline font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          aria-label="Configure auto-sub plan"
+        >
+          <Repeat className="h-3.5 w-3.5" />
+          <span className="font-medium">Auto-subs · {autoSubLabel}</span>
         </button>
         {hasPresets && !readOnly && (
           <>

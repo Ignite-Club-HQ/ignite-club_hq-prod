@@ -157,7 +157,7 @@ export default function BasketballQuarterTimer({
       <span
         className={cn(
           "rounded-full font-bold bg-primary/10 text-primary tabular-nums shrink-0",
-          compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]",
+          compact ? "px-2 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]",
         )}
       >
         {periodLabel(state.currentQuarter, state.periodType)}
@@ -167,7 +167,7 @@ export default function BasketballQuarterTimer({
       <div
         className={cn(
           "tabular-nums font-mono font-extrabold tracking-tight leading-none shrink-0",
-          compact ? "text-base" : "text-2xl",
+          compact ? "text-base px-0.5" : "text-2xl",
           lowTime && "text-destructive animate-pulse",
           state.isGameFinished && "text-muted-foreground"
         )}
@@ -178,22 +178,22 @@ export default function BasketballQuarterTimer({
 
       {/* Primary play/pause + overflow */}
       {!readOnly && (
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className={cn("flex items-center shrink-0", compact ? "gap-1.5 ml-1" : "gap-1")}>
           <Button
             size="icon"
             variant={state.isRunning ? "secondary" : "default"}
             className={cn(
               "rounded-full shadow-sm",
-              compact ? "h-7 w-7 min-h-0 min-w-0" : "h-8 w-8",
+              compact ? "h-8 w-8 min-h-0 min-w-0" : "h-8 w-8",
             )}
             onClick={toggle}
             disabled={state.isGameFinished}
             aria-label={state.isRunning ? "Pause" : "Start"}
           >
             {state.isRunning ? (
-              <Pause className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
+              <Pause className={compact ? "h-4 w-4" : "h-4 w-4"} />
             ) : (
-              <Play className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", "ml-0.5")} />
+              <Play className={cn(compact ? "h-4 w-4" : "h-4 w-4", "ml-0.5")} />
             )}
           </Button>
           <DropdownMenu>
@@ -201,10 +201,10 @@ export default function BasketballQuarterTimer({
               <Button
                 size="icon"
                 variant="ghost"
-                className={cn(compact ? "h-6 w-6 min-h-0 min-w-0" : "h-7 w-7")}
+                className={cn(compact ? "h-7 w-7 min-h-0 min-w-0" : "h-7 w-7")}
                 aria-label="More timer options"
               >
-                <MoreVertical className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
+                <MoreVertical className={compact ? "h-4 w-4" : "h-4 w-4"} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="z-[100000]">
@@ -228,7 +228,7 @@ export default function BasketballQuarterTimer({
   );
 
   if (compact) {
-    return <div className="flex items-center gap-1 shrink-0">{inner}</div>;
+    return <div className="flex items-center gap-2 shrink-0">{inner}</div>;
   }
 
   return (

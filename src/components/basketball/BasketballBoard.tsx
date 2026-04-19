@@ -288,6 +288,8 @@ export default function BasketballBoard({
           onAssign={board.assignToPosition}
           minutesPerQuarter={board.timerState.minutesPerQuarter}
           periodType={board.timerState.periodType ?? "quarters"}
+          rotationMode={board.rotationMode}
+          rotationIntervalMinutes={board.rotationIntervalMinutes}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSquad={() => setRosterOpen(true)}
           onOpenPresets={() => setPresetsOpen(true)}
@@ -321,6 +323,16 @@ export default function BasketballBoard({
                   lastUpdateTime: Date.now(),
                 }));
                 persistDefaults({ court_minutes_per_quarter: n });
+              }}
+              rotationMode={board.rotationMode}
+              onRotationModeChange={(m) => {
+                board.setRotationMode(m);
+                persistDefaults({ court_rotation_mode: m });
+              }}
+              rotationIntervalMinutes={board.rotationIntervalMinutes}
+              onRotationIntervalChange={(n) => {
+                board.setRotationIntervalMinutes(n);
+                persistDefaults({ court_rotation_interval_minutes: n });
               }}
             />
           )}
