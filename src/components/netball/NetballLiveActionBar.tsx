@@ -27,8 +27,10 @@ import { cn } from "@/lib/utils";
 import { Quarter, RotationMode } from "./types";
 
 interface NetballLiveActionBarProps {
-  /** Live-game primary action: enters sub mode (selects nothing → coach taps a player). */
-  onStartSub: () => void;
+  /** Toggle persistent Sub Mode. */
+  onToggleSubMode: () => void;
+  /** True when Sub Mode is currently armed. */
+  subModeActive?: boolean;
   /** Apply the planned lineup for the next period. */
   onNextBreak: () => void;
   /** Open auto-sub plan panel. */
@@ -67,7 +69,8 @@ interface NetballLiveActionBarProps {
  * accessible without competing visually with the court.
  */
 export default function NetballLiveActionBar({
-  onStartSub,
+  onToggleSubMode,
+  subModeActive = false,
   onNextBreak,
   onOpenAutoSubs,
   onUndo,
@@ -93,7 +96,7 @@ export default function NetballLiveActionBar({
       <Button
         size="sm"
         variant="ghost"
-        className="h-8 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+        className="h-9 px-2 text-[11px] text-muted-foreground hover:text-foreground"
         onClick={onUndo}
         disabled={!canUndo || !onUndo}
         aria-label="Undo last action"
@@ -101,22 +104,27 @@ export default function NetballLiveActionBar({
         <Undo2 className="h-3.5 w-3.5" />
       </Button>
 
-      {/* Primary live actions */}
+      {/* Sub Mode — persistent toggle. Bench glows + court tokens become
+          swap targets while active; tap a player to arm, tap target to swap. */}
       <Button
         size="sm"
-        variant="default"
-        className="h-8 px-3 text-[11.5px] font-semibold flex-1 min-w-0"
-        onClick={onStartSub}
+        variant={subModeActive ? "default" : "outline"}
+        className={cn(
+          "h-9 px-3 text-[11.5px] font-semibold flex-1 min-w-0",
+          subModeActive && "ring-2 ring-primary/40 shadow-[0_0_12px_hsl(var(--primary)/0.35)]",
+        )}
+        onClick={onToggleSubMode}
+        aria-pressed={subModeActive}
       >
         <ArrowLeftRight className="h-3.5 w-3.5 mr-1" />
-        Sub
+        {subModeActive ? "Sub Mode · ON" : "Sub Mode"}
       </Button>
 
       <Button
         size="sm"
         variant={autoSubActive ? "secondary" : "outline"}
         className={cn(
-          "h-8 px-2 text-[11px] font-semibold whitespace-nowrap",
+          "h-9 px-2 text-[11px] font-semibold whitespace-nowrap",
           autoSubActive && autoSubPaused && "text-muted-foreground italic",
         )}
         onClick={onOpenAutoSubs}
@@ -133,7 +141,7 @@ export default function NetballLiveActionBar({
       <Button
         size="sm"
         variant="outline"
-        className="h-8 px-2 text-[11px] font-semibold whitespace-nowrap"
+        className="h-9 px-2 text-[11px] font-semibold whitespace-nowrap"
         onClick={onNextBreak}
         disabled={isFinalPeriod}
         title={
@@ -143,7 +151,7 @@ export default function NetballLiveActionBar({
         }
       >
         <SkipForward className="h-3.5 w-3.5 mr-1" />
-        Q{isFinalPeriod ? currentQuarter : currentQuarter + 1}
+        {isFinalPeriod ? "Final" : `Next Q${currentQuarter + 1}`}
       </Button>
 
       {/* Overflow — setup actions live here in game mode */}
