@@ -813,6 +813,32 @@ export default function BasketballBoard({
           setPendingScore(null);
         }}
       />
+
+      {/* Manual sub/swap confirm — fired by handlePlayerClickGuarded /
+          handleSlotClickGuarded above. */}
+      <SubConfirmDialog
+        payload={subConfirm.pending?.payload ?? null}
+        onConfirm={subConfirm.confirm}
+        onCancel={subConfirm.cancel}
+      />
+
+      {/* Auto-sub confirm — fires when the auto-sub engine queues a planned
+          mid-quarter sub. Quarter-break batches use the existing
+          BasketballQuarterBreakDialog rendered by the live action bar. */}
+      <SubConfirmDialog
+        payload={
+          board.pendingAutoSub
+            ? {
+                kind: "sub-on",
+                primaryName: board.pendingAutoSub.playerIn.name,
+                secondaryName: board.pendingAutoSub.playerOut.name,
+                position: board.pendingAutoSub.position,
+              }
+            : null
+        }
+        onConfirm={board.confirmPendingAutoSub}
+        onCancel={board.cancelPendingAutoSub}
+      />
     </div>
   );
 }
