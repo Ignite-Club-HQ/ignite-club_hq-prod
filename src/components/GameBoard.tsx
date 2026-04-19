@@ -58,7 +58,7 @@ export default function GameBoard({
   const kind: GameBoardKind = detectGameBoardKind(sport);
 
   return (
-    <Suspense fallback={<Loading />}>
+    <Suspense fallback={<SportLoadingIndicator kind={kind === "basketball" ? "basketball" : kind === "netball" ? "netball" : "default"} />}>
       {kind === "basketball" ? (
         <BasketballBoard
           teamId={teamId}
