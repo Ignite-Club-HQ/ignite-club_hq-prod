@@ -31,6 +31,7 @@ import {
   transitionPosition,
 } from "@/components/basketball/basketballHelpers";
 import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
+import { useAutoSubNotify } from "@/hooks/useAutoSubNotify";
 import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
 import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
 import { visiblePeriods, periodLabel } from "@/lib/periodTypes";
@@ -45,6 +46,7 @@ interface Member {
 
 interface UseBasketballBoardStateArgs {
   teamId: string;
+  teamName: string;
   members: Member[];
   readOnly: boolean;
   initialMinutesPerQuarter: number;
@@ -59,6 +61,7 @@ interface UseBasketballBoardStateArgs {
  */
 export function useBasketballBoardState({
   teamId,
+  teamName,
   members,
   readOnly,
   initialMinutesPerQuarter,
