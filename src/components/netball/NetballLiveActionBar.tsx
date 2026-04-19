@@ -117,7 +117,7 @@ export default function NetballLiveActionBar({
         variant={autoSubActive ? "secondary" : "outline"}
         className={cn(
           "h-8 px-2 text-[11px] font-semibold whitespace-nowrap",
-          autoSubActive && autoSubPaused && "text-amber-600",
+          autoSubActive && autoSubPaused && "text-muted-foreground italic",
         )}
         onClick={onOpenAutoSubs}
         title={
