@@ -271,13 +271,13 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         </span>
       ) : (
         <>
-          <span className="text-[10px] font-medium text-foreground/90 leading-tight text-center max-w-full truncate">
+          {/* Extra top margin clears the bottom-attached position badge.
+              Comfortable spacing between name and time so nothing feels cramped. */}
+          <span className="mt-2 text-[11px] font-semibold text-foreground leading-tight text-center max-w-full truncate">
             {player.name.split(" ")[0]}
           </span>
-          <span className="text-[9px] text-muted-foreground leading-none">
-            {restSeconds > 0
-              ? `rest ${formatRest(restSeconds)}`
-              : `${minutes}m`}
+          <span className="mt-0.5 text-[9.5px] text-muted-foreground leading-none tabular-nums">
+            {restSeconds > 0 ? formatRest(restSeconds) : `${minutes}m`}
             {fouls > 0 && (
               <span className={cn("ml-1", fouled && "text-destructive font-semibold")}>
                 · {fouls}F

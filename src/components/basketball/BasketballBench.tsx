@@ -50,12 +50,18 @@ export default function BasketballBench({
   const isEmpty = bench.length === 0;
 
   return (
-    <div className="relative bg-card flex-shrink-0 before:content-[''] before:absolute before:inset-x-0 before:-top-3 before:h-3 before:bg-gradient-to-b before:from-transparent before:to-card before:pointer-events-none">
-      <div
-        className={cn(
-          "flex items-center justify-between px-3 py-0.5",
-        )}
-      >
+    <div
+      className={cn(
+        "relative flex-shrink-0",
+        // Distinct, intentional bench surface — subtle tint + soft top divider
+        // (gradient pseudo-element above) so it reads as its own tray.
+        "bg-muted/40 border-t border-border/60",
+        // Safe-area bottom padding so content never collides with the nav bar.
+        "pb-[max(0.5rem,env(safe-area-inset-bottom))]",
+        "before:content-[''] before:absolute before:inset-x-0 before:-top-3 before:h-3 before:bg-gradient-to-b before:from-transparent before:to-muted/40 before:pointer-events-none",
+      )}
+    >
+      <div className="flex items-center justify-between px-3 pt-1.5 pb-1">
         <h2 className="text-[11px] font-bold flex items-center gap-1 text-muted-foreground">
           <Users className="h-3 w-3" /> Bench ({bench.length})
           {showSubDueBadge && !selectedPlayerId && (
@@ -77,7 +83,9 @@ export default function BasketballBench({
       </div>
       {!isEmpty && (
         <ScrollArea className="w-full">
-          <div className="flex gap-1.5 px-2 pb-1.5">
+          {/* Increased vertical padding + gap so chip · name · time read with
+              comfortable breathing room and never feel truncated. */}
+          <div className="flex gap-2.5 px-2.5 pt-2 pb-3">
             {bench.map((p) => {
               const isSelected = selectedPlayerId === p.id;
               const isSwapTarget = !!selectedPlayerId && selectedIsOnCourt && !isSelected;
