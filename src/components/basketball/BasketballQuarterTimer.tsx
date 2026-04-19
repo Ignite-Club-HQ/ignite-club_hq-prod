@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, type Dispatch, type SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,7 +15,7 @@ import { periodLabel, visiblePeriods } from "@/lib/periodTypes";
 
 interface BasketballQuarterTimerProps {
   state: BasketballTimerState;
-  onChange: (next: BasketballTimerState) => void;
+  onChange: Dispatch<SetStateAction<BasketballTimerState>>;
   /** Fired each tick with the new elapsed seconds, current quarter, and the
    *  number of real seconds that elapsed since the previous tick (>= 1).
    *  Boards should use deltaSeconds to advance per-player minutes — using a
@@ -62,45 +62,65 @@ export default function BasketballQuarterTimer({
     if (!state.isRunning || state.isGameFinished) return;
 
     const tick = () => {
-      const cur = stateRef.current;
-      const elapsedSinceUpdate = Math.max(
-        1,
-        Math.floor((Date.now() - cur.lastUpdateTime) / 1000)
-      );
-      const newElapsed = cur.elapsedSeconds + elapsedSinceUpdate;
-      const quarterSeconds = cur.minutesPerQuarter * 60;
+      let tickPayload:
+        | { elapsed: number; quarter: Quarter; delta: number; quarterEnded: false }
+        | { elapsed: number; quarter: Quarter; delta: number; quarterEnded: true }
+        | null = null;
 
-      if (newElapsed >= quarterSeconds) {
-        const endingQuarter = cur.currentQuarter;
-        const deltaToEnd = Math.max(0, quarterSeconds - cur.elapsedSeconds);
-        if (deltaToEnd > 0) {
-          onTickRef.current?.(quarterSeconds, cur.currentQuarter, deltaToEnd);
-        }
-        const periods = visiblePeriods(cur.periodType);
-        const idx = periods.indexOf(cur.currentQuarter);
-        const isFinalPeriod = idx === periods.length - 1;
-        const nextSlot = (periods[idx + 1] ?? null) as Quarter | null;
-        if (isFinalPeriod) {
-          onChange({
-            ...cur,
-            elapsedSeconds: quarterSeconds,
-            isRunning: false,
-            isGameFinished: true,
-            lastUpdateTime: Date.now(),
-          });
-        } else {
-          onChange({
-            ...cur,
-            currentQuarter: nextSlot ?? ((cur.currentQuarter + 1) as Quarter),
+      onChange((prev) => {
+        const elapsedSinceUpdate = Math.max(
+          1,
+          Math.floor((Date.now() - prev.lastUpdateTime) / 1000)
+        );
+        const newElapsed = prev.elapsedSeconds + elapsedSinceUpdate;
+        const quarterSeconds = prev.minutesPerQuarter * 60;
+
+        if (newElapsed >= quarterSeconds) {
+          const endingQuarter = prev.currentQuarter;
+          const deltaToEnd = Math.max(0, quarterSeconds - prev.elapsedSeconds);
+          tickPayload = {
+            elapsed: quarterSeconds,
+            quarter: endingQuarter,
+            delta: deltaToEnd,
+            quarterEnded: true,
+          };
+          const periods = visiblePeriods(prev.periodType);
+          const idx = periods.indexOf(prev.currentQuarter);
+          const isFinalPeriod = idx === periods.length - 1;
+          const nextSlot = (periods[idx + 1] ?? null) as Quarter | null;
+          if (isFinalPeriod) {
+            return {
+              ...prev,
+              elapsedSeconds: quarterSeconds,
+              isRunning: false,
+              isGameFinished: true,
+              lastUpdateTime: Date.now(),
+            };
+          }
+          return {
+            ...prev,
+            currentQuarter: nextSlot ?? ((prev.currentQuarter + 1) as Quarter),
             elapsedSeconds: 0,
             isRunning: false,
             lastUpdateTime: Date.now(),
-          });
+          };
         }
-        onQuarterEndRef.current?.(endingQuarter);
-      } else {
-        onChange({ ...cur, elapsedSeconds: newElapsed, lastUpdateTime: Date.now() });
-        onTickRef.current?.(newElapsed, cur.currentQuarter, elapsedSinceUpdate);
+
+        tickPayload = {
+          elapsed: newElapsed,
+          quarter: prev.currentQuarter,
+          delta: elapsedSinceUpdate,
+          quarterEnded: false,
+        };
+        return { ...prev, elapsedSeconds: newElapsed, lastUpdateTime: Date.now() };
+      });
+
+      if (!tickPayload) return;
+      if (tickPayload.delta > 0) {
+        onTickRef.current?.(tickPayload.elapsed, tickPayload.quarter, tickPayload.delta);
+      }
+      if (tickPayload.quarterEnded) {
+        onQuarterEndRef.current?.(tickPayload.quarter);
       }
     };
 
@@ -112,28 +132,32 @@ export default function BasketballQuarterTimer({
   }, [state.isRunning, state.currentQuarter, state.isGameFinished]);
 
   const toggle = useCallback(() => {
-    onChange({ ...state, isRunning: !state.isRunning, lastUpdateTime: Date.now() });
-  }, [state, onChange]);
+    onChange((prev) => ({ ...prev, isRunning: !prev.isRunning, lastUpdateTime: Date.now() }));
+  }, [onChange]);
 
   const advanceQuarter = useCallback(() => {
-    const periods = visiblePeriods(state.periodType);
-    const idx = periods.indexOf(state.currentQuarter);
-    const next = periods[idx + 1];
-    if (!next) return;
-    onChange({
-      ...state,
-      currentQuarter: next,
-      elapsedSeconds: 0,
-      isRunning: false,
-      lastUpdateTime: Date.now(),
+    let endedQuarter: Quarter | null = null;
+    onChange((prev) => {
+      const periods = visiblePeriods(prev.periodType);
+      const idx = periods.indexOf(prev.currentQuarter);
+      const next = periods[idx + 1];
+      if (!next) return prev;
+      endedQuarter = prev.currentQuarter;
+      return {
+        ...prev,
+        currentQuarter: next,
+        elapsedSeconds: 0,
+        isRunning: false,
+        lastUpdateTime: Date.now(),
+      };
     });
-    onQuarterEndRef.current?.(state.currentQuarter);
-  }, [state, onChange]);
+    if (endedQuarter) onQuarterEndRef.current?.(endedQuarter);
+  }, [onChange]);
 
   const reset = useCallback(() => {
     if (!window.confirm("Reset the game? This clears the timer, score, and player stats.")) return;
-    onChange({
-      ...state,
+    onChange((prev) => ({
+      ...prev,
       currentQuarter: 1,
       elapsedSeconds: 0,
       isRunning: false,
@@ -142,14 +166,14 @@ export default function BasketballQuarterTimer({
       awayScore: 0,
       scoreLog: [],
       subLog: [],
-      homeTimeoutsRemaining: state.timeoutsPerHalf ?? 3,
-      awayTimeoutsRemaining: state.timeoutsPerHalf ?? 3,
+      homeTimeoutsRemaining: prev.timeoutsPerHalf ?? 3,
+      awayTimeoutsRemaining: prev.timeoutsPerHalf ?? 3,
       timeoutsHalfTracked: 1,
       mvpPlayerId: null,
       lastUpdateTime: Date.now(),
-    });
+    }));
     onResetRef.current?.();
-  }, [state, onChange]);
+  }, [onChange]);
 
   const quarterSeconds = state.minutesPerQuarter * 60;
   const remaining = Math.max(0, quarterSeconds - state.elapsedSeconds);
