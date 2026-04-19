@@ -1090,6 +1090,7 @@ export default function BroadcastChatPage() {
               }}
               onKeyPress={handleKeyPress}
               disabled={sendMutation.isPending}
+              onGifSelect={setImageUrl}
             />
             <ScheduleMessageButton
               onClick={() => setScheduleDialogOpen(true)}
