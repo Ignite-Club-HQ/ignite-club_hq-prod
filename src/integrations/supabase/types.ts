@@ -5493,6 +5493,95 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_messages: {
+        Row: {
+          attempted_at: string | null
+          author_id: string
+          chat_type: Database["public"]["Enums"]["scheduled_chat_type"]
+          club_id: string | null
+          conversation_id: string | null
+          created_at: string
+          error_message: string | null
+          group_id: string | null
+          id: string
+          image_url: string | null
+          reply_to_id: string | null
+          scheduled_for: string
+          sent_message_id: string | null
+          status: Database["public"]["Enums"]["scheduled_message_status"]
+          team_id: string | null
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          attempted_at?: string | null
+          author_id: string
+          chat_type: Database["public"]["Enums"]["scheduled_chat_type"]
+          club_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          group_id?: string | null
+          id?: string
+          image_url?: string | null
+          reply_to_id?: string | null
+          scheduled_for: string
+          sent_message_id?: string | null
+          status?: Database["public"]["Enums"]["scheduled_message_status"]
+          team_id?: string | null
+          text?: string
+          updated_at?: string
+        }
+        Update: {
+          attempted_at?: string | null
+          author_id?: string
+          chat_type?: Database["public"]["Enums"]["scheduled_chat_type"]
+          club_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          group_id?: string | null
+          id?: string
+          image_url?: string | null
+          reply_to_id?: string | null
+          scheduled_for?: string
+          sent_message_id?: string | null
+          status?: Database["public"]["Enums"]["scheduled_message_status"]
+          team_id?: string | null
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_messages_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       seasons: {
         Row: {
           archived_at: string | null
@@ -7827,6 +7916,14 @@ export type Database = {
       poll_chat_type: "team" | "club" | "group" | "broadcast" | "club_admin"
       role_request_status: "pending" | "approved" | "denied"
       rsvp_status: "going" | "maybe" | "not_going"
+      scheduled_chat_type:
+        | "team"
+        | "club"
+        | "group"
+        | "direct"
+        | "club_admin"
+        | "broadcast"
+      scheduled_message_status: "pending" | "sent" | "failed" | "cancelled"
       season_status: "draft" | "active" | "closed" | "archived"
       sponsor_tier: "platinum" | "gold" | "silver" | "bronze"
       team_lifecycle_status: "draft" | "active" | "archived"
@@ -7988,6 +8085,15 @@ export const Constants = {
       poll_chat_type: ["team", "club", "group", "broadcast", "club_admin"],
       role_request_status: ["pending", "approved", "denied"],
       rsvp_status: ["going", "maybe", "not_going"],
+      scheduled_chat_type: [
+        "team",
+        "club",
+        "group",
+        "direct",
+        "club_admin",
+        "broadcast",
+      ],
+      scheduled_message_status: ["pending", "sent", "failed", "cancelled"],
       season_status: ["draft", "active", "closed", "archived"],
       sponsor_tier: ["platinum", "gold", "silver", "bronze"],
       team_lifecycle_status: ["draft", "active", "archived"],
