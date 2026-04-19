@@ -1492,7 +1492,7 @@ export default function TeamChatPage() {
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible pt-1 pb-2 px-2">
-            imageUrl={imageUrl}
+          <ChatImageInput
             onImageUploaded={setImageUrl}
             disabled={sendMessageMutation.isPending}
             clubId={team?.club_id}
