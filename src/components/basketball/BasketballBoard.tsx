@@ -688,7 +688,18 @@ export default function BasketballBoard({
             onToggleLockPlayer={board.toggleLockPlayer}
           />
         )}
-      </Suspense>
+        {pendingScore != null && (
+          <BasketballScorerPickerSheet
+            open={pendingScore != null}
+            onOpenChange={(o) => !o && setPendingScore(null)}
+            points={pendingScore}
+            onCourt={board.players.filter((p) => p.position !== null)}
+            onPick={(playerId) => {
+              board.addScore("home", pendingScore, playerId ?? undefined);
+              setPendingScore(null);
+            }}
+          />
+        )}
     </div>
   );
 }
