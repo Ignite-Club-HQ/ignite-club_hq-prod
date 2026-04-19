@@ -130,18 +130,26 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       className={cn(
         "relative flex flex-col items-center gap-1 touch-manipulation select-none",
         "transition-all duration-200 ease-out will-change-transform",
-        variant === "court" ? "w-14" : "w-12",
+        // Court tokens are noticeably larger than bench chips so they dominate
+        // the court visually (req: ~10–15% bigger).
+        variant === "court" ? "w-16" : "w-12",
         isDragging && "opacity-40 scale-90",
         isSelected && "scale-110 z-20 drop-shadow-[0_0_14px_hsl(var(--primary)/0.7)] ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
         isSwapTarget && !isInvalidTarget && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background rounded-full animate-pulse",
         isInvalidTarget && "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full opacity-60",
         isDimmed && !isSelected && !isSwapTarget && "opacity-40",
         isRecentlySwapped && "drop-shadow-[0_0_16px_hsl(var(--primary)/0.85)] animate-fade-in",
-        isNextSub && !isSelected && "animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary)/0.45)]",
-        isLowestMinutes && variant === "bench" && !isSelected && "ring-2 ring-emerald-500 ring-offset-1 ring-offset-background rounded-full",
+        // "Suggested sub off" — clear amber ring on the on-court candidate.
+        isNextSub && !isSelected && variant === "court" &&
+          "ring-2 ring-amber-400 ring-offset-2 ring-offset-background rounded-full animate-pulse drop-shadow-[0_0_10px_rgba(251,191,36,0.6)]",
+        isNextSub && !isSelected && variant === "bench" &&
+          "animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary)/0.45)]",
+        // "Suggested sub on" — bench player with lowest minutes glows green.
+        isLowestMinutes && variant === "bench" && !isSelected &&
+          "ring-2 ring-emerald-500 ring-offset-1 ring-offset-background rounded-full",
         // Coach-assistant "should rest" hint — very faint amber outline,
         // never competes with selection / swap-target rings.
-        isOverplayed && variant === "court" && !isSelected && !isSwapTarget &&
+        isOverplayed && variant === "court" && !isSelected && !isSwapTarget && !isNextSub &&
           "ring-1 ring-amber-400/70 ring-offset-1 ring-offset-background rounded-full",
         readOnly && "pointer-events-none",
         "active:scale-95",
@@ -175,20 +183,22 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       <div className="relative">
         <Avatar
           className={cn(
-            "border-2 shadow-md transition-shadow",
-            "drop-shadow-[0_2px_4px_hsl(var(--foreground)/0.18)]",
-            variant === "court" ? "h-11 w-11" : "h-10 w-10",
+            // Thicker borders + stronger shadow so tokens "pop" off the court.
+            "shadow-lg transition-shadow",
+            "drop-shadow-[0_3px_6px_rgba(0,0,0,0.45)]",
+            variant === "court" ? "h-13 w-13 border-[3px]" : "h-10 w-10 border-2",
             fouled ? "border-destructive opacity-70" : (colors?.border ?? "border-border")
           )}
+          style={variant === "court" ? { height: "3.25rem", width: "3.25rem" } : undefined}
         >
-          <AvatarFallback className={cn("text-xs font-bold", colors?.bg, colors?.text)}>
+          <AvatarFallback className={cn("font-extrabold", variant === "court" ? "text-sm" : "text-xs", colors?.bg, colors?.text)}>
             {initials}
           </AvatarFallback>
         </Avatar>
         {pos && (
           <span
             className={cn(
-              "absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold rounded px-1 border",
+              "absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold rounded px-1 border shadow-sm",
               colors?.bg,
               colors?.text,
               colors?.border
@@ -199,29 +209,55 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         )}
         {points > 0 && (
           <span
-            className="absolute -bottom-1 -right-1 z-10 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-sm"
+            className="absolute -bottom-1 -right-1 z-10 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow-sm ring-1 ring-background"
             aria-hidden
           >
             {points}
           </span>
         )}
       </div>
-      <span className="text-[10px] font-medium text-foreground/90 leading-tight text-center max-w-full truncate">
-        {player.name.split(" ")[0]}
-      </span>
-      <span className="text-[9px] text-muted-foreground leading-none">
-        {variant === "bench" && restSeconds > 0
-          ? `rest ${formatRest(restSeconds)}`
-          : `${minutes}m`}
-        {fouls > 0 && (
-          <span className={cn("ml-1", fouled && "text-destructive font-semibold")}>
-            · {fouls}F
+      {/* Backed name+minutes label. On-court players get a high-contrast pill
+          so text never sits directly on the court. Bench keeps the lighter
+          treatment so the court visually dominates. */}
+      {variant === "court" ? (
+        <span
+          className={cn(
+            "mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md",
+            "bg-background/95 border border-border shadow-sm backdrop-blur-sm",
+            "text-[10px] font-semibold text-foreground leading-none max-w-[72px]"
+          )}
+        >
+          <span className="truncate">{player.name.split(" ")[0]}</span>
+          <span className="text-muted-foreground font-medium">·</span>
+          <span className="tabular-nums text-foreground/80">
+            {`${minutes}m`}
           </span>
-        )}
-        {ftAtt > 0 && (
-          <span className="ml-1">· {ftMade}/{ftAtt}FT</span>
-        )}
-      </span>
+          {fouls > 0 && (
+            <span className={cn("tabular-nums", fouled ? "text-destructive font-bold" : "text-muted-foreground")}>
+              · {fouls}F
+            </span>
+          )}
+        </span>
+      ) : (
+        <>
+          <span className="text-[10px] font-medium text-foreground/90 leading-tight text-center max-w-full truncate">
+            {player.name.split(" ")[0]}
+          </span>
+          <span className="text-[9px] text-muted-foreground leading-none">
+            {restSeconds > 0
+              ? `rest ${formatRest(restSeconds)}`
+              : `${minutes}m`}
+            {fouls > 0 && (
+              <span className={cn("ml-1", fouled && "text-destructive font-semibold")}>
+                · {fouls}F
+              </span>
+            )}
+            {ftAtt > 0 && (
+              <span className="ml-1">· {ftMade}/{ftAtt}FT</span>
+            )}
+          </span>
+        </>
+      )}
     </button>
   );
 });

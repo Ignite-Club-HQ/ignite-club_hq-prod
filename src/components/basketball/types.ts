@@ -50,12 +50,14 @@ export const POSITION_SLOTS_FULL: Record<BasketballPosition, { x: number; y: num
   C:  { x: 50, y: 12 },
 };
 
+// Solid, high-contrast fills so on-court tokens dominate the court background.
+// Text is white on a saturated colour for instant scannability at game pace.
 export const POSITION_COLORS: Record<BasketballPosition, { bg: string; text: string; border: string }> = {
-  PG: { bg: "bg-amber-500/30",   text: "text-amber-700 dark:text-amber-200",   border: "border-amber-500" },
-  SG: { bg: "bg-orange-500/30",  text: "text-orange-700 dark:text-orange-200", border: "border-orange-500" },
-  SF: { bg: "bg-emerald-500/30", text: "text-emerald-700 dark:text-emerald-200", border: "border-emerald-500" },
-  PF: { bg: "bg-sky-500/30",     text: "text-sky-700 dark:text-sky-200",         border: "border-sky-500" },
-  C:  { bg: "bg-violet-500/30",  text: "text-violet-700 dark:text-violet-200",   border: "border-violet-500" },
+  PG: { bg: "bg-amber-600",   text: "text-white", border: "border-amber-300" },
+  SG: { bg: "bg-orange-600",  text: "text-white", border: "border-orange-300" },
+  SF: { bg: "bg-emerald-600", text: "text-white", border: "border-emerald-300" },
+  PF: { bg: "bg-sky-600",     text: "text-white", border: "border-sky-300" },
+  C:  { bg: "bg-violet-600",  text: "text-white", border: "border-violet-300" },
 };
 
 export interface BasketballPlayer {
