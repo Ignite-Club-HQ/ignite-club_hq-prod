@@ -1265,6 +1265,8 @@ export default function NetballBoard({
     } else if (rotationMode === "quarter-break") {
       setAutoSubPlan(generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters"));
     }
+    // Plan changed → coach must review again before kickoff.
+    setHasReviewedAutoSubs(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rotationMode, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, rosterSignature]);
 
