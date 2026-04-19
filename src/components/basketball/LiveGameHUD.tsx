@@ -69,17 +69,19 @@ const LiveGameHUD = memo(function LiveGameHUD({
       role="group"
       aria-label="Live game HUD"
     >
-      {/* Row 1 — small control strip (tightened vertical spacing). */}
-      <div className="flex items-center justify-center gap-2 px-2 pt-px pb-0">
+      {/* Row 1 — control strip. Needs enough vertical room for the round
+          play/pause button (h-10) so it doesn't crash into the score row
+          beneath it. */}
+      <div className="relative flex items-center justify-center gap-2 px-2 pt-1.5 pb-1 min-h-[2.75rem]">
         <div className="flex items-center gap-1">{controlSlot}</div>
         {trailingSlot && (
-          <div className="absolute right-2 top-px flex items-center">{trailingSlot}</div>
+          <div className="absolute right-9 top-1/2 -translate-y-1/2 flex items-center">{trailingSlot}</div>
         )}
         {onTogglePosition && (
           <Button
             size="icon"
             variant="ghost"
-            className="absolute right-1 top-px h-6 w-6 min-h-0 min-w-0 rounded-full bg-background/70 border border-border/60 text-foreground/80 hover:text-foreground hover:bg-background shadow-sm"
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 min-h-0 min-w-0 rounded-full bg-background/70 border border-border/60 text-foreground/80 hover:text-foreground hover:bg-background shadow-sm"
             onClick={onTogglePosition}
             aria-label={position === "top" ? "Move HUD to bottom" : "Move HUD to top"}
           >
@@ -92,8 +94,9 @@ const LiveGameHUD = memo(function LiveGameHUD({
         )}
       </div>
 
-      {/* Row 2 — dominant scores + scoring buttons (tightened). */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 pb-0.5">
+      {/* Row 2 — dominant scores + scoring buttons. Adds a clear visual
+          gap from the play/pause button above. */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 pt-1 pb-1.5 border-t border-border/40">
         <TeamSide
           label={homeLabel}
           score={homeScore}
