@@ -1,8 +1,36 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Bookmark, Eye, Play, Repeat, Settings, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  Bookmark,
+  Eye,
+  MoreHorizontal,
+  Play,
+  Repeat,
+  Settings,
+  Sparkles,
+  UserCheck,
+  Users,
+} from "lucide-react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import NetballPreGameLineup from "./NetballPreGameLineup";
-import { NetballPlayer, NetballPosition, PeriodType, RotationMode, ValidationMode } from "./types";
+import {
+  NetballPlayer,
+  NetballPosition,
+  NETBALL_POSITIONS,
+  PeriodType,
+  RotationMode,
+  ValidationMode,
+} from "./types";
+import { suggestQuarterLineup } from "./netballHelpers";
 
 const ROTATION_SPEEDS: { minutes: number; label: string }[] = [
   { minutes: 4, label: "4m" },
@@ -41,10 +69,22 @@ interface NetballPreGameScreenProps {
   readOnly?: boolean;
 }
 
+type PreGameTab = "lineup" | "rotation" | "stats";
+
 /**
- * Drag-first pre-game screen for netball — mirror of BasketballPreGameScreen.
- * Court dominates the top of the screen; bench is a drag source below; thin
- * compact header keeps controls accessible without crowding the surface.
+ * Touch-first pre-game / lineup-builder screen for netball.
+ *
+ * Header hierarchy: team vs opponent + single-line metadata
+ * (selected · format · auto-subs). A tab system slots in directly
+ * underneath (Lineup is the only live tab today; Rotation / Stats are
+ * stubbed for future work). The court owns most of the viewport, the
+ * bench scrolls horizontally underneath, and the bottom action bar
+ * surfaces a single primary CTA — Auto-fill until the 7 are placed,
+ * then "Ready to start".
+ *
+ * Logic is unchanged: assignment + auto-sub controls all forward to the
+ * existing board callbacks. Only the surface, hierarchy and CTAs are
+ * being refactored.
  */
 export default function NetballPreGameScreen({
   teamName,
@@ -70,6 +110,7 @@ export default function NetballPreGameScreen({
   onBack,
   readOnly = false,
 }: NetballPreGameScreenProps) {
+  const [tab, setTab] = useState<PreGameTab>("lineup");
   const onCourtCount = players.filter((p) => p.position !== null).length;
   const lineupReady = onCourtCount >= 7;
   const periodLabel = periodType === "halves" ? "half" : "quarter";
@@ -79,10 +120,36 @@ export default function NetballPreGameScreen({
   const showSpeedPicker = autoSubActive && rotationMode === "time-based";
   const canPreview = autoSubActive && hasAutoSubPlan && lineupReady && !!onPreviewPlan;
 
+  /**
+   * Auto-fill: clear bench placements and use the existing
+   * `suggestQuarterLineup` helper (preferred positions + minutes
+   * fairness). Only touches assignments via the supplied `onAssign`
+   * callback, so all board-side validation / persistence still runs.
+   *
+   * `availabilityOnly` is the smart-assist variant — it looks at the
+   * `isInjured` flag (the only availability signal we surface in
+   * pre-game today) and keeps anyone marked injured on the bench.
+   */
+  const handleAutoFill = (availabilityOnly = false) => {
+    if (readOnly) return;
+    const pool = availabilityOnly
+      ? players.filter((p) => !p.isInjured)
+      : players;
+    // Reset court, then assign via suggestion helper.
+    players.forEach((p) => {
+      if (p.position !== null) onAssign(p.id, null);
+    });
+    const assignments = suggestQuarterLineup(pool, {});
+    NETBALL_POSITIONS.forEach((pos) => {
+      const id = assignments[pos];
+      if (id) onAssign(id, pos);
+    });
+  };
+
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
-      {/* Slim header */}
-      <header className="flex items-center gap-2 px-2 py-1.5 border-b bg-card sticky top-0 z-20">
+      {/* ── HEADER ──────────────────────────────────────────────── */}
+      <header className="flex items-center gap-1 px-2 pt-2 pb-1.5 border-b bg-card sticky top-0 z-20">
         <Button
           variant="ghost"
           size="icon"
@@ -92,77 +159,104 @@ export default function NetballPreGameScreen({
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1 min-w-0 text-center">
-          <h1 className="font-bold text-xs truncate leading-tight">
+        <div className="flex-1 min-w-0">
+          <h1 className="font-bold text-[13px] truncate leading-tight">
             <span className="text-foreground">{teamName}</span>
             <span className="text-muted-foreground mx-1 font-normal">vs</span>
             <span className="text-foreground">{opponentName}</span>
           </h1>
+          <p className="text-[10.5px] text-muted-foreground truncate leading-tight mt-0.5 tabular-nums">
+            <span
+              className={cn(
+                "font-semibold",
+                lineupReady ? "text-primary" : "text-foreground/80"
+              )}
+            >
+              {onCourtCount} / 7 selected
+            </span>
+            <span className="mx-1.5 opacity-50">•</span>
+            <span>
+              {periodCount} × {minutesPerQuarter}m
+            </span>
+            <span className="mx-1.5 opacity-50">•</span>
+            <span>Auto-subs {autoSubActive ? "ON" : "OFF"}</span>
+          </p>
         </div>
-        <div className="w-8" />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 flex-shrink-0"
+              aria-label="More options"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={onOpenSquad} disabled={readOnly}>
+              <Users className="h-4 w-4 mr-2" />
+              Squad ({players.length})
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenSettings} disabled={readOnly}>
+              <Settings className="h-4 w-4 mr-2" />
+              Game settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => onToggleAutoSub?.(autoSubActive ? "off" : "time-based")}
+              disabled={readOnly || !onToggleAutoSub}
+            >
+              <Repeat className="h-4 w-4 mr-2" />
+              {autoSubActive ? "Turn auto-subs off" : "Turn auto-subs on"}
+            </DropdownMenuItem>
+            {canPreview && (
+              <DropdownMenuItem onClick={onPreviewPlan}>
+                <Eye className="h-4 w-4 mr-2" />
+                Preview plan
+              </DropdownMenuItem>
+            )}
+            {hasPresets && (
+              <DropdownMenuItem onClick={onOpenPresets} disabled={readOnly}>
+                <Bookmark className="h-4 w-4 mr-2" />
+                Presets
+              </DropdownMenuItem>
+            )}
+            {onOpenLineups && (
+              <DropdownMenuItem onClick={onOpenLineups} disabled={readOnly}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Quarter lineups
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
-      {/* Compact status row */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b bg-card/60">
-        <h2 className="text-sm font-bold tracking-tight">Game Ready</h2>
-        <span
-          className={cn(
-            "text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full",
-            lineupReady
-              ? "bg-primary/15 text-primary"
-              : "bg-muted text-muted-foreground"
-          )}
-        >
-          {onCourtCount} / 7 selected
-        </span>
-      </div>
+      {/* ── TABS ────────────────────────────────────────────────── */}
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as PreGameTab)}
+        className="flex-1 min-h-0 flex flex-col"
+      >
+        <TabsList className="mx-2 mt-1.5 mb-1 grid grid-cols-3 h-8 bg-muted/60">
+          <TabsTrigger value="lineup" className="text-[11px] font-semibold">
+            Lineup
+          </TabsTrigger>
+          <TabsTrigger value="rotation" className="text-[11px] font-semibold">
+            Rotation
+          </TabsTrigger>
+          <TabsTrigger value="stats" className="text-[11px] font-semibold">
+            Stats
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Compact subtle controls row */}
-      <div className="flex items-center flex-wrap gap-x-2 gap-y-1 px-3 py-1.5 border-b bg-card/40 text-[11px]">
-        <button
-          type="button"
-          onClick={readOnly ? undefined : onOpenSquad}
-          disabled={readOnly}
-          className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
-        >
-          <Users className="h-3.5 w-3.5" />
-          <span className="font-medium">Squad ({players.length})</span>
-        </button>
-        <span className="text-muted-foreground/50">·</span>
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          disabled={readOnly}
-          className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
-        >
-          <Settings className="h-3.5 w-3.5" />
-          <span className="font-medium tabular-nums">
-            {periodCount} × {minutesPerQuarter}m {periodLabel}s
-          </span>
-        </button>
-        <span className="text-muted-foreground/50">·</span>
-        <div className="inline-flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => onToggleAutoSub?.(autoSubActive ? "off" : "time-based")}
-            disabled={readOnly || !onToggleAutoSub}
-            role="switch"
-            aria-checked={autoSubActive}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 transition-colors disabled:opacity-60",
-              autoSubActive
-                ? "bg-primary/15 text-primary font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            aria-label={autoSubActive ? "Turn auto-subs off" : "Turn auto-subs on"}
-          >
-            <Repeat className="h-3.5 w-3.5" />
-            <span className="font-medium whitespace-nowrap">
-              Auto-subs{!autoSubActive && " · Off"}
+        {/* Auto-sub speed sub-row — only relevant in lineup tab */}
+        {tab === "lineup" && showSpeedPicker && (
+          <div className="px-3 pb-1 flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+              Rotate every
             </span>
-          </button>
-
-          {showSpeedPicker && (
             <div
               role="radiogroup"
               aria-label="Rotation speed"
@@ -179,7 +273,7 @@ export default function NetballPreGameScreen({
                     disabled={readOnly || !onRotationIntervalChange}
                     onClick={() => onRotationIntervalChange?.(opt.minutes)}
                     className={cn(
-                      "px-1.5 h-5 rounded-full text-[10px] font-semibold tabular-nums transition-colors disabled:opacity-60",
+                      "px-2 h-5 rounded-full text-[10px] font-semibold tabular-nums transition-colors disabled:opacity-60",
                       active
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -190,82 +284,137 @@ export default function NetballPreGameScreen({
                 );
               })}
             </div>
-          )}
-
-          {canPreview && (
-            <button
-              type="button"
-              onClick={onPreviewPlan}
-              className="inline-flex items-center gap-1 text-primary hover:underline font-medium ml-0.5"
-              aria-label="Preview auto-sub plan"
-            >
-              <Eye className="h-3.5 w-3.5" />
-              <span className="whitespace-nowrap">Preview</span>
-            </button>
-          )}
-        </div>
-        {hasPresets && !readOnly && (
-          <>
-            <span className="text-muted-foreground/50">·</span>
-            <button
-              type="button"
-              onClick={onOpenPresets}
-              className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
-            >
-              <Bookmark className="h-3.5 w-3.5" />
-              Presets
-            </button>
-          </>
-        )}
-        {onOpenLineups && !readOnly && (
-          <>
-            <span className="text-muted-foreground/50">·</span>
-            <button
-              type="button"
-              onClick={onOpenLineups}
-              className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
-            >
-              Lineups
-            </button>
-          </>
-        )}
-      </div>
-
-      {squadEmpty ? (
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
-          <Users className="h-10 w-10 text-muted-foreground" />
-          <div>
-            <div className="text-sm font-semibold">No players in squad</div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              Add players before you can pick a starting 7.
-            </div>
           </div>
-          {!readOnly && (
-            <Button size="sm" onClick={onOpenSquad}>
-              Add players
-            </Button>
-          )}
-        </div>
-      ) : (
-        <NetballPreGameLineup
-          players={players}
-          bench={bench}
-          onAssign={onAssign}
-          validationMode={validationMode}
-          readOnly={readOnly}
-        />
-      )}
+        )}
 
-      {!readOnly && !squadEmpty && (
-        <div className="sticky bottom-0 px-3 py-2 border-t bg-card/95 backdrop-blur">
+        <TabsContent
+          value="lineup"
+          className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden flex flex-col overflow-hidden"
+        >
+          {squadEmpty ? (
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <Users className="h-10 w-10 text-muted-foreground" />
+              <div>
+                <div className="text-sm font-semibold">No players in squad</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Add players before you can pick a starting 7.
+                </div>
+              </div>
+              {!readOnly && (
+                <Button size="sm" onClick={onOpenSquad}>
+                  Add players
+                </Button>
+              )}
+            </div>
+          ) : (
+            <NetballPreGameLineup
+              players={players}
+              bench={bench}
+              onAssign={onAssign}
+              validationMode={validationMode}
+              readOnly={readOnly}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent
+          value="rotation"
+          className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden p-6 text-center text-sm text-muted-foreground flex items-center justify-center"
+        >
+          <div className="space-y-2 max-w-xs">
+            <Repeat className="h-8 w-8 mx-auto opacity-50" />
+            <p className="font-medium text-foreground">Rotation planner</p>
+            <p className="text-xs">
+              Visualise auto-sub rotations and like-for-like swaps before
+              the whistle. Coming soon.
+            </p>
+          </div>
+        </TabsContent>
+
+        <TabsContent
+          value="stats"
+          className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden p-6 text-center text-sm text-muted-foreground flex items-center justify-center"
+        >
+          <div className="space-y-2 max-w-xs">
+            <Sparkles className="h-8 w-8 mx-auto opacity-50" />
+            <p className="font-medium text-foreground">Squad stats</p>
+            <p className="text-xs">
+              Player minutes, centre-pass conversion and shooting stats
+              will live here once the game is underway.
+            </p>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* ── BOTTOM ACTION BAR ───────────────────────────────────── */}
+      {!readOnly && !squadEmpty && tab === "lineup" && (
+        <div className="sticky bottom-0 px-3 py-2 border-t bg-card/95 backdrop-blur flex items-center gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-col leading-tight">
+            <span
+              className={cn(
+                "text-[11px] font-bold tabular-nums tracking-wide",
+                lineupReady ? "text-primary" : "text-foreground"
+              )}
+            >
+              {onCourtCount} / 7
+            </span>
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+              On court
+            </span>
+          </div>
+
+          {!lineupReady && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 flex-shrink-0"
+                  aria-label="Smart assist options"
+                >
+                  <Sparkles className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem onClick={() => handleAutoFill(true)}>
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Fill by availability
+                </DropdownMenuItem>
+                {hasPresets && (
+                  <DropdownMenuItem onClick={onOpenPresets}>
+                    <Bookmark className="h-4 w-4 mr-2" />
+                    Apply preset
+                  </DropdownMenuItem>
+                )}
+                {onOpenLineups && (
+                  <DropdownMenuItem onClick={onOpenLineups}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Plan all quarters
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           <Button
             size="lg"
-            className="w-full h-11 text-sm font-semibold"
-            disabled={!lineupReady}
-            onClick={onStartGame}
+            className={cn(
+              "flex-1 h-11 text-sm font-semibold",
+              lineupReady && "animate-scale-in"
+            )}
+            onClick={lineupReady ? onStartGame : () => handleAutoFill(false)}
           >
-            <Play className="h-4 w-4 mr-2" />
-            {lineupReady ? "Start Game" : `Drag ${7 - onCourtCount} more onto court`}
+            {lineupReady ? (
+              <>
+                <Play className="h-4 w-4 mr-2" />
+                Ready to start
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Auto-fill lineup
+              </>
+            )}
           </Button>
         </div>
       )}
