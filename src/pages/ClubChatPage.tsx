@@ -1376,6 +1376,7 @@ export default function ClubChatPage() {
               disabled={sendMutation.isPending}
             />
           )}
+          {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
           <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
             <ChatImageInput
               imageUrl={imageUrl}
@@ -1400,6 +1401,12 @@ export default function ClubChatPage() {
               disabled={sendMutation.isPending}
               clubId={clubId}
             />
+            {scheduleTarget && (
+              <ScheduleMessageButton
+                onClick={() => setScheduleDialogOpen(true)}
+                disabled={sendMutation.isPending}
+              />
+            )}
             <button
               onClick={() => {
                 stopTyping();
@@ -1415,6 +1422,20 @@ export default function ClubChatPage() {
               )}
             </button>
           </div>
+          {scheduleTarget && (
+            <ScheduleMessageDialog
+              open={scheduleDialogOpen}
+              onOpenChange={setScheduleDialogOpen}
+              target={scheduleTarget}
+              initialText={message}
+              initialImageUrl={imageUrl}
+              onScheduled={() => {
+                setMessage("");
+                setImageUrl(null);
+                clearDraft?.();
+              }}
+            />
+          )}
           <EventPickerSheet
             open={eventPickerOpen}
             onOpenChange={setEventPickerOpen}
