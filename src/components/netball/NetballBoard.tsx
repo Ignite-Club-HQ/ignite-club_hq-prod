@@ -732,29 +732,6 @@ export default function NetballBoard({
           });
         }
       }
-  const handleSlotClick = useCallback(
-    (position: NetballPosition) => {
-      if (readOnly || !selectedPlayerId) return;
-      // Position lock: in strict/warn mode, validate against preferredPositions
-      const incoming = players.find((p) => p.id === selectedPlayerId);
-      if (incoming && validationMode !== "free") {
-        const ok = isPositionAllowedForPlayer(incoming, position);
-        if (!ok) {
-          if (validationMode === "strict") {
-            toast({
-              title: "Move blocked",
-              description: `${incoming.name} can't play ${position} in strict mode.`,
-              variant: "destructive",
-            });
-            setSelectedPlayerId(null);
-            return;
-          }
-          toast({
-            title: "Position warning",
-            description: `${incoming.name} isn't a preferred ${position}.`,
-          });
-        }
-      }
       // Build the actual mutation as a deferred closure so the confirm
       // dialog can fire it on user approval.
       const commit = () => {
