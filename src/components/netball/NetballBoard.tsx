@@ -248,6 +248,27 @@ export default function NetballBoard({
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
 
+  // HUD position — coaches can flip the live HUD between top and bottom of
+  // the court. Persisted per-device so the preference survives reloads.
+  const HUD_POSITION_KEY = "netball:hudPosition";
+  const [hudPosition, setHudPosition] = useState<"top" | "bottom">(() => {
+    if (typeof window === "undefined") return "top";
+    const v = window.localStorage.getItem(HUD_POSITION_KEY);
+    return v === "bottom" ? "bottom" : "top";
+  });
+  const toggleHudPosition = useCallback(() => {
+    setHudPosition((prev) => {
+      const next = prev === "top" ? "bottom" : "top";
+      try {
+        window.localStorage.setItem(HUD_POSITION_KEY, next);
+      } catch {
+        /* ignore */
+      }
+      hapticSelectionTick();
+      return next;
+    });
+  }, []);
+
   // Lineup presets — own localStorage key, scoped by team (shared across matches).
   const presetsKey = getNetballPresetsKey(teamId);
   const [lineupPresets, setLineupPresetsState] = useState<NetballLineupPreset[]>(
