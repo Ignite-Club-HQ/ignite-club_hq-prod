@@ -288,6 +288,8 @@ export default function BasketballBoard({
           onAssign={board.assignToPosition}
           minutesPerQuarter={board.timerState.minutesPerQuarter}
           periodType={board.timerState.periodType ?? "quarters"}
+          rotationMode={board.rotationMode}
+          rotationIntervalMinutes={board.rotationIntervalMinutes}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSquad={() => setRosterOpen(true)}
           onOpenPresets={() => setPresetsOpen(true)}
