@@ -58,8 +58,8 @@ const LiveGameHUD = memo(function LiveGameHUD({
     <div
       className={cn(
         "absolute left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1rem)] max-w-md",
-        "rounded-xl border border-border/30 bg-card/75 supports-[backdrop-filter]:bg-card/60",
-        "backdrop-blur-xl shadow-[0_4px_24px_-8px_hsl(var(--foreground)/0.18)]",
+        "rounded-xl border border-border/25 bg-card/55 supports-[backdrop-filter]:bg-card/45",
+        "backdrop-blur-xl shadow-[0_2px_14px_-6px_hsl(var(--foreground)/0.18)]",
         "transition-[opacity,filter,transform] duration-200 ease-out",
         position === "top" ? "top-2" : "bottom-2",
         suppressed && "opacity-40 blur-[1px] pointer-events-none scale-[0.99]",
@@ -68,30 +68,30 @@ const LiveGameHUD = memo(function LiveGameHUD({
       aria-label="Live game HUD"
     >
       {/* Row 1 — small control strip */}
-      <div className="flex items-center justify-center gap-2 px-2 pt-1 pb-0.5">
+      <div className="flex items-center justify-center gap-2 px-2 pt-0.5 pb-0">
         <div className="flex items-center gap-1">{controlSlot}</div>
         {trailingSlot && (
-          <div className="absolute right-2 top-1 flex items-center">{trailingSlot}</div>
+          <div className="absolute right-2 top-0.5 flex items-center">{trailingSlot}</div>
         )}
         {onTogglePosition && (
           <Button
             size="icon"
             variant="ghost"
-            className="absolute left-1 top-0.5 h-6 w-6 min-h-0 min-w-0 rounded-full text-muted-foreground/70 hover:text-foreground transition-colors"
+            className="absolute left-1 top-0 h-5 w-5 min-h-0 min-w-0 rounded-full text-muted-foreground/60 hover:text-foreground transition-colors"
             onClick={onTogglePosition}
             aria-label={position === "top" ? "Move HUD to bottom" : "Move HUD to top"}
           >
             {position === "top" ? (
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="h-3 w-3" />
             ) : (
-              <ChevronUp className="h-3.5 w-3.5" />
+              <ChevronUp className="h-3 w-3" />
             )}
           </Button>
         )}
       </div>
 
       {/* Row 2 — dominant scores + scoring buttons */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 pb-1.5">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 pb-1">
         <TeamSide
           label={homeLabel}
           score={homeScore}
@@ -101,7 +101,7 @@ const LiveGameHUD = memo(function LiveGameHUD({
           side="home"
         />
 
-        <span className="text-lg font-light text-muted-foreground/40 leading-none shrink-0 self-center pb-0.5">
+        <span className="text-base font-light text-muted-foreground/35 leading-none shrink-0 self-center pb-0.5">
           —
         </span>
 
