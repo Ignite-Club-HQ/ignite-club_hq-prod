@@ -1268,21 +1268,133 @@ export default function NetballBoard({
   ]);
 
   // ---------- Render — three-zone shell mirroring BasketballBoard ----------
-  // TOP    — full-bleed court with floating LiveGameHUD overlay (back chip,
-  //          scoreboard, timer, scoring buttons). The court fills the viewport.
-  // MIDDLE — bench tray (clean muted surface, dot indicators).
-  // BOTTOM — undo + game summary actions.
-  // All netball-specific panels (centre-pass stats, momentum, watchlist,
-  // settings, lineup planner, presets, roster) are reachable via the action
-  // bar that lives below the bench, so the live court isn't visually noisy.
   const selectedIsOnCourt = !!selectedPlayer && selectedPlayer.position !== null;
   const selectedIsOnBench = !!selectedPlayer && selectedPlayer.position === null;
   const opponentName = timerState.opponentName ?? "Opponent";
-  const gameInProgress =
-    !!timerState.isRunning ||
+  const hasGameStarted =
+    timerState.isRunning ||
     timerState.currentQuarter > 1 ||
     timerState.elapsedSeconds > 0 ||
-    (timerState.scoreLog?.length ?? 0) > 0;
+    (timerState.scoreLog?.length ?? 0) > 0 ||
+    !!timerState.isGameFinished;
+  const isPreGame = !hasGameStarted;
+  const gameInProgress = hasGameStarted && !timerState.isGameFinished;
+
+  // ── PRE-GAME ─────────────────────────────────────────────────────
+  // Drag-first squad/lineup screen — mirror of basketball. No live HUD,
+  // no scoreboard, no centre-pass chip leaking until tip-off.
+  if (isPreGame) {
+    return (
+      <>
+        <NetballPreGameScreen
+          teamName={teamName}
+          opponentName={opponentName}
+          players={players}
+          bench={bench}
+          onAssign={assignToPosition}
+          minutesPerQuarter={timerState.minutesPerQuarter}
+          periodType={timerState.periodType ?? "quarters"}
+          rotationMode={rotationMode}
+          rotationIntervalMinutes={rotationIntervalMinutes}
+          onToggleAutoSub={(next) => {
+            setRotationMode(next);
+            persistDefaults({ court_rotation_mode: next });
+          }}
+          onRotationIntervalChange={(n) => {
+            setRotationIntervalMinutes(n);
+            persistDefaults({ court_rotation_interval_minutes: n });
+          }}
+          onPreviewPlan={() => setAutoSubPanelOpen(true)}
+          hasAutoSubPlan={autoSubPlan.some((s) => !s.executed && !s.skipped)}
+          validationMode={validationMode}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSquad={() => setRosterOpen(true)}
+          onOpenPresets={() => setPresetsOpen(true)}
+          onOpenLineups={() => setLineupPlannerOpen(true)}
+          hasPresets={lineupPresets.length > 0}
+          onStartGame={() =>
+            setTimerState((s) => ({
+              ...s,
+              isRunning: true,
+              lastUpdateTime: Date.now(),
+            }))
+          }
+          onBack={onClose}
+          readOnly={readOnly}
+        />
+
+        <Suspense fallback={<DialogLoader />}>
+          {settingsOpen && (
+            <NetballGameSettingsDialog
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              periodType={timerState.periodType ?? "quarters"}
+              onPeriodTypeChange={(p) => {
+                setPeriodType(p);
+                persistDefaults({ court_period_type: p });
+              }}
+              minutesPerQuarter={timerState.minutesPerQuarter}
+              onMinutesPerQuarterChange={(n) => {
+                setTimerState((s) => ({
+                  ...s,
+                  minutesPerQuarter: n,
+                  lastUpdateTime: Date.now(),
+                }));
+                persistDefaults({ court_minutes_per_quarter: n });
+              }}
+            />
+          )}
+          {rosterOpen && (
+            <NetballRosterDialog
+              open={rosterOpen}
+              onOpenChange={setRosterOpen}
+              players={players}
+              onSave={setPlayers}
+            />
+          )}
+          {presetsOpen && (
+            <NetballLineupPresetsDialog
+              open={presetsOpen}
+              onOpenChange={setPresetsOpen}
+              players={players}
+              presets={lineupPresets}
+              onSave={setLineupPresets}
+              onApply={applyPreset}
+            />
+          )}
+          {lineupPlannerOpen && (
+            <QuarterLineupPlanner
+              open={lineupPlannerOpen}
+              onOpenChange={setLineupPlannerOpen}
+              players={players}
+              lineups={quarterLineups}
+              onSave={setQuarterLineups}
+            />
+          )}
+          {autoSubPanelOpen && (
+            <QuarterAutoSubControlPanel
+              open={autoSubPanelOpen}
+              onClose={() => setAutoSubPanelOpen(false)}
+              autoSubPlan={autoSubPlan}
+              onPlayers={onCourtForPanel}
+              currentQuarter={timerState.currentQuarter}
+              currentElapsedSeconds={timerState.elapsedSeconds}
+              minutesPerQuarter={timerState.minutesPerQuarter}
+              periodType={timerState.periodType}
+              autoSubPaused={autoSubPaused}
+              lockedPlayerIds={lockedPlayerIds}
+              onTogglePause={toggleAutoSubPaused}
+              onExecuteNow={executeNextSubNow}
+              onSkipNext={skipNextSub}
+              onCancelPlan={cancelAutoSubPlan}
+              onRegeneratePlan={regenerateAutoSubPlan}
+              onToggleLockPlayer={toggleLockPlayer}
+            />
+          )}
+        </Suspense>
+      </>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
@@ -1550,6 +1662,14 @@ export default function NetballBoard({
         onRegeneratePlan={regenerateAutoSubPlan}
         onToggleLockPlayer={toggleLockPlayer}
         onEditPlan={() => setLineupPlannerOpen(true)}
+      />
+
+      <NetballQuarterBreakDialog
+        open={!!pendingQuarterSubs}
+        quarter={pendingQuarterSubs?.quarter ?? null}
+        subs={pendingQuarterSubs?.subs ?? []}
+        onConfirm={confirmPendingQuarterSubs}
+        onSkip={skipPendingQuarterSubs}
       />
     </div>
   );
