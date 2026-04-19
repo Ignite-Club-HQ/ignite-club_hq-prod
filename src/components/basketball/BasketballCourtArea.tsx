@@ -82,16 +82,16 @@ export default function BasketballCourtArea({
                   position={pos}
                   variant="court"
                   isSelected={selectedPlayerId === player.id}
-                  // Court players are swap targets only when the selected
-                  // player is on the bench (i.e. coming ON).
+                  // Court tokens are swap targets in TWO scenarios:
+                  //  1. Selected player is on the bench → substitution
+                  //  2. Selected player is on the court → position swap
                   isSwapTarget={
                     !!selectedPlayerId &&
-                    selectedIsOnBench &&
                     selectedPlayerId !== player.id
                   }
-                  // Dim other court players when the selection started on court
-                  // — the next tap should land on the bench.
-                  isDimmed={courtSelectionActive && selectedPlayerId !== player.id}
+                  // No more dimming during court-swap mode — every court player
+                  // is a valid target, so they should all glow, not fade.
+                  isDimmed={false}
                   isRecentlySwapped={recentlySwappedIds.includes(player.id)}
                   isNextSub={nextSubOutId === player.id}
                   onClick={() => onPlayerClick(player.id)}
