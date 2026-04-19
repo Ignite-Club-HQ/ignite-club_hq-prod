@@ -7399,6 +7399,13 @@ export type Database = {
           team_name: string
         }[]
       }
+      get_photo_view_counts: {
+        Args: { _photo_ids: string[] }
+        Returns: {
+          photo_id: string
+          view_count: number
+        }[]
+      }
       get_public_eoi_config: {
         Args: { _club_slug: string; _season_slug: string }
         Returns: {
