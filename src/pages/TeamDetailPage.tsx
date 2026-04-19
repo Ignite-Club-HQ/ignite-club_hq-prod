@@ -1309,7 +1309,14 @@ export default function TeamDetailPage() {
               }}
             >
               <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
-              {(isNetballClub || isBasketballClub) ? "Game Board" : "Pitch Board"}
+              <span className="inline-flex items-center gap-1.5">
+                {(isNetballClub || isBasketballClub) ? "Game Board" : "Pitch Board"}
+                {(isNetballClub || isBasketballClub) && (
+                  <span className="px-1.5 py-px rounded-full bg-primary/15 text-primary text-[9px] font-bold uppercase tracking-wider leading-none">
+                    Beta
+                  </span>
+                )}
+              </span>
             </Button>
           )}
         </div>
