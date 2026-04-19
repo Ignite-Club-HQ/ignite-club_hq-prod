@@ -324,16 +324,20 @@ export default function NetballPreGameScreen({
 
         <TabsContent
           value="rotation"
-          className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden p-6 text-center text-sm text-muted-foreground flex items-center justify-center"
+          className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden flex flex-col overflow-hidden"
         >
-          <div className="space-y-2 max-w-xs">
-            <Repeat className="h-8 w-8 mx-auto opacity-50" />
-            <p className="font-medium text-foreground">Rotation planner</p>
-            <p className="text-xs">
-              Visualise auto-sub rotations and like-for-like swaps before
-              the whistle. Coming soon.
-            </p>
-          </div>
+          <NetballRotationPreview
+            rotationMode={rotationMode}
+            rotationIntervalMinutes={rotationIntervalMinutes}
+            autoSubPlan={autoSubPlan}
+            players={players}
+            minutesPerQuarter={minutesPerQuarter}
+            periodType={periodType}
+            onEditPlan={() => onOpenLineups?.()}
+            onPreviewPlan={() => onPreviewPlan?.()}
+            onToggleAutoSub={(next) => onToggleAutoSub?.(next)}
+            readOnly={readOnly}
+          />
         </TabsContent>
 
         <TabsContent
