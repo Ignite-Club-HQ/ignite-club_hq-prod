@@ -84,6 +84,9 @@ export function useActiveGameSync() {
 
   const syncToDatabase = useCallback(async () => {
     if (!user?.id) return;
+    // Skip DB sync when offline — local pitch state remains the source of truth,
+    // and we'll resync on the next interval after connectivity returns.
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
     const timerState = loadTimerState();
     const pitchState = loadPitchState(timerState?.teamId);

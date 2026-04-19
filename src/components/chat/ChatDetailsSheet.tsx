@@ -1,0 +1,436 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { ChevronRight, X, ImageIcon, Play, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
+import { ChatParticipantsList } from "@/components/chat/ChatParticipantsList";
+import { ChatMediaViewer } from "@/components/chat/ChatMediaViewer";
+import { FullscreenImageViewer } from "@/components/chat/FullscreenImageViewer";
+import { SecureImage } from "@/components/SecureImage";
+import { useChatSharedMedia, type ChatSharedMediaType, type SharedMediaItem } from "@/hooks/useChatSharedMedia";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { isVideoUrl } from "@/lib/videoUtils";
+import { cn } from "@/lib/utils";
+
+export type ChatDetailsType = ChatSharedMediaType | "support";
+
+interface ChatDetailsSheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  chatType: ChatDetailsType;
+  chatId: string;
+  name: string;
+  sublabel?: string | null;
+  avatarUrl?: string | null;
+  /** For team or group chats — enables "View team page" link */
+  teamId?: string;
+  /** For club, team, or group chats — enables "View club page" link */
+  clubId?: string;
+  /** For DM threads — used to render both participants */
+  otherUserId?: string;
+  /** For group chats — controls participant filtering */
+  groupAllowedRoles?: string[];
+}
+
+export function ChatDetailsSheet({
+  open,
+  onOpenChange,
+  chatType,
+  chatId,
+  name,
+  sublabel,
+  avatarUrl,
+  teamId,
+  clubId,
+  otherUserId,
+  groupAllowedRoles,
+}: ChatDetailsSheetProps) {
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const [mediaViewerOpen, setMediaViewerOpen] = useState(false);
+  const [activeMedia, setActiveMedia] = useState<SharedMediaItem | null>(null);
+
+  // Map "support" to "dm" for media + participant queries.
+  const mediaType: ChatSharedMediaType =
+    chatType === "support" ? "dm" : (chatType as ChatSharedMediaType);
+
+  const { data: sharedMedia = [], isLoading: mediaLoading } = useChatSharedMedia(
+    mediaType,
+    chatId,
+    { limit: 12, enabled: open },
+  );
+
+  const close = () => onOpenChange(false);
+
+  const handleNavigate = (path: string) => {
+    onOpenChange(false);
+    navigate(path);
+  };
+
+  const showContextLinks = chatType === "team" || chatType === "club" || chatType === "group";
+  const showParticipants =
+    chatType === "team" || chatType === "club" || chatType === "group";
+
+  return (
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={cn(
+            "flex min-h-0 flex-col overflow-hidden p-0 gap-0",
+            isMobile
+              ? "h-[85vh] max-h-[85vh] rounded-t-2xl"
+              : "w-[400px] sm:max-w-md",
+          )}
+          hideCloseButton
+          enableDragToClose={isMobile}
+          data-lock-keyboard-scroll="true"
+          data-allow-scroll
+          style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
+        >
+          <SheetTitle className="sr-only">{name} chat details</SheetTitle>
+          <SheetDescription className="sr-only">
+            View shared media, notification settings, and participants for this conversation.
+          </SheetDescription>
+
+          {/* Identity */}
+          <div className="relative px-5 pt-6 pb-4 border-b">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-3 top-3 h-9 w-9"
+              onClick={close}
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+
+            <div className="flex flex-col items-center text-center">
+              <ConversationAvatar
+                type={chatType === "support" ? "support" : (chatType as any)}
+                name={name}
+                avatarUrl={avatarUrl}
+                className="h-16 w-16 ring-1 ring-border/60 shadow"
+              />
+              <h2 className="mt-3 text-lg font-bold tracking-tight">{name}</h2>
+              {sublabel && (
+                <p className="text-sm text-muted-foreground mt-0.5">{sublabel}</p>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6"
+            data-chat-scroll-lock="true"
+            style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+          >
+            {/* Context links */}
+            {showContextLinks && (
+              <div className="pt-3">
+                {(teamId || chatType === "team") && (
+                  <NavRow
+                    label="View team page"
+                    onClick={() => handleNavigate(`/teams/${chatType === "team" ? chatId : teamId}`)}
+                  />
+                )}
+                {(clubId || chatType === "club") && (
+                  <NavRow
+                    label="View club page"
+                    onClick={() => handleNavigate(`/clubs/${chatType === "club" ? chatId : clubId}`)}
+                  />
+                )}
+                <Separator className="my-2" />
+              </div>
+            )}
+
+            {/* Shared in chat */}
+            <Section
+              title="Shared in chat"
+              action={
+                sharedMedia.length > 0 && (
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-primary active:opacity-70"
+                    onClick={() => setMediaViewerOpen(true)}
+                  >
+                    View all →
+                  </button>
+                )
+              }
+            >
+              {mediaLoading ? (
+                <div className="flex items-center justify-center h-24">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : sharedMedia.length === 0 ? (
+                <EmptyMedia />
+              ) : (
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 snap-x">
+                  {sharedMedia.slice(0, 8).map((item) => {
+                    const isVideo = isVideoUrl(item.image_url);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setActiveMedia(item)}
+                        className="relative shrink-0 h-20 w-20 rounded-lg overflow-hidden bg-muted snap-start active:opacity-80 transition-opacity"
+                      >
+                        <SecureImage
+                          src={item.image_url}
+                          alt="Shared media"
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                        {isVideo && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                            <div className="h-7 w-7 rounded-full bg-black/60 flex items-center justify-center">
+                              <Play className="h-3 w-3 text-white fill-white" />
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </Section>
+
+            {/* Notifications */}
+            <Section title="Notifications">
+              <NotificationsToggle chatType={mediaType} chatId={chatId} disabled={chatType === "support"} />
+            </Section>
+
+            {/* Participants */}
+            {showParticipants && (
+              <Section title="" noPadding>
+                <ChatParticipantsList
+                  chatType={chatType as "team" | "club" | "group"}
+                  chatId={chatId}
+                  chatName={name}
+                  teamId={teamId}
+                  clubId={clubId}
+                  groupAllowedRoles={groupAllowedRoles}
+                  enabled={open}
+                  onBeforeNavigate={close}
+                  inline
+                />
+              </Section>
+            )}
+
+            {/* DM participant summary */}
+            {(chatType === "dm" || chatType === "support") && otherUserId && (
+              <Section title="Participants · 2">
+                <DMParticipants otherUserId={otherUserId} otherName={name} otherAvatar={avatarUrl} />
+              </Section>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <ChatMediaViewer
+        open={mediaViewerOpen}
+        onOpenChange={setMediaViewerOpen}
+        chatType={mediaType}
+        chatId={chatId}
+        title="Shared in chat"
+      />
+
+      {activeMedia && (
+        <FullscreenImageViewer
+          src={activeMedia.image_url}
+          alt="Shared media"
+          onClose={() => setActiveMedia(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function Section({
+  title,
+  action,
+  children,
+  noPadding,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  noPadding?: boolean;
+}) {
+  return (
+    <div className={cn("pt-4", noPadding && "pt-3")}>
+      {title && (
+        <div className="flex items-center justify-between mb-2 px-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          {action}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function NavRow({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors hover:bg-muted/50 active:bg-muted touch-manipulation"
+    >
+      <span className="text-sm font-medium">{label}</span>
+      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+    </button>
+  );
+}
+
+function EmptyMedia() {
+  return (
+    <div className="flex flex-col items-center justify-center py-6 px-4 rounded-lg bg-muted/40 text-center">
+      <ImageIcon className="h-5 w-5 text-muted-foreground mb-1.5" />
+      <p className="text-xs text-muted-foreground">No media shared in this chat yet</p>
+    </div>
+  );
+}
+
+function NotificationsToggle({
+  chatType,
+  chatId,
+  disabled,
+}: {
+  chatType: ChatSharedMediaType;
+  chatId: string;
+  disabled?: boolean;
+}) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const muteType = chatType === "broadcast" ? "team" : chatType; // broadcast not tracked individually; UI-only
+
+  const { data: muteData, isLoading } = useQuery({
+    queryKey: ["chat-mute", muteType, chatId, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chat_mute_preferences")
+        .select("id, muted_until")
+        .eq("user_id", user!.id)
+        .eq("chat_type", muteType as any)
+        .eq("chat_id", chatId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user && !disabled && chatType !== "broadcast",
+  });
+
+  const isMuted = !!muteData && (muteData.muted_until === null || new Date(muteData.muted_until) > new Date());
+  const notificationsOn = !isMuted;
+
+  const toggleMutation = useMutation({
+    mutationFn: async (enable: boolean) => {
+      if (enable) {
+        await supabase
+          .from("chat_mute_preferences")
+          .delete()
+          .eq("user_id", user!.id)
+          .eq("chat_type", muteType as any)
+          .eq("chat_id", chatId);
+      } else {
+        await supabase
+          .from("chat_mute_preferences")
+          .delete()
+          .eq("user_id", user!.id)
+          .eq("chat_type", muteType as any)
+          .eq("chat_id", chatId);
+        await supabase.from("chat_mute_preferences").insert({
+          user_id: user!.id,
+          chat_type: muteType as any,
+          chat_id: chatId,
+          muted_until: null,
+        });
+      }
+    },
+    onSuccess: (_, enable) => {
+      queryClient.invalidateQueries({ queryKey: ["chat-mute", muteType, chatId, user?.id] });
+      toast.success(enable ? "Notifications enabled" : "Notifications muted");
+    },
+    onError: () => toast.error("Failed to update notification settings"),
+  });
+
+  if (chatType === "broadcast" || disabled) {
+    return (
+      <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+        <div>
+          <p className="text-sm font-medium">Notifications</p>
+          <p className="text-xs text-muted-foreground">Always on for this chat</p>
+        </div>
+        <Switch checked disabled />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
+      <div>
+        <p className="text-sm font-medium">Notifications</p>
+        <p className="text-xs text-muted-foreground">
+          {notificationsOn ? "You'll be notified of new messages" : "Muted — no notifications"}
+        </p>
+      </div>
+      <Switch
+        checked={notificationsOn}
+        disabled={isLoading || toggleMutation.isPending}
+        onCheckedChange={(checked) => toggleMutation.mutate(checked)}
+      />
+    </div>
+  );
+}
+
+function DMParticipants({
+  otherUserId,
+  otherName,
+  otherAvatar,
+}: {
+  otherUserId: string;
+  otherName: string;
+  otherAvatar?: string | null;
+}) {
+  const { user, profile } = useAuth();
+  return (
+    <div className="space-y-1 px-1">
+      <div className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/50">
+        <ConversationAvatar
+          type="dm"
+          name={profile?.display_name || "You"}
+          avatarUrl={profile?.avatar_url}
+          className="h-9 w-9"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">You</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/50">
+        <ConversationAvatar
+          type="dm"
+          name={otherName}
+          avatarUrl={otherAvatar}
+          className="h-9 w-9"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{otherName}</p>
+        </div>
+      </div>
+      {/* Suppress unused warnings */}
+      <span className="hidden">{format(new Date(), "")}{user?.id}{otherUserId}</span>
+    </div>
+  );
+}

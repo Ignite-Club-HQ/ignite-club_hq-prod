@@ -46,6 +46,7 @@ const CreateTeamPage = lazy(() => import("./pages/CreateTeamPage"));
 const EditTeamPage = lazy(() => import("./pages/EditTeamPage"));
 const TeamDetailPage = lazy(() => import("./pages/TeamDetailPage"));
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
+const ScheduledMessagesPage = lazy(() => import("./pages/ScheduledMessagesPage"));
 const TeamChatPage = lazy(() => import("./pages/TeamChatPage"));
 const BroadcastChatPage = lazy(() => import("./pages/BroadcastChatPage"));
 const ClubChatPage = lazy(() => import("./pages/ClubChatPage"));
@@ -59,6 +60,8 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const AccountPage = lazy(() => import("./pages/AccountPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
+const AdminTempPasswordPage = lazy(() => import("./pages/AdminTempPasswordPage"));
+const OnlineUsersPage = lazy(() => import("./pages/OnlineUsersPage"));
 const EditProfilePage = lazy(() => import("./pages/EditProfilePage"));
 const MyRolesPage = lazy(() => import("./pages/MyRolesPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
@@ -95,7 +98,15 @@ const AdMobSettingsPage = lazy(() => import("./pages/AdMobSettingsPage"));
 const ClassEnrolmentPage = lazy(() => import("./pages/ClassEnrolmentPage"));
 const PayFeesPage = lazy(() => import("./pages/PayFeesPage"));
 const SendUpdateReminderPage = lazy(() => import("./pages/SendUpdateReminderPage"));
+const SeasonsPage = lazy(() => import("./pages/SeasonsPage"));
+const SeasonDetailPage = lazy(() => import("./pages/SeasonDetailPage"));
+const SeasonComparePage = lazy(() => import("./pages/SeasonComparePage"));
 const ShortInviteRedirect = lazy(() => import("./pages/ShortInviteRedirect"));
+const EoiAdminPage = lazy(() => import("./pages/EoiAdminPage"));
+const PublicEoiFormPage = lazy(() => import("./pages/PublicEoiFormPage"));
+const EoiCompletePage = lazy(() => import("./pages/EoiCompletePage"));
+const EmbeddedEoiFormPage = lazy(() => import("./pages/EmbeddedEoiFormPage"));
+const WatchLiveTeamPage = lazy(() => import("./pages/WatchLiveTeamPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
@@ -230,6 +241,9 @@ const App = () => {
                 <Route path="/cancellation" element={<CancellationPolicyPage />} />
                 <Route path="/video-guide" element={<VideoGuideDownloadPage />} />
                 <Route path="/share" element={<ShareLinkRedirect />} />
+<Route path="/eoi/:clubSlug/:seasonSlug" element={<PublicEoiFormPage />} />
+<Route path="/eoi-embed/:clubSlug/:seasonSlug" element={<EmbeddedEoiFormPage />} />
+<Route path="/eoi-complete/:token" element={<EoiCompletePage />} />
 
 
                 {/* Protected routes */}
@@ -254,11 +268,13 @@ const App = () => {
                   <Route path="/clubs/:clubId/stripe" element={<StripeSettingsPage />} />
                   <Route path="/clubs/:clubId/enrol" element={<ClassEnrolmentPage />} />
                   <Route path="/teams/:id" element={<TeamDetailPage />} />
+                  <Route path="/watch/team/:teamId" element={<WatchLiveTeamPage />} />
                   <Route path="/teams/:id/edit" element={<EditTeamPage />} />
                   <Route path="/teams/:teamId/roles" element={<ManageTeamRolesPage />} />
                   <Route path="/teams/:teamId/upgrade" element={<UpgradeProPage />} />
                   <Route path="/teams/:teamId/attendance" element={<AttendanceStatsPage />} />
                   <Route path="/messages" element={<MessagesPage />} />
+                  <Route path="/scheduled-messages" element={<ScheduledMessagesPage />} />
                   <Route path="/messages/broadcast" element={<BroadcastChatPage />} />
                   <Route path="/messages/club/:clubId" element={<ClubChatPage />} />
                    <Route path="/messages/dm/:conversationId" element={<DirectMessagePage />} />
@@ -274,6 +290,7 @@ const App = () => {
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/account" element={<AccountPage />} />
                   <Route path="/admin" element={<AdminPage />} />
+                  <Route path="/admin/online-users" element={<OnlineUsersPage />} />
                   <Route path="/edit-profile" element={<EditProfilePage />} />
                   <Route path="/roles" element={<MyRolesPage />} />
                   <Route path="/children" element={<ChildrenPage />} />
@@ -285,6 +302,7 @@ const App = () => {
                   <Route path="/admin/stripe" element={<AppStripeSettingsPage />} />
                   <Route path="/admin/feedback" element={<ManageFeedbackPage />} />
                   <Route path="/admin/users" element={<ManageUsersPage />} />
+                  <Route path="/admin/temp-password" element={<AdminTempPasswordPage />} />
                   <Route path="/admin/backups" element={<ManageBackupsPage />} />
                   <Route path="/admin/sponsor-analytics" element={<SponsorAnalyticsPage />} />
                   <Route path="/admin/ads" element={<ManageAdsPage />} />
@@ -293,6 +311,10 @@ const App = () => {
                   <Route path="/admin/settings" element={<AppSettingsPage />} />
                   <Route path="/admin/admob" element={<AdMobSettingsPage />} />
                   <Route path="/admin/send-update-reminder" element={<SendUpdateReminderPage />} />
+                  <Route path="/clubs/:clubId/seasons" element={<SeasonsPage />} />
+                  <Route path="/clubs/:clubId/seasons/compare" element={<SeasonComparePage />} />
+                  <Route path="/clubs/:clubId/seasons/:seasonId" element={<SeasonDetailPage />} />
+                  <Route path="/clubs/:clubId/eois" element={<EoiAdminPage />} />
                   <Route path="/mini-leagues" element={<MiniLeaguesPage />} />
                   <Route path="/mini-leagues/:id" element={<MiniLeagueDetailPage />} />
                 </Route>

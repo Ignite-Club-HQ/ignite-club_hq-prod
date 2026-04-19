@@ -1,15 +1,21 @@
 import { useState, useRef, useEffect } from "react";
-import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Capacitor } from "@capacitor/core";
-
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
+import {
+  isVideoFile,
+  isVideoUrl,
+  validateVideo,
+  videoMimeToExtension,
+  MAX_VIDEO_SIZE_BYTES,
+} from "@/lib/videoUtils";
 
 interface ChatImageInputProps {
   onImageUploaded: (imageUrl: string | null) => void;
@@ -21,6 +27,9 @@ interface ChatImageInputProps {
   showEventPicker?: boolean;
   onPollCreate?: () => void;
   showPollCreator?: boolean;
+  /** Open the live-board picker (active games on user's teams). */
+  onBoardPick?: () => void;
+  showBoardPicker?: boolean;
   /** When true, the action icons are hidden and only the image preview (if any) is shown */
   hasText?: boolean;
 }
@@ -28,7 +37,7 @@ interface ChatImageInputProps {
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, hasText = false }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, hasText = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -50,17 +59,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     recoveryCleanupRef.current = scheduleIOSNativeOverlayRecovery();
   };
 
-  const uploadBlob = async (blob: Blob, options?: { skipCompression?: boolean }) => {
-    const { skipCompression = false } = options ?? {};
+  const uploadBlob = async (
+    blob: Blob,
+    options?: { skipCompression?: boolean; isVideo?: boolean; fileName?: string },
+  ) => {
+    const { skipCompression = false, isVideo = false } = options ?? {};
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const originalMimeType = blob.type || "image/jpeg";
+    const originalMimeType = blob.type || (isVideo ? "video/mp4" : "image/jpeg");
     let fileToUpload: Blob | File = blob;
     let contentType = originalMimeType;
 
-    if (!skipCompression) {
+    if (!isVideo && !skipCompression) {
       const sourceFile = blob instanceof File
         ? blob
         : new File([blob], `photo.${mimeToExtension(originalMimeType)}`, { type: originalMimeType });
@@ -76,7 +88,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
     }
 
-    const extension = mimeToExtension(contentType);
+    const extension = isVideo
+      ? videoMimeToExtension(contentType)
+      : mimeToExtension(contentType);
 
     const timestamp = Date.now();
     let fileName: string;
@@ -164,12 +178,21 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
+    const isVideo = isVideoFile(file);
+
+    if (!isVideo && !file.type.startsWith("image/")) {
+      toast.error("Please select an image or video file");
       return;
     }
 
-    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+    if (isVideo) {
+      const validation = await validateVideo(file);
+      if (!validation.ok) {
+        toast.error(validation.reason || "Video is not valid");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    } else if (file.size > MAX_UPLOAD_SIZE_BYTES) {
       toast.error("Image must be less than 10MB");
       return;
     }
@@ -185,13 +208,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     setUploading(true);
 
     try {
-      const storageUrl = await uploadBlob(file);
+      const storageUrl = await uploadBlob(file, { isVideo });
       URL.revokeObjectURL(localUrl);
       setLocalPreview(null);
       onImageUploaded(storageUrl);
     } catch (error) {
       console.error("Upload error:", error);
-      toast.error("Failed to upload image");
+      toast.error(isVideo ? "Failed to upload video" : "Failed to upload image");
       URL.revokeObjectURL(localUrl);
       setLocalPreview(null);
     } finally {
@@ -207,6 +230,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const handleImageButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (shouldUseNativePicker()) {
+      // CRITICAL iOS GESTURE RULE:
+      // Camera.getPhoto must be invoked synchronously from the user's click —
+      // any `await` or async hop before it breaks the gesture chain in WKWebView
+      // and the picker silently fails to open. Do NOT add awaits or state
+      // updates before this call. handleNativePhotoPick starts the async work
+      // immediately on its first line so the gesture is preserved.
       void handleNativePhotoPick();
     } else {
       (e.currentTarget as HTMLElement)?.blur();
@@ -261,7 +290,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           onChange={handleFileSelect}
           className="sr-only"
           disabled={disabled || uploading}
@@ -270,6 +299,20 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           {previewFailed ? (
             <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
               <ImagePlus className="h-5 w-5 text-muted-foreground" />
+            </div>
+          ) : isVideoUrl(displayUrl) ? (
+            <div className="relative h-10 w-10 rounded overflow-hidden bg-black">
+              <video
+                src={displayUrl}
+                className="h-10 w-10 object-cover"
+                muted
+                playsInline
+                preload="metadata"
+                onError={() => setPreviewFailed(true)}
+              />
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
+                <Play className="h-3.5 w-3.5 fill-white text-white" />
+              </div>
             </div>
           ) : (
             <img
@@ -289,7 +332,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
             onClick={handleRemoveImage}
             disabled={disabled}
-            aria-label="Remove image"
+            aria-label="Remove attachment"
           >
             <X className="h-2.5 w-2.5" />
           </button>
@@ -304,7 +347,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         onChange={handleFileSelect}
         className="sr-only"
         disabled={disabled || uploading}
@@ -312,15 +355,19 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
     );
   }
 
-  // Show photo button inline; event + poll behind a "+" popover
-  const hasExtraActions = (showEventPicker && onEventSelect) || (showPollCreator && onPollCreate);
+  // Show photo button inline; event + poll behind a "+" popover.
+  // Photo upload is ALWAYS mirrored inside the "+" popover because many users
+  // (e.g. parents coming from WhatsApp/Messenger) instinctively look for
+  // attachments behind a "+" rather than tapping the dedicated image icon.
+  // The "+" button is therefore shown unconditionally, even when there are no
+  // event/poll/board extras to surface.
 
   return (
-    <div className="flex shrink-0 items-center gap-2 self-end pl-2">
+    <div className="flex shrink-0 items-center self-end">
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         onChange={handleFileSelect}
         className="sr-only"
         disabled={disabled || uploading}
@@ -329,25 +376,25 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         type="button"
         onClick={handleImageButtonClick}
         disabled={disabled || uploading}
-        className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-foreground hover:text-primary transition-colors disabled:opacity-50"
+        className="flex items-center justify-center h-9 w-9 shrink-0 text-foreground hover:text-primary transition-colors disabled:opacity-50"
         aria-label="Upload photo"
       >
         {uploading ? (
-          <Loader2 className="h-[22px] w-[22px] animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
-          <ImagePlus className="h-[22px] w-[22px]" strokeWidth={2.25} />
+          <ImagePlus className="h-5 w-5" strokeWidth={2.25} />
         )}
       </button>
-      {hasExtraActions && (
+      {(
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
           <PopoverTrigger asChild>
             <button
               type="button"
               disabled={disabled}
-              className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
+              className="flex items-center justify-center h-9 w-9 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
               aria-label="More actions"
             >
-              <Plus className="h-[22px] w-[22px]" strokeWidth={2.25} />
+              <Plus className="h-5 w-5" strokeWidth={2.25} />
             </button>
           </PopoverTrigger>
           <PopoverContent
@@ -357,6 +404,28 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             className="w-60 p-2"
           >
             <div className="flex flex-col gap-1">
+              {/* Mirror of the dedicated image icon — discoverability fallback.
+                  iOS gesture-chain rule: invoke the picker FIRST, then close
+                  the popover. Closing first triggers a re-render that defers
+                  Camera.getPhoto past the user gesture and iOS rejects it. */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  handleImageButtonClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
+                  // Defer popover close to next tick so the picker call stays
+                  // inside the synchronous gesture handler.
+                  setTimeout(() => setMenuOpen(false), 0);
+                }}
+                disabled={disabled || uploading}
+                className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
+                aria-label="Upload photo or video"
+              >
+                <ImagePlus className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
+                <div className="flex flex-col items-start leading-tight">
+                  <span className="text-sm font-medium">Photo or Video</span>
+                  <span className="text-[11px] text-muted-foreground">From your library</span>
+                </div>
+              </button>
               {showEventPicker && onEventSelect && (
                 <button
                   type="button"
@@ -390,6 +459,24 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   <div className="flex flex-col items-start leading-tight">
                     <span className="text-sm font-medium">Create Poll</span>
                     <span className="text-[11px] text-muted-foreground">Ask the group a question</span>
+                  </div>
+                </button>
+              )}
+              {showBoardPicker && onBoardPick && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onBoardPick();
+                  }}
+                  disabled={disabled}
+                  className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
+                  aria-label="Share live board"
+                >
+                  <Trophy className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={2} />
+                  <div className="flex flex-col items-start leading-tight">
+                    <span className="text-sm font-medium">Share Live Board</span>
+                    <span className="text-[11px] text-muted-foreground">Soccer, netball or basketball</span>
                   </div>
                 </button>
               )}

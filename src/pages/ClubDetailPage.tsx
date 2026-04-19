@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft } from "lucide-react";
+import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, MoreVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles } from "lucide-react";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -90,6 +90,7 @@ import { ClassModeOnboardingGuide } from "@/components/ClassModeOnboardingGuide"
 import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { AttendanceStatsView } from "@/components/AttendanceStatsView";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
+import ClubRecentGames from "@/components/history/ClubRecentGames";
 
 type ClubRole = "club_admin";
 
@@ -936,6 +937,10 @@ export default function ClubDetailPage() {
                 <Pencil className="h-4 w-4 mr-2" />
                 {club?.class_mode_enabled ? "Edit Organisation" : "Edit Club"}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/clubs/${id}/seasons`)}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Manage Seasons
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
@@ -1123,6 +1128,9 @@ export default function ClubDetailPage() {
       {isAdmin && club?.class_mode_enabled && (
         <TodaysClassesDashboard clubId={id!} />
       )}
+
+      {/* Recent Games — basketball + netball only, hides itself if empty */}
+      {!isSoccerClub && <ClubRecentGames clubId={id!} />}
 
       {/* Primary Sponsor Display */}
       {club?.primary_sponsor_id && (

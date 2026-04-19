@@ -10,16 +10,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search, X } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
-import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+
+import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { useIsUserOnline } from "@/hooks/useUserPresence";
+import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -31,6 +38,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
+import { queueMessage } from "@/lib/messageQueue";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
 import { useMessageReads } from "@/hooks/useMessageReads";
@@ -164,12 +172,18 @@ export default function DirectMessagePage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = conversationId
+    ? { chat_type: "direct", conversation_id: conversationId }
+    : null;
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [dmImageUrl, setDmImageUrl] = useState<string | null>(null);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -245,6 +259,9 @@ export default function DirectMessagePage() {
 
   // Check if this is a conversation with Ignite Support (system user)
   const isIgniteSupportConversation = isIgniteSupportUser(otherUserId);
+
+  // Live presence — true when the other user has the app open in any tab.
+  const isOtherUserOnline = useIsUserOnline(otherUserId);
 
   useLayoutEffect(() => {
     const composerEl = composerRef.current;
@@ -558,6 +575,28 @@ export default function DirectMessagePage() {
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async ({ text, imageUrl, replyToId }: { text: string; imageUrl?: string | null; replyToId?: string | null }) => {
+      // Offline path: queue the message instead of failing
+      if (!navigator.onLine) {
+        const queued = queueMessage({
+          type: "dm",
+          targetId: conversationId!,
+          authorId: user!.id,
+          text,
+          imageUrl: imageUrl || null,
+          replyToId: replyToId || null,
+          createdAt: new Date().toISOString(),
+        });
+        return {
+          id: queued.id,
+          text,
+          image_url: imageUrl || null,
+          conversation_id: conversationId!,
+          author_id: user!.id,
+          reply_to_id: replyToId || null,
+          created_at: queued.createdAt,
+          __queued: true,
+        } as any;
+      }
       const { data, error } = await supabase
         .from("direct_messages")
         .insert({
@@ -705,7 +744,7 @@ export default function DirectMessagePage() {
   );
 
   const handleSend = () => {
-    if (!message.trim()) return;
+    if (!message.trim() && !dmImageUrl) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
@@ -719,10 +758,11 @@ export default function DirectMessagePage() {
     stopTyping();
     sendMessageMutation.mutate({
       text: message.trim(),
-      imageUrl: null,
+      imageUrl: dmImageUrl,
       replyToId: replyTo?.id || null,
     });
     setMessage("");
+    setDmImageUrl(null);
     setReplyTo(null);
   };
 
@@ -1003,45 +1043,35 @@ export default function DirectMessagePage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <ChatBackButton />
-          {isIgniteSupportConversation ? (
-            <>
-              <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                <Flame className="h-5 w-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="font-semibold">Ignite Support</h1>
-                <p className="text-xs text-muted-foreground">Welcome & tips</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <Avatar className="h-10 w-10 shrink-0">
-                <AvatarImage src={otherUser?.avatar_url || undefined} />
-                <AvatarFallback>{otherUser?.display_name?.charAt(0).toUpperCase() || "?"}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <h1 className="font-semibold truncate">{otherUser?.display_name || "Unknown User"}</h1>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          {!isIgniteSupportConversation && (
-            <ChatMuteButton chatType="dm" chatId={conversationId!} />
-          )}
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type={isIgniteSupportConversation ? "support" : "dm"}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
+        avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
+        showOnlineDot={!isIgniteSupportConversation && isOtherUserOnline}
+        onOpenDetails={() => setDetailsOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        chatType={isIgniteSupportConversation ? "support" : "dm"}
+        chatId={conversationId!}
+        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || "Unknown User")}
+        sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
+        avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
+        otherUserId={otherUserId || undefined}
+      />
 
 
 
@@ -1157,30 +1187,66 @@ export default function DirectMessagePage() {
                />
              )}
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-               <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
-               <MentionInput
-                 value={message}
-                 onChange={(val) => {
-                   setMessage(val);
-                   if (val.trim()) startTyping(); else stopTyping();
-                 }}
-                 onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                 placeholder="Type a message..."
-                 disabled={sendMessageMutation.isPending}
-               />
-               
-               <button 
-                 onClick={handleSend} 
-                 disabled={!message.trim() || sendMessageMutation.isPending}
-                 className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
-               >
-                 {sendMessageMutation.isPending ? (
-                   <Loader2 className="h-5 w-5 animate-spin" />
-                 ) : (
-                   <Send className="h-5 w-5" />
-                 )}
-               </button>
-             </div>
+              {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
+                <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
+                {dmImageUrl && (
+                  <div className="relative shrink-0 self-end">
+                    <img
+                      src={dmImageUrl}
+                      alt="Attachment preview"
+                      className="h-10 w-10 object-cover rounded"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setDmImageUrl(null)}
+                      className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                )}
+                <MentionInput
+                  value={message}
+                  onChange={(val) => {
+                    setMessage(val);
+                    if (val.trim()) startTyping(); else stopTyping();
+                  }}
+                  onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                  placeholder="Type a message..."
+                  disabled={sendMessageMutation.isPending}
+                  onGifSelect={setDmImageUrl}
+                />
+                {scheduleTarget && (
+                  <ScheduleMessageButton
+                    onClick={() => setScheduleDialogOpen(true)}
+                    disabled={sendMessageMutation.isPending}
+                  />
+                )}
+                <button 
+                  onClick={handleSend} 
+                  disabled={(!message.trim() && !dmImageUrl) || sendMessageMutation.isPending}
+                  className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
+                >
+                  {sendMessageMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              {scheduleTarget && (
+                <ScheduleMessageDialog
+                  open={scheduleDialogOpen}
+                  onOpenChange={setScheduleDialogOpen}
+                  target={scheduleTarget}
+                  initialText={message}
+                  onScheduled={() => {
+                    setMessage("");
+                    clearDraft?.();
+                  }}
+                />
+              )}
            </div>
         </>
       )}

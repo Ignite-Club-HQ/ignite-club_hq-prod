@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Capacitor } from "@capacitor/core";
+import { GifGrid } from "@/components/chat/GifGrid";
 
 const RECENT_EMOJIS_KEY = "ignite-recent-emojis";
 const MAX_RECENT_EMOJIS = 14;
@@ -47,6 +48,8 @@ const EMOJI_CATEGORIES = [
 
 interface EmojiPickerProps {
   onEmojiSelect: (emoji: string) => void;
+  /** Optional: if provided, a "GIF" tab is shown alongside emojis. */
+  onGifSelect?: (gifUrl: string) => void;
   disabled?: boolean;
 }
 
@@ -69,13 +72,16 @@ function saveRecentEmoji(emoji: string) {
   }
 }
 
-export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
+export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPickerProps) {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"emoji" | "gif">("emoji");
   const [activeCategory, setActiveCategory] = useState(0);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const isMobile = useIsMobile();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
   const onEmojiSelectRef = useRef(onEmojiSelect);
+  const onGifSelectRef = useRef(onGifSelect);
+  const showGifTab = !!onGifSelect;
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
     if (!isNativeIOS) return;
@@ -88,32 +94,43 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
       (document.activeElement as HTMLElement | null)?.blur();
     }, 120);
   }, [isNativeIOS]);
-  
-  // Keep ref updated
+
+  // Keep refs updated
   useEffect(() => {
     onEmojiSelectRef.current = onEmojiSelect;
   }, [onEmojiSelect]);
+  useEffect(() => {
+    onGifSelectRef.current = onGifSelect;
+  }, [onGifSelect]);
 
   useEffect(() => {
     if (open) {
       setRecentEmojis(getRecentEmojis());
+    } else {
+      // Reset to emoji tab on close so next open is predictable
+      setTab("emoji");
     }
   }, [open]);
 
   const handleEmojiClick = useCallback((emoji: string) => {
     dismissIOSKeyboardAccessory();
-    // Save to recent first
     saveRecentEmoji(emoji);
-    // Call the callback using ref to avoid stale closure
     onEmojiSelectRef.current(emoji);
-    // Close popover after a tiny delay to ensure the callback fires
     requestAnimationFrame(() => {
       setOpen(false);
       dismissIOSKeyboardAccessory();
     });
   }, [dismissIOSKeyboardAccessory]);
 
-  // Unified handler for both touch and click
+  const handleGifPick = useCallback((url: string) => {
+    dismissIOSKeyboardAccessory();
+    onGifSelectRef.current?.(url);
+    requestAnimationFrame(() => {
+      setOpen(false);
+      dismissIOSKeyboardAccessory();
+    });
+  }, [dismissIOSKeyboardAccessory]);
+
   const createEmojiHandler = useCallback((emoji: string) => {
     return (e: React.MouseEvent | React.TouchEvent) => {
       e.preventDefault();
@@ -140,88 +157,144 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
           <Smile className="h-5 w-5 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent 
+      <PopoverContent
         className={`p-2 ${isMobile ? "w-[calc(100vw-2rem)] max-w-sm" : "w-72"}`}
-        side="top" 
+        side="top"
         align="start"
         sideOffset={8}
         onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        onFocusOutside={(e) => {
+          // Don't let focus moving to the search input (or anywhere inside the GIF tab) close the popover
+          const target = e.target as HTMLElement | null;
+          if (target?.closest('[data-gif-picker]')) {
+            e.preventDefault();
+          }
+        }}
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement | null;
+          if (target?.closest('[data-gif-picker]')) {
+            e.preventDefault();
+          }
+        }}
         onPointerDownOutside={(e) => {
-          // Only close if clicking outside
           const target = e.target as HTMLElement;
+          if (target.closest('[data-gif-picker]')) {
+            e.preventDefault();
+            return;
+          }
           if (!target.closest('[data-emoji-button]')) {
             setOpen(false);
           }
         }}
       >
-        {/* Recent emojis row */}
-        {recentEmojis.length > 0 && (
-          <div className="mb-2 pb-2 border-b">
-            <div className="flex items-center gap-1 mb-1">
-              <Clock className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Recent</span>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {recentEmojis.map((emoji, idx) => (
+        {/* Tab switcher (only when GIFs are enabled) */}
+        {showGifTab && (
+          <div className="flex gap-1 mb-2 p-0.5 rounded-md bg-muted/60">
+            <button
+              type="button"
+              onClick={() => setTab("emoji")}
+              className={`flex-1 rounded text-xs font-medium py-1.5 transition-colors ${
+                tab === "emoji"
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Emoji
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("gif")}
+              className={`flex-1 rounded text-xs font-semibold py-1.5 transition-colors ${
+                tab === "gif"
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              GIF
+            </button>
+          </div>
+        )}
+
+        {tab === "emoji" || !showGifTab ? (
+          <>
+            {/* Recent emojis row */}
+            {recentEmojis.length > 0 && (
+              <div className="mb-2 pb-2 border-b">
+                <div className="flex items-center gap-1 mb-1">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Recent</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {recentEmojis.map((emoji, idx) => (
+                    <button
+                      type="button"
+                      key={`recent-${emoji}-${idx}`}
+                      data-emoji-button
+                      onClick={createEmojiHandler(emoji)}
+                      onTouchEnd={createEmojiHandler(emoji)}
+                      className={`flex items-center justify-center hover:bg-accent active:bg-accent rounded transition-colors cursor-pointer select-none touch-manipulation ${
+                        isMobile ? "h-9 w-9 text-xl" : "h-7 w-7 text-base"
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Category tabs */}
+            <div className="flex gap-1 mb-2 pb-1 border-b overflow-x-auto scrollbar-hide">
+              {EMOJI_CATEGORIES.map((cat, idx) => (
                 <button
                   type="button"
-                  key={`recent-${emoji}-${idx}`}
+                  key={cat.name}
+                  onClick={() => setActiveCategory(idx)}
+                  className={`shrink-0 rounded transition-colors ${
+                    isMobile
+                      ? "h-8 w-8 flex items-center justify-center text-lg"
+                      : "px-2 py-1 text-xs whitespace-nowrap"
+                  } ${
+                    activeCategory === idx
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent text-muted-foreground"
+                  }`}
+                  title={cat.name}
+                >
+                  {isMobile ? cat.icon : cat.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Emoji grid */}
+            <div className={`grid gap-1 max-h-52 overflow-y-auto ${
+              isMobile ? "grid-cols-7" : "grid-cols-8"
+            }`}>
+              {EMOJI_CATEGORIES[activeCategory].emojis.map((emoji) => (
+                <button
+                  type="button"
+                  key={emoji}
                   data-emoji-button
                   onClick={createEmojiHandler(emoji)}
                   onTouchEnd={createEmojiHandler(emoji)}
-                  className={`flex items-center justify-center hover:bg-accent active:bg-accent rounded transition-colors cursor-pointer select-none touch-manipulation ${
-                    isMobile ? "h-9 w-9 text-xl" : "h-7 w-7 text-base"
+                  className={`flex items-center justify-center hover:bg-accent active:bg-accent rounded transition-colors select-none touch-manipulation ${
+                    isMobile ? "h-10 w-10 text-xl" : "h-8 w-8 text-lg"
                   }`}
                 >
                   {emoji}
                 </button>
               ))}
             </div>
-          </div>
+          </>
+        ) : (
+          <GifGrid
+            active={tab === "gif"}
+            onSelect={handleGifPick}
+            scrollClassName="max-h-64"
+            gridClassName="grid-cols-2"
+          />
         )}
-
-        {/* Category tabs - use icons on mobile */}
-        <div className="flex gap-1 mb-2 pb-1 border-b overflow-x-auto scrollbar-hide">
-          {EMOJI_CATEGORIES.map((cat, idx) => (
-            <button
-              type="button"
-              key={cat.name}
-              onClick={() => setActiveCategory(idx)}
-              className={`shrink-0 rounded transition-colors ${
-                isMobile 
-                  ? "h-8 w-8 flex items-center justify-center text-lg" 
-                  : "px-2 py-1 text-xs whitespace-nowrap"
-              } ${
-                activeCategory === idx 
-                  ? "bg-primary text-primary-foreground" 
-                  : "hover:bg-accent text-muted-foreground"
-              }`}
-              title={cat.name}
-            >
-              {isMobile ? cat.icon : cat.name}
-            </button>
-          ))}
-        </div>
-        
-        {/* Emoji grid - larger touch targets on mobile */}
-        <div className={`grid gap-1 max-h-52 overflow-y-auto ${
-          isMobile ? "grid-cols-7" : "grid-cols-8"
-        }`}>
-          {EMOJI_CATEGORIES[activeCategory].emojis.map((emoji) => (
-            <button
-              type="button"
-              key={emoji}
-              data-emoji-button
-              onClick={createEmojiHandler(emoji)}
-              onTouchEnd={createEmojiHandler(emoji)}
-              className={`flex items-center justify-center hover:bg-accent active:bg-accent rounded transition-colors select-none touch-manipulation ${
-                isMobile ? "h-10 w-10 text-xl" : "h-8 w-8 text-lg"
-              }`}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
       </PopoverContent>
     </Popover>
   );

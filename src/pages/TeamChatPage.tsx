@@ -12,10 +12,12 @@ import { ArrowLeft, Send, Loader2, Search, UserPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
-import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
+import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
-import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+
 import { PageLoading } from "@/components/ui/page-loading";
 import AddTeamMemberSheet from "@/components/AddTeamMemberSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
@@ -28,11 +30,19 @@ import { toast } from "sonner";
 import { format, parseISO, isToday, isYesterday, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { jumpToMessageInChat } from "@/lib/jumpToMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
@@ -131,8 +141,13 @@ export default function TeamChatPage() {
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = teamId
+    ? { chat_type: "team", team_id: teamId }
+    : null;
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -198,6 +213,17 @@ export default function TeamChatPage() {
       return () => clearTimeout(timer);
     }
   }, [targetMessageId]);
+
+  // Pinned messages
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("team", teamId);
+  const handleJumpToMessage = (mid: string) =>
+    jumpToMessageInChat(mid, setHighlightedMessageId);
 
   const { data: team, isLoading: loadingTeam } = useQuery({
     queryKey: ["team", teamId],
@@ -1270,6 +1296,15 @@ export default function TeamChatPage() {
     }
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
+  // Live online count for the team — only shown in the header sublabel when > 0.
+  const teamOnlineCount = useChatOnlineCount("team", teamId);
+  const onlineLabel = teamOnlineCount > 0 ? `${teamOnlineCount} online` : null;
+  const teamHeaderSublabel = team?.clubs?.name
+    ? onlineLabel
+      ? `${team.clubs.name} · ${onlineLabel}`
+      : team.clubs.name
+    : onlineLabel || undefined;
+
   if (loadingTeam) {
     return <PageLoading message="Loading team chat..." />;
   }
@@ -1281,52 +1316,44 @@ export default function TeamChatPage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <ChatBackButton />
-        <button
-          className="flex items-center gap-3 flex-1 min-w-0 min-h-[44px] active:opacity-70 transition-opacity rounded-lg"
-          onClick={() => setMembersOpen(true)}
-        >
-          <SecureAvatar 
-            src={team.logo_url || team.clubs?.logo_url} 
-            fallback={team.name?.charAt(0)?.toUpperCase() || "T"}
-            className="h-10 w-10"
-            fallbackClassName="bg-secondary text-secondary-foreground"
-          />
-          <div className="flex-1 min-w-0 text-left">
-            <h1 className="font-semibold truncate">{team.name}</h1>
-            <p className="text-xs text-muted-foreground truncate">{team.clubs?.name}</p>
-          </div>
-        </button>
-        <div className="flex items-center shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          <ChatMuteButton chatType="team" chatId={teamId!} />
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-          />
-          <ChatMembersSheet
-            chatType="team"
-            chatId={teamId!}
-            chatName={team.name}
-            externalOpen={membersOpen}
-            onExternalOpenChange={setMembersOpen}
-          />
-          <AddTeamMemberSheet
-            teamId={teamId!}
-            teamName={team.name}
-            clubId={team.club_id}
-            teamType={(team as any).team_type || "mixed"}
-            canBulkInvite={!!isAdmin}
-            triggerVariant="none"
-            externalOpen={inviteSheetOpen}
-            onExternalOpenChange={setInviteSheetOpen}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type="team"
+        name={team.name}
+        sublabel={teamHeaderSublabel}
+        avatarUrl={team.logo_url || team.clubs?.logo_url}
+        onOpenDetails={() => setMembersOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={membersOpen}
+        onOpenChange={setMembersOpen}
+        chatType="team"
+        chatId={teamId!}
+        name={team.name}
+        sublabel={team.clubs?.name}
+        avatarUrl={team.logo_url || team.clubs?.logo_url}
+        clubId={team.club_id || undefined}
+      />
+      <AddTeamMemberSheet
+        teamId={teamId!}
+        teamName={team.name}
+        clubId={team.club_id}
+        teamType={(team as any).team_type || "mixed"}
+        canBulkInvite={!!isAdmin}
+        triggerVariant="none"
+        externalOpen={inviteSheetOpen}
+        onExternalOpenChange={setInviteSheetOpen}
+      />
       {/* Inline invite banner below header */}
       <button
         onClick={() => setInviteSheetOpen(true)}
@@ -1347,6 +1374,13 @@ export default function TeamChatPage() {
           />
         </div>
       )}
+
+      {/* Pinned messages banner */}
+      <PinnedMessagesBanner
+        pins={pinnedMessages}
+        onJumpToMessage={handleJumpToMessage}
+        onUnpin={unpinMessage}
+      />
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
@@ -1427,6 +1461,11 @@ export default function TeamChatPage() {
                         isPending={msg.id.startsWith("queued-")}
                         contextId={teamId || ""}
                         isClubAnnouncement={msg.is_club_announcement}
+                        isPinned={pinnedMessageIds.has(msg.id)}
+                        canPin={!msg.is_club_announcement && !msg.id.startsWith("queued-")}
+                        pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                        onPin={pinMessage}
+                        onUnpin={unpinMessage}
                       />
                     </div>
                   </div>
@@ -1451,7 +1490,8 @@ export default function TeamChatPage() {
             disabled={sendMessageMutation.isPending}
           />
         )}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible pt-1 pb-2 px-2">
+        {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
+        <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible pt-1 pb-2 px-2">
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}
@@ -1462,6 +1502,8 @@ export default function TeamChatPage() {
             onEventSelect={() => setEventPickerOpen(true)}
             showPollCreator={true}
             onPollCreate={() => setPollDialogOpen(true)}
+            showBoardPicker={true}
+            onBoardPick={() => setBoardPickerOpen(true)}
             hasText={!!message.trim()}
           />
           <MentionInput
@@ -1476,14 +1518,21 @@ export default function TeamChatPage() {
             disabled={sendMessageMutation.isPending}
             teamId={teamId}
             clubId={team.club_id}
+            onGifSelect={setImageUrl}
           />
+          {scheduleTarget && (
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMessageMutation.isPending}
+            />
+          )}
           <button
             onClick={() => {
               stopTyping();
               handleSend();
             }}
             disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMessageMutation.isPending}
-            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
+            className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
           >
             {sendMessageMutation.isPending ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -1492,6 +1541,20 @@ export default function TeamChatPage() {
             )}
           </button>
         </div>
+        {scheduleTarget && (
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            initialImageUrl={imageUrl}
+            onScheduled={() => {
+              setMessage("");
+              setImageUrl(null);
+              clearDraft?.();
+            }}
+          />
+        )}
         <EventPickerSheet
           open={eventPickerOpen}
           onOpenChange={setEventPickerOpen}
@@ -1501,6 +1564,14 @@ export default function TeamChatPage() {
           }}
           teamId={teamId}
           clubId={team?.club_id}
+        />
+        <BoardPickerSheet
+          open={boardPickerOpen}
+          onOpenChange={setBoardPickerOpen}
+          onSelectBoard={(gameId) => {
+            const token = `[board:${gameId}]`;
+            setMessage(message ? `${message} ${token}` : token);
+          }}
         />
         {teamId && (
           <CreatePollDialog

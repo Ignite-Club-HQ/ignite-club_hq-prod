@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert } from "lucide-react";
+import { Image, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, MoreVertical, Flag, ShieldAlert, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +38,7 @@ import { SharePhotoButton } from "@/components/SharePhotoButton";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
+import { usePhotoViewCounts, useRecordPhotoView, usePhotoViewRealtime } from "@/hooks/usePhotoViews";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,6 +71,10 @@ function PhotoSkeleton() {
     </Card>
   );
 }
+
+// Feed-scroll view tracking launched 2026-04-18. Photos uploaded before this
+// date don't show a view count since scroll views weren't recorded yet.
+const PHOTO_VIEWS_FEATURE_LAUNCH = new Date("2026-04-18T00:00:00Z");
 
 export default function MediaPage() {
   const { user } = useAuth();
@@ -369,7 +374,7 @@ export default function MediaPage() {
     queryFn: async ({ pageParam = 0 }) => {
       const { data, error } = await supabase
         .from("photos")
-        .select("id, file_url, image_url, title, created_at, club_id, team_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
+        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, mini_league_id, uploader_id, clubs(name, is_pro), teams(name, club_id, clubs(name)), mini_leagues(name, club_id, clubs(name))")
         .eq("show_in_feed", true)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -383,6 +388,7 @@ export default function MediaPage() {
           id: p.id,
           file_url: p.file_url || p.image_url,
           title: p.title,
+          caption: p.caption,
           created_at: p.created_at,
           uploader_id: p.uploader_id,
           team_id: p.team_id,
@@ -415,7 +421,7 @@ export default function MediaPage() {
   }, [isCacheStale, user]);
 
   // Flatten all pages into single photos array - prefer real data, fallback to cache
-  const allPhotos = useMemo(() => {
+  const allPhotos = useMemo<any[]>(() => {
     const serverPhotos = photosData?.pages.flatMap(page => page.photos) ?? [];
     
     // If we have server data, use it
@@ -427,7 +433,8 @@ export default function MediaPage() {
     if (cachedPhotosData && cachedPhotosData.length > 0) {
       return cachedPhotosData.map(p => ({
         ...p,
-        image_url: p.file_url, // Cached data uses file_url
+        caption: p.caption ?? null,
+        image_url: p.file_url,
         mini_league_id: null,
         clubs: null,
         teams: null,
@@ -531,6 +538,11 @@ export default function MediaPage() {
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
+
+  // Photo view tracking — count, recording, and realtime updates
+  const { data: photoViewCounts } = usePhotoViewCounts(allPhotoIds);
+  const { recordView, observeView } = useRecordPhotoView(user?.id);
+  usePhotoViewRealtime(allPhotoIds);
 
   // Stable query key for reactions - include photo count to refetch when more photos load
   const reactionsQueryKey = useMemo(() => ["photo-reactions", user?.id, allPhotoIds.length], [user?.id, allPhotoIds.length]);
@@ -1040,6 +1052,7 @@ export default function MediaPage() {
             const isExpanded = expandedComments.has(photo.id);
             const commentInput = commentInputs[photo.id] || "";
             const isHighlighted = highlightedPhotoId === photo.id;
+            const photoText = photo.title || photo.caption;
 
             const isDeleting = deletingPhotoId === photo.id;
             
@@ -1083,7 +1096,7 @@ export default function MediaPage() {
                       <SharePhotoButton 
                         photoId={photo.id}
                         imageUrl={photo.file_url || photo.image_url} 
-                        title={photo.title}
+                        title={photoText}
                         clubName={photo.teams?.clubs?.name || photo.clubs?.name}
                         teamName={photo.teams?.name}
                       />
@@ -1121,12 +1134,17 @@ export default function MediaPage() {
 
 {/* Image with lazy loading */}
                 <div 
+                  ref={observeView(photo.id)}
                   className="relative w-full aspect-square bg-muted overflow-hidden cursor-pointer"
-                  onClick={() => !isDeleting && setLightboxIndex(index)}
+                  onClick={() => {
+                    if (isDeleting) return;
+                    recordView(photo.id);
+                    setLightboxIndex(index);
+                  }}
                 >
                   <LazyImage
                     src={photo.file_url || photo.image_url}
-                    alt={photo.title || "Photo"}
+                    alt={photoText || "Photo"}
                     priority={index < 2}
                   />
                   {isDeleting && (
@@ -1157,12 +1175,22 @@ export default function MediaPage() {
                       <MessageCircle className="h-5 w-5" />
                       {comments.length > 0 && <span className="text-xs">{comments.length}</span>}
                     </Button>
+                    {new Date(photo.created_at) >= PHOTO_VIEWS_FEATURE_LAUNCH && (photoViewCounts?.get(photo.id) || 0) > 0 && (
+                      <div
+                        className="flex items-center gap-1 text-muted-foreground"
+                        title={`${photoViewCounts?.get(photo.id) || 0} view${(photoViewCounts?.get(photo.id) || 0) === 1 ? "" : "s"}`}
+                        aria-label={`${photoViewCounts?.get(photo.id) || 0} views`}
+                      >
+                        <Eye className="h-5 w-5" />
+                        <span className="text-xs">{photoViewCounts?.get(photo.id)}</span>
+                      </div>
+                    )}
                   </div>
 
-                  {photo.title && (
+                  {photoText && (
                     <p className="text-sm">
                       <span className="font-medium">{displayName}</span>{" "}
-                      {photo.title}
+                      {photoText}
                     </p>
                   )}
 
@@ -1299,7 +1327,11 @@ export default function MediaPage() {
         onClose={() => setLightboxIndex(null)}
         photos={photos}
         currentIndex={lightboxIndex ?? 0}
-        onNavigate={setLightboxIndex}
+        onNavigate={(idx) => {
+          const navPhoto = photos[idx];
+          if (navPhoto) recordView(navPhoto.id);
+          setLightboxIndex(idx);
+        }}
         onDelete={(photoId) => {
           setLightboxIndex(null);
           setTimeout(() => setDeletePhotoId(photoId), 100);

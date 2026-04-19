@@ -11,10 +11,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Loader2, Building2, Search, CalendarPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
-import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
+import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
-import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+
 import { PageLoading } from "@/components/ui/page-loading";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -33,6 +35,13 @@ import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { jumpToMessageInChat } from "@/lib/jumpToMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
 import { useMessageReads } from "@/hooks/useMessageReads";
@@ -117,6 +126,10 @@ export default function ClubChatPage() {
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = clubId
+    ? { chat_type: "club", club_id: clubId }
+    : null;
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -177,6 +190,17 @@ export default function ClubChatPage() {
       return () => clearTimeout(timer);
     }
   }, [targetMessageId]);
+
+  // Pinned messages
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("club", clubId);
+  const handleJumpToMessage = (mid: string) =>
+    jumpToMessageInChat(mid, setHighlightedMessageId);
 
   // Get club info
   const { data: club } = useQuery({
@@ -1148,6 +1172,12 @@ export default function ClubChatPage() {
     }
   }, [filteredMessages, user?.id, markMessagesAsRead]);
 
+  // Live online count for the club — only shown in the header sublabel when > 0.
+  const clubOnlineCount = useChatOnlineCount("club", clubId);
+  const clubHeaderSublabel = clubOnlineCount > 0
+    ? `Club chat · ${clubOnlineCount} online`
+    : "Club chat";
+
   if (isLoadingClubSubscription && !club) {
     return <PageLoading message="Loading club chat..." />;
   }
@@ -1194,41 +1224,33 @@ export default function ClubChatPage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <ChatBackButton />
-        <button
-          className="flex items-center gap-3 flex-1 min-w-0 min-h-[44px] active:opacity-70 transition-opacity rounded-lg"
-          onClick={() => setMembersOpen(true)}
-        >
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={club?.logo_url || undefined} />
-            <AvatarFallback className="bg-secondary text-secondary-foreground">
-              {club?.name?.charAt(0)?.toUpperCase() || "C"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0 text-left">
-            <h1 className="font-semibold truncate">{club?.name || "Club"}</h1>
-          </div>
-        </button>
-        <div className="flex items-center shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          <ChatMuteButton chatType="club" chatId={clubId!} />
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-          />
-          <ChatMembersSheet
-            chatType="club"
-            chatId={clubId!}
-            chatName={club?.name || "Club"}
-            externalOpen={membersOpen}
-            onExternalOpenChange={setMembersOpen}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type="club"
+        name={club?.name || "Club"}
+        sublabel={clubHeaderSublabel}
+        avatarUrl={club?.logo_url}
+        onOpenDetails={() => setMembersOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={membersOpen}
+        onOpenChange={setMembersOpen}
+        chatType="club"
+        chatId={clubId!}
+        name={club?.name || "Club"}
+        sublabel="Club chat"
+        avatarUrl={club?.logo_url}
+      />
 
 
       {/* Notification Nudge */}
@@ -1241,6 +1263,13 @@ export default function ClubChatPage() {
           />
         </div>
       )}
+
+      {/* Pinned messages banner */}
+      <PinnedMessagesBanner
+        pins={pinnedMessages}
+        onJumpToMessage={handleJumpToMessage}
+        onUnpin={unpinMessage}
+      />
 
       <div className="flex-1 min-h-0 pb-4 flex flex-col relative overflow-hidden overscroll-none">
         {isLoadingClubSubscription ? (
@@ -1316,6 +1345,11 @@ export default function ClubChatPage() {
                         isLastMessage={index === filteredMessages.length - 1}
                         isPending={msg.id.startsWith("queued-")}
                         contextId={clubId || ""}
+                        isPinned={pinnedMessageIds.has(msg.id)}
+                        canPin={!msg.id.startsWith("queued-")}
+                        pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                        onPin={pinMessage}
+                        onUnpin={unpinMessage}
                       />
                     </div>
                   </div>
@@ -1342,7 +1376,8 @@ export default function ClubChatPage() {
               disabled={sendMutation.isPending}
             />
           )}
-          <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
+          {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
+          <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
@@ -1365,14 +1400,21 @@ export default function ClubChatPage() {
               onKeyPress={handleKeyPress}
               disabled={sendMutation.isPending}
               clubId={clubId}
+              onGifSelect={setImageUrl}
             />
+            {scheduleTarget && (
+              <ScheduleMessageButton
+                onClick={() => setScheduleDialogOpen(true)}
+                disabled={sendMutation.isPending}
+              />
+            )}
             <button
               onClick={() => {
                 stopTyping();
                 handleSend();
               }}
               disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMutation.isPending}
-              className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
+              className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
             >
               {sendMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -1381,6 +1423,20 @@ export default function ClubChatPage() {
               )}
             </button>
           </div>
+          {scheduleTarget && (
+            <ScheduleMessageDialog
+              open={scheduleDialogOpen}
+              onOpenChange={setScheduleDialogOpen}
+              target={scheduleTarget}
+              initialText={message}
+              initialImageUrl={imageUrl}
+              onScheduled={() => {
+                setMessage("");
+                setImageUrl(null);
+                clearDraft?.();
+              }}
+            />
+          )}
           <EventPickerSheet
             open={eventPickerOpen}
             onOpenChange={setEventPickerOpen}

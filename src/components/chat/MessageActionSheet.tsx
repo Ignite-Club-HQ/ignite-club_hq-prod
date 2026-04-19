@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check } from "lucide-react";
+import { Reply, Pencil, Trash2, Flag, ShieldAlert, MoreHorizontal, ChevronLeft, Copy, Link, ExternalLink, ImageIcon, Check, Pin, PinOff } from "lucide-react";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import {
   Sheet,
@@ -50,6 +50,12 @@ interface MessageActionSheetProps {
   onReport: () => void;
   onBlock: () => void;
   onViewImage?: () => void;
+  // Pin support (only set for chats that support pinning)
+  canPin?: boolean;
+  isPinned?: boolean;
+  pinLimitReached?: boolean;
+  onPin?: () => void;
+  onUnpin?: () => void;
 }
 
 export function MessageActionSheet({
@@ -68,6 +74,11 @@ export function MessageActionSheet({
   onReport,
   onBlock,
   onViewImage,
+  canPin = false,
+  isPinned = false,
+  pinLimitReached = false,
+  onPin,
+  onUnpin,
 }: MessageActionSheetProps) {
   const [showSafety, setShowSafety] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -147,6 +158,23 @@ export function MessageActionSheet({
             setCopiedText(null);
           });
         },
+      });
+    }
+  }
+
+  // Pin / Unpin (only when supported by chat type) — placed after Copy, before Delete
+  if (canPin) {
+    if (isPinned && onUnpin) {
+      actions.push({
+        label: "Unpin Message",
+        icon: <PinOff className="h-5 w-5" />,
+        onClick: onUnpin,
+      });
+    } else if (!isPinned && onPin) {
+      actions.push({
+        label: pinLimitReached ? "Pin (limit reached)" : "Pin Message",
+        icon: <Pin className="h-5 w-5" />,
+        onClick: onPin,
       });
     }
   }

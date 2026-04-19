@@ -93,6 +93,13 @@ export default {
           "75%": { transform: "rotate(3deg) scale(1)" },
           "100%": { transform: "rotate(0deg) scale(1)" },
         },
+        "shake-x": {
+          "0%, 100%": { transform: "translateX(0)" },
+          "20%": { transform: "translateX(-4px)" },
+          "40%": { transform: "translateX(4px)" },
+          "60%": { transform: "translateX(-3px)" },
+          "80%": { transform: "translateX(2px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -100,6 +107,7 @@ export default {
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
         "slide-up": "slide-up 0.3s ease-out",
         "bell-ring": "bell-ring 0.4s ease-in-out",
+        "shake-x": "shake-x 0.35s ease-in-out",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],

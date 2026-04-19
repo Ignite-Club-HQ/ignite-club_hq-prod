@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Navigate, Link } from "react-router-dom";
-import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint, CheckCircle2, Circle, XCircle } from "lucide-react";
+import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint, CheckCircle2, Circle, XCircle, WifiOff } from "lucide-react";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +58,7 @@ export default function AuthPage() {
   const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
   const signInScrollRef = useRef<HTMLDivElement | null>(null);
   const isNativePlatform = Capacitor.isNativePlatform();
+  const { isOnline } = useOnlineStatus();
   
   // Check if we should default to signup view (new user from invite, or returning from terms/privacy)
   const defaultView = sessionStorage.getItem("authDefaultTab") || "signin";
@@ -517,6 +519,22 @@ export default function AuthPage() {
             </>
           )}
         </div>
+
+        {!isOnline && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground"
+          >
+            <WifiOff className="h-5 w-5 shrink-0 mt-0.5 text-destructive" aria-hidden="true" />
+            <div className="space-y-1">
+              <p className="font-medium">You're offline</p>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Signing in needs an internet connection. Reconnect to Wi-Fi or mobile data and try again. Once you've signed in on this device, you'll stay signed in even when offline.
+              </p>
+            </div>
+          </div>
+        )}
 
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
           {authMode === "signin" ? (

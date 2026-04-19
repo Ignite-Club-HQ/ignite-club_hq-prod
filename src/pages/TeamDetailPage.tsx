@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { getProfileFromCache, cacheProfiles } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, MoreVertical, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy, Eye, Radio } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamLatestPhotos } from "@/components/team/TeamLatestPhotos";
 import { TeamChatPreview } from "@/components/team/TeamChatPreview";
@@ -61,6 +61,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const NetballBoard = lazy(() => import("@/components/netball/NetballBoard"));
+const BasketballBoard = lazy(() => import("@/components/basketball/BasketballBoard"));
+const TeamGameHistoryTab = lazy(() => import("@/components/history/TeamGameHistoryTab"));
+import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
@@ -148,6 +152,8 @@ export default function TeamDetailPage() {
   const isSoccerClub = team?.clubs?.sport && SOCCER_SPORTS.some(keyword => 
     team.clubs.sport.toLowerCase().includes(keyword)
   );
+  const isNetballClub = isNetballSport(team?.clubs?.sport);
+  const isBasketballClub = isBasketballSport(team?.clubs?.sport);
 
   const isClassMode = !!team?.clubs?.class_mode_enabled;
 
@@ -162,6 +168,24 @@ export default function TeamDetailPage() {
       setHasSetInitialFilter(true);
     }
   }, [team, hasSetInitialFilter]);
+
+  // Auto-open the game board when arriving from a "Resume game" tap
+  // (CourtBoardResumeCard / GameTimerWidget on the home screen).
+  useEffect(() => {
+    if (!team) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("openBoard") === "1") {
+      setShowPitchBoard(true);
+      // Strip the param so a refresh doesn't re-open after the coach closed it.
+      params.delete("openBoard");
+      const next = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        `${window.location.pathname}${next ? `?${next}` : ""}`
+      );
+    }
+  }, [team]);
 
   // Check if user (or their children) is already enrolled in this class
   const { data: isEnrolledInClass } = useQuery({
@@ -462,7 +486,7 @@ export default function TeamDetailPage() {
   // All team members can view pitch board (read-only); only team admins/coaches can edit
   // Subs Manager duty check is done dynamically when the pitch board opens with a linkedEventId
   const canAccessPitchBoard = isMember;
-  const canEditPitchBoard = isCoachOrAdmin; // Non-coaches/admins get view-only (Subs Manager override handled via linkedEventId)
+  const canEditPitchBoard = isCoachOrAdmin || isClubAdmin; // Club admins, team admins, and coaches can edit; others view-only
 
   // Check if user has "Subs Manager" duty for the linked event
   const { data: isSubsManager } = useQuery({
@@ -480,6 +504,32 @@ export default function TeamDetailPage() {
     },
     enabled: !!linkedEventId && !!user && !canEditPitchBoard,
   });
+
+  // Detect a live game for this team so we can show a "Watch Live" entry
+  // point to all team members (parents/players included). Polls every 30s
+  // because the coach's sync also updates `active_games.updated_at` regularly
+  // — that's the cheapest reliable signal without subscribing on every
+  // team page load.
+  const { data: activeGame } = useQuery({
+    queryKey: ["team-active-game", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("active_games")
+        .select("id, updated_at, pitch_state")
+        .eq("team_id", id!)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!id && (isMember || isClubAdmin),
+    refetchInterval: 30000,
+    staleTime: 15000,
+  });
+  const liveSport = (activeGame?.pitch_state as { sport?: string } | null)?.sport ?? null;
+  const showWatchLive =
+    !!activeGame && (liveSport === "basketball" || liveSport === "netball") && !showPitchBoard;
 
   // Fetch pending invites for this team
   const { data: pendingInvites = [] } = useQuery({
@@ -924,14 +974,14 @@ export default function TeamDetailPage() {
 
       {/* Archived Banner */}
       {(team as any)?.is_archived && (
-        <Card className="border-amber-500/40 bg-amber-50 dark:bg-amber-950/20">
+        <Card className="border-warning/40 bg-warning/5">
           <CardContent className="p-3 flex items-center gap-3">
-            <Archive className="h-5 w-5 text-amber-600 shrink-0" />
+            <Archive className="h-5 w-5 text-warning shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+              <p className="text-sm font-medium text-foreground">
                 This team is archived{(team as any)?.season_label ? ` · ${(team as any).season_label}` : ""}
               </p>
-              <p className="text-xs text-amber-700 dark:text-amber-400">Only admins can see this team</p>
+              <p className="text-xs text-muted-foreground">Read-only — history is preserved. Only admins can see this team.</p>
             </div>
             {isAdmin && (
               <ArchiveTeamDialog
@@ -942,7 +992,7 @@ export default function TeamDetailPage() {
                 currentSeasonLabel={(team as any)?.season_label}
                 onSuccess={() => queryClient.invalidateQueries({ queryKey: ["team", id] })}
                 trigger={
-                  <Button size="sm" variant="outline" className="shrink-0 border-amber-600/40 text-amber-700">
+                  <Button size="sm" variant="outline" className="shrink-0">
                     <ArchiveRestore className="h-4 w-4 mr-1" /> Reinstate
                   </Button>
                 }
@@ -1147,6 +1197,37 @@ export default function TeamDetailPage() {
         <TeamNextEventCard teamId={id!} clubId={team.club_id} />
       )}
 
+      {/* Watch Live banner — shown to ALL team members when a coach is running
+          a basketball/netball board. Read-only spectator view; no controls. */}
+      {isMember && showWatchLive && (
+        <Link
+          to={`/watch/team/${team.id}`}
+          aria-label="Watch live game"
+          className="block"
+        >
+          <Card className="border-primary/30 bg-primary/[0.05] hover:border-primary/50 transition-colors" role="button">
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/15 relative">
+                <Radio className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-semibold">Watch Live</span>
+                  <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-destructive/40 text-destructive">
+                    LIVE
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground capitalize">
+                  {liveSport} game in progress
+                </p>
+              </div>
+              <Eye className="h-4 w-4 text-primary shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+      )}
+
       {/* Primary Actions - Chat & Schedule */}
       {isMember && (
         <div className="space-y-2">
@@ -1198,7 +1279,10 @@ export default function TeamDetailPage() {
               </Badge>
             </Button>
           )}
-          {isSoccerClub && (hasProFootball || isAppAdmin) && (
+          {(
+            (isSoccerClub && (hasProFootball || isAppAdmin)) ||
+            ((isNetballClub || isBasketballClub) && (isTeamPro || isAppAdmin))
+          ) && (
             <Button 
               variant="outline"
               className="w-full h-9 text-xs font-medium justify-start gap-2"
@@ -1225,7 +1309,14 @@ export default function TeamDetailPage() {
               }}
             >
               <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
-              Pitch Board
+              <span className="inline-flex items-center gap-1.5">
+                {(isNetballClub || isBasketballClub) ? "Game Board" : "Pitch Board"}
+                {(isNetballClub || isBasketballClub) && (
+                  <span className="px-1.5 py-px rounded-full bg-primary/15 text-primary text-[9px] font-bold uppercase tracking-wider leading-none">
+                    Beta
+                  </span>
+                )}
+              </span>
             </Button>
           )}
         </div>
@@ -1778,6 +1869,28 @@ export default function TeamDetailPage() {
             </AccordionItem>
           )}
 
+          {/* Game History - basketball + netball only */}
+          {isMember && (isBasketballClub || isNetballClub) && (
+            <AccordionItem value="game-history" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold">Game History</h2>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pt-2">
+                  <Suspense fallback={<div className="text-xs text-muted-foreground py-4">Loading…</div>}>
+                    <TeamGameHistoryTab
+                      teamId={id!}
+                      teamName={team.name}
+                      canManage={isAdmin || isCoachOrAdmin || isClubAdmin}
+                    />
+                  </Suspense>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
 
           {/* Admin Section - collapsed by default */}
@@ -2224,7 +2337,7 @@ export default function TeamDetailPage() {
           )}
         </Accordion>
       )}
-      {/* Pitch Board Modal */}
+      {/* Pitch Board Modal — soccer */}
       {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
@@ -2273,6 +2386,62 @@ export default function TeamDetailPage() {
               initialShowLineupPicker={teamSubscription?.show_lineup_picker || false}
             />
           )}
+        </Suspense>,
+        document.body
+      )}
+
+      {/* Game Board Modal — netball */}
+      {showPitchBoard && isNetballClub && createPortal(
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading Game Board…</p>
+            </div>
+          </div>
+        }>
+          <div className="fixed inset-0 z-[9999] bg-background">
+            <NetballBoard
+              teamId={id!}
+              teamName={team.name}
+              members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
+              onClose={() => {
+                setShowPitchBoard(false);
+                setLinkedEventId(null);
+                setPitchBoardMembersOverride([]);
+              }}
+              readOnly={!canEditPitchBoard && !isSubsManager}
+              eventId={linkedEventId}
+            />
+          </div>
+        </Suspense>,
+        document.body
+      )}
+
+      {/* Game Board Modal — basketball */}
+      {showPitchBoard && isBasketballClub && createPortal(
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading Game Board…</p>
+            </div>
+          </div>
+        }>
+          <div className="fixed inset-0 z-[9999] bg-background">
+            <BasketballBoard
+              teamId={id!}
+              teamName={team.name}
+              members={pitchBoardMembersOverride.length > 0 ? pitchBoardMembersOverride : pitchBoardMembers}
+              onClose={() => {
+                setShowPitchBoard(false);
+                setLinkedEventId(null);
+                setPitchBoardMembersOverride([]);
+              }}
+              readOnly={!canEditPitchBoard && !isSubsManager}
+              eventId={linkedEventId}
+            />
+          </div>
         </Suspense>,
         document.body
       )}

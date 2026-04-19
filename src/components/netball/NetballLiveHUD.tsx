@@ -1,0 +1,285 @@
+import { ReactNode, memo, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, ArrowDownToLine, ArrowUpToLine, MoreHorizontal } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { hapticSelectionTick } from "@/lib/haptics";
+
+interface NetballLiveHUDProps {
+  homeLabel: string;
+  awayLabel: string;
+  homeScore: number;
+  awayScore: number;
+  readOnly?: boolean;
+  /** Disable scoring (e.g. game finished). */
+  disabled?: boolean;
+  /** Dim everything (selection mode). */
+  suppressed?: boolean;
+  onScore: (side: "home" | "away") => void;
+  /** Long-press a score → open scorer attribution sheet. */
+  onScoreLongPress?: (side: "home" | "away") => void;
+  onBack: () => void;
+  /** Period · clock · play/pause · timer overflow — supplied by board. */
+  controlSlot: ReactNode;
+  /** Sync indicator. */
+  trailingSlot?: ReactNode;
+  /** Extra actions (auto-subs status, etc.) injected into the overflow menu. */
+  overflowSlot?: ReactNode;
+  /** Whether the HUD is pinned to the top or bottom of the court. */
+  position?: "top" | "bottom";
+  /** Toggle the HUD between top and bottom. */
+  onTogglePosition?: () => void;
+}
+
+/**
+ * Netball live-game top bar.
+ *
+ * A single compact row pinned above the court that fuses the back chip,
+ * timer/period/play controls, sync indicator, overflow menu, and a one-line
+ * scoreboard with inline +1 chips. Designed to be much shorter than the
+ * shared {@link LiveGameHUD} so the court dominates during live play.
+ *
+ * Layout (top → bottom, all inside one floating card):
+ *   row 1: ← back  ·  Q1 0:00 ▶  ·  More
+ *   row 2: Swish  18  —  12  Opponent  (with +1 chips beside each score)
+ */
+const NetballLiveHUD = memo(function NetballLiveHUD({
+  homeLabel,
+  awayLabel,
+  homeScore,
+  awayScore,
+  readOnly = false,
+  disabled = false,
+  suppressed = false,
+  onScore,
+  onScoreLongPress,
+  onBack,
+  controlSlot,
+  trailingSlot,
+  overflowSlot,
+  position = "top",
+  onTogglePosition,
+}: NetballLiveHUDProps) {
+  const interactive = !readOnly && !disabled;
+  // Per request: scoreboard stays fully bright in sub-mode (suppressed only
+  // gates interaction, not visibility). Game-finished still hard-disables.
+
+  const handleScore = (side: "home" | "away") => {
+    if (!interactive) return;
+    hapticSelectionTick();
+    onScore(side);
+  };
+  const handleScoreLongPress = (side: "home" | "away") => {
+    if (!interactive) return;
+    onScoreLongPress?.(side);
+  };
+
+  const isBottom = position === "bottom";
+
+  return (
+    <div
+      className={cn(
+        "relative z-30 mx-2 my-2 max-w-md self-center w-[calc(100%-1rem)]",
+        "rounded-xl border border-border bg-card",
+        "shadow-[0_4px_14px_-6px_hsl(var(--foreground)/0.25)]",
+        "transition-[opacity,filter,transform] duration-200 ease-out",
+        // Suppressed mode (sub-mode) keeps the HUD readable — only the timer
+        // controls dim slightly so the score remains crystal-clear.
+      )}
+      role="group"
+      aria-label="Live game HUD"
+    >
+      {/* Row 1 — control strip: back · timer · trailing · overflow */}
+      <div className="relative flex items-center gap-1.5 px-1.5 py-1 min-h-[2.5rem]">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onBack}
+          aria-label="Close"
+          className="h-8 w-8 shrink-0 rounded-full"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+
+        <div
+          className={cn(
+            "flex-1 min-w-0 flex items-center justify-center gap-1.5 transition-opacity",
+            suppressed && "opacity-50",
+          )}
+        >
+          {controlSlot}
+        </div>
+
+        {trailingSlot && (
+          <div className="shrink-0 flex items-center">{trailingSlot}</div>
+        )}
+
+        {onTogglePosition && (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onTogglePosition}
+            aria-label={isBottom ? "Move HUD to top" : "Move HUD to bottom"}
+            title={isBottom ? "Move to top" : "Move to bottom"}
+            className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+          >
+            {isBottom ? (
+              <ArrowUpToLine className="h-4 w-4" />
+            ) : (
+              <ArrowDownToLine className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+
+        {overflowSlot && <div className="shrink-0">{overflowSlot}</div>}
+      </div>
+
+      {/* Row 2 — single-line scoreboard. Score is the dominant text after
+          the timer; team names are secondary supporting labels. */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 px-2 pb-1.5 pt-0.5 border-t border-border/40">
+        <ScoreSide
+          label={homeLabel}
+          score={homeScore}
+          interactive={interactive}
+          onScore={() => handleScore("home")}
+          onLongPress={onScoreLongPress ? () => handleScoreLongPress("home") : undefined}
+          side="home"
+        />
+
+        <span className="text-base font-light text-muted-foreground/40 leading-none shrink-0 self-center pb-0.5 px-0.5">
+          –
+        </span>
+
+        <ScoreSide
+          label={awayLabel}
+          score={awayScore}
+          interactive={interactive}
+          onScore={() => handleScore("away")}
+          onLongPress={onScoreLongPress ? () => handleScoreLongPress("away") : undefined}
+          side="away"
+        />
+      </div>
+    </div>
+  );
+});
+
+interface ScoreSideProps {
+  label: string;
+  score: number;
+  interactive: boolean;
+  onScore: () => void;
+  onLongPress?: () => void;
+  side: "home" | "away";
+}
+
+function ScoreSide({ label, score, interactive, onScore, onLongPress, side }: ScoreSideProps) {
+  const [pulse, setPulse] = useState(false);
+  const prev = useRef(score);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+
+  useEffect(() => {
+    if (prev.current !== score) {
+      prev.current = score;
+      setPulse(true);
+      const t = setTimeout(() => setPulse(false), 320);
+      return () => clearTimeout(t);
+    }
+  }, [score]);
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  const handlePointerDown = () => {
+    if (!interactive || !onLongPress) return;
+    longPressFiredRef.current = false;
+    clearLongPress();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      onLongPress();
+    }, 450);
+  };
+  const handlePointerEnd = () => clearLongPress();
+  const handleClick = () => {
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    onScore();
+  };
+
+  const isHome = side === "home";
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 min-w-0",
+        isHome ? "justify-start" : "justify-end flex-row-reverse",
+      )}
+    >
+      {/* Tap = +1 (away) or open scorer sheet (home).
+          Long-press = always open scorer sheet for that side. */}
+      <button
+        type="button"
+        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onPointerLeave={handlePointerEnd}
+        onContextMenu={(e) => e.preventDefault()}
+        disabled={!interactive}
+        aria-label={`Add 1 point for ${label}`}
+        className={cn(
+          "flex flex-col leading-none px-3 py-1.5 rounded-lg transition-all min-w-[5rem] touch-manipulation select-none",
+          "active:scale-95",
+          interactive
+            ? "hover:bg-secondary/50 active:bg-primary/15 cursor-pointer"
+            : "cursor-default opacity-90",
+          isHome ? "items-start" : "items-end",
+        )}
+        style={{ WebkitTapHighlightColor: "transparent" }}
+      >
+        <span
+          className={cn(
+            "text-3xl font-black tabular-nums leading-none text-foreground transition-transform duration-150 ease-out",
+            pulse && "scale-[1.18] text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.4)]",
+          )}
+          aria-live="polite"
+        >
+          {score}
+        </span>
+        <span
+          className={cn(
+            "text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/70 leading-none mt-1 max-w-[8.5rem] truncate",
+          )}
+          title={label}
+        >
+          {label} · tap +1
+        </span>
+      </button>
+
+    </div>
+  );
+}
+
+/**
+ * Convenience overflow trigger for the HUD — keeps the styling
+ * consistent across boards. The `children` are the dropdown content.
+ */
+export function NetballLiveHUDOverflow({ children, ariaLabel = "More options" }: { children: ReactNode; ariaLabel?: string }) {
+  return (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="h-8 w-8 rounded-full shrink-0"
+      aria-label={ariaLabel}
+    >
+      <MoreHorizontal className="h-4 w-4" />
+      {children}
+    </Button>
+  );
+}
+
+export default NetballLiveHUD;

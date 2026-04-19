@@ -12,6 +12,8 @@ import { useMemo } from "react";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { toast } from "sonner";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { formatMessagePreview as stripMentionFormatting, extractEventIds } from "@/lib/messagePreview";
+import { useIsUserOnline } from "@/hooks/useUserPresence";
 
 interface DMConversation {
   id: string;
@@ -50,25 +52,23 @@ function DMSkeleton() {
   );
 }
 
-// Helper to strip mention formatting: @[Name](id) -> @Name
-const stripMentionFormatting = (text: string): string => {
-  return text.replace(/@\[([^\]]+)\]\([^)]+\)/g, '$1');
-};
 
 // Message preview component
 const MessagePreview = ({ 
   text, 
   imageUrl,
   isOwn,
+  eventTitles,
 }: { 
   text?: string; 
   imageUrl?: string | null;
   isOwn: boolean;
+  eventTitles?: Record<string, string>;
 }) => {
   const hasText = text && text.trim();
   const isImageOnly = !hasText && imageUrl;
   const hasTextAndImage = hasText && imageUrl;
-  const displayText = hasText ? stripMentionFormatting(text!) : null;
+  const displayText = hasText ? stripMentionFormatting(text!, eventTitles) : null;
   
   return (
     <span className="flex items-center gap-1.5">
@@ -262,6 +262,33 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
     return conv.other_user?.display_name?.toLowerCase().includes(query);
   }) || [];
 
+  // Resolve event titles referenced in any DM preview
+  const referencedEventIds = useMemo(() => {
+    const set = new Set<string>();
+    filteredConversations.forEach((c) => {
+      extractEventIds(c.last_message?.text).forEach((id) => set.add(id));
+    });
+    return Array.from(set);
+  }, [filteredConversations]);
+
+  const { data: eventTitleMap = {} } = useQuery({
+    queryKey: ["dm-list-event-titles", referencedEventIds.join(",")],
+    queryFn: async () => {
+      if (referencedEventIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase
+        .from("events")
+        .select("id, title")
+        .in("id", referencedEventIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((e) => {
+        if (e?.id && e?.title) map[e.id.toLowerCase()] = e.title;
+      });
+      return map;
+    },
+    enabled: referencedEventIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   if (isLoading) {
     return (
       <>
@@ -332,59 +359,99 @@ export function DMConversationsList({ searchQuery = "", hasProAccess = false }: 
         </Card>
       )}
 
-      {filteredConversations.map((conv) => {
-        const isOwn = conv.last_message?.author_id === user?.id;
-        const isIgniteSupport = isIgniteSupportUser(conv.other_user?.id);
-        const profileLoading = !conv.other_user?.display_name && isFetching;
-        const displayName = isIgniteSupport ? "Ignite Support" : (conv.other_user?.display_name || (profileLoading ? null : "Unknown User"));
-        
-        return (
-          <Card key={conv.id} className="hover:border-primary/50 transition-colors cursor-pointer">
-            <Link to={`/messages/dm/${conv.id}`}>
-              <CardContent className="py-[18px] px-3 flex items-center gap-3">
-                <div className="relative shrink-0">
-                  {isIgniteSupport ? (
-                    <div className="h-9 w-9 rounded-full flex items-center justify-center" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-                      <Flame className="h-5 w-5 text-white" />
-                    </div>
-                  ) : (
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={conv.other_user?.avatar_url || undefined} />
-                      <AvatarFallback className="bg-secondary text-secondary-foreground">
-                        {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-1">
-                    {displayName ? (
-                      <h3 className="truncate text-[15px] leading-tight font-semibold">{displayName}</h3>
-                    ) : (
-                      <Skeleton className="h-4 w-24" />
-                    )}
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      {conv.last_message?.created_at && (
-                        <span className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(conv.last_message.created_at), { addSuffix: true })}
-                        </span>
-                      )}
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                    </div>
-                  </div>
-                  <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
-                    <MessagePreview 
-                      text={conv.last_message?.text} 
-                      imageUrl={conv.last_message?.image_url}
-                      isOwn={isOwn}
-                    />
-                  </p>
-                </div>
-              </CardContent>
-            </Link>
-          </Card>
-        );
-      })}
+      {filteredConversations.map((conv) => (
+        <DMConversationRow
+          key={conv.id}
+          conv={conv}
+          currentUserId={user?.id}
+          isFetching={isFetching}
+          eventTitles={eventTitleMap}
+        />
+      ))}
     </div>
+  );
+}
+
+interface DMConversationRowProps {
+  conv: DMConversation;
+  currentUserId: string | undefined;
+  isFetching: boolean;
+  eventTitles?: Record<string, string>;
+}
+
+function DMConversationRow({ conv, currentUserId, isFetching, eventTitles }: DMConversationRowProps) {
+  const isOwn = conv.last_message?.author_id === currentUserId;
+  const isIgniteSupport = isIgniteSupportUser(conv.other_user?.id);
+  const profileLoading = !conv.other_user?.display_name && isFetching;
+  const displayName = isIgniteSupport
+    ? "Ignite Support"
+    : conv.other_user?.display_name || (profileLoading ? null : "Unknown User");
+
+  // Live presence — only meaningful for real users (not Ignite Support).
+  const isOnline = useIsUserOnline(isIgniteSupport ? null : conv.other_user?.id);
+
+  return (
+    <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+      <Link to={`/messages/dm/${conv.id}`}>
+        <CardContent className="py-[18px] px-3 flex items-center gap-3">
+          <div className="relative shrink-0">
+            {isIgniteSupport ? (
+              <div
+                className="h-9 w-9 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: "hsl(142, 71%, 45%)" }}
+              >
+                <Flame className="h-5 w-5 text-white" />
+              </div>
+            ) : (
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={conv.other_user?.avatar_url || undefined} />
+                <AvatarFallback className="bg-secondary text-secondary-foreground">
+                  {conv.other_user?.display_name?.charAt(0).toUpperCase() || "?"}
+                </AvatarFallback>
+              </Avatar>
+            )}
+            {isOnline && (
+              <span
+                aria-label="Online"
+                className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background"
+                style={{ backgroundColor: "hsl(var(--success))" }}
+              />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-1">
+              {displayName ? (
+                <h3 className="truncate text-[15px] leading-tight font-semibold">
+                  {displayName}
+                </h3>
+              ) : (
+                <Skeleton className="h-4 w-24" />
+              )}
+              <div className="flex items-center gap-0.5 shrink-0">
+                {conv.last_message?.created_at && (
+                  <span className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(conv.last_message.created_at), {
+                      addSuffix: true,
+                    })}
+                  </span>
+                )}
+                <ChevronRight
+                  className="h-3.5 w-3.5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
+            <p className="text-[13px] leading-relaxed mt-1 line-clamp-2 text-foreground/70">
+              <MessagePreview
+                text={conv.last_message?.text}
+                imageUrl={conv.last_message?.image_url}
+                isOwn={isOwn}
+                eventTitles={eventTitles}
+              />
+            </p>
+          </div>
+        </CardContent>
+      </Link>
+    </Card>
   );
 }

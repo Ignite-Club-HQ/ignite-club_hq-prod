@@ -1,0 +1,277 @@
+import { useEffect, useRef, useCallback, type Dispatch, type SetStateAction } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Play, Pause, SkipForward, RotateCcw, MoreVertical, Repeat } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { BasketballTimerState, Quarter } from "./types";
+import { formatTime } from "./basketballHelpers";
+import { periodLabel, visiblePeriods } from "@/lib/periodTypes";
+
+interface BasketballQuarterTimerProps {
+  state: BasketballTimerState;
+  onChange: Dispatch<SetStateAction<BasketballTimerState>>;
+  /** Fired each tick with the new elapsed seconds, current quarter, and the
+   *  number of real seconds that elapsed since the previous tick (>= 1).
+   *  Boards should use deltaSeconds to advance per-player minutes — using a
+   *  hard-coded `1` causes drift after backgrounding. */
+  onTick?: (elapsedSeconds: number, quarter: Quarter, deltaSeconds: number) => void;
+  onQuarterEnd?: (quarter: Quarter) => void;
+  /** Called when the user confirms a full reset. Parent should wipe per-player
+   *  stats (fouls, points, FT counters, isFouledOut, minutesPlayed) + any
+   *  cached cue refs so a fresh game starts cleanly. */
+  onReset?: () => void;
+  readOnly?: boolean;
+  /** When true, render inline controls only (no card wrapper / padding) so the
+   *  timer can sit alongside the scoreboard in a single header strip. */
+  compact?: boolean;
+  /** Opens the auto-sub plan panel (preview, execute, skip, minutes per player). */
+  onOpenAutoSubPlan?: () => void;
+  /** Whether an auto-sub plan currently exists — controls menu label. */
+  hasAutoSubPlan?: boolean;
+}
+
+export default function BasketballQuarterTimer({
+  state,
+  onChange,
+  onTick,
+  onQuarterEnd,
+  onReset,
+  readOnly = false,
+  compact = false,
+  onOpenAutoSubPlan,
+  hasAutoSubPlan = false,
+}: BasketballQuarterTimerProps) {
+  const intervalRef = useRef<number | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const onTickRef = useRef(onTick);
+  onTickRef.current = onTick;
+  const onQuarterEndRef = useRef(onQuarterEnd);
+  onQuarterEndRef.current = onQuarterEnd;
+  const onResetRef = useRef(onReset);
+  onResetRef.current = onReset;
+
+  // Wall-clock driven tick to survive backgrounding.
+  useEffect(() => {
+    if (!state.isRunning || state.isGameFinished) return;
+
+    const tick = () => {
+      let tickPayload:
+        | { elapsed: number; quarter: Quarter; delta: number; quarterEnded: false }
+        | { elapsed: number; quarter: Quarter; delta: number; quarterEnded: true }
+        | null = null;
+
+      onChange((prev) => {
+        const elapsedSinceUpdate = Math.max(
+          1,
+          Math.floor((Date.now() - prev.lastUpdateTime) / 1000)
+        );
+        const newElapsed = prev.elapsedSeconds + elapsedSinceUpdate;
+        const quarterSeconds = prev.minutesPerQuarter * 60;
+
+        if (newElapsed >= quarterSeconds) {
+          const endingQuarter = prev.currentQuarter;
+          const deltaToEnd = Math.max(0, quarterSeconds - prev.elapsedSeconds);
+          tickPayload = {
+            elapsed: quarterSeconds,
+            quarter: endingQuarter,
+            delta: deltaToEnd,
+            quarterEnded: true,
+          };
+          const periods = visiblePeriods(prev.periodType);
+          const idx = periods.indexOf(prev.currentQuarter);
+          const isFinalPeriod = idx === periods.length - 1;
+          const nextSlot = (periods[idx + 1] ?? null) as Quarter | null;
+          if (isFinalPeriod) {
+            return {
+              ...prev,
+              elapsedSeconds: quarterSeconds,
+              isRunning: false,
+              isGameFinished: true,
+              lastUpdateTime: Date.now(),
+            };
+          }
+          return {
+            ...prev,
+            currentQuarter: nextSlot ?? ((prev.currentQuarter + 1) as Quarter),
+            elapsedSeconds: 0,
+            isRunning: false,
+            lastUpdateTime: Date.now(),
+          };
+        }
+
+        tickPayload = {
+          elapsed: newElapsed,
+          quarter: prev.currentQuarter,
+          delta: elapsedSinceUpdate,
+          quarterEnded: false,
+        };
+        return { ...prev, elapsedSeconds: newElapsed, lastUpdateTime: Date.now() };
+      });
+
+      if (!tickPayload) return;
+      if (tickPayload.delta > 0) {
+        onTickRef.current?.(tickPayload.elapsed, tickPayload.quarter, tickPayload.delta);
+      }
+      if (tickPayload.quarterEnded) {
+        onQuarterEndRef.current?.(tickPayload.quarter);
+      }
+    };
+
+    intervalRef.current = window.setInterval(tick, 1000);
+    return () => {
+      if (intervalRef.current) window.clearInterval(intervalRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.isRunning, state.currentQuarter, state.isGameFinished]);
+
+  const toggle = useCallback(() => {
+    onChange((prev) => ({ ...prev, isRunning: !prev.isRunning, lastUpdateTime: Date.now() }));
+  }, [onChange]);
+
+  const advanceQuarter = useCallback(() => {
+    let endedQuarter: Quarter | null = null;
+    onChange((prev) => {
+      const periods = visiblePeriods(prev.periodType);
+      const idx = periods.indexOf(prev.currentQuarter);
+      const next = periods[idx + 1];
+      if (!next) return prev;
+      endedQuarter = prev.currentQuarter;
+      return {
+        ...prev,
+        currentQuarter: next,
+        elapsedSeconds: 0,
+        isRunning: false,
+        lastUpdateTime: Date.now(),
+      };
+    });
+    if (endedQuarter) onQuarterEndRef.current?.(endedQuarter);
+  }, [onChange]);
+
+  const reset = useCallback(() => {
+    if (!window.confirm("Reset the game? This clears the timer, score, and player stats.")) return;
+    onChange((prev) => ({
+      ...prev,
+      currentQuarter: 1,
+      elapsedSeconds: 0,
+      isRunning: false,
+      isGameFinished: false,
+      homeScore: 0,
+      awayScore: 0,
+      scoreLog: [],
+      subLog: [],
+      homeTimeoutsRemaining: prev.timeoutsPerHalf ?? 3,
+      awayTimeoutsRemaining: prev.timeoutsPerHalf ?? 3,
+      timeoutsHalfTracked: 1,
+      mvpPlayerId: null,
+      lastUpdateTime: Date.now(),
+    }));
+    onResetRef.current?.();
+  }, [onChange]);
+
+  const quarterSeconds = state.minutesPerQuarter * 60;
+  const remaining = Math.max(0, quarterSeconds - state.elapsedSeconds);
+  const lowTime = remaining <= 60 && state.isRunning;
+  const periods = visiblePeriods(state.periodType);
+  const isFinalPeriod = periods.indexOf(state.currentQuarter) === periods.length - 1;
+
+  const inner = (
+    <>
+      {/* Period pill */}
+      <span
+        className={cn(
+          "rounded-full font-bold bg-primary/10 text-primary tabular-nums shrink-0",
+          compact ? "px-2 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]",
+        )}
+      >
+        {periodLabel(state.currentQuarter, state.periodType)}
+      </span>
+
+      {/* Timer clock */}
+      <div
+        className={cn(
+          "tabular-nums font-mono font-extrabold tracking-tight leading-none shrink-0",
+          compact ? "text-base px-0.5" : "text-2xl",
+          lowTime && "text-destructive animate-pulse",
+          state.isGameFinished && "text-muted-foreground"
+        )}
+        aria-live="polite"
+      >
+        {formatTime(remaining)}
+      </div>
+
+      {/* Primary play/pause + overflow */}
+      {!readOnly && (
+        <div className={cn("flex items-center shrink-0", compact ? "gap-3 ml-1" : "gap-2")}>
+          <Button
+            size="icon"
+            variant={state.isRunning ? "secondary" : "default"}
+            className={cn(
+              "rounded-full shadow-md",
+              // Larger tap target so play/pause is easy to hit mid-game.
+              compact ? "h-10 w-10 min-h-0 min-w-0" : "h-10 w-10",
+            )}
+            onClick={toggle}
+            disabled={state.isGameFinished}
+            aria-label={state.isRunning ? "Pause" : "Start"}
+          >
+            {state.isRunning ? (
+              <Pause className="h-5 w-5" />
+            ) : (
+              <Play className="h-5 w-5 ml-0.5" />
+            )}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className={cn(compact ? "h-8 w-8 min-h-0 min-w-0" : "h-8 w-8")}
+                aria-label="More timer options"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[100000]">
+              {onOpenAutoSubPlan && (
+                <>
+                  <DropdownMenuItem onClick={onOpenAutoSubPlan}>
+                    <Repeat className="h-4 w-4 mr-2" />
+                    {hasAutoSubPlan ? "Auto-sub plan" : "Set up auto-subs"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem
+                onClick={advanceQuarter}
+                disabled={isFinalPeriod || state.isGameFinished}
+              >
+                <SkipForward className="h-4 w-4 mr-2" />
+                Next period
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={reset} className="text-destructive focus:text-destructive">
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset game
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+    </>
+  );
+
+  if (compact) {
+    return <div className="flex items-center gap-2 shrink-0">{inner}</div>;
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-2 px-2 py-1 bg-card">{inner}</div>
+  );
+}

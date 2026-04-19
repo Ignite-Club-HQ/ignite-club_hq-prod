@@ -79,6 +79,10 @@ interface GroupChatMessageRowProps {
   deleteMessageMutation: { mutate: (id: string) => void };
   toggleReactionMutation: { mutate: (args: { messageId: string; reactionType: string }) => void };
   groupId?: string;
+  isPinned?: boolean;
+  pinLimitReached?: boolean;
+  onPin?: (messageId: string) => void;
+  onUnpin?: (messageId: string) => void;
 }
 
 export const GroupChatMessageRow = memo(function GroupChatMessageRow({
@@ -97,6 +101,10 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
   deleteMessageMutation,
   toggleReactionMutation,
   groupId,
+  isPinned = false,
+  pinLimitReached = false,
+  onPin,
+  onUnpin,
 }: GroupChatMessageRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -531,6 +539,11 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
         onBlock={() => { setShowBlockDialog(true); closeActionUi(); }}
         hasImage={!!msg.image_url}
         onViewImage={() => { setShowFullscreenImage(true); closeActionUi(); }}
+        canPin={!!onPin || isPinned}
+        isPinned={isPinned}
+        pinLimitReached={pinLimitReached}
+        onPin={onPin ? () => { onPin(msg.id); closeActionUi(); } : undefined}
+        onUnpin={onUnpin ? () => { onUnpin(msg.id); closeActionUi(); } : undefined}
       />
       {showFullscreenImage && msg.image_url && (
         <FullscreenImageViewer

@@ -2,7 +2,10 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Crown, Building2, ShieldCheck, Gift, Plus, CheckCircle2, ClipboardList, Lock, FileText } from "lucide-react";
+import { LogOut, Flame, Trophy, Users, Settings, ChevronRight, ChevronDown, Baby, Loader2, Crown, Building2, ShieldCheck, Gift, Plus, CheckCircle2, ClipboardList, Lock, FileText, Pencil, KeyRound } from "lucide-react";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useClubSeasons } from "@/hooks/useClubSeasons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, parseISO } from "date-fns";
 import RewardRedemptionCard from "@/components/RewardRedemptionCard";
+import { ProfileTeamHistory } from "@/components/profile/ProfileTeamHistory";
+import { PointsActivityFeed, type PointsActivityItem } from "@/components/profile/PointsActivityFeed";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
@@ -39,9 +44,11 @@ export default function ProfilePage() {
   const [pointsHistoryOpen, setPointsHistoryOpen] = useState(true);
   const [clubPlansOpen, setClubPlansOpen] = useState(true);
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
-  const [myClubsTeamsOpen, setMyClubsTeamsOpen] = useState(true);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>("all");
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
+  const { data: seasonsForRank = [] } = useClubSeasons(activeClubFilter || undefined);
 
   // Auto-scroll to points history when navigated from notification
   useEffect(() => {
@@ -251,16 +258,8 @@ export default function ProfilePage() {
   });
 
   // Combine points history
-  const pointsHistory = useMemo(() => {
-    const items: Array<{
-      id: string;
-      type: 'earned' | 'spent';
-      points: number;
-      name: string;
-      context: string;
-      date: string;
-      eventId?: string;
-    }> = [];
+  const pointsHistory = useMemo<PointsActivityItem[]>(() => {
+    const items: PointsActivityItem[] = [];
 
     const addedSourceIds = new Set<string>();
 
@@ -274,6 +273,7 @@ export default function ProfilePage() {
           name: entry.description,
           context: entry.clubs?.name || 'Club',
           date: entry.created_at,
+          sourceType: entry.source_type,
           eventId: entry.source_type === 'early_rsvp' || entry.source_type === 'player_of_match' || entry.source_type === 'attendance' ? entry.source_id : undefined,
         });
         if (entry.source_id) {
@@ -294,6 +294,7 @@ export default function ProfilePage() {
             name: duty.name,
             context: event?.teams?.name || event?.clubs?.name || 'Event',
             date: duty.created_at,
+            sourceType: 'duty',
             eventId: event?.id,
           });
         }
@@ -310,6 +311,7 @@ export default function ProfilePage() {
           name: redemption.club_rewards?.name || 'Reward',
           context: redemption.clubs?.name || 'Club',
           date: redemption.redeemed_at || redemption.created_at,
+          sourceType: 'redemption',
         });
       });
     }
@@ -396,6 +398,26 @@ export default function ProfilePage() {
     },
     enabled: !!user && hasProAccess === true,
   });
+
+  // Season-scoped rank (only when a specific season is selected within a filtered club)
+  const { data: seasonRankData } = useQuery({
+    queryKey: ["points-rank-seasoned", user?.id, activeClubFilter, selectedSeasonId],
+    queryFn: async () => {
+      if (!user?.id || !activeClubFilter || selectedSeasonId === "all") return null;
+      const { data, error } = await supabase.rpc("get_user_leaderboard_rank_seasoned", {
+        _user_id: user.id,
+        _club_id: activeClubFilter,
+        _season_id: selectedSeasonId,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row || !row.rank) return null;
+      return { rank: row.rank as number, total: row.total as number, points: row.points as number };
+    },
+    enabled: !!user && hasProAccess === true && !!activeClubFilter && selectedSeasonId !== "all",
+  });
+
+  const displayedRank = selectedSeasonId !== "all" ? seasonRankData : rankData;
 
   const { data: upgradableClubs } = useQuery({
     queryKey: ["upgradable-clubs", user?.id, activeClubFilter],
@@ -541,21 +563,34 @@ export default function ProfilePage() {
     <div className="py-6 space-y-6">
       {/* Profile Header */}
       <div className="flex items-center gap-4">
-        <Avatar className="h-20 w-20 border-4 border-primary/20">
-          <AvatarImage src={profile?.avatar_url || undefined} />
-          <AvatarFallback className="bg-muted flex items-center justify-center p-0">
-            {activeThemeData?.logoUrl ? (
-              <img src={activeThemeData.logoUrl} alt={activeThemeData.clubName} className="h-14 w-14 object-contain" />
-            ) : (
-              <img src={igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
-            )}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{profile?.display_name}</h1>
-          <p className="text-sm text-muted-foreground">{user?.email}</p>
-        </div>
-        <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} className="relative">
+        <button
+          onClick={() => navigate("/edit-profile")}
+          className="relative group rounded-full focus:outline-none focus:ring-2 focus:ring-primary"
+          aria-label="Edit profile"
+        >
+          <Avatar className="h-20 w-20 border-4 border-primary/20">
+            <AvatarImage src={profile?.avatar_url || undefined} />
+            <AvatarFallback className="bg-muted flex items-center justify-center p-0">
+              {activeThemeData?.logoUrl ? (
+                <img src={activeThemeData.logoUrl} alt={activeThemeData.clubName} className="h-14 w-14 object-contain" />
+              ) : (
+                <img src={igniteIcon} alt="Profile" className="h-full w-full object-cover rounded-full" />
+              )}
+            </AvatarFallback>
+          </Avatar>
+          <span className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center border-2 border-background shadow-sm">
+            <Pencil className="h-3.5 w-3.5" />
+          </span>
+        </button>
+        <button
+          onClick={() => navigate("/edit-profile")}
+          className="flex-1 text-left min-w-0"
+          aria-label="Edit profile"
+        >
+          <h1 className="text-2xl font-bold truncate">{profile?.display_name}</h1>
+          <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
+        </button>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} className="relative" aria-label="Settings">
           <Settings className="h-5 w-5" />
           {notificationNudge.shouldShowNudge && (
             <span className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
@@ -563,218 +598,82 @@ export default function ProfilePage() {
         </Button>
       </div>
 
+      {/* Quick Actions */}
+      <div className="grid grid-cols-3 gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-auto flex-col gap-1 py-3"
+          onClick={() => navigate("/edit-profile")}
+        >
+          <Pencil className="h-4 w-4" />
+          <span className="text-xs">Edit Profile</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-auto flex-col gap-1 py-3"
+          onClick={() => setChangePasswordOpen(true)}
+        >
+          <KeyRound className="h-4 w-4" />
+          <span className="text-xs">Password</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-auto flex-col gap-1 py-3 relative"
+          onClick={() => navigate("/settings")}
+        >
+          <Settings className="h-4 w-4" />
+          <span className="text-xs">Settings</span>
+          {notificationNudge.shouldShowNudge && (
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive animate-pulse" />
+          )}
+        </Button>
+      </div>
+
       {/* Points & Rewards Card */}
       <RewardRedemptionCard />
 
-      {/* My Clubs and Teams Section */}
-      <Collapsible open={myClubsTeamsOpen} onOpenChange={setMyClubsTeamsOpen}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 transition-colors">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                My Clubs and Teams
-                <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${myClubsTeamsOpen ? "rotate-180" : ""}`} />
-              </CardTitle>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="pt-0 space-y-4">
-              {myClubsAndTeams?.clubs && myClubsAndTeams.clubs.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Clubs</p>
-                  {myClubsAndTeams.clubs.map((club: any) => (
-                    <div
-                      key={club.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/clubs/${club.id}`)}
-                    >
-                      {club.logo_url ? (
-                        <img src={club.logo_url} alt={club.name} className="h-10 w-10 rounded-lg object-cover" />
-                      ) : (
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Building2 className="h-5 w-5 text-primary" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{club.name}</p>
-                        {club.sport && <p className="text-xs text-muted-foreground">{getSportEmoji(club.sport)} {club.sport}</p>}
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {myClubsAndTeams?.teams && myClubsAndTeams.teams.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Teams</p>
-                  {myClubsAndTeams.teams.map((team: any) => (
-                    <div
-                      key={team.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/teams/${team.id}`)}
-                    >
-                      <div className="h-10 w-10 rounded-lg bg-secondary/50 flex items-center justify-center">
-                        <Users className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{team.name}</p>
-                        {team.clubs && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {getSportEmoji(team.clubs.sport)} {team.clubs.name}
-                          </p>
-                        )}
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {(!myClubsAndTeams?.clubs?.length && !myClubsAndTeams?.teams?.length) && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  You're not a member of any clubs or teams yet.
-                </p>
-              )}
-
-              <Button variant="outline" className="w-full" onClick={() => navigate("/clubs")}>
-                <Plus className="h-4 w-4 mr-2" />
-                Discover or Create Club
-              </Button>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
-      <div className="space-y-2">
-        <MenuCard icon={Baby} label="Manage Children" onClick={() => navigate("/children")} />
-        <MenuCard icon={Users} label="My Roles" onClick={() => navigate("/roles")} />
-        {(isAppAdmin || isTeamAdminOrCoach) && (
-          <MenuCard icon={ShieldCheck} label="Admin" onClick={() => navigate("/admin")} />
-        )}
-      </div>
-
-      {/* Points History Section */}
+      {/* Points History — sits directly under Rewards to preserve the engagement loop */}
       <div ref={pointsHistoryRef}>
       {hasProAccess ? (
-        <Collapsible open={pointsHistoryOpen} onOpenChange={setPointsHistoryOpen}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 transition-colors">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Flame className="h-5 w-5 text-primary" />
-                  Points History
-                  <ChevronDown className={`h-4 w-4 ml-auto transition-transform ${pointsHistoryOpen ? '' : '-rotate-90'}`} />
-                </CardTitle>
-              </CardHeader>
-            </CollapsibleTrigger>
-            
-            <CardContent className="pt-0 pb-3">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="text-center p-3 bg-muted rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">+{pointsEarned}</div>
-                  <div className="text-xs text-muted-foreground">Earned</div>
-                </div>
-                <div className="text-center p-3 bg-muted rounded-lg">
-                  <div className="text-2xl font-bold text-red-500">{pointsSpent}</div>
-                  <div className="text-xs text-muted-foreground">Spent</div>
-                </div>
-                <div className="text-center p-3 bg-muted rounded-lg">
-                  <div className="text-2xl font-bold text-primary">{profile?.ignite_points || 0}</div>
-                  <div className="text-xs text-muted-foreground">Balance</div>
-                </div>
-              </div>
-              {rankData && (
-                <div className="flex items-center justify-center gap-2 mt-3 p-2 bg-primary/10 rounded-lg">
-                  <Trophy className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">
-                    You are <span className="text-primary font-bold">{rankData.rank}{getOrdinalSuffix(rankData.rank)}</span> out of {rankData.total} member{rankData.total !== 1 ? 's' : ''}
-                  </span>
-                </div>
-              )}
-              {(() => {
-                const balance = profile?.ignite_points || 0;
-                const calculatedBalance = pointsEarned - pointsSpent;
-                const untracked = balance - calculatedBalance;
-                if (untracked > 0 && !pointsHistoryLoading && !redemptionsLoading) {
-                  return (
-                    <p className="text-xs text-muted-foreground mt-2 text-center">
-                      +{untracked} pts earned before history tracking began
-                    </p>
-                  );
-                }
-                return null;
-              })()}
-            </CardContent>
-
-            <CollapsibleContent>
-              <CardContent className="space-y-3 pt-0">
-                {(pointsHistoryLoading || redemptionsLoading) ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : pointsHistory.length > 0 ? (
-                  <>
-                    <div className="space-y-2">
-                      {(showAllDuties ? pointsHistory : pointsHistory.slice(0, 5)).map((item) => {
-                        const isEarned = item.type === 'earned';
-                        
-                        return (
-                          <div 
-                            key={item.id}
-                            className={`flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors ${item.eventId ? 'cursor-pointer' : ''}`}
-                            onClick={() => item.eventId && navigate(`/events/${item.eventId}`)}
-                          >
-                            <div className={`p-2 rounded-full ${isEarned ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
-                              {isEarned ? (
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              ) : (
-                                <Gift className="h-4 w-4 text-red-500" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium truncate">{item.name}</span>
-                                <Badge 
-                                  variant="secondary" 
-                                  className={`text-xs shrink-0 ${isEarned ? 'bg-green-500/20 text-green-700' : 'bg-red-500/20 text-red-600'}`}
-                                >
-                                  {isEarned ? '+' : ''}{item.points} pts
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                                <span>{item.context}</span>
-                                <span>•</span>
-                                <span>{format(new Date(item.date), "d MMM yyyy")}</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    {pointsHistory.length > 5 && (
-                      <Button 
-                        variant="ghost" 
-                        className="w-full text-sm"
-                        onClick={() => setShowAllDuties(!showAllDuties)}
-                      >
-                        {showAllDuties ? "Show less" : `Show all ${pointsHistory.length} entries`}
-                      </Button>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No points activity yet</p>
-                    <p className="text-xs">Complete duties at events to earn points!</p>
-                  </div>
-                )}
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+        (() => {
+          const balance = profile?.ignite_points || 0;
+          const calculatedBalance = pointsEarned - pointsSpent;
+          const untracked = balance - calculatedBalance;
+          const untrackedNote =
+            untracked > 0 && !pointsHistoryLoading && !redemptionsLoading
+              ? `+${untracked} pts earned before history tracking began`
+              : null;
+          const rankForFeed = displayedRank
+            ? {
+                rank: displayedRank.rank,
+                total: displayedRank.total,
+                points:
+                  selectedSeasonId !== "all" && "points" in (displayedRank as any)
+                    ? (displayedRank as any).points
+                    : undefined,
+              }
+            : null;
+          return (
+            <PointsActivityFeed
+              open={pointsHistoryOpen}
+              onOpenChange={setPointsHistoryOpen}
+              loading={pointsHistoryLoading || redemptionsLoading}
+              items={pointsHistory}
+              balance={balance}
+              earned={pointsEarned}
+              spent={pointsSpent}
+              rank={rankForFeed}
+              seasons={seasonsForRank}
+              selectedSeasonId={selectedSeasonId}
+              onSeasonChange={setSelectedSeasonId}
+              showSeasonFilter={!!activeClubFilter && seasonsForRank.length > 0}
+              untrackedNote={untrackedNote}
+            />
+          );
+        })()
       ) : (
         <Card className="opacity-75">
           <CardHeader className="pb-3">
@@ -789,6 +688,30 @@ export default function ProfilePage() {
           </CardHeader>
         </Card>
       )}
+      </div>
+
+      {/* Subtle transition between engagement loop and management actions */}
+      <Separator className="opacity-60" />
+
+      {/* Team history — current + past teams from season memberships */}
+      <ProfileTeamHistory profileId={user?.id} />
+
+      {/* Discover / Create Club */}
+      <Button variant="outline" className="w-full" onClick={() => navigate("/clubs")}>
+        <Plus className="h-4 w-4 mr-2" />
+        Discover or Create Club
+      </Button>
+
+      {/* Manage section */}
+      <div className="space-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">
+          Manage
+        </h2>
+        <MenuCard icon={Baby} label="Manage Children" onClick={() => navigate("/children")} />
+        <MenuCard icon={Users} label="My Roles" onClick={() => navigate("/roles")} />
+        {(isAppAdmin || isTeamAdminOrCoach) && (
+          <MenuCard icon={ShieldCheck} label="Admin" onClick={() => navigate("/admin")} />
+        )}
       </div>
 
       {/* Manage Plans Section */}
@@ -936,6 +859,8 @@ export default function ProfilePage() {
         {signingOut ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <LogOut className="h-4 w-4 mr-2" />}
         Sign Out
       </Button>
+
+      <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
     </div>
   );
 }

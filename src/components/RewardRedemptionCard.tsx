@@ -1,10 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trophy, Gift, Loader2, CheckCircle2, Clock, ChevronRight, Star, Users, QrCode, Building2, Lock } from "lucide-react";
+import { Trophy, Gift, Loader2, CheckCircle2, Clock, ChevronRight, Star, Users, QrCode, Building2, Lock, Flame, HelpCircle, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RewardClaimQRDialog } from "@/components/RewardClaimQRDialog";
+import PointsHowToEarnSheet from "@/components/PointsHowToEarnSheet";
+import { useCountUp } from "@/hooks/useCountUp";
 import {
   Dialog,
   DialogContent,
@@ -103,7 +107,10 @@ export default function RewardRedemptionCard() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [selectedRedemption, setSelectedRedemption] = useState<RewardRedemption | null>(null);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself"); // "myself" or child_id
-  
+  const [activeChildId, setActiveChildId] = useState<string | null>(null);
+  const [childSwitcherOpen, setChildSwitcherOpen] = useState(false);
+  const [howToEarnOpen, setHowToEarnOpen] = useState(false);
+
   // Use cached theme state to prevent gradient flash on initial render
   const [hasClubThemeCached] = useState(getInitialThemeState);
   const hasClubTheme = activeThemeData || hasClubThemeCached;
@@ -252,6 +259,58 @@ export default function RewardRedemptionCard() {
       return (data || []) as RewardRedemption[];
     },
     enabled: !!user,
+  });
+
+  // Weekly points delta (last 7 days) for the user
+  const { data: weeklyDelta = 0 } = useQuery({
+    queryKey: ["points-weekly-delta", user?.id, activeClubFilter],
+    queryFn: async () => {
+      const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      let q = supabase
+        .from("points_history")
+        .select("amount")
+        .eq("user_id", user!.id)
+        .gt("amount", 0)
+        .gte("created_at", sinceIso);
+      if (activeClubFilter) q = q.eq("club_id", activeClubFilter);
+      const { data } = await q;
+      return (data || []).reduce((sum: number, row: any) => sum + (row.amount || 0), 0);
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Next reward thresholds across the user's clubs (sorted ascending by points)
+  const { data: rewardThresholds = [] } = useQuery({
+    queryKey: ["next-reward-thresholds", user?.id, activeClubFilter],
+    queryFn: async () => {
+      let clubIds: string[] = [];
+      if (activeClubFilter) {
+        clubIds = [activeClubFilter];
+      } else {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("club_id, teams(club_id)")
+          .eq("user_id", user!.id);
+        const set = new Set<string>();
+        (roles || []).forEach((r: any) => {
+          if (r.club_id) set.add(r.club_id);
+          if (r.teams?.club_id) set.add(r.teams.club_id);
+        });
+        clubIds = Array.from(set);
+      }
+      if (clubIds.length === 0) return [];
+      const { data } = await supabase
+        .from("club_rewards")
+        .select("id, name, points_required")
+        .in("club_id", clubIds)
+        .eq("is_active", true)
+        .neq("reward_type", "player_of_match")
+        .order("points_required", { ascending: true });
+      return (data || []) as { id: string; name: string; points_required: number }[];
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   const redeemMutation = useMutation({
@@ -477,6 +536,69 @@ export default function RewardRedemptionCard() {
   const hasClubs = userClubs.length > 0;
   const isLoadingClubsWithNoCache = isLoadingClubs && userClubs.length === 0;
 
+  // Persist + restore the last selected child for the rewards card focus
+  useEffect(() => {
+    if (!user) return;
+    if (activeChildId) return;
+    try {
+      const stored = localStorage.getItem(`ignite-rewards-active-child-${user.id}`);
+      if (stored && children.some(c => c.id === stored)) {
+        setActiveChildId(stored);
+      }
+    } catch {
+      // localStorage unavailable
+    }
+  }, [user, children, activeChildId]);
+
+  useEffect(() => {
+    if (!user || !activeChildId) return;
+    try {
+      localStorage.setItem(`ignite-rewards-active-child-${user.id}`, activeChildId);
+    } catch {
+      // localStorage unavailable
+    }
+  }, [activeChildId, user]);
+
+  // Determine the focus context: the active child (if any) or the user themselves.
+  const activeChild = useMemo(
+    () => (activeChildId ? children.find(c => c.id === activeChildId) ?? null : null),
+    [activeChildId, children]
+  );
+  const focusName = activeChild?.name ?? (profile?.display_name || "You");
+  const focusPoints = activeChild?.ignite_points ?? currentPoints;
+  const focusInitials = focusName
+    .split(/\s+/)
+    .map(n => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  // Cheapest reward the focus context cannot yet afford → next milestone
+  const nextRewardTarget = useMemo(() => {
+    const above = rewardThresholds.find(r => r.points_required > focusPoints);
+    return above ?? rewardThresholds[rewardThresholds.length - 1] ?? null;
+  }, [rewardThresholds, focusPoints]);
+
+  const progressMax = nextRewardTarget?.points_required ?? 0;
+  const progressPct = progressMax > 0 ? Math.min(100, (focusPoints / progressMax) * 100) : 0;
+  const pointsToGo = Math.max(0, progressMax - focusPoints);
+  const animatedPoints = useCountUp(focusPoints);
+  const pointsLabel = (userClubs[0] as any)?.points_display_name || 'Reward Points';
+  const pointsIcon = (userClubs[0] as any)?.points_icon_url as string | undefined;
+
+  const openDefaultRewards = () => {
+    const proClubs = userClubs.filter((club: any) => isAppAdmin || club.hasPro);
+    if (proClubs.length === 1) {
+      setSelectedClubId(proClubs[0].id);
+    } else if (proClubs.length > 1) {
+      // Surface the existing club picker UI by leaving selectedClubId null —
+      // user can tap a club from the in-card list. As a shortcut we open the
+      // first pro club so a single tap on the card does something useful.
+      setSelectedClubId(proClubs[0].id);
+    }
+  };
+
 
   // If user has a pending redemption, show it prominently
   if (pendingRedemptions.length > 0) {
@@ -617,38 +739,107 @@ export default function RewardRedemptionCard() {
     );
   }
 
+  const proClubs = userClubs.filter((club: any) => isAppAdmin || club.hasPro);
+  const hasMultipleProClubs = proClubs.length > 1;
+  const hasMultipleClubs = userClubs.length > 1;
+  const cardIsTappable = hasClubs && proClubs.length > 0 && !isLoadingClubsWithNoCache;
+
   return (
     <>
-      <Card className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} border-0 overflow-hidden`}>
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              {(userClubs[0] as any)?.points_icon_url && (
-                <img src={(userClubs[0] as any).points_icon_url} alt="" className="h-6 w-6 rounded object-cover" />
+      <Card
+        onClick={cardIsTappable ? openDefaultRewards : undefined}
+        className={`${hasClubTheme ? 'gradient-themed' : 'gradient-emerald'} relative border-0 overflow-hidden ${cardIsTappable ? 'cursor-pointer transition-transform active:scale-[0.99]' : ''}`}
+      >
+        {/* Soft inner highlight for depth */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_0%_0%,hsl(0_0%_100%/0.18),transparent_55%)]"
+        />
+        <CardContent className="relative p-4 sm:p-5">
+          {/* HEADER ROW */}
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2 min-w-0">
+              {pointsIcon ? (
+                <img src={pointsIcon} alt="" className="h-6 w-6 rounded object-cover shrink-0" />
+              ) : (
+                <Gift className="h-5 w-5 text-primary-foreground shrink-0" />
               )}
-              {!(userClubs[0] as any)?.points_icon_url && <Gift className="h-6 w-6 text-primary-foreground" />}
-              <span className="font-semibold text-primary-foreground">{(userClubs[0] as any)?.points_display_name || 'Reward Points'}</span>
+              <span className="font-semibold text-primary-foreground truncate">
+                {pointsLabel}
+              </span>
             </div>
-            <span className="text-3xl font-bold text-primary-foreground">
-              {currentPoints}
-            </span>
-          </div>
-          
-          {/* Show children's points if any */}
-          {children.length > 0 && (
-            <div className="mb-4 space-y-1">
-              {children.map(child => (
-                <div key={child.id} className="flex items-center justify-between text-sm text-primary-foreground/80">
-                  <span className="flex items-center gap-1">
-                    <Users className="h-3 w-3" />
-                    {child.name}
-                  </span>
-                  <span className="font-medium">{child.ignite_points} pts</span>
+            <div className="text-right leading-tight">
+              <div className="text-3xl font-bold text-primary-foreground tabular-nums">
+                {animatedPoints}
+                <span className="text-base font-medium text-primary-foreground/80 ml-1">pts</span>
+              </div>
+              {weeklyDelta > 0 && (
+                <div className="text-[11px] font-medium text-primary-foreground/85 mt-0.5 flex items-center justify-end gap-1">
+                  <Flame className="h-3 w-3" />
+                  +{weeklyDelta} this week
                 </div>
-              ))}
+              )}
+            </div>
+          </div>
+
+          {/* ACTIVE CHILD / SELF CONTEXT */}
+          {(children.length > 0 || activeChild) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (children.length > 0) setChildSwitcherOpen(true);
+              }}
+              disabled={children.length === 0}
+              className="w-full flex items-center gap-2 mb-3 rounded-lg bg-primary-foreground/10 px-2.5 py-1.5 text-left transition-colors hover:bg-primary-foreground/15 disabled:cursor-default"
+            >
+              <Avatar className="h-7 w-7 ring-1 ring-primary-foreground/30">
+                <AvatarImage src={activeChild ? undefined : profile?.avatar_url || undefined} />
+                <AvatarFallback className="bg-primary-foreground/20 text-primary-foreground text-[11px] font-semibold">
+                  {focusInitials || "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-primary-foreground/70 leading-none">
+                  {activeChild ? "Tracking" : "Your points"}
+                </div>
+                <div className="text-sm font-medium text-primary-foreground truncate">
+                  {focusName}
+                </div>
+              </div>
+              <span className="text-xs font-semibold text-primary-foreground tabular-nums">
+                {focusPoints} pts
+              </span>
+              {children.length > 0 && (
+                <ChevronsUpDown className="h-3.5 w-3.5 text-primary-foreground/70 shrink-0" />
+              )}
+            </button>
+          )}
+
+          {/* PROGRESS / GOAL */}
+          {nextRewardTarget && progressMax > 0 && (
+            <div className="mb-3">
+              <div className="flex items-center justify-between text-xs text-primary-foreground/85 mb-1">
+                <span className="font-medium truncate pr-2">
+                  Next reward: {nextRewardTarget.name}
+                </span>
+                <span className="tabular-nums shrink-0">
+                  {focusPoints} / {progressMax}
+                </span>
+              </div>
+              <Progress
+                value={progressPct}
+                className="h-2 bg-primary-foreground/15 [&>div]:bg-primary-foreground"
+              />
+              <div className="text-[11px] text-primary-foreground/80 mt-1">
+                {pointsToGo > 0
+                  ? `${pointsToGo} pts to go`
+                  : "Ready to redeem 🎉"}
+              </div>
             </div>
           )}
-          
+
+          {/* PRIMARY ACTION + CLUB CONTEXT */}
           {isLoadingClubsWithNoCache ? (
             <div className="bg-primary-foreground/10 rounded-lg p-3">
               <div className="flex items-center gap-2">
@@ -656,70 +847,32 @@ export default function RewardRedemptionCard() {
                 <p className="text-sm text-primary-foreground">Loading clubs...</p>
               </div>
             </div>
+          ) : hasClubs && proClubs.length > 0 ? (
+            <div className="space-y-2">
+              <Button
+                className="w-full bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border-0"
+                variant="secondary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openDefaultRewards();
+                }}
+              >
+                <Gift className="h-4 w-4 mr-2" />
+                Browse Rewards
+                <ChevronRight className="h-4 w-4 ml-auto" />
+              </Button>
+              {hasMultipleProClubs && (
+                <p className="text-[11px] text-primary-foreground/70 text-center">
+                  You belong to {proClubs.length} clubs — pick one inside.
+                </p>
+              )}
+            </div>
           ) : hasClubs ? (
-            (() => {
-              // In club mode with a single Pro club, show a simple "Browse Rewards" button
-              const proClubs = userClubs.filter((club: any) => isAppAdmin || club.hasPro);
-              const isSingleClubMode = activeClubFilter && proClubs.length === 1;
-              
-              if (isSingleClubMode) {
-                const club = proClubs[0];
-                return (
-                  <div className="space-y-3">
-                    <Button
-                      className="w-full bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground border-0"
-                      variant="secondary"
-                      onClick={() => setSelectedClubId(club.id)}
-                    >
-                      <Gift className="h-4 w-4 mr-2" />
-                      Browse Rewards
-                      <ChevronRight className="h-4 w-4 ml-auto" />
-                    </Button>
-                  </div>
-                );
-              }
-              
-              // Default: show club selection grid
-              return (
-                <div className="space-y-3">
-                  <p className="text-sm text-primary-foreground/90">
-                    Select a club to view available rewards:
-                  </p>
-                  <div className="grid gap-2">
-                    {userClubs.map((club: any) => {
-                      const clubHasPro = isAppAdmin || club.hasPro;
-                      return (
-                        <button
-                          key={club.id}
-                          onClick={() => clubHasPro ? setSelectedClubId(club.id) : null}
-                          disabled={!clubHasPro}
-                          className={`flex items-center justify-between p-3 rounded-lg transition-colors text-left ${
-                            clubHasPro 
-                              ? "bg-primary-foreground/10 hover:bg-primary-foreground/20 cursor-pointer" 
-                              : "bg-primary-foreground/5 cursor-not-allowed opacity-70"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-primary-foreground">{club.name}</span>
-                            {!clubHasPro && (
-                              <Badge variant="outline" className="text-xs bg-primary-foreground/10 border-primary-foreground/30 text-primary-foreground">
-                                <Lock className="h-3 w-3 mr-1" />
-                                Pro
-                              </Badge>
-                            )}
-                          </div>
-                          {clubHasPro ? (
-                            <ChevronRight className="h-4 w-4 text-primary-foreground/70" />
-                          ) : (
-                            <Lock className="h-4 w-4 text-primary-foreground/50" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()
+            <div className="bg-primary-foreground/10 rounded-lg p-3">
+              <p className="text-sm text-primary-foreground">
+                Rewards unlock when your club upgrades to Pro.
+              </p>
+            </div>
           ) : (
             <div className="bg-primary-foreground/10 rounded-lg p-3">
               <p className="text-sm text-primary-foreground">
@@ -727,8 +880,94 @@ export default function RewardRedemptionCard() {
               </p>
             </div>
           )}
+
+          {/* SECONDARY MICRO CTA */}
+          <div className="mt-2 text-center">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setHowToEarnOpen(true);
+              }}
+              className="text-xs font-medium text-primary-foreground/85 hover:text-primary-foreground inline-flex items-center gap-1 underline-offset-2 hover:underline"
+            >
+              <HelpCircle className="h-3 w-3" />
+              How to earn points
+            </button>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Child switcher */}
+      <Dialog open={childSwitcherOpen} onOpenChange={setChildSwitcherOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Switch focus</DialogTitle>
+            <DialogDescription>
+              Choose whose points to track on the rewards card.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveChildId(null);
+                setChildSwitcherOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 rounded-lg p-3 text-left transition-colors ${
+                !activeChildId ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted"
+              }`}
+            >
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback>
+                  {(profile?.display_name || "Y").slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">
+                  {profile?.display_name || "You"}
+                </div>
+                <div className="text-xs text-muted-foreground">Your points</div>
+              </div>
+              <Badge variant="outline" className="tabular-nums">{currentPoints} pts</Badge>
+            </button>
+            {children.map(child => {
+              const initials = child.name
+                .split(/\s+/).map(n => n[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+              return (
+                <button
+                  key={child.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveChildId(child.id);
+                    setChildSwitcherOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 rounded-lg p-3 text-left transition-colors ${
+                    activeChildId === child.id ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted"
+                  }`}
+                >
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback>{initials || "?"}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{child.name}</div>
+                    <div className="text-xs text-muted-foreground">Child</div>
+                  </div>
+                  <Badge variant="outline" className="tabular-nums">{child.ignite_points} pts</Badge>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* How to earn points */}
+      <PointsHowToEarnSheet
+        open={howToEarnOpen}
+        onOpenChange={setHowToEarnOpen}
+        pointsLabel={pointsLabel}
+      />
 
       {/* Club Rewards Dialog */}
       <Dialog open={!!selectedClubId} onOpenChange={() => setSelectedClubId(null)}>

@@ -11,10 +11,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { compressImage, formatFileSize } from "@/lib/imageCompression";
+import { isVideoFile, validateVideo } from "@/lib/videoUtils";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
-import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker } from "@/lib/nativePhotoPicker";
+import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker, ensurePhotoLibraryPermission, PhotoPermissionDeniedError, isPhotoPermissionError } from "@/lib/nativePhotoPicker";
+import { showPhotoPermissionDeniedToast } from "@/lib/showPhotoPermissionDeniedToast";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
@@ -331,14 +333,14 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     enabled: !!user && !!selectedClubId && userRoles !== undefined,
   });
 
-  // Only admins, coaches, and committee members can post club-wide (no team/league selected)
+  // Admins, team admins, coaches, and committee members can post club-wide (no team/league selected)
   const canPostClubWide = useMemo(() => {
     if (isAppAdmin) return true;
     if (!selectedClubId || !userRoles) return false;
     return userRoles.some(r => {
       const inClub = r.club_id === selectedClubId || 
         (r.team_id && userTeams?.some(t => t.id === r.team_id));
-      return inClub && ['club_admin', 'coach', 'committee_member'].includes(r.role);
+      return inClub && ['club_admin', 'team_admin', 'coach', 'committee_member'].includes(r.role);
     });
   }, [isAppAdmin, selectedClubId, userRoles, userTeams]);
 
@@ -413,6 +415,7 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       team_id: teamId || null,
       mini_league_id: miniLeagueId || null,
       file_size: file.size,
+      title: photoCaption || null,
       caption: photoCaption || null,
     });
 
@@ -469,21 +472,36 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
   const addPhotosToSelection = async (files: File[]) => {
     if (files.length === 0) return;
 
-    // Create initial photos with compressing status
-    const newPhotos: SelectedPhoto[] = files.map(file => ({
+    // Validate videos up-front (size + duration); skip invalid ones with a toast
+    const acceptedFiles: File[] = [];
+    for (const file of files) {
+      if (isVideoFile(file)) {
+        const validation = await validateVideo(file);
+        if (!validation.ok) {
+          toast.error(`${file.name}: ${validation.reason || "Video is not valid"}`);
+          continue;
+        }
+      }
+      acceptedFiles.push(file);
+    }
+    if (acceptedFiles.length === 0) return;
+
+    // Create initial entries; videos go straight to 'pending' (no client compression)
+    const newPhotos: SelectedPhoto[] = acceptedFiles.map(file => ({
       id: `${Date.now()}-${Math.random().toString(36).substring(7)}`,
       file,
       originalFile: file,
       previewUrl: URL.createObjectURL(file),
-      status: 'compressing' as const,
+      status: isVideoFile(file) ? ('pending' as const) : ('compressing' as const),
       originalSize: file.size,
       compressedSize: file.size,
     }));
 
     setSelectedPhotos(prev => [...prev, ...newPhotos]);
 
-    // Compress each photo
+    // Compress only image entries
     for (const photo of newPhotos) {
+      if (isVideoFile(photo.originalFile)) continue;
       try {
         const result = await compressImage(photo.originalFile);
         setSelectedPhotos(prev => prev.map(p =>
@@ -532,6 +550,18 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
 
     try {
+      // Preflight: ensure photo-library permission is granted, otherwise show
+      // a clear message asking the user to enable full photo access.
+      try {
+        await ensurePhotoLibraryPermission();
+      } catch (permError) {
+        if (permError instanceof PhotoPermissionDeniedError) {
+          showPhotoPermissionDeniedToast();
+          return;
+        }
+        // Non-fatal — fall through and let the picker try
+      }
+
       const result = await pickNativePhoto({ quality: 80 });
       console.log("[UploadPhotoSheet] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
 
@@ -551,7 +581,10 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       await addPhotosToSelection([file]);
       restoreNativeLayout();
     } catch (error) {
-      if (isCancelledSelectionError(error)) {
+      if (error instanceof PhotoPermissionDeniedError || isPhotoPermissionError(error)) {
+        console.warn("[UploadPhotoSheet] Photo permission denied");
+        showPhotoPermissionDeniedToast();
+      } else if (isCancelledSelectionError(error)) {
         console.log("[UploadPhotoSheet] user cancelled");
       } else {
         const errMsg = getReadableUploadError(error);
@@ -783,16 +816,38 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                 <div className="space-y-4">
                   {/* Photo Grid */}
                   <div className="grid grid-cols-3 gap-2">
-                    {selectedPhotos.map((photo) => (
+                    {selectedPhotos.map((photo) => {
+                      const isVideo = isVideoFile(photo.originalFile);
+                      return (
                       <div key={photo.id} className="relative aspect-square rounded-xl overflow-hidden bg-muted">
-                        <img 
-                          src={photo.previewUrl} 
-                          alt="Preview" 
-                          className={cn(
-                            "w-full h-full object-cover transition-opacity",
-                            photo.status === 'success' && "opacity-75"
-                          )}
-                        />
+                        {isVideo ? (
+                          <>
+                            <video
+                              src={photo.previewUrl}
+                              className={cn(
+                                "w-full h-full object-cover transition-opacity",
+                                photo.status === 'success' && "opacity-75"
+                              )}
+                              muted
+                              playsInline
+                              preload="metadata"
+                            />
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                              <div className="rounded-full bg-black/60 p-2">
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-white"><path d="M8 5v14l11-7z" /></svg>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <img
+                            src={photo.previewUrl}
+                            alt="Preview"
+                            className={cn(
+                              "w-full h-full object-cover transition-opacity",
+                              photo.status === 'success' && "opacity-75"
+                            )}
+                          />
+                        )}
                         
                         {/* Status Overlay */}
                         {photo.status === 'compressing' && (
@@ -840,7 +895,8 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
                           </Button>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                     
                     {/* Add More Button */}
                     {!uploading && (

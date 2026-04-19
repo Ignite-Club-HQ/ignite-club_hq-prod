@@ -6,11 +6,22 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, Loader2, ChevronRight } from "lucide-react";
+import { Users, Loader2, ChevronRight, UserPlus, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
+import { AddGroupMembersDialog } from "@/components/chat/AddGroupMembersDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface ChatMembersSheetProps {
@@ -60,6 +71,50 @@ export function ChatMembersSheet({
   // Role management state
   const [selectedMember, setSelectedMember] = useState<SelectedMemberDetail | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
+
+  // Personal group management state
+  const [addPeopleOpen, setAddPeopleOpen] = useState(false);
+  const [removeMemberConfirm, setRemoveMemberConfirm] = useState<{ id: string; name: string } | null>(null);
+
+  // Is this a personal group (no team/club/league binding)?
+  const isPersonalGroupChat = chatType === "group" && !teamId && !clubId;
+
+  // Fetch the group creator so we can show creator-only controls
+  const { data: groupCreatorId } = useQuery({
+    queryKey: ["chat-group-creator", chatId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chat_groups")
+        .select("created_by")
+        .eq("id", chatId)
+        .maybeSingle();
+      return data?.created_by ?? null;
+    },
+    enabled: open && isPersonalGroupChat,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isGroupCreator = !!user && !!groupCreatorId && groupCreatorId === user.id;
+
+  // Remove a member from a personal group (creator only — enforced by RLS)
+  const removeMemberMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("group_members")
+        .delete()
+        .eq("group_id", chatId)
+        .eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: (_data, userId) => {
+      toast.success("Member removed");
+      queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
+      setRemoveMemberConfirm(null);
+    },
+    onError: (err: any) => {
+      toast.error("Failed to remove member: " + (err?.message || "Unknown error"));
+    },
+  });
 
   // Resolve the effective team ID for role management
   const effectiveTeamId = chatType === "team" ? chatId : teamId;
@@ -473,9 +528,22 @@ export function ChatMembersSheet({
               </div>
             )}
             <div>
-              <h3 className="text-sm font-medium mb-3">
-                Members {uniqueMembers.length > 0 && `(${uniqueMembers.length})`}
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium">
+                  Members {uniqueMembers.length > 0 && `(${uniqueMembers.length})`}
+                </h3>
+                {isPersonalGroupChat && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1 h-8"
+                    onClick={() => setAddPeopleOpen(true)}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Add
+                  </Button>
+                )}
+              </div>
               <ScrollArea className="h-[calc(100vh-180px)]">
                 {membersLoading ? (
                   <div className="flex justify-center py-8">
@@ -523,6 +591,20 @@ export function ChatMembersSheet({
                             )}
                             {chatMuted && (
                               <svg style={{ marginLeft: 2, flexShrink: 0 }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A.7.7 0 0 1 5.9 7.8H4a1 1 0 0 0-1 1v6.4a1 1 0 0 0 1 1h1.9a.7.7 0 0 1 .513.213l3.384 3.383A.705.705 0 0 0 11 19.298z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
+                            )}
+                            {isPersonalGroupChat && isGroupCreator && member.id !== user?.id && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRemoveMemberConfirm({ id: member.id, name: member.display_name || "this member" });
+                                }}
+                                aria-label="Remove member"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
                             )}
                           </div>
                         );
@@ -579,6 +661,40 @@ export function ChatMembersSheet({
           }}
         />
       )}
+
+      {/* Add people to a personal group */}
+      {isPersonalGroupChat && (
+        <AddGroupMembersDialog
+          open={addPeopleOpen}
+          onOpenChange={setAddPeopleOpen}
+          groupId={chatId}
+          existingMemberIds={memberIds}
+        />
+      )}
+
+      {/* Confirm member removal (creator only) */}
+      <AlertDialog
+        open={!!removeMemberConfirm}
+        onOpenChange={(o) => { if (!o) setRemoveMemberConfirm(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeMemberConfirm?.name} will no longer be able to see or post in this group.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => removeMemberConfirm && removeMemberMutation.mutate(removeMemberConfirm.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

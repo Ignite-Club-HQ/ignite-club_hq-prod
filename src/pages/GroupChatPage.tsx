@@ -15,10 +15,12 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
-import { ChatMembersSheet } from "@/components/chat/ChatMembersSheet";
+import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
+import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
-import { ChatMuteButton } from "@/components/chat/ChatMuteButton";
+
 import { PageLoading } from "@/components/ui/page-loading";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import {
@@ -42,6 +44,13 @@ import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
+import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { jumpToMessageInChat } from "@/lib/jumpToMessage";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -173,6 +182,10 @@ export default function GroupChatPage() {
   const authReady = !!user && initialized;
   const [message, setMessage, clearDraft] = useChatDraft(groupId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = groupId
+    ? { chat_type: "group", group_id: groupId }
+    : null;
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
@@ -240,6 +253,17 @@ export default function GroupChatPage() {
       return () => clearTimeout(timer);
     }
   }, [targetMessageId]);
+
+  // Pinned messages
+  const {
+    pins: pinnedMessages,
+    pinnedMessageIds,
+    pin: pinMessage,
+    unpin: unpinMessage,
+    canPinMore,
+  } = usePinnedMessages("group", groupId);
+  const handleJumpToMessage = (mid: string) =>
+    jumpToMessageInChat(mid, setHighlightedMessageId);
 
   // Fetch group details
   const { data: group, isLoading: groupLoading } = useQuery({
@@ -1530,6 +1554,22 @@ export default function GroupChatPage() {
     onError: () => toast.error("Failed to delete group"),
   });
 
+  // Live online count for the group — shown in the header sublabel.
+  const groupOnlineCount = useChatOnlineCount("group", groupId, {
+    teamId: group?.team_id ?? null,
+    clubId: group?.club_id ?? null,
+    groupAllowedRoles: (group?.allowed_roles as any) ?? null,
+    enabled: !!group,
+  });
+  const groupBaseSublabel = group?.team_id
+    ? "Team group"
+    : group?.club_id
+    ? "Club group"
+    : "Personal group";
+  const groupHeaderSublabel = groupOnlineCount > 0
+    ? `${groupBaseSublabel} · ${groupOnlineCount} online`
+    : groupBaseSublabel;
+
   if (groupLoading) {
     return <PageLoading message="Loading group chat..." />;
   }
@@ -1548,40 +1588,45 @@ export default function GroupChatPage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <ChatBackButton />
-        <button
-          className="flex items-center gap-3 flex-1 min-w-0 min-h-[44px] active:opacity-70 transition-opacity rounded-lg"
-          onClick={() => setMembersOpen(true)}
-        >
-          <div className="flex-1 min-w-0 text-left">
-            <h1 className="font-semibold truncate">{group.name}</h1>
-          </div>
-        </button>
-        <div className="flex items-center shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          <ChatMuteButton chatType="group" chatId={groupId!} />
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-            onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
-            onDeleteGroup={isAdmin ? () => setShowDeleteGroupDialog(true) : undefined}
-          />
-          <ChatMembersSheet
-            chatType="group"
-            chatId={groupId!}
-            chatName={group.name}
-            teamId={group.team_id || undefined}
-            clubId={group.club_id || undefined}
-            groupAllowedRoles={group.allowed_roles}
-            externalOpen={membersOpen}
-            onExternalOpenChange={setMembersOpen}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type={group.team_id || group.club_id ? "group" : "group"}
+        name={group.name}
+        sublabel={groupHeaderSublabel}
+        onOpenDetails={() => setMembersOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatHeaderMenu
+              onRefresh={handleManualRefresh}
+              isRefreshing={isAnyRefreshing}
+              onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
+              onDeleteGroup={isAdmin ? () => setShowDeleteGroupDialog(true) : undefined}
+            />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={membersOpen}
+        onOpenChange={setMembersOpen}
+        chatType="group"
+        chatId={groupId!}
+        name={group.name}
+        sublabel={
+          group.team_id
+            ? "Team group"
+            : group.club_id
+            ? "Club group"
+            : "Personal group"
+        }
+        teamId={group.team_id || undefined}
+        clubId={group.club_id || undefined}
+        groupAllowedRoles={group.allowed_roles}
+      />
 
 
       {/* Notification Nudge */}
@@ -1594,6 +1639,13 @@ export default function GroupChatPage() {
           />
         </div>
       )}
+
+      {/* Pinned messages banner */}
+      <PinnedMessagesBanner
+        pins={pinnedMessages}
+        onJumpToMessage={handleJumpToMessage}
+        onUnpin={unpinMessage}
+      />
 
       {/* Messages */}
       <div className="flex-1 min-h-0 py-4 flex flex-col relative overflow-hidden overscroll-none">
@@ -1643,6 +1695,10 @@ export default function GroupChatPage() {
                   deleteMessageMutation={deleteMessageMutation}
                   toggleReactionMutation={toggleReactionMutation}
                   groupId={groupId || ""}
+                  isPinned={pinnedMessageIds.has(msg.id)}
+                  pinLimitReached={!canPinMore && !pinnedMessageIds.has(msg.id)}
+                  onPin={pinMessage}
+                  onUnpin={unpinMessage}
                 />
               </div>
             );
@@ -1655,7 +1711,7 @@ export default function GroupChatPage() {
 
       {/* Input - Fixed at bottom above nav bar */}
       <div className="fixed left-0 right-0 bg-background z-[49] pointer-events-none" style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
-        <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-4 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        <div ref={composerRef} className="fixed left-0 right-0 w-full max-w-full overflow-visible border-t pt-1 pb-2 px-2 bg-background z-[51]" style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
         <TypingIndicator typingUsers={typingUsers} />
         {replyTo && (
           <ReplyPreview
@@ -1682,7 +1738,8 @@ export default function GroupChatPage() {
             disabled={sendMessageMutation.isPending}
           />
         )}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
+        {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
+        <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
             imageUrl={imageUrl} 
@@ -1712,18 +1769,39 @@ export default function GroupChatPage() {
             teamId={group?.team_id || undefined}
             clubId={group?.club_id || undefined}
             disabled={sendMessageMutation.isPending}
+            onGifSelect={setImageUrl}
           />
+          {scheduleTarget && (
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMessageMutation.isPending}
+            />
+          )}
           <button 
             onClick={() => {
               stopTyping();
               handleSend();
             }} 
             disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMessageMutation.isPending}
-            className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
+            className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
           >
             <Send className="h-5 w-5" />
           </button>
         </div>
+        {scheduleTarget && (
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            initialImageUrl={imageUrl}
+            onScheduled={() => {
+              setMessage("");
+              setImageUrl(null);
+              clearDraft?.();
+            }}
+          />
+        )}
         <EventPickerSheet
           open={eventPickerOpen}
           onOpenChange={setEventPickerOpen}

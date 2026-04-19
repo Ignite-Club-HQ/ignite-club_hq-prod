@@ -1265,6 +1265,83 @@ export type Database = {
           },
         ]
       }
+      club_players: {
+        Row: {
+          child_id: string | null
+          club_id: string
+          contact_notes: string | null
+          created_at: string
+          created_by: string | null
+          date_of_birth: string | null
+          display_name: string
+          id: string
+          is_active: boolean
+          medical_notes: string | null
+          preferred_position: string | null
+          profile_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          child_id?: string | null
+          club_id: string
+          contact_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_of_birth?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean
+          medical_notes?: string | null
+          preferred_position?: string | null
+          profile_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          child_id?: string | null
+          club_id?: string
+          contact_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          date_of_birth?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          medical_notes?: string | null
+          preferred_position?: string | null
+          profile_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_players_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_players_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_players_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_players_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_rewards: {
         Row: {
           club_id: string
@@ -1515,6 +1592,7 @@ export type Database = {
           contact_email: string | null
           created_at: string
           created_by: string | null
+          current_season_id: string | null
           deleted_at: string | null
           deleted_by: string | null
           description: string | null
@@ -1583,6 +1661,7 @@ export type Database = {
           contact_email?: string | null
           created_at?: string
           created_by?: string | null
+          current_season_id?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
@@ -1651,6 +1730,7 @@ export type Database = {
           contact_email?: string | null
           created_at?: string
           created_by?: string | null
+          current_season_id?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
@@ -1710,6 +1790,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "clubs_current_season_id_fkey"
+            columns: ["current_season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "clubs_primary_sponsor_id_fkey"
             columns: ["primary_sponsor_id"]
@@ -1940,6 +2027,202 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      eoi_form_views: {
+        Row: {
+          club_id: string
+          id: string
+          season_id: string
+          source: string
+          viewed_at: string
+        }
+        Insert: {
+          club_id: string
+          id?: string
+          season_id: string
+          source?: string
+          viewed_at?: string
+        }
+        Update: {
+          club_id?: string
+          id?: string
+          season_id?: string
+          source?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eoi_form_views_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_form_views_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_form_views_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eoi_submissions: {
+        Row: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          age_group?: string | null
+          allocated_at?: string | null
+          assigned_team_id?: string | null
+          child_id?: string | null
+          claim_token?: string
+          claimed_at?: string | null
+          club_id: string
+          confirmed_at?: string | null
+          created_at?: string
+          extra_notes?: string | null
+          game_days?: string[]
+          id?: string
+          invite_sent_at?: string | null
+          invite_sent_count?: number
+          notes?: string | null
+          parent_confirmed_at?: string | null
+          parent_email: string
+          parent_mobile?: string | null
+          parent_name: string
+          parent_user_id?: string | null
+          player_dob?: string | null
+          player_gender?: string | null
+          player_name: string
+          preferred_position?: string | null
+          preferred_teammates?: string | null
+          registered_at?: string | null
+          returning_player?: boolean
+          season_id: string
+          skill_level?: number | null
+          source?: Database["public"]["Enums"]["eoi_source"]
+          status?: Database["public"]["Enums"]["eoi_status"]
+          submitted_at?: string
+          training_days?: string[]
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          age_group?: string | null
+          allocated_at?: string | null
+          assigned_team_id?: string | null
+          child_id?: string | null
+          claim_token?: string
+          claimed_at?: string | null
+          club_id?: string
+          confirmed_at?: string | null
+          created_at?: string
+          extra_notes?: string | null
+          game_days?: string[]
+          id?: string
+          invite_sent_at?: string | null
+          invite_sent_count?: number
+          notes?: string | null
+          parent_confirmed_at?: string | null
+          parent_email?: string
+          parent_mobile?: string | null
+          parent_name?: string
+          parent_user_id?: string | null
+          player_dob?: string | null
+          player_gender?: string | null
+          player_name?: string
+          preferred_position?: string | null
+          preferred_teammates?: string | null
+          registered_at?: string | null
+          returning_player?: boolean
+          season_id?: string
+          skill_level?: number | null
+          source?: Database["public"]["Enums"]["eoi_source"]
+          status?: Database["public"]["Enums"]["eoi_status"]
+          submitted_at?: string
+          training_days?: string[]
+          updated_at?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eoi_submissions_assigned_team_id_fkey"
+            columns: ["assigned_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_submissions_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_submissions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_submissions_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eoi_submissions_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       event_group_duties: {
         Row: {
@@ -2682,6 +2965,78 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_results: {
+        Row: {
+          away_label: string
+          away_score: number
+          created_at: string
+          event_id: string | null
+          home_label: string
+          home_score: number
+          id: string
+          mvp_player_id: string | null
+          mvp_player_name: string | null
+          period_scores: Json
+          played_at: string
+          player_stats: Json
+          saved_by: string
+          sport: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          away_label: string
+          away_score?: number
+          created_at?: string
+          event_id?: string | null
+          home_label: string
+          home_score?: number
+          id?: string
+          mvp_player_id?: string | null
+          mvp_player_name?: string | null
+          period_scores?: Json
+          played_at?: string
+          player_stats?: Json
+          saved_by: string
+          sport: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          away_label?: string
+          away_score?: number
+          created_at?: string
+          event_id?: string | null
+          home_label?: string
+          home_score?: number
+          id?: string
+          mvp_player_id?: string | null
+          mvp_player_name?: string | null
+          period_scores?: Json
+          played_at?: string
+          player_stats?: Json
+          saved_by?: string
+          sport?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_results_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_results_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -4128,6 +4483,35 @@ export type Database = {
           },
         ]
       }
+      photo_views: {
+        Row: {
+          id: string
+          photo_id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          id?: string
+          photo_id: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          id?: string
+          photo_id?: string
+          user_id?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photo_views_photo_id_fkey"
+            columns: ["photo_id"]
+            isOneToOne: false
+            referencedRelation: "photos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       photos: {
         Row: {
           caption: string | null
@@ -4224,6 +4608,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pinned_messages: {
+        Row: {
+          chat_id: string
+          chat_type: string
+          created_at: string
+          id: string
+          message_id: string
+          pinned_by: string
+        }
+        Insert: {
+          chat_id: string
+          chat_type: string
+          created_at?: string
+          id?: string
+          message_id: string
+          pinned_by: string
+        }
+        Update: {
+          chat_id?: string
+          chat_type?: string
+          created_at?: string
+          id?: string
+          message_id?: string
+          pinned_by?: string
+        }
+        Relationships: []
       }
       pitch_formations: {
         Row: {
@@ -4363,6 +4774,7 @@ export type Database = {
           created_by: string | null
           description: string
           id: string
+          season_id: string | null
           source_id: string | null
           source_type: string
           user_id: string | null
@@ -4376,6 +4788,7 @@ export type Database = {
           created_by?: string | null
           description: string
           id?: string
+          season_id?: string | null
           source_id?: string | null
           source_type: string
           user_id?: string | null
@@ -4389,6 +4802,7 @@ export type Database = {
           created_by?: string | null
           description?: string
           id?: string
+          season_id?: string | null
           source_id?: string | null
           source_type?: string
           user_id?: string | null
@@ -4420,6 +4834,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "points_history_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
           {
@@ -5072,6 +5493,210 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_messages: {
+        Row: {
+          attempted_at: string | null
+          author_id: string
+          chat_type: Database["public"]["Enums"]["scheduled_chat_type"]
+          club_id: string | null
+          conversation_id: string | null
+          created_at: string
+          error_message: string | null
+          group_id: string | null
+          id: string
+          image_url: string | null
+          recurrence: Database["public"]["Enums"]["scheduled_message_recurrence"]
+          recurrence_parent_id: string | null
+          recurrence_until: string | null
+          reply_to_id: string | null
+          scheduled_for: string
+          sent_message_id: string | null
+          status: Database["public"]["Enums"]["scheduled_message_status"]
+          team_id: string | null
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          attempted_at?: string | null
+          author_id: string
+          chat_type: Database["public"]["Enums"]["scheduled_chat_type"]
+          club_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          group_id?: string | null
+          id?: string
+          image_url?: string | null
+          recurrence?: Database["public"]["Enums"]["scheduled_message_recurrence"]
+          recurrence_parent_id?: string | null
+          recurrence_until?: string | null
+          reply_to_id?: string | null
+          scheduled_for: string
+          sent_message_id?: string | null
+          status?: Database["public"]["Enums"]["scheduled_message_status"]
+          team_id?: string | null
+          text?: string
+          updated_at?: string
+        }
+        Update: {
+          attempted_at?: string | null
+          author_id?: string
+          chat_type?: Database["public"]["Enums"]["scheduled_chat_type"]
+          club_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          group_id?: string | null
+          id?: string
+          image_url?: string | null
+          recurrence?: Database["public"]["Enums"]["scheduled_message_recurrence"]
+          recurrence_parent_id?: string | null
+          recurrence_until?: string | null
+          reply_to_id?: string | null
+          scheduled_for?: string
+          sent_message_id?: string | null
+          status?: Database["public"]["Enums"]["scheduled_message_status"]
+          team_id?: string | null
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_messages_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seasons: {
+        Row: {
+          archived_at: string | null
+          club_id: string
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          eoi_ask_availability: boolean
+          eoi_ask_position: boolean
+          eoi_ask_preferences: boolean
+          eoi_ask_skill_level: boolean
+          eoi_closes_at: string | null
+          eoi_embed_code: string | null
+          eoi_enabled: boolean
+          eoi_opens_at: string | null
+          eoi_require_dob: boolean
+          eoi_require_gender: boolean
+          eoi_slug: string | null
+          eoi_thank_you_message: string | null
+          eoi_thank_you_redirect_url: string | null
+          eoi_webhook_token: string | null
+          eoi_welcome_message: string | null
+          id: string
+          name: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["season_status"]
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          club_id: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          eoi_ask_availability?: boolean
+          eoi_ask_position?: boolean
+          eoi_ask_preferences?: boolean
+          eoi_ask_skill_level?: boolean
+          eoi_closes_at?: string | null
+          eoi_embed_code?: string | null
+          eoi_enabled?: boolean
+          eoi_opens_at?: string | null
+          eoi_require_dob?: boolean
+          eoi_require_gender?: boolean
+          eoi_slug?: string | null
+          eoi_thank_you_message?: string | null
+          eoi_thank_you_redirect_url?: string | null
+          eoi_webhook_token?: string | null
+          eoi_welcome_message?: string | null
+          id?: string
+          name: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["season_status"]
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          club_id?: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          eoi_ask_availability?: boolean
+          eoi_ask_position?: boolean
+          eoi_ask_preferences?: boolean
+          eoi_ask_skill_level?: boolean
+          eoi_closes_at?: string | null
+          eoi_embed_code?: string | null
+          eoi_enabled?: boolean
+          eoi_opens_at?: string | null
+          eoi_require_dob?: boolean
+          eoi_require_gender?: boolean
+          eoi_slug?: string | null
+          eoi_thank_you_message?: string | null
+          eoi_thank_you_redirect_url?: string | null
+          eoi_webhook_token?: string | null
+          eoi_welcome_message?: string | null
+          id?: string
+          name?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["season_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seasons_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seasons_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sponsor_analytics: {
         Row: {
           context: string
@@ -5457,6 +6082,73 @@ export type Database = {
           },
         ]
       }
+      team_memberships: {
+        Row: {
+          club_player_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          joined_at: string
+          notes: string | null
+          removed_at: string | null
+          role: Database["public"]["Enums"]["team_membership_role"]
+          season_id: string
+          status: Database["public"]["Enums"]["team_membership_status"]
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          club_player_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          joined_at?: string
+          notes?: string | null
+          removed_at?: string | null
+          role?: Database["public"]["Enums"]["team_membership_role"]
+          season_id: string
+          status?: Database["public"]["Enums"]["team_membership_status"]
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          club_player_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          joined_at?: string
+          notes?: string | null
+          removed_at?: string | null
+          role?: Database["public"]["Enums"]["team_membership_role"]
+          season_id?: string
+          status?: Database["public"]["Enums"]["team_membership_status"]
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_memberships_club_player_id_fkey"
+            columns: ["club_player_id"]
+            isOneToOne: false
+            referencedRelation: "club_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_memberships_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_memberships_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_messages: {
         Row: {
           author_id: string
@@ -5645,6 +6337,12 @@ export type Database = {
           admin_pro_football_override: boolean
           admin_pro_override: boolean
           cancelled_at: string | null
+          court_minutes_per_quarter: number | null
+          court_period_type: string | null
+          court_rotation_interval_minutes: number | null
+          court_rotation_mode: string | null
+          court_timeouts_per_half: number | null
+          court_validation_mode: string | null
           created_at: string
           disable_auto_subs: boolean | null
           disable_batch_subs: boolean | null
@@ -5669,6 +6367,12 @@ export type Database = {
           admin_pro_football_override?: boolean
           admin_pro_override?: boolean
           cancelled_at?: string | null
+          court_minutes_per_quarter?: number | null
+          court_period_type?: string | null
+          court_rotation_interval_minutes?: number | null
+          court_rotation_mode?: string | null
+          court_timeouts_per_half?: number | null
+          court_validation_mode?: string | null
           created_at?: string
           disable_auto_subs?: boolean | null
           disable_batch_subs?: boolean | null
@@ -5693,6 +6397,12 @@ export type Database = {
           admin_pro_football_override?: boolean
           admin_pro_override?: boolean
           cancelled_at?: string | null
+          court_minutes_per_quarter?: number | null
+          court_period_type?: string | null
+          court_rotation_interval_minutes?: number | null
+          court_rotation_mode?: string | null
+          court_timeouts_per_half?: number | null
+          court_validation_mode?: string | null
           created_at?: string
           disable_auto_subs?: boolean | null
           disable_batch_subs?: boolean | null
@@ -5745,10 +6455,12 @@ export type Database = {
           is_archived: boolean
           is_pro: boolean
           level_age: string | null
+          lifecycle_status: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url: string | null
           name: string
           pro_activated_at: string | null
           pro_expires_at: string | null
+          season_id: string | null
           season_label: string | null
           sponsor_id: string | null
           stripe_subscription_id: string | null
@@ -5776,10 +6488,12 @@ export type Database = {
           is_archived?: boolean
           is_pro?: boolean
           level_age?: string | null
+          lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
           name: string
           pro_activated_at?: string | null
           pro_expires_at?: string | null
+          season_id?: string | null
           season_label?: string | null
           sponsor_id?: string | null
           stripe_subscription_id?: string | null
@@ -5807,10 +6521,12 @@ export type Database = {
           is_archived?: boolean
           is_pro?: boolean
           level_age?: string | null
+          lifecycle_status?: Database["public"]["Enums"]["team_lifecycle_status"]
           logo_url?: string | null
           name?: string
           pro_activated_at?: string | null
           pro_expires_at?: string | null
+          season_id?: string | null
           season_label?: string | null
           sponsor_id?: string | null
           stripe_subscription_id?: string | null
@@ -5837,6 +6553,13 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "team_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
           {
@@ -5979,6 +6702,30 @@ export type Database = {
           id?: string
           last_used_at?: string | null
           public_key?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_presence: {
+        Row: {
+          last_seen_at: string
+          platform: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          last_seen_at?: string
+          platform?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          last_seen_at?: string
+          platform?: string | null
+          updated_at?: string
+          user_agent?: string | null
           user_id?: string
         }
         Relationships: []
@@ -6308,9 +7055,60 @@ export type Database = {
         }
         Returns: undefined
       }
+      allocate_eoi_to_team: {
+        Args: { _submission_id: string; _team_id: string }
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       approve_role_request: {
         Args: { p_request_id: string }
         Returns: undefined
+      }
+      archive_season: { Args: { _season_id: string }; Returns: undefined }
+      can_access_chat: {
+        Args: { _chat_id: string; _chat_type: string }
+        Returns: boolean
       }
       can_access_chat_attachment: { Args: { _name: string }; Returns: boolean }
       can_access_chat_group: {
@@ -6334,6 +7132,11 @@ export type Database = {
         Returns: boolean
       }
       can_dm_user: { Args: { other_user_id: string }; Returns: boolean }
+      can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
+      can_manage_team_roster: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_view_child_via_team: {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
@@ -6358,21 +7161,130 @@ export type Database = {
         Args: { _mini_league_id: string; _user_id: string }
         Returns: boolean
       }
+      carry_over_players: {
+        Args: {
+          _club_player_ids: string[]
+          _source_season_id: string
+          _target_season_id: string
+        }
+        Returns: number
+      }
       check_password_reset_rate_limit: {
         Args: { p_email: string }
         Returns: boolean
+      }
+      claim_eoi_submission: {
+        Args: { _token: string }
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       cleanup_fcm_token_for_user: {
         Args: { p_token: string; p_user_id: string }
         Returns: undefined
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      confirm_eoi_placement: {
+        Args: { _submission_id: string }
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_child_for_parent_on_team: {
         Args: {
           p_name: string
           p_parent_user_id: string
           p_team_id: string
           p_year_of_birth?: number
+        }
+        Returns: string
+      }
+      create_season_from_template: {
+        Args: {
+          _end_date: string
+          _new_name: string
+          _source_season_id: string
+          _start_date: string
         }
         Returns: string
       }
@@ -6384,6 +7296,14 @@ export type Database = {
       dismiss_accepted_pending_invites: {
         Args: { p_club_id?: string; p_team_id?: string }
         Returns: number
+      }
+      duplicate_season_structure: {
+        Args: {
+          _copy_staff?: boolean
+          _new_season_name: string
+          _source_season_id: string
+        }
+        Returns: string
       }
       encrypt_sensitive_data: { Args: { data: string }; Returns: string }
       extract_mentioned_user_ids: {
@@ -6413,6 +7333,67 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: number
       }
+      get_eoi_by_claim_token: {
+        Args: { _token: string }
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_eoi_stats: {
+        Args: { _club_id: string; _season_id?: string }
+        Returns: {
+          allocated: number
+          confirmed: number
+          conversion_rate: number
+          new_players: number
+          registered: number
+          returning_players: number
+          submitted: number
+          total: number
+          views: number
+          withdrawn: number
+        }[]
+      }
       get_members_events_enabled: {
         Args: { member_ids: string[] }
         Returns: {
@@ -6433,6 +7414,52 @@ export type Database = {
           has_push: boolean
           user_id: string
         }[]
+      }
+      get_my_pending_eois: {
+        Args: never
+        Returns: {
+          age_group: string | null
+          allocated_at: string | null
+          assigned_team_id: string | null
+          child_id: string | null
+          claim_token: string
+          claimed_at: string | null
+          club_id: string
+          confirmed_at: string | null
+          created_at: string
+          extra_notes: string | null
+          game_days: string[]
+          id: string
+          invite_sent_at: string | null
+          invite_sent_count: number
+          notes: string | null
+          parent_confirmed_at: string | null
+          parent_email: string
+          parent_mobile: string | null
+          parent_name: string
+          parent_user_id: string | null
+          player_dob: string | null
+          player_gender: string | null
+          player_name: string
+          preferred_position: string | null
+          preferred_teammates: string | null
+          registered_at: string | null
+          returning_player: boolean
+          season_id: string
+          skill_level: number | null
+          source: Database["public"]["Enums"]["eoi_source"]
+          status: Database["public"]["Enums"]["eoi_status"]
+          submitted_at: string
+          training_days: string[]
+          updated_at: string
+          withdrawn_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "eoi_submissions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_or_create_club_admin_conversation: {
         Args: { p_club_id: string }
@@ -6477,6 +7504,35 @@ export type Database = {
           team_name: string
         }[]
       }
+      get_photo_view_counts: {
+        Args: { _photo_ids: string[] }
+        Returns: {
+          photo_id: string
+          view_count: number
+        }[]
+      }
+      get_public_eoi_config: {
+        Args: { _club_slug: string; _season_slug: string }
+        Returns: {
+          ask_availability: boolean
+          ask_position: boolean
+          ask_preferences: boolean
+          ask_skill_level: boolean
+          closes_at: string
+          club_id: string
+          club_logo_url: string
+          club_name: string
+          is_open: boolean
+          opens_at: string
+          require_dob: boolean
+          require_gender: boolean
+          season_id: string
+          season_name: string
+          thank_you_message: string
+          thank_you_redirect_url: string
+          welcome_message: string
+        }[]
+      }
       get_push_subscription_health: {
         Args: { p_user_id: string }
         Returns: {
@@ -6487,6 +7543,18 @@ export type Database = {
           last_failure_reason: string
           last_success_at: string
           platform: string
+        }[]
+      }
+      get_returning_players: {
+        Args: { _source_season_id: string }
+        Returns: {
+          age_years: number
+          club_player_id: string
+          date_of_birth: string
+          display_name: string
+          membership_role: Database["public"]["Enums"]["team_membership_role"]
+          previous_team_id: string
+          previous_team_name: string
         }[]
       }
       get_team_children_for_pitch_board: {
@@ -6535,6 +7603,14 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: number
       }
+      get_user_leaderboard_rank_seasoned: {
+        Args: { _club_id: string; _season_id: string; _user_id: string }
+        Returns: {
+          points: number
+          rank: number
+          total: number
+        }[]
+      }
       has_role: {
         Args: {
           _club_id?: string
@@ -6545,6 +7621,10 @@ export type Database = {
         Returns: boolean
       }
       hash_email: { Args: { email: string }; Returns: string }
+      heartbeat_presence: {
+        Args: { _platform?: string; _user_agent?: string }
+        Returns: undefined
+      }
       increment_child_ignite_points: {
         Args: { _amount: number; _child_id: string }
         Returns: number
@@ -6561,10 +7641,15 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      is_club_admin: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_club_admin_conversation_participant: {
         Args: { p_conversation_id: string }
         Returns: boolean
       }
+      is_club_admin_for: { Args: { _club_id: string }; Returns: boolean }
       is_club_chat_author_visible: {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
@@ -6597,6 +7682,8 @@ export type Database = {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
+      is_season_editable: { Args: { _season_id: string }; Returns: boolean }
+      is_season_eoi_open: { Args: { _season_id: string }; Returns: boolean }
       is_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
@@ -6646,6 +7733,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      notify_season_archived: { Args: { _season_id: string }; Returns: number }
+      notify_season_published: { Args: { _season_id: string }; Returns: number }
       notify_team_members: {
         Args: {
           _exclude_user_id: string
@@ -6656,6 +7745,24 @@ export type Database = {
         }
         Returns: undefined
       }
+      profile_team_history: {
+        Args: { _profile_id: string }
+        Returns: {
+          club_id: string
+          club_name: string
+          joined_at: string
+          membership_id: string
+          season_end_date: string
+          season_id: string
+          season_name: string
+          season_start_date: string
+          season_status: Database["public"]["Enums"]["season_status"]
+          team_id: string
+          team_level_age: string
+          team_name: string
+        }[]
+      }
+      publish_season: { Args: { _season_id: string }; Returns: undefined }
       reconcile_pending_invites: {
         Args: { _club_id?: string; _team_id?: string }
         Returns: {
@@ -6670,6 +7777,37 @@ export type Database = {
       record_push_success: { Args: { p_endpoint: string }; Returns: undefined }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
+      season_orphan_events: {
+        Args: { _club_id: string }
+        Returns: {
+          event_date: string
+          event_id: string
+          team_id: string
+          team_name: string
+          title: string
+        }[]
+      }
+      season_player_stats: {
+        Args: { _season_id: string; _team_id: string }
+        Returns: {
+          attendance_pct: number
+          club_player_id: string
+          events_attended: number
+          events_total: number
+          games_played: number
+          player_name: string
+        }[]
+      }
+      season_team_summary: {
+        Args: { _season_id: string }
+        Returns: {
+          avg_attendance_pct: number
+          events_count: number
+          roster_size: number
+          team_id: string
+          team_name: string
+        }[]
+      }
       send_duty_notification_email: {
         Args: {
           p_club_logo_url: string
@@ -6712,6 +7850,15 @@ export type Database = {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
+      suggest_eoi_teams: {
+        Args: { _season_id: string }
+        Returns: {
+          age_group: string
+          avg_skill: number
+          player_count: number
+          submission_ids: string[]
+        }[]
+      }
       team_has_club_pro_access: { Args: { _team_id: string }; Returns: boolean }
       team_has_club_pro_football_access: {
         Args: { _team_id: string }
@@ -6742,6 +7889,10 @@ export type Database = {
         Args: { _invited_email: string; _user_id: string }
         Returns: boolean
       }
+      validate_eoi_webhook_token: {
+        Args: { _club_id: string; _token: string }
+        Returns: boolean
+      }
       validate_promo_code: {
         Args: { _club_id?: string; _code: string }
         Returns: {
@@ -6767,12 +7918,34 @@ export type Database = {
       club_subscription_plan: "starter" | "standard" | "unlimited"
       duty_status: "open" | "completed"
       enrolment_status: "enrolled" | "waitlisted" | "withdrawn"
+      eoi_source: "website" | "app" | "admin"
+      eoi_status:
+        | "invited"
+        | "submitted"
+        | "preferences_completed"
+        | "allocated"
+        | "confirmed"
+        | "registered"
+        | "withdrawn"
       event_type: "game" | "training" | "social" | "mini_league"
       feedback_status: "open" | "in_progress" | "resolved"
       poll_chat_type: "team" | "club" | "group" | "broadcast" | "club_admin"
       role_request_status: "pending" | "approved" | "denied"
       rsvp_status: "going" | "maybe" | "not_going"
+      scheduled_chat_type:
+        | "team"
+        | "club"
+        | "group"
+        | "direct"
+        | "club_admin"
+        | "broadcast"
+      scheduled_message_recurrence: "none" | "daily" | "weekly" | "monthly"
+      scheduled_message_status: "pending" | "sent" | "failed" | "cancelled"
+      season_status: "draft" | "active" | "closed" | "archived"
       sponsor_tier: "platinum" | "gold" | "silver" | "bronze"
+      team_lifecycle_status: "draft" | "active" | "archived"
+      team_membership_role: "player" | "coach" | "team_admin"
+      team_membership_status: "active" | "removed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -6914,12 +8087,36 @@ export const Constants = {
       club_subscription_plan: ["starter", "standard", "unlimited"],
       duty_status: ["open", "completed"],
       enrolment_status: ["enrolled", "waitlisted", "withdrawn"],
+      eoi_source: ["website", "app", "admin"],
+      eoi_status: [
+        "invited",
+        "submitted",
+        "preferences_completed",
+        "allocated",
+        "confirmed",
+        "registered",
+        "withdrawn",
+      ],
       event_type: ["game", "training", "social", "mini_league"],
       feedback_status: ["open", "in_progress", "resolved"],
       poll_chat_type: ["team", "club", "group", "broadcast", "club_admin"],
       role_request_status: ["pending", "approved", "denied"],
       rsvp_status: ["going", "maybe", "not_going"],
+      scheduled_chat_type: [
+        "team",
+        "club",
+        "group",
+        "direct",
+        "club_admin",
+        "broadcast",
+      ],
+      scheduled_message_recurrence: ["none", "daily", "weekly", "monthly"],
+      scheduled_message_status: ["pending", "sent", "failed", "cancelled"],
+      season_status: ["draft", "active", "closed", "archived"],
       sponsor_tier: ["platinum", "gold", "silver", "bronze"],
+      team_lifecycle_status: ["draft", "active", "archived"],
+      team_membership_role: ["player", "coach", "team_admin"],
+      team_membership_status: ["active", "removed"],
     },
   },
 } as const

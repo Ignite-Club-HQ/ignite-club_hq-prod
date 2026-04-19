@@ -1,13 +1,16 @@
 import { useMemo, memo, useState, useCallback, useRef, useEffect } from "react";
+import { Play } from "lucide-react";
 import { LinkPreview } from "./LinkPreview";
 import { YouTubeEmbed, extractYouTubeId } from "./YouTubeEmbed";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
 import { EventLinkCard } from "./EventLinkCard";
+import { BoardLinkCard } from "./BoardLinkCard";
 import { PollCard } from "./PollCard";
 import { highlightText } from "./ChatSearch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
+import { isVideoUrl } from "@/lib/videoUtils";
 
 interface MessageContentProps {
   text: string;
@@ -80,11 +83,11 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   const parts = useMemo(() => {
     if (!text) return [];
     
-    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link" | "poll-link"; content: string; userId?: string; linkText?: string }[] = [];
+    const result: { type: "text" | "link" | "mention" | "markdown-link" | "event-link" | "poll-link" | "board-link"; content: string; userId?: string; linkText?: string }[] = [];
     let lastIndex = 0;
     
-    // Combined regex. Order: poll tokens, event tokens, markdown links, event URLs, plain URLs, mentions
-    const combinedRegex = /(\[poll:([0-9a-f-]{36})\])|(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
+    // Combined regex. Order: poll tokens, board tokens, event tokens, markdown links, event URLs, plain URLs, mentions
+    const combinedRegex = /(\[poll:([0-9a-f-]{36})\])|(\[board:([0-9a-f-]{36})\])|(\[event:([0-9a-f-]{36})\])|(\[([^\]]+)\]\((https?:\/\/[^)]+)\))|((?:https?:\/\/[^\s]*)?\/events\/([0-9a-f-]{36})(?:\S*)?)|((?:https?:\/\/|www\.)[^\s\]]+)|(@\[([^\]]+)\]\(([^)]+)\))/gi;
     let match;
     
     while ((match = combinedRegex.exec(text)) !== null) {
@@ -100,27 +103,30 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         // Poll token: [poll:uuid] - match[2] is the poll ID
         result.push({ type: "poll-link", content: match[2] || "" });
       } else if (match[3]) {
-        // Event token: [event:uuid] - match[4] is the event ID
-        result.push({ type: "event-link", content: match[4] || "" });
+        // Board token: [board:uuid] - match[4] is the active_games ID
+        result.push({ type: "board-link", content: match[4] || "" });
       } else if (match[5]) {
-        // Markdown link match: [text](url) - match[6] is text, match[7] is URL
+        // Event token: [event:uuid] - match[6] is the event ID
+        result.push({ type: "event-link", content: match[6] || "" });
+      } else if (match[7]) {
+        // Markdown link match: [text](url) - match[8] is text, match[9] is URL
         result.push({ 
           type: "markdown-link", 
-          content: match[7] || "", 
-          linkText: match[6] || "" 
+          content: match[9] || "", 
+          linkText: match[8] || "" 
         });
-      } else if (match[8]) {
-        // Event URL match: /events/uuid - match[9] is the event ID
-        result.push({ type: "event-link", content: match[9] || "" });
       } else if (match[10]) {
+        // Event URL match: /events/uuid - match[11] is the event ID
+        result.push({ type: "event-link", content: match[11] || "" });
+      } else if (match[12]) {
         // Plain URL match
-        result.push({ type: "link", content: match[10] });
-      } else if (match[11]) {
-        // Mention match - match[12] is display name, match[13] is userId
+        result.push({ type: "link", content: match[12] });
+      } else if (match[13]) {
+        // Mention match - match[14] is display name, match[15] is userId
         result.push({ 
           type: "mention", 
-          content: match[12] || "", 
-          userId: match[13] || "" 
+          content: match[14] || "", 
+          userId: match[15] || "" 
         });
       }
       
@@ -140,12 +146,13 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
   }, [text]);
 
   // Extract URLs and categorize them
-  const { youtubeUrls, otherUrls, eventIds, pollIds } = useMemo(() => {
+  const { youtubeUrls, otherUrls, eventIds, pollIds, boardIds } = useMemo(() => {
     const urls = [...new Set(parts.filter(p => p.type === "link").map(p => p.content))];
     const youtube: { url: string; videoId: string }[] = [];
     const other: string[] = [];
     const events = [...new Set(parts.filter(p => p.type === "event-link").map(p => p.content))];
     const polls = [...new Set(parts.filter(p => p.type === "poll-link").map(p => p.content))];
+    const boards = [...new Set(parts.filter(p => p.type === "board-link").map(p => p.content))];
 
     for (const url of urls) {
       const videoId = extractYouTubeId(url);
@@ -161,6 +168,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       otherUrls: other.slice(0, 2),
       eventIds: events.slice(0, 3),
       pollIds: polls.slice(0, 3),
+      boardIds: boards.slice(0, 3),
     };
   }, [parts]);
 
@@ -208,6 +216,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
           </div>
         )}
 
+        {/* Board link cards (live game boards) */}
+        {boardIds.length > 0 && (
+          <div className="space-y-2 min-w-0 max-w-full">
+            {boardIds.map((boardId) => (
+              <BoardLinkCard key={boardId} gameId={boardId} />
+            ))}
+          </div>
+        )}
+
         {/* YouTube embeds */}
         {youtubeUrls.length > 0 && (
           <div className="space-y-2 min-w-0 max-w-full">
@@ -231,22 +248,44 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
 
   return (
     <div className="space-y-2 min-w-0 max-w-full">
-      {/* Image attachment */}
+      {/* Image / video attachment */}
       {imageUrl && !imageError && (
         <div className="rounded-lg overflow-hidden max-w-xs">
           {(!imageLoaded || isLoadingSignedUrl) && (
             <Skeleton className="w-48 h-32" />
           )}
           {!isLoadingSignedUrl && effectiveImageUrl && (
-            <img
-              ref={imgRef}
-              src={effectiveImageUrl}
-              alt="Attachment"
-              className={`w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity ${!imageLoaded ? 'hidden' : ''}`}
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-              onClick={handleImageClick}
-            />
+            isVideoUrl(effectiveImageUrl) ? (
+              <div
+                className={`relative cursor-pointer ${!imageLoaded ? 'hidden' : ''}`}
+                onClick={handleImageClick}
+              >
+                <video
+                  src={effectiveImageUrl}
+                  className="w-full h-auto max-h-64 object-cover"
+                  preload="metadata"
+                  playsInline
+                  muted
+                  onLoadedData={handleImageLoad}
+                  onError={handleImageError}
+                />
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                  <div className="rounded-full bg-black/60 p-3">
+                    <Play className="h-6 w-6 fill-white text-white" />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <img
+                ref={imgRef}
+                src={effectiveImageUrl}
+                alt="Attachment"
+                className={`w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity ${!imageLoaded ? 'hidden' : ''}`}
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                onClick={handleImageClick}
+              />
+            )
           )}
         </div>
       )}
@@ -306,6 +345,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
                }
               if (part.type === "event-link") {
                 // Event links are rendered as empty spans inline; the card is shown below
+                return <span key={index} />;
+              }
+              if (part.type === "board-link") {
+                // Board links render inline as empty; the card is shown below
                 return <span key={index} />;
               }
               if (part.type === "poll-link") {
@@ -391,6 +434,15 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         <div className="space-y-2 mt-1 min-w-0 max-w-full">
           {eventIds.map((eventId) => (
             <EventLinkCard key={eventId} eventId={eventId} />
+          ))}
+        </div>
+      )}
+
+      {/* Board link cards (live game boards) */}
+      {showPreviews && boardIds.length > 0 && (
+        <div className="space-y-2 mt-1 min-w-0 max-w-full">
+          {boardIds.map((boardId) => (
+            <BoardLinkCard key={boardId} gameId={boardId} />
           ))}
         </div>
       )}

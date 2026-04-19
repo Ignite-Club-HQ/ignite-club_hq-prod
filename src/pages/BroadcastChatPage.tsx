@@ -14,6 +14,8 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
+import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +28,10 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
@@ -92,6 +98,8 @@ export default function BroadcastChatPage() {
   const [searchParams] = useSearchParams();
   const [message, setMessage, clearDraft] = useChatDraft("broadcast");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget = { chat_type: "broadcast" };
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
@@ -99,6 +107,7 @@ export default function BroadcastChatPage() {
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -938,26 +947,31 @@ export default function BroadcastChatPage() {
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background sticky top-0 z-10 shrink-0 relative">
-        <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
-        <ChatBackButton />
-        <div className="p-1.5 rounded-lg shrink-0" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }}>
-          <Flame className="h-5 w-5 text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-semibold truncate">Announcements</h1>
-          <p className="text-sm text-muted-foreground truncate">Official updates & news</p>
-        </div>
-        <div className="flex items-center shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-            <Search className="h-4 w-4" />
-          </Button>
-          <ChatHeaderMenu
-            onRefresh={handleManualRefresh}
-            isRefreshing={isAnyRefreshing}
-          />
-        </div>
-      </div>
+      <ChatHeaderShell
+        type="broadcast"
+        name="Announcements"
+        sublabel="Official updates & news"
+        onOpenDetails={() => setDetailsOpen(true)}
+        leftSlot={
+          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} />
+        }
+        rightSlot={
+          <>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
+              <Search className="h-4 w-4" />
+            </Button>
+            <ChatHeaderMenu onRefresh={handleManualRefresh} isRefreshing={isAnyRefreshing} />
+          </>
+        }
+      />
+      <ChatDetailsSheet
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        chatType="broadcast"
+        chatId="broadcast"
+        name="Announcements"
+        sublabel="Official updates & news"
+      />
 
       {/* Notification Nudge */}
       {notificationNudge.shouldShowNudge && (
@@ -1056,7 +1070,8 @@ export default function BroadcastChatPage() {
               disabled={sendMutation.isPending}
             />
           )}
-          <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
+          <ScheduledMessagesBanner target={scheduleTarget} />
+          <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
@@ -1075,6 +1090,11 @@ export default function BroadcastChatPage() {
               }}
               onKeyPress={handleKeyPress}
               disabled={sendMutation.isPending}
+              onGifSelect={setImageUrl}
+            />
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMutation.isPending}
             />
             <button
               onClick={() => {
@@ -1082,7 +1102,7 @@ export default function BroadcastChatPage() {
                 handleSend();
               }}
               disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMutation.isPending}
-              className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
+              className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
             >
               {sendMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -1091,6 +1111,18 @@ export default function BroadcastChatPage() {
               )}
             </button>
           </div>
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            initialImageUrl={imageUrl}
+            onScheduled={() => {
+              setMessage("");
+              setImageUrl(null);
+              clearDraft?.();
+            }}
+          />
           <CreatePollDialog
             open={pollDialogOpen}
             onOpenChange={setPollDialogOpen}

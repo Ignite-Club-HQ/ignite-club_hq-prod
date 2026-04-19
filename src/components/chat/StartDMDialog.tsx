@@ -60,6 +60,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
   const [internalOpen, setInternalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<DMableUser[]>([]);
+  const [groupName, setGroupName] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
 
@@ -364,9 +365,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
 
   // Start group DM mutation (creates a chat group)
   const startGroupDMMutation = useMutation({
-    mutationFn: async (users: DMableUser[]) => {
-      // Create a group chat with all selected users + current user
-      const groupName = users.map(u => u.display_name?.split(" ")[0] || "User").join(", ");
+    mutationFn: async ({ users, customName }: { users: DMableUser[]; customName: string }) => {
+      // Use custom name if provided, otherwise auto-name from member first names
+      const groupName = customName.trim() || users.map(u => u.display_name?.split(" ")[0] || "User").join(", ");
       
       const allowedRoles: ("basic_user" | "club_admin" | "team_admin" | "coach" | "player" | "parent" | "app_admin")[] = 
         ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];
@@ -403,6 +404,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
     onSuccess: (groupId) => {
       setOpen(false);
       setSelectedUsers([]);
+      setGroupName("");
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
       navigate(`/groups/${groupId}`);
       toast.success("Group chat created!");
@@ -435,7 +437,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
       startDMMutation.mutate(selectedUsers[0].id);
     } else {
       // Multiple users - create group chat
-      startGroupDMMutation.mutate(selectedUsers);
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName });
     }
   };
 
@@ -483,6 +485,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
       setOpen(open);
       if (!open) {
         setSelectedUsers([]);
+        setGroupName("");
         setSearchQuery("");
         setSelectedClubId(activeClubFilter || "all");
         setSelectedTeamId("all");
@@ -549,6 +552,21 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange }: StartDMDia
                       </button>
                     </Badge>
                   ))}
+                </div>
+              )}
+
+              {/* Optional group name when 2+ users selected */}
+              {selectedUsers.length > 1 && (
+                <div className="space-y-1">
+                  <Input
+                    placeholder="Group name (optional)"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    maxLength={60}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank to use member names
+                  </p>
                 </div>
               )}
 
