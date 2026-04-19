@@ -46,6 +46,7 @@ const CreateTeamPage = lazy(() => import("./pages/CreateTeamPage"));
 const EditTeamPage = lazy(() => import("./pages/EditTeamPage"));
 const TeamDetailPage = lazy(() => import("./pages/TeamDetailPage"));
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
+const ScheduledMessagesPage = lazy(() => import("./pages/ScheduledMessagesPage"));
 const TeamChatPage = lazy(() => import("./pages/TeamChatPage"));
 const BroadcastChatPage = lazy(() => import("./pages/BroadcastChatPage"));
 const ClubChatPage = lazy(() => import("./pages/ClubChatPage"));
@@ -273,6 +274,7 @@ const App = () => {
                   <Route path="/teams/:teamId/upgrade" element={<UpgradeProPage />} />
                   <Route path="/teams/:teamId/attendance" element={<AttendanceStatsPage />} />
                   <Route path="/messages" element={<MessagesPage />} />
+                  <Route path="/scheduled-messages" element={<ScheduledMessagesPage />} />
                   <Route path="/messages/broadcast" element={<BroadcastChatPage />} />
                   <Route path="/messages/club/:clubId" element={<ClubChatPage />} />
                    <Route path="/messages/dm/:conversationId" element={<DirectMessagePage />} />
