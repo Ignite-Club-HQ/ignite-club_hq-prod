@@ -550,6 +550,18 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     const restoreBodyScrollLock = temporarilyReleaseBodyScrollLock();
 
     try {
+      // Preflight: ensure photo-library permission is granted, otherwise show
+      // a clear message asking the user to enable full photo access.
+      try {
+        await ensurePhotoLibraryPermission();
+      } catch (permError) {
+        if (permError instanceof PhotoPermissionDeniedError) {
+          showPhotoPermissionDeniedToast();
+          return;
+        }
+        // Non-fatal — fall through and let the picker try
+      }
+
       const result = await pickNativePhoto({ quality: 80 });
       console.log("[UploadPhotoSheet] pickNativePhoto OK, blob size:", result.blob.size, "mime:", result.mimeType);
 
