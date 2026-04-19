@@ -20,9 +20,12 @@ import { toast } from "sonner";
 import {
   ScheduleTarget,
   ScheduledMessageRow,
+  ScheduledMessageRecurrence,
   useCreateScheduledMessage,
   useUpdateScheduledMessage,
 } from "@/hooks/useScheduledMessages";
+import { ScheduleImageField } from "./ScheduleImageField";
+import { ScheduleRecurrenceField } from "./ScheduleRecurrenceField";
 
 interface ScheduleMessageDialogProps {
   open: boolean;
@@ -57,7 +60,7 @@ function roundToNext5Min(d: Date): Date {
   return new Date(Math.ceil(d.getTime() / ms) * ms);
 }
 
-function localTimezoneLabel(): string {
+export function localTimezoneLabel(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "local time";
   } catch {
@@ -80,9 +83,9 @@ export function ScheduleMessageDialog({
   const isSaving = create.isPending || update.isPending;
 
   const [text, setText] = useState(initialText);
-  // Image URL is reused as-is (uploaded by the composer beforehand). If we're
-  // editing, surface the existing image_url so users see what's attached.
-  const [imageUrl] = useState<string | null>(initialImageUrl);
+  const [imageUrl, setImageUrl] = useState<string | null>(initialImageUrl);
+  const [recurrence, setRecurrence] = useState<ScheduledMessageRecurrence>("none");
+  const [recurrenceUntil, setRecurrenceUntil] = useState<Date | null>(null);
 
   // Default scheduled time: next 5-min boundary at least 5 minutes from now
   const defaultDate = roundToNext5Min(addHours(new Date(), 0.1));
@@ -95,15 +98,23 @@ export function ScheduleMessageDialog({
     if (editingRow) {
       const d = new Date(editingRow.scheduled_for);
       setText(editingRow.text || "");
+      setImageUrl(editingRow.image_url || null);
       setDate(d);
       setTimeStr(format(d, "HH:mm"));
+      setRecurrence(editingRow.recurrence || "none");
+      setRecurrenceUntil(
+        editingRow.recurrence_until ? new Date(editingRow.recurrence_until) : null,
+      );
     } else {
       setText(initialText);
+      setImageUrl(initialImageUrl);
       const d = roundToNext5Min(addHours(new Date(), 0.1));
       setDate(d);
       setTimeStr(format(d, "HH:mm"));
+      setRecurrence("none");
+      setRecurrenceUntil(null);
     }
-  }, [open, editingRow, initialText]);
+  }, [open, editingRow, initialText, initialImageUrl]);
 
   const buildScheduledDate = (): Date | null => {
     const [hh, mm] = timeStr.split(":").map(Number);
@@ -145,7 +156,10 @@ export function ScheduleMessageDialog({
         await update.mutateAsync({
           id: editingRow.id,
           text: text.trim(),
+          image_url: imageUrl,
           scheduled_for: when,
+          recurrence,
+          recurrence_until: recurrence === "none" ? null : recurrenceUntil,
         });
         toast.success("Scheduled message updated");
       } else {
@@ -154,8 +168,14 @@ export function ScheduleMessageDialog({
           text: text.trim(),
           image_url: imageUrl,
           scheduled_for: when,
+          recurrence,
+          recurrence_until: recurrence === "none" ? null : recurrenceUntil,
         });
-        toast.success(`Message scheduled for ${format(when, "PPp")}`);
+        toast.success(
+          recurrence === "none"
+            ? `Message scheduled for ${format(when, "PPp")}`
+            : `Recurring message scheduled, starting ${format(when, "PPp")}`,
+        );
       }
       onScheduled?.();
       onOpenChange(false);
@@ -165,9 +185,15 @@ export function ScheduleMessageDialog({
     }
   };
 
+  // Image upload target (so attachments land in the same club/team folder).
+  const uploadTarget = {
+    clubId: target.club_id ?? undefined,
+    teamId: target.team_id ?? undefined,
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Edit scheduled message" : "Schedule message"}
@@ -190,16 +216,12 @@ export function ScheduleMessageDialog({
             />
           </div>
 
-          {imageUrl && (
-            <div className="space-y-2">
-              <Label>Attachment</Label>
-              <img
-                src={imageUrl}
-                alt="Attachment preview"
-                className="h-24 w-24 object-cover rounded-md border border-border"
-              />
-            </div>
-          )}
+          <ScheduleImageField
+            value={imageUrl}
+            onChange={setImageUrl}
+            uploadTarget={uploadTarget}
+            disabled={isSaving}
+          />
 
           <div className="flex flex-wrap gap-2">
             {QUICK_PRESETS.map((p) => (
@@ -259,6 +281,14 @@ export function ScheduleMessageDialog({
               </div>
             </div>
           </div>
+
+          <ScheduleRecurrenceField
+            recurrence={recurrence}
+            onRecurrenceChange={setRecurrence}
+            endDate={recurrenceUntil}
+            onEndDateChange={setRecurrenceUntil}
+            disabled={isSaving}
+          />
 
           {scheduledDate && (
             <p
