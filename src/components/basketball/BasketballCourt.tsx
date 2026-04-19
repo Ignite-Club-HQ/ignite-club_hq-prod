@@ -20,10 +20,10 @@ const BasketballCourt = memo(function BasketballCourt({ className }: BasketballC
       className={className}
       aria-hidden="true"
     >
-      {/* Court surface — muted hardwood so player tokens dominate visually. */}
-      <rect x="0" y="0" width="100" height="140" fill="hsl(28 35% 52%)" />
+      {/* Court surface — further desaturated hardwood so player tokens dominate. */}
+      <rect x="0" y="0" width="100" height="140" fill="hsl(28 28% 54%)" />
       {/* Subtle grain overlay */}
-      <rect x="0" y="0" width="100" height="140" fill="hsl(28 30% 35% / 0.10)" />
+      <rect x="0" y="0" width="100" height="140" fill="hsl(28 25% 35% / 0.08)" />
 
       {/* Outer boundary — softer so it doesn't compete with player tokens */}
       <rect
