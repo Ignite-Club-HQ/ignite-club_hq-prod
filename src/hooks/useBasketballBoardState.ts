@@ -31,6 +31,7 @@ import {
   transitionPosition,
 } from "@/components/basketball/basketballHelpers";
 import { useBasketballGameSync } from "@/hooks/useBasketballGameSync";
+import { useAutoSubNotify } from "@/hooks/useAutoSubNotify";
 import { cueQuarterEnd, cueSubDue, cueTimeout } from "@/lib/gameCues";
 import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
 import { visiblePeriods, periodLabel } from "@/lib/periodTypes";
@@ -45,6 +46,7 @@ interface Member {
 
 interface UseBasketballBoardStateArgs {
   teamId: string;
+  teamName: string;
   members: Member[];
   readOnly: boolean;
   initialMinutesPerQuarter: number;
@@ -59,6 +61,7 @@ interface UseBasketballBoardStateArgs {
  */
 export function useBasketballBoardState({
   teamId,
+  teamName,
   members,
   readOnly,
   initialMinutesPerQuarter,
@@ -373,7 +376,14 @@ export function useBasketballBoardState({
     []
   );
 
-  const executeSub = useCallback(
+  // Push notify all team admins/coaches when an auto-sub fires.
+  const notifyAutoSub = useAutoSubNotify(teamId, teamName);
+  // Pending mid-quarter auto-sub awaiting coach confirmation. Quarter-break
+  // batches still flow through pendingQuarterSubs (separate dialog).
+  const [pendingAutoSub, setPendingAutoSub] = useState<BasketballSubEvent | null>(null);
+  const stagedAutoSubKeysRef = useRef<Set<string>>(new Set());
+
+  const applyAutoSub = useCallback(
     (sub: BasketballSubEvent) => {
       setPlayers((prev) => {
         const out = prev.find((p) => p.id === sub.playerOut.id);
@@ -404,9 +414,41 @@ export function useBasketballBoardState({
         title: "Auto-sub",
         description: `${sub.playerIn.name} ON for ${sub.playerOut.name} at ${sub.position}`,
       });
+      const periodType = timerStateRef.current.periodType;
+      const q = timerStateRef.current.currentQuarter;
+      const lbl = periodLabel(q, periodType);
+      void notifyAutoSub({
+        playerInName: sub.playerIn.name,
+        playerOutName: sub.playerOut.name,
+        position: sub.position,
+        periodLabel: lbl,
+      });
     },
-    [toast, appendSubLog]
+    [toast, appendSubLog, notifyAutoSub]
   );
+
+  // Stage instead of mutating immediately so a confirm dialog can surface.
+  const executeSub = useCallback((sub: BasketballSubEvent) => {
+    const key = getSubKey(sub);
+    if (stagedAutoSubKeysRef.current.has(key)) return;
+    stagedAutoSubKeysRef.current.add(key);
+    setPendingAutoSub(sub);
+  }, []);
+
+  const confirmPendingAutoSub = useCallback(() => {
+    if (!pendingAutoSub) return;
+    applyAutoSub(pendingAutoSub);
+    setPendingAutoSub(null);
+  }, [pendingAutoSub, applyAutoSub]);
+
+  const cancelPendingAutoSub = useCallback(() => {
+    if (!pendingAutoSub) return;
+    const skippedKey = getSubKey(pendingAutoSub);
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (getSubKey(s) === skippedKey ? { ...s, skipped: true } : s))
+    );
+    setPendingAutoSub(null);
+  }, [pendingAutoSub]);
 
   // ---------- Time tracking ----------
   // `delta` is the number of real seconds elapsed since the last tick — using
@@ -574,8 +616,18 @@ export function useBasketballBoardState({
         source: "auto",
       })
     );
+    // Notify all team admins/coaches once per sub in the batch.
+    const lbl = periodLabel(pendingQuarterSubs.quarter, timerStateRef.current.periodType);
+    subs.forEach((sub) =>
+      void notifyAutoSub({
+        playerInName: sub.playerIn.name,
+        playerOutName: sub.playerOut.name,
+        position: sub.position,
+        periodLabel: lbl,
+      })
+    );
     setPendingQuarterSubs(null);
-  }, [pendingQuarterSubs, appendSubLog]);
+  }, [pendingQuarterSubs, appendSubLog, notifyAutoSub]);
 
   const skipPendingQuarterSubs = useCallback(() => {
     if (!pendingQuarterSubs) return;
@@ -1290,6 +1342,10 @@ export function useBasketballBoardState({
     pendingQuarterSubs,
     confirmPendingQuarterSubs,
     skipPendingQuarterSubs,
+    // mid-quarter auto-sub confirm
+    pendingAutoSub,
+    confirmPendingAutoSub,
+    cancelPendingAutoSub,
     // derived
     bench,
     nextSub,
