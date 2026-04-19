@@ -244,6 +244,18 @@ export default function BasketballBoard({
     board.timerState.periodType
   );
 
+  // Background coach assistant — silently observes playing time and surfaces
+  // subtle hints (over-played outline, under-played glow, "Sub due" badge) +
+  // fires a throttled toast/cue when fairness drifts. NEVER mutates state.
+  const assistant = useBasketballCoachAssistant({
+    players: board.players,
+    isRunning: !!board.timerState.isRunning,
+    isGameFinished: !!board.timerState.isGameFinished,
+    paused: board.autoSubPaused,
+    totalElapsedSeconds: totalElapsed,
+    readOnly,
+  });
+
   const isLive = !!board.timerState.isRunning && !board.timerState.isGameFinished;
   const onCourtCount = board.players.filter((p) => p.position !== null).length;
   const lineupSet = onCourtCount >= 5;
