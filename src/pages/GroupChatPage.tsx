@@ -1738,6 +1738,7 @@ export default function GroupChatPage() {
             disabled={sendMessageMutation.isPending}
           />
         )}
+        {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
@@ -1769,6 +1770,12 @@ export default function GroupChatPage() {
             clubId={group?.club_id || undefined}
             disabled={sendMessageMutation.isPending}
           />
+          {scheduleTarget && (
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMessageMutation.isPending}
+            />
+          )}
           <button 
             onClick={() => {
               stopTyping();
@@ -1780,6 +1787,20 @@ export default function GroupChatPage() {
             <Send className="h-5 w-5" />
           </button>
         </div>
+        {scheduleTarget && (
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            initialImageUrl={imageUrl}
+            onScheduled={() => {
+              setMessage("");
+              setImageUrl(null);
+              clearDraft?.();
+            }}
+          />
+        )}
         <EventPickerSheet
           open={eventPickerOpen}
           onOpenChange={setEventPickerOpen}
