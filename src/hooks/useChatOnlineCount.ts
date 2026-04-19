@@ -91,7 +91,10 @@ export function useChatOnlineCount(
       return [...new Set(ids)];
     },
     enabled: enabled && !!chatId,
-    staleTime: 1000 * 60 * 5,
+    // Short stale time so freshly added/removed members are reflected in the
+    // online count quickly. The query itself is cheap (a single id lookup).
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
   });
 
   const ids = useMemo(() => memberIds || [], [memberIds]);

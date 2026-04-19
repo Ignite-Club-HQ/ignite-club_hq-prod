@@ -28,7 +28,10 @@ import { supabase } from "@/integrations/supabase/client";
 type WindowMinutes = 2 | 5 | 15 | 60;
 
 export default function OnlineUsersTab() {
-  const [windowMinutes, setWindowMinutes] = useState<WindowMinutes>(5);
+  // Default to 2 min — closest to "online now" given a 25s heartbeat.
+  // Anything larger overstates the count (a user who closed the app 4 min ago
+  // would show as "online now" with the previous 5-min default).
+  const [windowMinutes, setWindowMinutes] = useState<WindowMinutes>(2);
   const [search, setSearch] = useState("");
   const [now, setNow] = useState(() => Date.now());
 

@@ -1,31 +1,46 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
+ * Build a stable cache key from a list of photo IDs.
+ *
+ * Sorting + joining the full id list is required: keys based only on length /
+ * first / last id collide constantly (e.g. paginated feeds where two distinct
+ * pages share endpoints) and cause counts from one photo set to be served for
+ * another.
+ */
+function makeIdsKey(photoIds: string[]): string {
+  if (photoIds.length === 0) return "";
+  // Copy before sort so we never mutate the caller's array.
+  return [...photoIds].sort().join(",");
+}
+
+/**
  * Fetch view counts for a list of photos.
  * Returns a Map of photoId -> count.
+ *
+ * Uses the `get_photo_view_counts` RPC which aggregates server-side; this
+ * avoids the Supabase 1000-row default cap that previously caused popular
+ * photos to undercount once total views across the requested set exceeded 1k.
  */
 export function usePhotoViewCounts(photoIds: string[]) {
-  const key = photoIds.length > 0
-    ? `${photoIds.length}:${photoIds[0]}:${photoIds[photoIds.length - 1]}`
-    : "";
+  const idsKey = useMemo(() => makeIdsKey(photoIds), [photoIds]);
 
   return useQuery({
-    queryKey: ["photo-view-counts", key],
+    queryKey: ["photo-view-counts", idsKey],
     queryFn: async () => {
       if (photoIds.length === 0) return new Map<string, number>();
-      const { data, error } = await supabase
-        .from("photo_views")
-        .select("photo_id")
-        .in("photo_id", photoIds);
+      const { data, error } = await supabase.rpc("get_photo_view_counts", {
+        _photo_ids: photoIds,
+      });
       if (error) {
         console.error("Error fetching photo view counts:", error);
         return new Map<string, number>();
       }
       const counts = new Map<string, number>();
-      for (const row of data || []) {
-        counts.set(row.photo_id, (counts.get(row.photo_id) || 0) + 1);
+      for (const row of (data || []) as Array<{ photo_id: string; view_count: number }>) {
+        counts.set(row.photo_id, Number(row.view_count) || 0);
       }
       return counts;
     },
@@ -118,16 +133,18 @@ export function useRecordPhotoView(userId: string | undefined) {
  */
 export function usePhotoViewRealtime(photoIds: string[]) {
   const queryClient = useQueryClient();
-  const idsKey = photoIds.length > 0
-    ? `${photoIds.length}:${photoIds[0]}:${photoIds[photoIds.length - 1]}`
-    : "";
+  const idsKey = useMemo(() => makeIdsKey(photoIds), [photoIds]);
 
   useEffect(() => {
     if (photoIds.length === 0) return;
     const ids = new Set(photoIds);
 
+    // Channel name must be globally unique per id set; a stable hash of the
+    // sorted ids guarantees no collisions across mounted feeds.
+    const channelName = `photo-views-${idsKey.length}-${idsKey.slice(0, 80)}`;
+
     const channel = supabase
-      .channel(`photo-views-${idsKey}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "photo_views" },
@@ -150,5 +167,5 @@ export function usePhotoViewRealtime(photoIds: string[]) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [idsKey, queryClient]);
+  }, [idsKey, queryClient, photoIds]);
 }
