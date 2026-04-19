@@ -184,10 +184,10 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       <div className="relative">
         <Avatar
           className={cn(
-            // Stronger shadow + crisp outer ring for depth — players feel like
-            // physical chips on the court.
-            "shadow-[0_4px_10px_rgba(0,0,0,0.45),0_1px_2px_rgba(0,0,0,0.3)] transition-shadow",
-            "ring-1 ring-black/20",
+            // Standardised, consistent shadow across every token. Outer ring +
+            // dark hairline give the chip strong separation from any court tone.
+            "shadow-[0_3px_8px_rgba(0,0,0,0.35),0_1px_2px_rgba(0,0,0,0.25)] transition-shadow",
+            "ring-2 ring-black/30",
             variant === "court" ? "h-13 w-13 border-[3px]" : "h-10 w-10 border-2",
             fouled ? "border-destructive opacity-70" : (colors?.border ?? "border-border")
           )}
@@ -229,17 +229,18 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         )}
       </div>
       {/* Backed name+minutes label. On-court players get a high-contrast pill
-          that slightly overlaps the token so the two read as a single piece. */}
+          centered under the token so the two read as a single piece. The pill
+          slightly overlaps the avatar (-mt-0.5) for a unified silhouette. */}
       {variant === "court" ? (
         <span
           className={cn(
-            "-mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md",
-            "bg-background/95 border border-border shadow-md backdrop-blur-sm",
-            "text-[10.5px] leading-none max-w-[76px]"
+            "-mt-0.5 inline-flex items-center justify-center gap-1 px-2 py-[3px] rounded-md",
+            "bg-background/95 border border-border/80 shadow-[0_2px_6px_rgba(0,0,0,0.25)] backdrop-blur-sm",
+            "text-[10.5px] leading-none min-w-[3.25rem] max-w-[80px]"
           )}
         >
-          <span className="truncate font-bold text-foreground">{player.name.split(" ")[0]}</span>
-          <span className="tabular-nums font-medium text-muted-foreground">
+          <span className="truncate font-bold tracking-tight text-foreground">{player.name.split(" ")[0]}</span>
+          <span className="tabular-nums font-normal text-muted-foreground/90">
             {`${minutes}m`}
           </span>
           {fouls > 0 && (
