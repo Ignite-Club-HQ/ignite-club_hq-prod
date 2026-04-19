@@ -616,8 +616,18 @@ export function useBasketballBoardState({
         source: "auto",
       })
     );
+    // Notify all team admins/coaches once per sub in the batch.
+    const lbl = periodLabel(pendingQuarterSubs.quarter, timerStateRef.current.periodType);
+    subs.forEach((sub) =>
+      void notifyAutoSub({
+        playerInName: sub.playerIn.name,
+        playerOutName: sub.playerOut.name,
+        position: sub.position,
+        periodLabel: lbl,
+      })
+    );
     setPendingQuarterSubs(null);
-  }, [pendingQuarterSubs, appendSubLog]);
+  }, [pendingQuarterSubs, appendSubLog, notifyAutoSub]);
 
   const skipPendingQuarterSubs = useCallback(() => {
     if (!pendingQuarterSubs) return;
