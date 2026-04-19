@@ -34,6 +34,7 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
   isDragging = false,
   isNextSub = false,
   onClick,
+  onLongPress,
   onDragStart,
   onDragEnd,
   onTouchStart,
@@ -55,6 +56,45 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
     variant === "bench" && player.lastBenchedAt
       ? Math.max(0, Math.floor((now - player.lastBenchedAt) / 1000))
       : 0;
+
+  // Long-press detection — 500ms hold opens the quick action sheet without
+  // hijacking the tap-to-swap flow. We bail if the pointer moves >8px
+  // (treat as a drag start) or lifts before the timer fires.
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const clearLongPress = () => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (readOnly || !onLongPress) return;
+    longPressFiredRef.current = false;
+    pressStartRef.current = { x: e.clientX, y: e.clientY };
+    clearLongPress();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      onLongPress();
+    }, 500);
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!pressStartRef.current) return;
+    const dx = e.clientX - pressStartRef.current.x;
+    const dy = e.clientY - pressStartRef.current.y;
+    if (dx * dx + dy * dy > 64) clearLongPress();
+  };
+  const handlePointerUp = () => clearLongPress();
+  const handleClick = () => {
+    // Suppress the synthetic click that follows a long-press release so we
+    // don't fire both the menu AND the sub-mode toggle.
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    onClick?.();
+  };
 
   return (
     <button
