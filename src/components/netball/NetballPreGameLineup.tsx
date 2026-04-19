@@ -1,15 +1,69 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Plus, X } from "lucide-react";
 import {
   NetballPlayer,
   NetballPosition,
   NETBALL_POSITIONS,
   POSITION_SLOTS,
-  POSITION_COLORS,
 } from "./types";
 import NetballCourt from "./NetballCourt";
 import { findPlayerInPosition, isPositionAllowedForPlayer } from "./netballHelpers";
+
+/**
+ * Role tinting (attack / midcourt / defence) applied to position drop
+ * zones. Kept on top of the existing per-position colour map so the
+ * court reads as three coherent bands at a glance — without overpowering
+ * the player tokens themselves.
+ */
+const POSITION_ROLE: Record<
+  NetballPosition,
+  { ring: string; bg: string; text: string; band: "attack" | "mid" | "defence" }
+> = {
+  GS: {
+    ring: "ring-emerald-400/80",
+    bg: "bg-emerald-500/25",
+    text: "text-emerald-50",
+    band: "attack",
+  },
+  GA: {
+    ring: "ring-emerald-400/80",
+    bg: "bg-emerald-500/25",
+    text: "text-emerald-50",
+    band: "attack",
+  },
+  WA: {
+    ring: "ring-sky-400/80",
+    bg: "bg-sky-500/25",
+    text: "text-sky-50",
+    band: "mid",
+  },
+  C: {
+    ring: "ring-sky-400/80",
+    bg: "bg-sky-500/30",
+    text: "text-sky-50",
+    band: "mid",
+  },
+  WD: {
+    ring: "ring-sky-400/80",
+    bg: "bg-sky-500/25",
+    text: "text-sky-50",
+    band: "mid",
+  },
+  GD: {
+    ring: "ring-orange-400/80",
+    bg: "bg-orange-500/25",
+    text: "text-orange-50",
+    band: "defence",
+  },
+  GK: {
+    ring: "ring-orange-400/80",
+    bg: "bg-orange-500/25",
+    text: "text-orange-50",
+    band: "defence",
+  },
+};
 
 interface NetballPreGameLineupProps {
   players: NetballPlayer[];
@@ -29,14 +83,21 @@ interface DragState {
 }
 
 /**
- * Drag-first pre-game lineup picker — netball mirror of BasketballPreGameLineup.
- *  - Court fills the top of the screen (primary surface).
- *  - Bench is a horizontally scrollable drag source below.
- *  - Pointer Events drive a custom drag layer.
- *  - Drop on slot → assignToPosition. Drop on bench → return to bench.
- *  - Slot fit honours preferredPositions: clean drop on a preferred slot,
- *    soft warn glow on a non-preferred slot. In `strict` mode the drop
- *    snaps back when the player isn't allowed there.
+ * Touch-first netball lineup picker.
+ *
+ * The court is the primary interaction surface — high-contrast circular
+ * drop zones with always-visible position labels and a "+" affordance,
+ * tinted by role (attack / midcourt / defence). Tokens can be
+ * dragged or tapped:
+ *   - Tap empty slot → assigns the next available bench player
+ *     (preferring fits via `isPositionAllowedForPlayer`).
+ *   - Tap player on court → sends them straight back to the bench.
+ *   - Long-press / drag works as before.
+ *
+ * Bench is a horizontal scroll of richer cards: avatar + first name +
+ * preferred positions chips. Tap a bench card to drop into the next
+ * compatible empty slot; the "+" overlay opens the same flow but limits
+ * to slots the player is allowed to play.
  */
 export default function NetballPreGameLineup({
   players,
@@ -52,6 +113,61 @@ export default function NetballPreGameLineup({
   const [hoverPos, setHoverPos] = useState<NetballPosition | null>(null);
   const [overBench, setOverBench] = useState(false);
   const [justPlaced, setJustPlaced] = useState<NetballPosition | null>(null);
+  const [shakeSlot, setShakeSlot] = useState<NetballPosition | null>(null);
+  const [violationToast, setViolationToast] = useState<string | null>(null);
+
+  const emptyPositions = useMemo(
+    () => NETBALL_POSITIONS.filter((p) => !findPlayerInPosition(players, p)),
+    [players]
+  );
+
+  /** Find the next slot a bench player can occupy — prefers an exact preferred slot, then any allowed slot, then any open slot. */
+  const findNextSlotFor = useCallback(
+    (player: NetballPlayer): NetballPosition | null => {
+      if (emptyPositions.length === 0) return null;
+      const preferred = (player.preferredPositions ?? []).find((p) =>
+        emptyPositions.includes(p)
+      );
+      if (preferred) return preferred;
+      const allowed = emptyPositions.find((p) => isPositionAllowedForPlayer(player, p));
+      if (allowed) return allowed;
+      return validationMode === "strict" ? null : emptyPositions[0];
+    },
+    [emptyPositions, validationMode]
+  );
+
+  const triggerHaptic = useCallback(() => {
+    try {
+      // Best-effort native vibration — silently no-ops where unsupported.
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        (navigator as Navigator & { vibrate: (ms: number) => void }).vibrate(8);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const flashViolation = useCallback((slot: NetballPosition, msg: string) => {
+    setShakeSlot(slot);
+    setViolationToast(msg);
+    window.setTimeout(() => setShakeSlot(null), 350);
+    window.setTimeout(() => setViolationToast(null), 1600);
+  }, []);
+
+  const tryAssign = useCallback(
+    (player: NetballPlayer, slot: NetballPosition) => {
+      const allowed = isPositionAllowedForPlayer(player, slot);
+      if (!allowed && validationMode === "strict") {
+        flashViolation(slot, `${slot} restricted for ${player.name.split(" ")[0]}`);
+        return;
+      }
+      onAssign(player.id, slot);
+      setJustPlaced(slot);
+      triggerHaptic();
+      window.setTimeout(() => setJustPlaced(null), 400);
+    },
+    [onAssign, validationMode, flashViolation, triggerHaptic]
+  );
 
   const startDrag = useCallback(
     (player: NetballPlayer, source: "court" | "bench", clientX: number, clientY: number) => {
@@ -135,12 +251,14 @@ export default function NetballPreGameLineup({
 
       if (drag) {
         if (dropPos && !droppedOnBench) {
-          // Strict mode: silently snap back if the player can't play there.
           const allowed = isPositionAllowedForPlayer(drag.player, dropPos);
           const blocked = !allowed && validationMode === "strict";
-          if (!blocked) {
+          if (blocked) {
+            flashViolation(dropPos, `${dropPos} restricted for ${drag.player.name.split(" ")[0]}`);
+          } else {
             onAssign(drag.playerId, dropPos);
             setJustPlaced(dropPos);
+            triggerHaptic();
             window.setTimeout(() => setJustPlaced(null), 400);
           }
         } else if (droppedOnBench && drag.source === "court") {
@@ -161,16 +279,14 @@ export default function NetballPreGameLineup({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [drag, onAssign, validationMode]);
-
-  const onCourtCount = players.filter((p) => p.position !== null).length;
+  }, [drag, onAssign, validationMode, flashViolation, triggerHaptic]);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden select-none">
       {/* COURT — primary surface */}
       <div
         ref={courtWrapRef}
-        className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 px-2 pt-1 pb-2"
+        className="relative flex-[1.4] min-h-0 flex items-center justify-center bg-muted/40 px-1 py-1"
       >
         <div
           className="relative h-full max-h-full aspect-[5/7] mx-auto"
@@ -181,10 +297,10 @@ export default function NetballPreGameLineup({
           {NETBALL_POSITIONS.map((pos) => {
             const slot = POSITION_SLOTS[pos];
             const player = findPlayerInPosition(players, pos);
-            const colors = POSITION_COLORS[pos];
+            const role = POSITION_ROLE[pos];
             const isHover = hoverPos === pos;
             const justSnapped = justPlaced === pos;
-            // Soft warn when dragging an incompatible player over this slot.
+            const isShaking = shakeSlot === pos;
             const violation =
               drag && isHover && !isPositionAllowedForPlayer(drag.player, pos);
 
@@ -202,10 +318,12 @@ export default function NetballPreGameLineup({
                   <CourtToken
                     player={player}
                     position={pos}
+                    role={role}
                     isDragging={drag?.playerId === player.id}
                     isHover={isHover}
                     justSnapped={justSnapped}
                     readOnly={readOnly}
+                    onTap={() => onAssign(player.id, null)}
                     onPointerDown={(e) => {
                       if (readOnly) return;
                       e.preventDefault();
@@ -216,45 +334,76 @@ export default function NetballPreGameLineup({
                 ) : (
                   <EmptySlot
                     position={pos}
-                    colors={colors}
+                    role={role}
                     isHover={isHover}
                     isDragging={!!drag}
                     violation={!!violation}
+                    isShaking={isShaking}
+                    readOnly={readOnly}
+                    onTap={() => {
+                      if (readOnly) return;
+                      // Tap to assign next available bench player —
+                      // prefers a bench player whose preferred position
+                      // matches this slot.
+                      const candidate =
+                        bench.find((b) =>
+                          (b.preferredPositions ?? []).includes(pos)
+                        ) ??
+                        bench.find((b) => isPositionAllowedForPlayer(b, pos)) ??
+                        (validationMode === "strict" ? undefined : bench[0]);
+                      if (!candidate) return;
+                      tryAssign(candidate, pos);
+                    }}
                   />
                 )}
               </div>
             );
           })}
+
+          {violationToast && (
+            <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-[10px] font-semibold px-2.5 py-1 rounded-full shadow-lg animate-fade-in">
+              {violationToast}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* BENCH — drag source */}
+      {/* BENCH — drag source + tap-to-assign */}
       <div
         ref={benchRef}
         className={cn(
-          "border-t bg-card transition-colors",
+          "border-t bg-card/80 transition-colors flex-shrink-0",
           overBench && drag?.source === "court" && "bg-primary/10"
         )}
       >
-        <div className="flex items-center justify-between px-3 pt-2 pb-1">
-          <h3 className="text-xs font-bold tabular-nums">Bench · {bench.length}</h3>
-          <span className="text-[10px] text-muted-foreground">
-            {onCourtCount} / 7 on court · drag to place
-          </span>
+        <div className="flex items-center justify-between px-3 pt-1.5 pb-1">
+          <h3 className="text-[10px] font-bold tabular-nums uppercase tracking-wider text-muted-foreground">
+            Bench · {bench.length}
+          </h3>
         </div>
         {bench.length === 0 ? (
-          <div className="px-3 pb-3 text-[11px] text-muted-foreground italic">
+          <div className="px-3 pb-2.5 text-[11px] text-muted-foreground italic">
             All players are on the court.
           </div>
         ) : (
-          <div className="overflow-x-auto overscroll-x-contain pb-3 pt-1">
-            <div className="flex gap-2 px-3 min-w-min">
+          <div className="overflow-x-auto overscroll-x-contain pb-2 pt-0.5">
+            <div className="flex gap-1.5 px-2 min-w-min">
               {bench.map((p) => (
-                <BenchChip
+                <BenchCard
                   key={p.id}
                   player={p}
                   isDragging={drag?.playerId === p.id}
                   readOnly={readOnly}
+                  onTap={() => {
+                    if (readOnly) return;
+                    const slot = findNextSlotFor(p);
+                    if (slot) tryAssign(p, slot);
+                  }}
+                  onAssignSlot={() => {
+                    if (readOnly) return;
+                    const slot = findNextSlotFor(p);
+                    if (slot) tryAssign(p, slot);
+                  }}
                   onPointerDown={(e) => {
                     if (readOnly) return;
                     e.preventDefault();
@@ -292,27 +441,52 @@ function initialsOf(name: string) {
     .slice(0, 2);
 }
 
+interface RoleStyle {
+  ring: string;
+  bg: string;
+  text: string;
+  band: "attack" | "mid" | "defence";
+}
+
 function CourtToken({
   player,
   position,
+  role,
   isDragging,
   isHover,
   justSnapped,
   readOnly,
+  onTap,
   onPointerDown,
 }: {
   player: NetballPlayer;
   position: NetballPosition;
+  role: RoleStyle;
   isDragging: boolean;
   isHover: boolean;
   justSnapped: boolean;
   readOnly: boolean;
+  onTap: () => void;
   onPointerDown: (e: React.PointerEvent) => void;
 }) {
-  const colors = POSITION_COLORS[position];
+  // Pointer-down position used to discriminate drag vs tap (tap = small move).
+  const downRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
   return (
     <div
-      onPointerDown={onPointerDown}
+      onPointerDown={(e) => {
+        downRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+        onPointerDown(e);
+      }}
+      onPointerUp={(e) => {
+        const d = downRef.current;
+        downRef.current = null;
+        if (!d) return;
+        const dx = Math.abs(e.clientX - d.x);
+        const dy = Math.abs(e.clientY - d.y);
+        const dt = Date.now() - d.t;
+        if (dx < 6 && dy < 6 && dt < 300) onTap();
+      }}
       className={cn(
         "relative flex flex-col items-center gap-0.5 touch-none cursor-grab active:cursor-grabbing transition-transform",
         isDragging && "opacity-30 scale-95",
@@ -320,29 +494,32 @@ function CourtToken({
         justSnapped && "animate-scale-in",
         readOnly && "pointer-events-none"
       )}
+      aria-label={`${player.name} at ${position}, tap to bench`}
     >
       <Avatar
         className={cn(
-          "h-12 w-12 border-2 shadow-md",
-          colors.border,
-          justSnapped && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+          "h-12 w-12 border-2 shadow-lg ring-2 ring-offset-1 ring-offset-transparent",
+          role.ring,
+          "border-background",
+          justSnapped && "ring-primary"
         )}
       >
-        <AvatarFallback className={cn("text-xs font-bold", colors.bg, colors.text)}>
+        <AvatarFallback
+          className={cn("text-xs font-bold", role.bg, role.text)}
+        >
           {initialsOf(player.name)}
         </AvatarFallback>
       </Avatar>
       <span
         className={cn(
-          "text-[9px] font-bold rounded px-1 border leading-none py-0.5",
-          colors.bg,
-          colors.text,
-          colors.border
+          "text-[9px] font-bold rounded px-1 leading-none py-0.5 shadow-sm",
+          role.bg,
+          role.text
         )}
       >
         {position}
       </span>
-      <span className="text-[10px] font-medium text-foreground/90 leading-tight max-w-[64px] truncate">
+      <span className="text-[10px] font-medium text-foreground/95 leading-tight max-w-[64px] truncate bg-background/80 px-1 rounded">
         {player.name.split(" ")[0]}
       </span>
     </div>
@@ -351,82 +528,138 @@ function CourtToken({
 
 function EmptySlot({
   position,
-  colors,
+  role,
   isHover,
   isDragging,
   violation,
+  isShaking,
+  readOnly,
+  onTap,
 }: {
   position: NetballPosition;
-  colors: { bg: string; text: string; border: string };
+  role: RoleStyle;
   isHover: boolean;
   isDragging: boolean;
   violation: boolean;
+  isShaking: boolean;
+  readOnly: boolean;
+  onTap: () => void;
 }) {
   return (
-    <div
+    <button
+      type="button"
+      onClick={onTap}
+      disabled={readOnly}
+      aria-label={`Empty ${position} slot — tap to fill`}
       className={cn(
-        "w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center text-[11px] font-bold transition-all",
+        "relative w-12 h-12 rounded-full border-2 flex items-center justify-center font-bold transition-all shadow-md",
+        "ring-2 ring-offset-1 ring-offset-transparent",
         violation
-          ? "border-destructive bg-destructive/15 text-destructive scale-110 shadow-md"
+          ? "border-destructive bg-destructive/40 text-destructive-foreground scale-110 ring-destructive"
           : isHover
-          ? "border-primary bg-primary/20 text-primary scale-125 shadow-lg"
+          ? "border-background bg-primary/40 text-primary-foreground scale-125 ring-primary"
           : isDragging
-          ? "border-primary/60 text-primary animate-pulse"
-          : "border-foreground/40 text-foreground/70 animate-pulse"
+          ? cn("border-background", role.bg, role.text, role.ring, "animate-pulse")
+          : cn("border-background/80", role.bg, role.text, role.ring),
+        isShaking && "animate-[wiggle_350ms_ease-in-out]",
+        readOnly && "opacity-60"
       )}
-      aria-label={`Empty ${position} slot`}
+      style={{
+        // Inline keyframe so we don't need a tailwind config change.
+        // Falls back gracefully when the animation prop isn't honoured.
+        ["--tw-shake" as string]: "translateX(0)",
+      }}
     >
-      {position}
-    </div>
+      <span className="text-[11px] tracking-tight">{position}</span>
+      {!isHover && !isDragging && (
+        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-background text-foreground border border-border flex items-center justify-center shadow-sm">
+          <Plus className="h-2.5 w-2.5" />
+        </span>
+      )}
+      {/* Inline keyframes for the shake — scoped via :where so it doesn't leak. */}
+      <style>{`@keyframes wiggle { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }`}</style>
+    </button>
   );
 }
 
-function BenchChip({
+function BenchCard({
   player,
   isDragging,
   readOnly,
+  onTap,
+  onAssignSlot,
   onPointerDown,
 }: {
   player: NetballPlayer;
   isDragging: boolean;
   readOnly: boolean;
+  onTap: () => void;
+  onAssignSlot: () => void;
   onPointerDown: (e: React.PointerEvent) => void;
 }) {
+  const downRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const prefs = (player.preferredPositions ?? []).slice(0, 2);
+
   return (
     <div
-      onPointerDown={onPointerDown}
+      onPointerDown={(e) => {
+        downRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+        onPointerDown(e);
+      }}
+      onPointerUp={(e) => {
+        const d = downRef.current;
+        downRef.current = null;
+        if (!d) return;
+        const dx = Math.abs(e.clientX - d.x);
+        const dy = Math.abs(e.clientY - d.y);
+        const dt = Date.now() - d.t;
+        // Ignore taps that originate on the assign "+" button.
+        const target = e.target as HTMLElement;
+        if (target.closest("[data-assign-btn]")) return;
+        if (dx < 6 && dy < 6 && dt < 300) onTap();
+      }}
       className={cn(
-        "flex flex-col items-center gap-1 shrink-0 touch-none cursor-grab active:cursor-grabbing rounded-lg p-1.5 bg-muted/40 border border-border min-w-[60px] transition-transform",
+        "relative flex items-center gap-2 shrink-0 touch-none cursor-grab active:cursor-grabbing rounded-xl px-2 py-1.5 bg-card border border-border min-w-[124px] max-w-[160px] shadow-sm transition-transform hover:border-primary/40",
         isDragging && "opacity-30 scale-95",
         readOnly && "pointer-events-none opacity-60"
       )}
+      aria-label={`Bench player ${player.name}, tap to assign`}
     >
-      <Avatar className="h-11 w-11 border-2 border-border shadow-sm">
-        <AvatarFallback className="text-xs font-bold bg-muted text-foreground">
+      <Avatar className="h-9 w-9 border border-border shadow-sm flex-shrink-0">
+        <AvatarFallback className="text-[11px] font-bold bg-muted text-foreground">
           {initialsOf(player.name)}
         </AvatarFallback>
       </Avatar>
-      <span className="text-[10px] font-medium leading-tight max-w-[64px] truncate">
-        {player.name.split(" ")[0]}
-      </span>
+      <div className="flex flex-col min-w-0 flex-1 leading-tight">
+        <span className="text-[11px] font-semibold truncate">
+          {player.name.split(" ")[0]}
+        </span>
+        <span className="text-[9px] text-muted-foreground tabular-nums truncate">
+          {prefs.length > 0 ? prefs.join(" / ") : "Any"}
+        </span>
+      </div>
+      <button
+        type="button"
+        data-assign-btn
+        onClick={(e) => {
+          e.stopPropagation();
+          onAssignSlot();
+        }}
+        disabled={readOnly}
+        className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/15 text-primary hover:bg-primary/25 flex items-center justify-center transition-colors"
+        aria-label="Assign to next available position"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
 
 function DragGhost({ player }: { player: NetballPlayer }) {
-  const colors = player.position ? POSITION_COLORS[player.position] : null;
   return (
     <div className="flex flex-col items-center gap-0.5 scale-110 drop-shadow-2xl">
-      <Avatar
-        className={cn("h-14 w-14 border-2 shadow-2xl", colors?.border ?? "border-primary")}
-      >
-        <AvatarFallback
-          className={cn(
-            "text-sm font-bold",
-            colors?.bg ?? "bg-primary/30",
-            colors?.text ?? "text-primary"
-          )}
-        >
+      <Avatar className="h-14 w-14 border-2 border-primary shadow-2xl">
+        <AvatarFallback className="text-sm font-bold bg-primary/30 text-primary">
           {initialsOf(player.name)}
         </AvatarFallback>
       </Avatar>
