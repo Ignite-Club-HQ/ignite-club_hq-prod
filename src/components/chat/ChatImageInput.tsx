@@ -386,7 +386,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
           <ImagePlus className="h-[22px] w-[22px]" strokeWidth={2.25} />
         )}
       </button>
-      {hasExtraActions && (
+      {(
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
           <PopoverTrigger asChild>
             <button
