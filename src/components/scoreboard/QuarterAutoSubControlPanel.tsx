@@ -51,6 +51,12 @@ interface QuarterAutoSubControlPanelProps<S extends QuarterSubLike> {
   onToggleLockPlayer: (playerId: string) => void;
   /** Optional editor entry-point (e.g. open the lineup planner). */
   onEditPlan?: () => void;
+  /**
+   * Pre-game preview mode: hides every live-game action (Tap to execute,
+   * Pause, Skip, Lock, Regenerate, Cancel Plan) and shows the timeline only.
+   * Coaches use it to review the planned rotation before tip-off.
+   */
+  previewMode?: boolean;
 }
 
 const formatTime = (seconds: number) => {
@@ -76,8 +82,10 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
   onRegeneratePlan,
   onToggleLockPlayer,
   onEditPlan,
+  previewMode = false,
 }: QuarterAutoSubControlPanelProps<S>) {
-  const [showTimeline, setShowTimeline] = useState(false);
+  // In preview (pre-game) mode the timeline is the whole point — open it by default.
+  const [showTimeline, setShowTimeline] = useState(previewMode);
   const [showLockPanel, setShowLockPanel] = useState(false);
   const swipeRef = useRef<{ startY: number } | null>(null);
 
@@ -147,7 +155,7 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
           {/* Header */}
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Auto Substitutions
+              {previewMode ? "Sub Plan Preview" : "Auto Substitutions"}
             </h3>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -156,69 +164,111 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
 
           {/* Next Sub Card */}
           {nextBatchSubs.length > 0 ? (
-            <button
-              type="button"
-              className={cn(
-                "w-full rounded-xl border p-4 text-left transition-all",
-                autoSubPaused
-                  ? "border-muted bg-muted/30 opacity-60"
-                  : "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/15"
-              )}
-              onClick={!autoSubPaused ? onExecuteNow : undefined}
-              disabled={autoSubPaused}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  {nextBatchSubs.length > 1 ? `Next ${nextBatchSubs.length} Subs` : "Next Sub"}
-                  {!autoSubPaused && (
-                    <span className="text-primary font-semibold"> · Tap to execute</span>
-                  )}
-                </span>
-                <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
-                  {periodTag(nextSub!.quarter)}
-                  {nextSub!.time === 0 ? " start" : ` ${formatTime(nextSub!.time)}`}
-                </Badge>
-              </div>
-              <div className="space-y-1.5">
-                {nextBatchSubs.map((sub, idx) => (
-                  <div key={idx}>
-                    {nextBatchSubs.length > 1 && (
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-0.5">
-                        Sub {idx + 1} · {sub.position}
-                      </div>
-                    )}
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-1.5 text-base">
-                        <span className="text-[10px] uppercase font-bold text-destructive w-7 shrink-0">
-                          OUT
-                        </span>
-                        <span className="text-destructive font-semibold truncate">
-                          {sub.playerOut.number ? `#${sub.playerOut.number} ` : ""}
-                          {sub.playerOut.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-base">
-                        <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 w-7 shrink-0">
-                          IN
-                        </span>
-                        <span className="text-green-600 dark:text-green-400 font-semibold truncate">
-                          {sub.playerIn.number ? `#${sub.playerIn.number} ` : ""}
-                          {sub.playerIn.name}
-                        </span>
+            previewMode ? (
+              // Pre-game: read-only "First sub" preview card. No tap handler.
+              <div className="w-full rounded-xl border border-primary/30 bg-primary/5 p-4 text-left">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                    First Sub
+                  </span>
+                  <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
+                    {periodTag(nextSub!.quarter)}
+                    {nextSub!.time === 0 ? " start" : ` ${formatTime(nextSub!.time)}`}
+                  </Badge>
+                </div>
+                <div className="space-y-1.5">
+                  {nextBatchSubs.map((sub, idx) => (
+                    <div key={idx}>
+                      {nextBatchSubs.length > 1 && (
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-0.5">
+                          Sub {idx + 1} · {sub.position}
+                        </div>
+                      )}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5 text-base">
+                          <span className="text-[10px] uppercase font-bold text-destructive w-7 shrink-0">OUT</span>
+                          <span className="text-destructive font-semibold truncate">
+                            {sub.playerOut.number ? `#${sub.playerOut.number} ` : ""}
+                            {sub.playerOut.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-base">
+                          <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 w-7 shrink-0">IN</span>
+                          <span className="text-green-600 dark:text-green-400 font-semibold truncate">
+                            {sub.playerIn.number ? `#${sub.playerIn.number} ` : ""}
+                            {sub.playerIn.name}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </button>
+            ) : (
+              <button
+                type="button"
+                className={cn(
+                  "w-full rounded-xl border p-4 text-left transition-all",
+                  autoSubPaused
+                    ? "border-muted bg-muted/30 opacity-60"
+                    : "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/15"
+                )}
+                onClick={!autoSubPaused ? onExecuteNow : undefined}
+                disabled={autoSubPaused}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                    {nextBatchSubs.length > 1 ? `Next ${nextBatchSubs.length} Subs` : "Next Sub"}
+                    {!autoSubPaused && (
+                      <span className="text-primary font-semibold"> · Tap to execute</span>
+                    )}
+                  </span>
+                  <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
+                    {periodTag(nextSub!.quarter)}
+                    {nextSub!.time === 0 ? " start" : ` ${formatTime(nextSub!.time)}`}
+                  </Badge>
+                </div>
+                <div className="space-y-1.5">
+                  {nextBatchSubs.map((sub, idx) => (
+                    <div key={idx}>
+                      {nextBatchSubs.length > 1 && (
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-0.5">
+                          Sub {idx + 1} · {sub.position}
+                        </div>
+                      )}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5 text-base">
+                          <span className="text-[10px] uppercase font-bold text-destructive w-7 shrink-0">
+                            OUT
+                          </span>
+                          <span className="text-destructive font-semibold truncate">
+                            {sub.playerOut.number ? `#${sub.playerOut.number} ` : ""}
+                            {sub.playerOut.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-base">
+                          <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 w-7 shrink-0">
+                            IN
+                          </span>
+                          <span className="text-green-600 dark:text-green-400 font-semibold truncate">
+                            {sub.playerIn.number ? `#${sub.playerIn.number} ` : ""}
+                            {sub.playerIn.name}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </button>
+            )
           ) : (
             <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
               No upcoming auto-subs
             </div>
           )}
 
-          {/* Pause / Skip */}
-          {remainingSubs.length > 0 && (
+          {/* Pause / Skip — live-game only */}
+          {!previewMode && remainingSubs.length > 0 && (
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant={autoSubPaused ? "default" : "outline"}
@@ -240,21 +290,23 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </div>
           )}
 
-          {/* Lock Players */}
-          <div className="grid grid-cols-1 gap-2">
-            {remainingSubs.length > 0 && (
-              <Button
-                variant="outline"
-                className={cn("h-11 gap-2", showLockPanel && "bg-accent")}
-                onClick={() => setShowLockPanel((p) => !p)}
-              >
-                <Lock className="h-4 w-4" />
-                Lock ({lockedPlayerIds.size})
-              </Button>
-            )}
-          </div>
+          {/* Lock Players — live-game only */}
+          {!previewMode && (
+            <div className="grid grid-cols-1 gap-2">
+              {remainingSubs.length > 0 && (
+                <Button
+                  variant="outline"
+                  className={cn("h-11 gap-2", showLockPanel && "bg-accent")}
+                  onClick={() => setShowLockPanel((p) => !p)}
+                >
+                  <Lock className="h-4 w-4" />
+                  Lock ({lockedPlayerIds.size})
+                </Button>
+              )}
+            </div>
+          )}
 
-          {showLockPanel && (
+          {!previewMode && showLockPanel && (
             <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
               <p className="text-xs text-muted-foreground font-medium">
                 Locked players won't be subbed off automatically
@@ -283,25 +335,27 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </div>
           )}
 
-          {/* Tertiary: Regenerate / Edit / Timeline */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              className="h-11 gap-2"
-              onClick={onRegeneratePlan}
-            >
-              <RefreshCcw className="h-4 w-4" />
-              Regenerate
-            </Button>
-            <Button
-              variant="outline"
-              className={cn("h-11 gap-2", showTimeline && "bg-accent")}
-              onClick={() => setShowTimeline((p) => !p)}
-            >
-              {showTimeline ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              Timeline ({executedSubs.length}/{autoSubPlan.length})
-            </Button>
-          </div>
+          {/* Tertiary actions — Regenerate is live-game only; Timeline toggle hidden in preview (always shown). */}
+          {!previewMode && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="h-11 gap-2"
+                onClick={onRegeneratePlan}
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Regenerate
+              </Button>
+              <Button
+                variant="outline"
+                className={cn("h-11 gap-2", showTimeline && "bg-accent")}
+                onClick={() => setShowTimeline((p) => !p)}
+              >
+                {showTimeline ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                Timeline ({executedSubs.length}/{autoSubPlan.length})
+              </Button>
+            </div>
+          )}
 
           {onEditPlan && (
             <Button
@@ -317,9 +371,14 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </Button>
           )}
 
-          {/* Timeline */}
+          {/* Timeline — always visible in preview mode (the only thing that matters pre-game) */}
           {showTimeline && (
             <div className="rounded-xl border border-border overflow-hidden">
+              {previewMode && (
+                <div className="px-3 py-2 bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Full rotation plan · {autoSubPlan.length} subs
+                </div>
+              )}
               <div>
                 <div className="divide-y divide-border">
                   {periodsToShow.map((q) => {
@@ -466,18 +525,20 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </div>
           )}
 
-          {/* Cancel Plan */}
-          <Button
-            variant="ghost"
-            className="w-full h-11 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              onCancelPlan();
-              onClose();
-            }}
-          >
-            <X className="h-4 w-4 mr-1.5" />
-            Cancel Plan
-          </Button>
+          {/* Cancel Plan — live-game only */}
+          {!previewMode && (
+            <Button
+              variant="ghost"
+              className="w-full h-11 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                onCancelPlan();
+                onClose();
+              }}
+            >
+              <X className="h-4 w-4 mr-1.5" />
+              Cancel Plan
+            </Button>
+          )}
         </div>
       </div>
     </div>
