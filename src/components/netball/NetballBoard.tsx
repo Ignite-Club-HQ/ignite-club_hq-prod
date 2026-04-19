@@ -11,6 +11,7 @@ import NetballQuarterTimer from "./NetballQuarterTimer";
 import NetballActionBar from "./NetballActionBar";
 import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
+import SubModeBanner from "./SubModeBanner";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import CentrePassIndicator from "@/components/scoreboard/CentrePassIndicator";
@@ -602,10 +603,19 @@ export default function NetballBoard({
     [players, validationMode, toast, appendSubLog]
   );
 
+  const selectedPlayer = useMemo(
+    () => (selectedPlayerId ? players.find((p) => p.id === selectedPlayerId) ?? null : null),
+    [selectedPlayerId, players]
+  );
+
+  // TAP = start a sub directly. Long-press opens the quick action sheet.
+  // This mirrors the soccer pitch board: one tap to "pick up" a player, a
+  // second tap on a target completes the swap. Avoids the previous extra
+  // sheet step that confused new users.
   const handlePlayerClick = useCallback(
     (playerId: string) => {
       if (readOnly) return;
-      // Swap-mode active → second tap completes the swap.
+      // Sub-mode active → second tap completes the swap.
       if (selectedPlayerId) {
         if (selectedPlayerId === playerId) {
           setSelectedPlayerId(null);
@@ -615,9 +625,22 @@ export default function NetballBoard({
         setSelectedPlayerId(null);
         return;
       }
-      setQuickActionPlayerId(playerId);
+      // First tap: enter sub-mode immediately.
+      setSelectedPlayerId(playerId);
+      hapticSelectionTick();
     },
     [selectedPlayerId, performSwap, readOnly]
+  );
+
+  const handlePlayerLongPress = useCallback(
+    (playerId: string) => {
+      if (readOnly) return;
+      // Long-press always opens the action sheet (score, mark injured, etc.)
+      // — clear any in-progress swap first so the user isn't fighting state.
+      setSelectedPlayerId(null);
+      setQuickActionPlayerId(playerId);
+    },
+    [readOnly]
   );
 
   const handleSlotClick = useCallback(
@@ -1285,12 +1308,22 @@ export default function NetballBoard({
         </div>
       )}
 
+      {/* Sub-mode banner: persistent affordance so coaches always know who
+          they've picked up and how to back out. Soccer-pitch-board parity. */}
+      {!readOnly && selectedPlayer && (
+        <SubModeBanner
+          selectedPlayer={selectedPlayer}
+          onCancel={() => setSelectedPlayerId(null)}
+        />
+      )}
+
       <NetballCourtArea
         players={players}
         selectedPlayerId={selectedPlayerId}
         nextSubOutId={nextSub?.playerOut.id ?? null}
         readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
+        onPlayerLongPress={handlePlayerLongPress}
         onSlotClick={handleSlotClick}
       />
 
@@ -1298,8 +1331,10 @@ export default function NetballBoard({
         bench={bench}
         selectedPlayerId={selectedPlayerId}
         nextSubInId={nextSub?.playerIn.id ?? null}
+        selectedIsOnCourt={selectedPlayer?.position != null}
         readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
+        onPlayerLongPress={handlePlayerLongPress}
       />
 
       {!readOnly && (canUndoSub || (timerState.scoreLog?.length ?? 0) > 0) && (

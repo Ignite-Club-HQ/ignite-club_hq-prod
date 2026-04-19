@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NetballPlayer, NetballPosition, POSITION_COLORS } from "./types";
@@ -15,6 +15,8 @@ interface NetballPlayerTokenProps {
   isDragging?: boolean;
   isNextSub?: boolean;
   onClick?: () => void;
+  /** Long-press (~500ms) opens the quick action sheet. Tap = direct sub-mode. */
+  onLongPress?: () => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
   onTouchStart?: (e: React.TouchEvent) => void;
@@ -32,6 +34,7 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
   isDragging = false,
   isNextSub = false,
   onClick,
+  onLongPress,
   onDragStart,
   onDragEnd,
   onTouchStart,
@@ -54,11 +57,59 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
       ? Math.max(0, Math.floor((now - player.lastBenchedAt) / 1000))
       : 0;
 
+  // Long-press detection — 500ms hold opens the quick action sheet without
+  // hijacking the tap-to-swap flow. We bail if the pointer moves >8px
+  // (treat as a drag start) or lifts before the timer fires.
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const clearLongPress = () => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (readOnly || !onLongPress) return;
+    longPressFiredRef.current = false;
+    pressStartRef.current = { x: e.clientX, y: e.clientY };
+    clearLongPress();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      onLongPress();
+    }, 500);
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!pressStartRef.current) return;
+    const dx = e.clientX - pressStartRef.current.x;
+    const dy = e.clientY - pressStartRef.current.y;
+    if (dx * dx + dy * dy > 64) clearLongPress();
+  };
+  const handlePointerUp = () => clearLongPress();
+  const handleClick = () => {
+    // Suppress the synthetic click that follows a long-press release so we
+    // don't fire both the menu AND the sub-mode toggle.
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    onClick?.();
+  };
+
+  const showOffBadge = isSelected && variant === "court";
+  const showOnBadge = isSwapTarget && !isInvalidTarget;
+
   return (
     <button
       type="button"
       draggable={!readOnly}
-      onClick={onClick}
+      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onContextMenu={(e) => e.preventDefault()}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onTouchStart={onTouchStart}
@@ -68,13 +119,23 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
         "relative flex flex-col items-center gap-1 transition-all touch-manipulation select-none",
         variant === "court" ? "w-14" : "w-12",
         isDragging && "opacity-40 scale-90",
-        isSelected && "scale-110 z-20",
-        isSwapTarget && "ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
-        isInvalidTarget && "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full",
-        isNextSub && "animate-pulse",
+        isSelected && "scale-110 z-20 drop-shadow-[0_0_8px_hsl(var(--primary)/0.6)]",
+        isSwapTarget && !isInvalidTarget && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background rounded-full animate-pulse",
+        isInvalidTarget && "opacity-50",
+        isNextSub && !isSelected && !isSwapTarget && "animate-pulse",
         readOnly && "pointer-events-none"
       )}
     >
+      {showOffBadge && (
+        <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 bg-primary text-primary-foreground text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-md">
+          OFF
+        </span>
+      )}
+      {showOnBadge && (
+        <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 bg-emerald-500 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-md animate-pulse">
+          ON
+        </span>
+      )}
       {player.isInjured && (
         <span className="absolute -top-1 -right-1 z-10 bg-destructive text-destructive-foreground rounded-full p-0.5">
           <AlertTriangle className="h-3 w-3" />
