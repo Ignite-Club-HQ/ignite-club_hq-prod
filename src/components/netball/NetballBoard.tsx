@@ -1263,7 +1263,7 @@ export default function NetballBoard({
         generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
       );
     } else if (rotationMode === "quarter-break") {
-      setAutoSubPlan(generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters"));
+      setAutoSubPlan(generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters", timerState.minutesPerQuarter));
     }
     // Plan changed → coach must review again before kickoff.
     setHasReviewedAutoSubs(false);
@@ -1325,7 +1325,7 @@ export default function NetballBoard({
     const fresh =
       rotationMode === "time-based"
         ? generateTimeBasedRotationPlan(players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType ?? "quarters")
-        : generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters");
+        : generateQuarterBreakRotationPlan(players, 2, timerState.periodType ?? "quarters", timerState.minutesPerQuarter);
     // Preserve BOTH executed AND skipped history so a regen never resurrects
     // a sub the coach already actioned (audit fix N7).
     const history = autoSubPlan.filter((s) => s.executed || s.skipped);
