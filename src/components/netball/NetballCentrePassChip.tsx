@@ -63,36 +63,5 @@ const NetballCentrePassChip = memo(function NetballCentrePassChip({
   );
 });
 
-function SideButton({
-  label,
-  active,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      className={cn(
-        "px-2 h-5 rounded-full text-[10px] font-semibold leading-none uppercase tracking-tight max-w-[5.5rem] truncate transition-colors",
-        active
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
-        disabled && "opacity-60 cursor-not-allowed",
-      )}
-    >
-      {label}
-    </button>
-  );
-}
 
 export default NetballCentrePassChip;
