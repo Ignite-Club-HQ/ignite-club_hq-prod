@@ -104,6 +104,7 @@ export default function NetballPreGameScreen({
   onRotationIntervalChange,
   onPreviewPlan,
   hasAutoSubPlan = false,
+  autoSubPlan = [],
   validationMode = "warn",
   onOpenSettings,
   onOpenSquad,
