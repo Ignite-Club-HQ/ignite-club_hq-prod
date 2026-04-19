@@ -31,6 +31,10 @@ import { format, parseISO, isToday, isYesterday, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 import { jumpToMessageInChat } from "@/lib/jumpToMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
@@ -140,6 +144,10 @@ export default function TeamChatPage() {
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = teamId
+    ? { chat_type: "team", team_id: teamId }
+    : null;
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1482,6 +1490,7 @@ export default function TeamChatPage() {
             disabled={sendMessageMutation.isPending}
           />
         )}
+        {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible pt-1 pb-2 px-2">
           <ChatImageInput
             imageUrl={imageUrl}
@@ -1510,6 +1519,12 @@ export default function TeamChatPage() {
             teamId={teamId}
             clubId={team.club_id}
           />
+          {scheduleTarget && (
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMessageMutation.isPending}
+            />
+          )}
           <button
             onClick={() => {
               stopTyping();
@@ -1525,6 +1540,20 @@ export default function TeamChatPage() {
             )}
           </button>
         </div>
+        {scheduleTarget && (
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            initialImageUrl={imageUrl}
+            onScheduled={() => {
+              setMessage("");
+              setImageUrl(null);
+              clearDraft?.();
+            }}
+          />
+        )}
         <EventPickerSheet
           open={eventPickerOpen}
           onOpenChange={setEventPickerOpen}

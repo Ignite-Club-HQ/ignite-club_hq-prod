@@ -45,6 +45,10 @@ import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 import { jumpToMessageInChat } from "@/lib/jumpToMessage";
 
@@ -178,6 +182,10 @@ export default function GroupChatPage() {
   const authReady = !!user && initialized;
   const [message, setMessage, clearDraft] = useChatDraft(groupId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = groupId
+    ? { chat_type: "group", group_id: groupId }
+    : null;
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
@@ -1730,6 +1738,7 @@ export default function GroupChatPage() {
             disabled={sendMessageMutation.isPending}
           />
         )}
+        {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
           <ChatImageInput 
             onImageUploaded={setImageUrl} 
@@ -1761,6 +1770,12 @@ export default function GroupChatPage() {
             clubId={group?.club_id || undefined}
             disabled={sendMessageMutation.isPending}
           />
+          {scheduleTarget && (
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMessageMutation.isPending}
+            />
+          )}
           <button 
             onClick={() => {
               stopTyping();
@@ -1772,6 +1787,20 @@ export default function GroupChatPage() {
             <Send className="h-5 w-5" />
           </button>
         </div>
+        {scheduleTarget && (
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            initialImageUrl={imageUrl}
+            onScheduled={() => {
+              setMessage("");
+              setImageUrl(null);
+              clearDraft?.();
+            }}
+          />
+        )}
         <EventPickerSheet
           open={eventPickerOpen}
           onOpenChange={setEventPickerOpen}

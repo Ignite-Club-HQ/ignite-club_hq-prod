@@ -28,6 +28,10 @@ import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
@@ -94,6 +98,8 @@ export default function BroadcastChatPage() {
   const [searchParams] = useSearchParams();
   const [message, setMessage, clearDraft] = useChatDraft("broadcast");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget = { chat_type: "broadcast" };
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
@@ -1064,6 +1070,7 @@ export default function BroadcastChatPage() {
               disabled={sendMutation.isPending}
             />
           )}
+          <ScheduledMessagesBanner target={scheduleTarget} />
           <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
             <ChatImageInput
               imageUrl={imageUrl}
@@ -1084,6 +1091,10 @@ export default function BroadcastChatPage() {
               onKeyPress={handleKeyPress}
               disabled={sendMutation.isPending}
             />
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMutation.isPending}
+            />
             <button
               onClick={() => {
                 stopTyping();
@@ -1099,6 +1110,18 @@ export default function BroadcastChatPage() {
               )}
             </button>
           </div>
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            initialImageUrl={imageUrl}
+            onScheduled={() => {
+              setMessage("");
+              setImageUrl(null);
+              clearDraft?.();
+            }}
+          />
           <CreatePollDialog
             open={pollDialogOpen}
             onOpenChange={setPollDialogOpen}

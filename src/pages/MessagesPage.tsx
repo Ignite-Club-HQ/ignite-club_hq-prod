@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus, Filter, Check, Building2 } from "lucide-react";
+import { MessageCircle, ChevronRight, Users, Trash2, Search, BellOff, ImageIcon, Crown, Lock, RefreshCw, Flame, Plus, Filter, Check, Building2, Clock } from "lucide-react";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useNavigate } from "react-router-dom";
@@ -1658,6 +1658,16 @@ export default function MessagesPage() {
               )}
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/scheduled-messages")}
+            className="h-10 w-10"
+            aria-label="Scheduled messages"
+            title="Scheduled messages"
+          >
+            <Clock className="h-5 w-5" />
+          </Button>
           <NewMessageMenu 
             onNewDM={() => setShowDMDialog(true)}
             onNewGroup={() => setShowGroupDialog(true)}

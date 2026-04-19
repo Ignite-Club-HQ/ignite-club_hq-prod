@@ -21,6 +21,10 @@ import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -70,6 +74,10 @@ export default function ClubAdminChatPage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = conversationId
+    ? { chat_type: "club_admin", conversation_id: conversationId }
+    : null;
   const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -705,6 +713,7 @@ export default function ClubAdminChatPage() {
             disabled={sendMessageMutation.isPending}
           />
         )}
+        {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
           <button
             type="button"
@@ -724,6 +733,12 @@ export default function ClubAdminChatPage() {
             placeholder="Type a message..."
             disabled={sendMessageMutation.isPending}
           />
+          {scheduleTarget && (
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMessageMutation.isPending}
+            />
+          )}
           <button
             onClick={handleSend}
             disabled={(!message.trim() && !pendingPollId) || sendMessageMutation.isPending}
@@ -736,6 +751,18 @@ export default function ClubAdminChatPage() {
             )}
           </button>
         </div>
+        {scheduleTarget && (
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            onScheduled={() => {
+              setMessage("");
+              clearDraft?.();
+            }}
+          />
+        )}
         {conversationId && (
           <CreatePollDialog
             open={pollDialogOpen}

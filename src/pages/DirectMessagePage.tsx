@@ -23,6 +23,10 @@ import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
@@ -168,6 +172,10 @@ export default function DirectMessagePage() {
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = conversationId
+    ? { chat_type: "direct", conversation_id: conversationId }
+    : null;
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -1177,30 +1185,48 @@ export default function DirectMessagePage() {
                />
              )}
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
-               <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
-               <MentionInput
-                 value={message}
-                 onChange={(val) => {
-                   setMessage(val);
-                   if (val.trim()) startTyping(); else stopTyping();
-                 }}
-                 onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                 placeholder="Type a message..."
-                 disabled={sendMessageMutation.isPending}
-               />
-               
-               <button 
-                 onClick={handleSend} 
-                 disabled={!message.trim() || sendMessageMutation.isPending}
-                 className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
-               >
-                 {sendMessageMutation.isPending ? (
-                   <Loader2 className="h-5 w-5 animate-spin" />
-                 ) : (
-                   <Send className="h-5 w-5" />
-                 )}
-               </button>
-             </div>
+              {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
+                <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
+                <MentionInput
+                  value={message}
+                  onChange={(val) => {
+                    setMessage(val);
+                    if (val.trim()) startTyping(); else stopTyping();
+                  }}
+                  onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                  placeholder="Type a message..."
+                  disabled={sendMessageMutation.isPending}
+                />
+                {scheduleTarget && (
+                  <ScheduleMessageButton
+                    onClick={() => setScheduleDialogOpen(true)}
+                    disabled={sendMessageMutation.isPending}
+                  />
+                )}
+                <button 
+                  onClick={handleSend} 
+                  disabled={!message.trim() || sendMessageMutation.isPending}
+                  className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
+                >
+                  {sendMessageMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              {scheduleTarget && (
+                <ScheduleMessageDialog
+                  open={scheduleDialogOpen}
+                  onOpenChange={setScheduleDialogOpen}
+                  target={scheduleTarget}
+                  initialText={message}
+                  onScheduled={() => {
+                    setMessage("");
+                    clearDraft?.();
+                  }}
+                />
+              )}
            </div>
         </>
       )}
