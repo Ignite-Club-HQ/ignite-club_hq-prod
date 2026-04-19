@@ -267,8 +267,8 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </div>
           )}
 
-          {/* Pause / Skip */}
-          {remainingSubs.length > 0 && (
+          {/* Pause / Skip — live-game only */}
+          {!previewMode && remainingSubs.length > 0 && (
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant={autoSubPaused ? "default" : "outline"}
@@ -290,21 +290,23 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </div>
           )}
 
-          {/* Lock Players */}
-          <div className="grid grid-cols-1 gap-2">
-            {remainingSubs.length > 0 && (
-              <Button
-                variant="outline"
-                className={cn("h-11 gap-2", showLockPanel && "bg-accent")}
-                onClick={() => setShowLockPanel((p) => !p)}
-              >
-                <Lock className="h-4 w-4" />
-                Lock ({lockedPlayerIds.size})
-              </Button>
-            )}
-          </div>
+          {/* Lock Players — live-game only */}
+          {!previewMode && (
+            <div className="grid grid-cols-1 gap-2">
+              {remainingSubs.length > 0 && (
+                <Button
+                  variant="outline"
+                  className={cn("h-11 gap-2", showLockPanel && "bg-accent")}
+                  onClick={() => setShowLockPanel((p) => !p)}
+                >
+                  <Lock className="h-4 w-4" />
+                  Lock ({lockedPlayerIds.size})
+                </Button>
+              )}
+            </div>
+          )}
 
-          {showLockPanel && (
+          {!previewMode && showLockPanel && (
             <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
               <p className="text-xs text-muted-foreground font-medium">
                 Locked players won't be subbed off automatically
@@ -333,25 +335,27 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </div>
           )}
 
-          {/* Tertiary: Regenerate / Edit / Timeline */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              className="h-11 gap-2"
-              onClick={onRegeneratePlan}
-            >
-              <RefreshCcw className="h-4 w-4" />
-              Regenerate
-            </Button>
-            <Button
-              variant="outline"
-              className={cn("h-11 gap-2", showTimeline && "bg-accent")}
-              onClick={() => setShowTimeline((p) => !p)}
-            >
-              {showTimeline ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              Timeline ({executedSubs.length}/{autoSubPlan.length})
-            </Button>
-          </div>
+          {/* Tertiary actions — Regenerate is live-game only; Timeline toggle hidden in preview (always shown). */}
+          {!previewMode && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                className="h-11 gap-2"
+                onClick={onRegeneratePlan}
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Regenerate
+              </Button>
+              <Button
+                variant="outline"
+                className={cn("h-11 gap-2", showTimeline && "bg-accent")}
+                onClick={() => setShowTimeline((p) => !p)}
+              >
+                {showTimeline ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                Timeline ({executedSubs.length}/{autoSubPlan.length})
+              </Button>
+            </div>
+          )}
 
           {onEditPlan && (
             <Button
