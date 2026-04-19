@@ -49,6 +49,7 @@ export default function BasketballPreGameScreen({
   periodType,
   rotationMode = "off",
   rotationIntervalMinutes = 4,
+  onToggleAutoSub,
   onOpenSettings,
   onOpenSquad,
   onOpenPresets,
@@ -62,13 +63,12 @@ export default function BasketballPreGameScreen({
   const periodLabel = periodType === "halves" ? "half" : "quarter";
   const periodCount = periodType === "halves" ? 2 : 4;
   const squadEmpty = players.length === 0;
-  const autoSubLabel =
-    rotationMode === "off"
-      ? "Manual"
-      : rotationMode === "time-based"
-      ? `${rotationIntervalMinutes}m rotation`
-      : "Period rotation";
   const autoSubActive = rotationMode !== "off";
+  const autoSubLabel = autoSubActive
+    ? rotationMode === "time-based"
+      ? `On · every ${rotationIntervalMinutes}m`
+      : "On · per period"
+    : "Off";
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
