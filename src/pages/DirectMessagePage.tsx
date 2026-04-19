@@ -744,7 +744,7 @@ export default function DirectMessagePage() {
   );
 
   const handleSend = () => {
-    if (!message.trim()) return;
+    if (!message.trim() && !dmImageUrl) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
@@ -758,10 +758,11 @@ export default function DirectMessagePage() {
     stopTyping();
     sendMessageMutation.mutate({
       text: message.trim(),
-      imageUrl: null,
+      imageUrl: dmImageUrl,
       replyToId: replyTo?.id || null,
     });
     setMessage("");
+    setDmImageUrl(null);
     setReplyTo(null);
   };
 
