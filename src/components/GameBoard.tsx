@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
-import { Loader2 } from "lucide-react";
 import { detectGameBoardKind, GameBoardKind } from "@/lib/sportDetection";
+import SportLoadingIndicator from "@/components/SportLoadingIndicator";
 
 /**
  * GameBoard dispatcher.
@@ -44,12 +44,6 @@ interface GameBoardProps {
     readOnly?: boolean;
   };
 }
-
-const Loading = () => (
-  <div className="flex-1 flex items-center justify-center min-h-[300px] bg-card">
-    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-  </div>
-);
 
 export default function GameBoard({
   sport,
