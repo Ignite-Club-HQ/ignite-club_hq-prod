@@ -14,6 +14,15 @@ interface SubModeBannerProps {
  */
 export default function SubModeBanner({ selectedPlayer, onCancel }: SubModeBannerProps) {
   const onCourt = selectedPlayer.position !== null;
+  // Court → court = position swap. Bench → court = substitution.
+  // The headline + helper text adapt so the coach instantly knows which
+  // flow they're in without having to read carefully.
+  const title = onCourt
+    ? `Swap ${selectedPlayer.name}`
+    : `Sub ON ${selectedPlayer.name}`;
+  const helper = onCourt
+    ? "Tap a court player to swap positions, or a bench player to sub off"
+    : "Tap a court player to swap them off";
   return (
     <div
       className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between gap-2 px-3 py-2 bg-primary/95 text-primary-foreground border-b border-primary-foreground/10 shadow-md backdrop-blur-md animate-fade-in"
@@ -24,17 +33,12 @@ export default function SubModeBanner({ selectedPlayer, onCancel }: SubModeBanne
         <ArrowLeftRight className="h-4 w-4 shrink-0 animate-pulse" />
         <div className="min-w-0">
           <p className="text-xs font-bold leading-tight truncate">
-            {onCourt ? "Subbing OFF: " : "Subbing ON: "}
-            {selectedPlayer.name}
+            {title}
             {selectedPlayer.position && (
               <span className="font-normal opacity-80"> · {selectedPlayer.position}</span>
             )}
           </p>
-          <p className="text-[10px] leading-tight opacity-90">
-            {onCourt
-              ? "Tap a bench player to swap"
-              : "Tap a court player to swap"}
-          </p>
+          <p className="text-[10px] leading-tight opacity-90">{helper}</p>
         </div>
       </div>
       <Button
