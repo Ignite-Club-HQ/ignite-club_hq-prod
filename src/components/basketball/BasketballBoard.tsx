@@ -28,6 +28,7 @@ const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPrese
 const FreeThrowDialog = lazy(() => import("./FreeThrowDialog"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 const QuarterAutoSubControlPanel = lazy(() => import("@/components/scoreboard/QuarterAutoSubControlPanel"));
+const BasketballScorerPickerSheet = lazy(() => import("./BasketballScorerPickerSheet"));
 
 
 interface BasketballBoardProps {
