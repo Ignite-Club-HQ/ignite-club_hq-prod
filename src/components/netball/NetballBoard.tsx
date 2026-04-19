@@ -1346,22 +1346,7 @@ export default function NetballBoard({
               trailingSlot={<SyncStatusIndicator />}
             />
 
-            {/* Pre-tipoff nudge — only before the very first whistle. */}
-            {!readOnly &&
-              timerState.currentQuarter === 1 &&
-              timerState.elapsedSeconds === 0 &&
-              !timerState.isRunning &&
-              !timerState.isGameFinished && (
-                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-1rem)] max-w-md">
-                  <PreTipoffHint
-                    required={7}
-                    currentOnCourt={getOnCourt(players).length}
-                    onOpenPlanner={() => setLineupPlannerOpen(true)}
-                    onOpenPresets={() => setPresetsOpen(true)}
-                    hasPresets={lineupPresets.length > 0}
-                  />
-                </div>
-              )}
+            {/* Pre-tipoff nudge replaced by full pre-game screen branch above. */}
 
             {/* Centre-pass chip — soft floating pill near the bottom. */}
             <div className="absolute bottom-1.5 left-2 z-20">
