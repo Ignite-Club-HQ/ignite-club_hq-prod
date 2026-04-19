@@ -371,9 +371,14 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </Button>
           )}
 
-          {/* Timeline */}
+          {/* Timeline — always visible in preview mode (the only thing that matters pre-game) */}
           {showTimeline && (
             <div className="rounded-xl border border-border overflow-hidden">
+              {previewMode && (
+                <div className="px-3 py-2 bg-muted/40 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Full rotation plan · {autoSubPlan.length} subs
+                </div>
+              )}
               <div>
                 <div className="divide-y divide-border">
                   {periodsToShow.map((q) => {
@@ -520,18 +525,20 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </div>
           )}
 
-          {/* Cancel Plan */}
-          <Button
-            variant="ghost"
-            className="w-full h-11 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              onCancelPlan();
-              onClose();
-            }}
-          >
-            <X className="h-4 w-4 mr-1.5" />
-            Cancel Plan
-          </Button>
+          {/* Cancel Plan — live-game only */}
+          {!previewMode && (
+            <Button
+              variant="ghost"
+              className="w-full h-11 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                onCancelPlan();
+                onClose();
+              }}
+            >
+              <X className="h-4 w-4 mr-1.5" />
+              Cancel Plan
+            </Button>
+          )}
         </div>
       </div>
     </div>
