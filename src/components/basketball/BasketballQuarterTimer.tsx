@@ -184,22 +184,23 @@ export default function BasketballQuarterTimer({
 
       {/* Primary play/pause + overflow */}
       {!readOnly && (
-        <div className={cn("flex items-center shrink-0", compact ? "gap-1.5 ml-1" : "gap-1")}>
+        <div className={cn("flex items-center shrink-0", compact ? "gap-3 ml-1" : "gap-2")}>
           <Button
             size="icon"
             variant={state.isRunning ? "secondary" : "default"}
             className={cn(
-              "rounded-full shadow-sm",
-              compact ? "h-8 w-8 min-h-0 min-w-0" : "h-8 w-8",
+              "rounded-full shadow-md",
+              // Larger tap target so play/pause is easy to hit mid-game.
+              compact ? "h-10 w-10 min-h-0 min-w-0" : "h-10 w-10",
             )}
             onClick={toggle}
             disabled={state.isGameFinished}
             aria-label={state.isRunning ? "Pause" : "Start"}
           >
             {state.isRunning ? (
-              <Pause className={compact ? "h-4 w-4" : "h-4 w-4"} />
+              <Pause className="h-5 w-5" />
             ) : (
-              <Play className={cn(compact ? "h-4 w-4" : "h-4 w-4", "ml-0.5")} />
+              <Play className="h-5 w-5 ml-0.5" />
             )}
           </Button>
           <DropdownMenu>
@@ -207,10 +208,10 @@ export default function BasketballQuarterTimer({
               <Button
                 size="icon"
                 variant="ghost"
-                className={cn(compact ? "h-7 w-7 min-h-0 min-w-0" : "h-7 w-7")}
+                className={cn(compact ? "h-8 w-8 min-h-0 min-w-0" : "h-8 w-8")}
                 aria-label="More timer options"
               >
-                <MoreVertical className={compact ? "h-4 w-4" : "h-4 w-4"} />
+                <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="z-[100000]">
