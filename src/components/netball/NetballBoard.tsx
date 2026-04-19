@@ -1503,21 +1503,31 @@ export default function NetballBoard({
             setRotationIntervalMinutes(n);
             persistDefaults({ court_rotation_interval_minutes: n });
           }}
-          onPreviewPlan={() => setAutoSubPanelOpen(true)}
+          onPreviewPlan={() => {
+            setHasReviewedAutoSubs(true);
+            setAutoSubPanelPreview(true);
+            setAutoSubPanelOpen(true);
+          }}
           hasAutoSubPlan={autoSubPlan.some((s) => !s.executed && !s.skipped)}
+          autoSubPlan={autoSubPlan}
           validationMode={validationMode}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenSquad={() => setRosterOpen(true)}
           onOpenPresets={() => setPresetsOpen(true)}
           onOpenLineups={() => setLineupPlannerOpen(true)}
           hasPresets={lineupPresets.length > 0}
-          onStartGame={() =>
+          onStartGame={() => {
+            const hasPending = autoSubPlan.some((s) => !s.executed && !s.skipped);
+            if (rotationMode !== "off" && hasPending && !hasReviewedAutoSubs) {
+              setKickoffConfirmOpen(true);
+              return;
+            }
             setTimerState((s) => ({
               ...s,
               isRunning: true,
               lastUpdateTime: Date.now(),
-            }))
-          }
+            }));
+          }}
           onBack={onClose}
           readOnly={readOnly}
         />
