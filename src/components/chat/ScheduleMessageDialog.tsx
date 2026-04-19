@@ -91,6 +91,7 @@ export function ScheduleMessageDialog({
   const defaultDate = roundToNext5Min(addHours(new Date(), 0.1));
   const [date, setDate] = useState<Date>(defaultDate);
   const [timeStr, setTimeStr] = useState<string>(format(defaultDate, "HH:mm"));
+  const [activePreset, setActivePreset] = useState<string | null>(null);
 
   // Reset state whenever the dialog opens (or target/editingRow changes)
   useEffect(() => {
@@ -114,6 +115,7 @@ export function ScheduleMessageDialog({
       setRecurrence("none");
       setRecurrenceUntil(null);
     }
+    setActivePreset(null);
   }, [open, editingRow, initialText, initialImageUrl]);
 
   const buildScheduledDate = (): Date | null => {
@@ -130,10 +132,11 @@ export function ScheduleMessageDialog({
   const hasContent = text.trim().length > 0 || !!imageUrl;
   const canSave = hasContent && isInFuture && !isSaving;
 
-  const applyPreset = (preset: () => Date) => {
+  const applyPreset = (label: string, preset: () => Date) => {
     const d = roundToNext5Min(preset());
     setDate(d);
     setTimeStr(format(d, "HH:mm"));
+    setActivePreset(label);
   };
 
   const handleSave = async () => {
@@ -254,17 +257,21 @@ export function ScheduleMessageDialog({
           )}
 
           <div className="flex flex-wrap gap-2">
-            {QUICK_PRESETS.map((p) => (
-              <Button
-                key={p.label}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => applyPreset(p.build)}
-              >
-                {p.label}
-              </Button>
-            ))}
+            {QUICK_PRESETS.map((p) => {
+              const isActive = activePreset === p.label;
+              return (
+                <Button
+                  key={p.label}
+                  type="button"
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => applyPreset(p.label, p.build)}
+                  className={cn(isActive && "ring-2 ring-primary ring-offset-1 ring-offset-background")}
+                >
+                  {p.label}
+                </Button>
+              );
+            })}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -284,7 +291,7 @@ export function ScheduleMessageDialog({
                   <Calendar
                     mode="single"
                     selected={date}
-                    onSelect={(d) => d && setDate(d)}
+                    onSelect={(d) => { if (d) { setDate(d); setActivePreset(null); } }}
                     disabled={(d) => {
                       const today = new Date();
                       today.setHours(0, 0, 0, 0);
@@ -305,7 +312,7 @@ export function ScheduleMessageDialog({
                   id="schedule-time"
                   type="time"
                   value={timeStr}
-                  onChange={(e) => setTimeStr(e.target.value)}
+                  onChange={(e) => { setTimeStr(e.target.value); setActivePreset(null); }}
                   className="pl-9"
                 />
               </div>
