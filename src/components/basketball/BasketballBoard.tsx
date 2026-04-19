@@ -459,6 +459,12 @@ export default function BasketballBoard({
                   onReset={board.resetPlayerStats}
                   readOnly={readOnly}
                   compact
+                  onOpenAutoSubPlan={
+                    !readOnly && board.rotationMode !== "off"
+                      ? () => setAutoSubPanelOpen(true)
+                      : undefined
+                  }
+                  hasAutoSubPlan={board.autoSubPlan.length > 0}
                 />
               }
               position={hudPosition}
