@@ -155,7 +155,7 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
           {/* Header */}
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Auto Substitutions
+              {previewMode ? "Sub Plan Preview" : "Auto Substitutions"}
             </h3>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -164,61 +164,103 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
 
           {/* Next Sub Card */}
           {nextBatchSubs.length > 0 ? (
-            <button
-              type="button"
-              className={cn(
-                "w-full rounded-xl border p-4 text-left transition-all",
-                autoSubPaused
-                  ? "border-muted bg-muted/30 opacity-60"
-                  : "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/15"
-              )}
-              onClick={!autoSubPaused ? onExecuteNow : undefined}
-              disabled={autoSubPaused}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
-                  {nextBatchSubs.length > 1 ? `Next ${nextBatchSubs.length} Subs` : "Next Sub"}
-                  {!autoSubPaused && (
-                    <span className="text-primary font-semibold"> · Tap to execute</span>
-                  )}
-                </span>
-                <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
-                  {periodTag(nextSub!.quarter)}
-                  {nextSub!.time === 0 ? " start" : ` ${formatTime(nextSub!.time)}`}
-                </Badge>
-              </div>
-              <div className="space-y-1.5">
-                {nextBatchSubs.map((sub, idx) => (
-                  <div key={idx}>
-                    {nextBatchSubs.length > 1 && (
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-0.5">
-                        Sub {idx + 1} · {sub.position}
-                      </div>
-                    )}
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-1.5 text-base">
-                        <span className="text-[10px] uppercase font-bold text-destructive w-7 shrink-0">
-                          OUT
-                        </span>
-                        <span className="text-destructive font-semibold truncate">
-                          {sub.playerOut.number ? `#${sub.playerOut.number} ` : ""}
-                          {sub.playerOut.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-base">
-                        <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 w-7 shrink-0">
-                          IN
-                        </span>
-                        <span className="text-green-600 dark:text-green-400 font-semibold truncate">
-                          {sub.playerIn.number ? `#${sub.playerIn.number} ` : ""}
-                          {sub.playerIn.name}
-                        </span>
+            previewMode ? (
+              // Pre-game: read-only "First sub" preview card. No tap handler.
+              <div className="w-full rounded-xl border border-primary/30 bg-primary/5 p-4 text-left">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                    First Sub
+                  </span>
+                  <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
+                    {periodTag(nextSub!.quarter)}
+                    {nextSub!.time === 0 ? " start" : ` ${formatTime(nextSub!.time)}`}
+                  </Badge>
+                </div>
+                <div className="space-y-1.5">
+                  {nextBatchSubs.map((sub, idx) => (
+                    <div key={idx}>
+                      {nextBatchSubs.length > 1 && (
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-0.5">
+                          Sub {idx + 1} · {sub.position}
+                        </div>
+                      )}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5 text-base">
+                          <span className="text-[10px] uppercase font-bold text-destructive w-7 shrink-0">OUT</span>
+                          <span className="text-destructive font-semibold truncate">
+                            {sub.playerOut.number ? `#${sub.playerOut.number} ` : ""}
+                            {sub.playerOut.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-base">
+                          <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 w-7 shrink-0">IN</span>
+                          <span className="text-green-600 dark:text-green-400 font-semibold truncate">
+                            {sub.playerIn.number ? `#${sub.playerIn.number} ` : ""}
+                            {sub.playerIn.name}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </button>
+            ) : (
+              <button
+                type="button"
+                className={cn(
+                  "w-full rounded-xl border p-4 text-left transition-all",
+                  autoSubPaused
+                    ? "border-muted bg-muted/30 opacity-60"
+                    : "border-primary/30 bg-primary/5 hover:bg-primary/10 active:bg-primary/15"
+                )}
+                onClick={!autoSubPaused ? onExecuteNow : undefined}
+                disabled={autoSubPaused}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                    {nextBatchSubs.length > 1 ? `Next ${nextBatchSubs.length} Subs` : "Next Sub"}
+                    {!autoSubPaused && (
+                      <span className="text-primary font-semibold"> · Tap to execute</span>
+                    )}
+                  </span>
+                  <Badge variant="secondary" className="font-mono text-xs h-6 px-2">
+                    {periodTag(nextSub!.quarter)}
+                    {nextSub!.time === 0 ? " start" : ` ${formatTime(nextSub!.time)}`}
+                  </Badge>
+                </div>
+                <div className="space-y-1.5">
+                  {nextBatchSubs.map((sub, idx) => (
+                    <div key={idx}>
+                      {nextBatchSubs.length > 1 && (
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-0.5">
+                          Sub {idx + 1} · {sub.position}
+                        </div>
+                      )}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5 text-base">
+                          <span className="text-[10px] uppercase font-bold text-destructive w-7 shrink-0">
+                            OUT
+                          </span>
+                          <span className="text-destructive font-semibold truncate">
+                            {sub.playerOut.number ? `#${sub.playerOut.number} ` : ""}
+                            {sub.playerOut.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-base">
+                          <span className="text-[10px] uppercase font-bold text-green-600 dark:text-green-400 w-7 shrink-0">
+                            IN
+                          </span>
+                          <span className="text-green-600 dark:text-green-400 font-semibold truncate">
+                            {sub.playerIn.number ? `#${sub.playerIn.number} ` : ""}
+                            {sub.playerIn.name}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </button>
+            )
           ) : (
             <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
               No upcoming auto-subs
