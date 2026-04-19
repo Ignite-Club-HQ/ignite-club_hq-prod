@@ -56,6 +56,8 @@ interface NetballPreGameScreenProps {
   onRotationIntervalChange?: (n: number) => void;
   onPreviewPlan?: () => void;
   hasAutoSubPlan?: boolean;
+  /** Full plan — drives the inline preview card and the Rotation tab. */
+  autoSubPlan?: NetballSubEvent[];
 
   validationMode?: ValidationMode;
 
