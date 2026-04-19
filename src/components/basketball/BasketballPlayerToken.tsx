@@ -141,13 +141,10 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         isDimmed && !isSelected && !isSwapTarget && "opacity-40",
         isRecentlySwapped && "drop-shadow-[0_0_16px_hsl(var(--primary)/0.85)] animate-fade-in",
         // "Suggested sub off" — clear amber/orange ring on the on-court candidate.
+        // Bench-side "next up" is now shown via an explicit text badge below
+        // (no more ambiguous bench rings).
         isNextSub && !isSelected && variant === "court" &&
           "ring-2 ring-orange-400 ring-offset-2 ring-offset-background rounded-full animate-pulse drop-shadow-[0_0_12px_rgba(251,146,60,0.7)]",
-        isNextSub && !isSelected && variant === "bench" &&
-          "animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary)/0.45)]",
-        // "Suggested sub on" — bench player with lowest minutes glows green.
-        isLowestMinutes && variant === "bench" && !isSelected &&
-          "ring-2 ring-emerald-500 ring-offset-1 ring-offset-background rounded-full",
         // Coach-assistant "should rest" hint — very faint amber outline,
         // never competes with selection / swap-target rings.
         isOverplayed && variant === "court" && !isSelected && !isSwapTarget && !isNextSub &&
@@ -179,6 +176,24 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
           aria-hidden
         >
           {player.number}
+        </span>
+      )}
+      {/* Explicit bench-side hint badges replace the old ambiguous rings.
+          "Next" = coach's planned next sub-in. "Fresh" = lowest minutes played. */}
+      {variant === "bench" && !isSelected && isNextSub && (
+        <span
+          className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 px-1.5 py-[1px] rounded-full bg-emerald-600 text-white text-[8.5px] font-bold uppercase tracking-wide shadow-sm border border-background"
+          aria-label="Next sub in"
+        >
+          Next
+        </span>
+      )}
+      {variant === "bench" && !isSelected && !isNextSub && isLowestMinutes && (
+        <span
+          className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 px-1.5 py-[1px] rounded-full bg-muted text-foreground/80 text-[8.5px] font-semibold uppercase tracking-wide shadow-sm border border-border"
+          aria-label="Lowest minutes — most rested"
+        >
+          Fresh
         </span>
       )}
       <div className="relative">
