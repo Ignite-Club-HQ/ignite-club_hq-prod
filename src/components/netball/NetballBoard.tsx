@@ -30,6 +30,8 @@ import QuarterAutoSubControlPanel from "@/components/scoreboard/QuarterAutoSubCo
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
+import { useSubConfirm } from "@/hooks/useSubConfirm";
+import SubConfirmDialog from "@/components/scoreboard/SubConfirmDialog";
 import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
 
@@ -653,24 +655,47 @@ export default function NetballBoard({
   // This mirrors the soccer pitch board: one tap to "pick up" a player, a
   // second tap on a target completes the swap. Avoids the previous extra
   // sheet step that confused new users.
+  const subConfirm = useSubConfirm();
+
   const handlePlayerClick = useCallback(
     (playerId: string) => {
       if (readOnly) return;
-      // Sub-mode active → second tap completes the swap.
+      // Sub-mode active → second tap stages a confirmation before swapping.
       if (selectedPlayerId) {
         if (selectedPlayerId === playerId) {
           setSelectedPlayerId(null);
           return;
         }
-        performSwap(selectedPlayerId, playerId);
-        setSelectedPlayerId(null);
+        const a = players.find((p) => p.id === selectedPlayerId);
+        const b = players.find((p) => p.id === playerId);
+        if (!a || !b) return;
+        const aOnBench = a.position === null;
+        const bOnBench = b.position === null;
+        // Build a human-readable payload describing exactly what's about to happen.
+        const payload =
+          aOnBench || bOnBench
+            ? {
+                kind: "sub-on" as const,
+                primaryName: aOnBench ? a.name : b.name,
+                secondaryName: aOnBench ? b.name : a.name,
+                position: (aOnBench ? b.position : a.position) ?? undefined,
+              }
+            : {
+                kind: "swap-court" as const,
+                primaryName: a.name,
+                secondaryName: b.name,
+              };
+        subConfirm.request(payload, () => {
+          performSwap(selectedPlayerId, playerId);
+          setSelectedPlayerId(null);
+        });
         return;
       }
-      // First tap: enter sub-mode immediately.
+      // First tap: enter sub-mode immediately (no confirm needed yet).
       setSelectedPlayerId(playerId);
       hapticSelectionTick();
     },
-    [selectedPlayerId, performSwap, readOnly]
+    [selectedPlayerId, performSwap, readOnly, players, subConfirm]
   );
 
   const handlePlayerLongPress = useCallback(
@@ -707,36 +732,77 @@ export default function NetballBoard({
           });
         }
       }
-      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
-      setPlayers((prev) => {
-        const incoming = prev.find((p) => p.id === selectedPlayerId);
-        if (!incoming) return prev;
-        const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
-        // Only log a sub when the incoming was on the bench AND a real player
-        // was displaced. Empty-slot fills aren't subs (no playerOut) — logging
-        // them with playerOutId="" would orphan the entry and break undo.
-        if (incoming.position === null && displaced) {
-          logEntry = {
-            playerOutId: displaced.id,
-            playerOutName: displaced.name,
-            playerInId: incoming.id,
-            playerInName: incoming.name,
-            position,
-            source: "manual",
-          };
-        }
-        return prev.map((p) => {
-          if (p.id === incoming.id) return transitionPosition(p, position);
-          // CRITICAL: bench the displaced player. Without this both players
-          // would hold the same position simultaneously (data corruption).
-          if (p.id === displaced?.id) return transitionPosition(p, null);
-          return p;
+      // Build the actual mutation as a deferred closure so the confirm
+      // dialog can fire it on user approval.
+      const commit = () => {
+        let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
+        setPlayers((prev) => {
+          const incoming = prev.find((p) => p.id === selectedPlayerId);
+          if (!incoming) return prev;
+          const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
+          // Only log a sub when the incoming was on the bench AND a real player
+          // was displaced. Empty-slot fills aren't subs (no playerOut) — logging
+          // them with playerOutId="" would orphan the entry and break undo.
+          if (incoming.position === null && displaced) {
+            logEntry = {
+              playerOutId: displaced.id,
+              playerOutName: displaced.name,
+              playerInId: incoming.id,
+              playerInName: incoming.name,
+              position,
+              source: "manual",
+            };
+          }
+          return prev.map((p) => {
+            if (p.id === incoming.id) return transitionPosition(p, position);
+            // CRITICAL: bench the displaced player. Without this both players
+            // would hold the same position simultaneously (data corruption).
+            if (p.id === displaced?.id) return transitionPosition(p, null);
+            return p;
+          });
         });
-      });
-      if (logEntry) appendSubLog(logEntry);
-      setSelectedPlayerId(null);
+        if (logEntry) appendSubLog(logEntry);
+        setSelectedPlayerId(null);
+      };
+
+      const displaced = players.find(
+        (p) => p.position === position && p.id !== selectedPlayerId,
+      );
+      const incomingFromBench = incoming && incoming.position === null;
+      if (incomingFromBench && displaced) {
+        // Bench → court substitution (replacing a player).
+        subConfirm.request(
+          {
+            kind: "sub-on",
+            primaryName: incoming.name,
+            secondaryName: displaced.name,
+            position,
+          },
+          commit,
+        );
+      } else if (incoming && incoming.position !== null && displaced) {
+        // Court → court swap into an occupied slot.
+        subConfirm.request(
+          {
+            kind: "swap-court",
+            primaryName: incoming.name,
+            secondaryName: displaced.name,
+            position,
+          },
+          commit,
+        );
+      } else if (incomingFromBench && !displaced) {
+        // Bench → empty slot (still a sub-on, just no displacement).
+        subConfirm.request(
+          { kind: "sub-on", primaryName: incoming!.name, position },
+          commit,
+        );
+      } else {
+        // Court → empty slot — same player, just repositioning. No confirm needed.
+        commit();
+      }
     },
-    [readOnly, selectedPlayerId, appendSubLog, players, validationMode, toast]
+    [readOnly, selectedPlayerId, appendSubLog, players, validationMode, toast, subConfirm]
   );
 
   const subOff = useCallback(
@@ -1647,7 +1713,16 @@ export default function NetballBoard({
             onOpenChange={(o) => !o && setQuickActionPlayerId(null)}
             player={quickActionPlayer}
             onStartSwap={() => setSelectedPlayerId(quickActionPlayer.id)}
-            onSubOff={() => subOff(quickActionPlayer.id)}
+            onSubOff={() =>
+              subConfirm.request(
+                {
+                  kind: "sub-off",
+                  primaryName: quickActionPlayer.name,
+                  position: quickActionPlayer.position ?? undefined,
+                },
+                () => subOff(quickActionPlayer.id),
+              )
+            }
             onSubOn={() => setSelectedPlayerId(quickActionPlayer.id)}
             onToggleInjured={() => toggleInjured(quickActionPlayer.id)}
             onScore={() => addScore("home", 1, quickActionPlayer.id)}
@@ -1727,6 +1802,13 @@ export default function NetballBoard({
         onConfirm={confirmPendingQuarterSubs}
         onSkip={skipPendingQuarterSubs}
       />
+
+      <SubConfirmDialog
+        payload={subConfirm.pending?.payload ?? null}
+        onConfirm={subConfirm.confirm}
+        onCancel={subConfirm.cancel}
+      />
+
     </div>
   );
 }

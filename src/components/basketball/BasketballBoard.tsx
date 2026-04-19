@@ -18,6 +18,8 @@ import { useBasketballCoachAssistant } from "@/hooks/useBasketballCoachAssistant
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
+import { useSubConfirm } from "@/hooks/useSubConfirm";
+import SubConfirmDialog from "@/components/scoreboard/SubConfirmDialog";
 import { totalElapsedSeconds, visiblePeriods } from "@/lib/periodTypes";
 
 // Lazy-load secondary dialogs
@@ -110,6 +112,62 @@ export default function BasketballBoard({
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
+  const subConfirm = useSubConfirm();
+
+  // Wrap the hook's tap handlers with a confirm gate so every sub/swap
+  // requires explicit approval (matches netball board behaviour).
+  const handlePlayerClickGuarded = (playerId: string) => {
+    if (readOnly) return;
+    const sel = board.selectedPlayerId;
+    if (!sel || sel === playerId) {
+      board.handlePlayerClick(playerId);
+      return;
+    }
+    const a = board.players.find((p) => p.id === sel);
+    const b = board.players.find((p) => p.id === playerId);
+    if (!a || !b) return;
+    const aBench = a.position === null;
+    const bBench = b.position === null;
+    const payload =
+      aBench || bBench
+        ? {
+            kind: "sub-on" as const,
+            primaryName: aBench ? a.name : b.name,
+            secondaryName: aBench ? b.name : a.name,
+            position: (aBench ? b.position : a.position) ?? undefined,
+          }
+        : { kind: "swap-court" as const, primaryName: a.name, secondaryName: b.name };
+    subConfirm.request(payload, () => board.handlePlayerClick(playerId));
+  };
+
+  const handleSlotClickGuarded = (position: string) => {
+    if (readOnly || !board.selectedPlayerId) return;
+    const incoming = board.players.find((p) => p.id === board.selectedPlayerId);
+    const displaced = board.players.find(
+      (p) => p.position === position && p.id !== board.selectedPlayerId,
+    );
+    if (!incoming) return;
+    const fromBench = incoming.position === null;
+    if (fromBench && displaced) {
+      subConfirm.request(
+        { kind: "sub-on", primaryName: incoming.name, secondaryName: displaced.name, position },
+        () => board.handleSlotClick(position as never),
+      );
+    } else if (!fromBench && displaced) {
+      subConfirm.request(
+        { kind: "swap-court", primaryName: incoming.name, secondaryName: displaced.name, position },
+        () => board.handleSlotClick(position as never),
+      );
+    } else if (fromBench && !displaced) {
+      subConfirm.request(
+        { kind: "sub-on", primaryName: incoming.name, position },
+        () => board.handleSlotClick(position as never),
+      );
+    } else {
+      board.handleSlotClick(position as never);
+    }
+  };
+
   // Holds the points value (1/2/3) when the home team has just scored and we
   // need to ask the coach which on-court player to attribute it to.
   const [pendingScore, setPendingScore] = useState<{ points: number; eventId: string } | null>(null);
@@ -580,9 +638,9 @@ export default function BasketballBoard({
           readOnly={readOnly}
           courtView={board.courtView}
           hideEmptySlots
-          onPlayerClick={board.handlePlayerClick}
+          onPlayerClick={handlePlayerClickGuarded}
           onPlayerLongPress={board.handlePlayerLongPress}
-          onSlotClick={board.handleSlotClick}
+          onSlotClick={handleSlotClickGuarded}
         />
       </div>
 
@@ -598,7 +656,7 @@ export default function BasketballBoard({
         }
         showSubDueBadge={!board.nextSub && assistant.hasActiveSuggestion}
         readOnly={readOnly}
-        onPlayerClick={board.handlePlayerClick}
+        onPlayerClick={handlePlayerClickGuarded}
         onPlayerLongPress={board.handlePlayerLongPress}
       />
 
@@ -641,7 +699,16 @@ export default function BasketballBoard({
             onOpenChange={(o) => !o && board.setQuickActionPlayerId(null)}
             player={board.quickActionPlayer}
             onStartSwap={() => board.setSelectedPlayerId(board.quickActionPlayer!.id)}
-            onSubOff={() => board.subOff(board.quickActionPlayer!.id)}
+            onSubOff={() =>
+              subConfirm.request(
+                {
+                  kind: "sub-off",
+                  primaryName: board.quickActionPlayer!.name,
+                  position: board.quickActionPlayer!.position ?? undefined,
+                },
+                () => board.subOff(board.quickActionPlayer!.id),
+              )
+            }
             onSubOn={() => board.setSelectedPlayerId(board.quickActionPlayer!.id)}
             onToggleInjured={() => board.toggleInjured(board.quickActionPlayer!.id)}
             onAddFoul={() => board.addFoul(board.quickActionPlayer!.id)}
