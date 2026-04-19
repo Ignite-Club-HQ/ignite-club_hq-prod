@@ -58,10 +58,10 @@ const LiveGameHUD = memo(function LiveGameHUD({
     <div
       className={cn(
         "absolute left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1rem)] max-w-md",
-        // Lighter "floating control layer" — softer border, lower opacity,
-        // stronger blur, no card-like shadow stack.
-        "rounded-xl border border-border/15 bg-card/35 supports-[backdrop-filter]:bg-card/25",
-        "backdrop-blur-2xl shadow-[0_1px_8px_-4px_hsl(var(--foreground)/0.12)]",
+        // Solid surface — fully blocks court lines beneath so score/buttons
+        // are never read against painted lines. Defined border + crisp shadow.
+        "rounded-xl border border-border bg-card",
+        "shadow-[0_4px_16px_-6px_hsl(var(--foreground)/0.25)]",
         "transition-[opacity,filter,transform] duration-200 ease-out",
         position === "top" ? "top-2" : "bottom-2",
         suppressed && "opacity-40 blur-[1px] pointer-events-none scale-[0.99]",

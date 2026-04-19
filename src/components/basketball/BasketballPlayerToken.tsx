@@ -226,8 +226,9 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         {pos && (
           <span
             className={cn(
-              // Side-attached badge so it doesn't crowd the centered name pill below.
-              "absolute -right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold rounded px-1 py-px border shadow-sm leading-none",
+              // Bottom-attached badge — consistent placement across every token.
+              // z-20 so it sits above the points badge if both are present.
+              "absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-20 text-[9px] font-bold rounded px-1.5 py-px border shadow-sm leading-none",
               colors?.bg,
               colors?.text,
               colors?.border
@@ -251,14 +252,15 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       {variant === "court" ? (
         <span
           className={cn(
-            "-mt-0.5 inline-flex items-center justify-center gap-1.5 px-2.5 py-[3px] rounded-md",
-            // Slightly more opaque background + lighter shadow for clean contrast.
-            "bg-background/90 border border-border/70 shadow-[0_1px_3px_rgba(0,0,0,0.18)] backdrop-blur-sm",
+            // mt-2 leaves clear space for the bottom-attached position badge.
+            "mt-2 inline-flex items-center justify-center gap-1.5 px-2.5 py-[3px] rounded-md",
+            // Fully solid background — no transparency over court lines.
+            "bg-background border border-border shadow-[0_1px_3px_rgba(0,0,0,0.25)]",
             "text-[10.5px] leading-none min-w-[3.25rem] max-w-[84px]"
           )}
         >
           <span className="truncate font-bold tracking-tight text-foreground">{player.name.split(" ")[0]}</span>
-          <span className="tabular-nums font-normal text-muted-foreground/90">
+          <span className="tabular-nums font-normal text-muted-foreground">
             {`${minutes}m`}
           </span>
           {fouls > 0 && (
