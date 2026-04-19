@@ -226,7 +226,8 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         {pos && (
           <span
             className={cn(
-              "absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold rounded px-1 border shadow-sm",
+              // Side-attached badge so it doesn't crowd the centered name pill below.
+              "absolute -right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold rounded px-1 py-px border shadow-sm leading-none",
               colors?.bg,
               colors?.text,
               colors?.border
