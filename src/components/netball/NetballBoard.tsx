@@ -31,6 +31,7 @@ import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
 import { useSubConfirm } from "@/hooks/useSubConfirm";
+import { useAutoSubNotify } from "@/hooks/useAutoSubNotify";
 import SubConfirmDialog from "@/components/scoreboard/SubConfirmDialog";
 import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
@@ -479,7 +480,18 @@ export default function NetballBoard({
   );
 
   // ---------- Sub execution ----------
-  const executeSub = useCallback(
+  // Push notifications for fired auto-subs go to all team admins/coaches so
+  // assistant coaches on the sideline see the change without being on-board.
+  const notifyAutoSub = useAutoSubNotify(teamId, teamName);
+  // Pending auto-sub awaiting coach confirmation. Mid-quarter timed subs are
+  // staged here (instead of mutating immediately) so a confirmation dialog
+  // surfaces — quarter-break subs continue using NetballQuarterBreakDialog.
+  const [pendingAutoSub, setPendingAutoSub] = useState<NetballSubEvent | null>(null);
+  // Track which sub keys have already been staged so the 1Hz tick can't
+  // re-stage the same sub on every tick while the dialog is open.
+  const stagedAutoSubKeysRef = useRef<Set<string>>(new Set());
+
+  const applyAutoSub = useCallback(
     (sub: NetballSubEvent) => {
       setPlayers((prev) => {
         const out = prev.find((p) => p.id === sub.playerOut.id);
@@ -510,9 +522,50 @@ export default function NetballBoard({
         title: "Auto-sub",
         description: `${sub.playerIn.name} ON for ${sub.playerOut.name} at ${sub.position}`,
       });
+      // Fire-and-forget push to admins/coaches. Period label gives context
+      // when the recipient sees the push outside the app.
+      const periodType = timerStateRef.current.periodType;
+      const q = timerStateRef.current.currentQuarter;
+      const periodLabel =
+        periodType === "halves" ? `H${q <= 2 ? 1 : 2}` : `Q${q}`;
+      void notifyAutoSub({
+        playerInName: sub.playerIn.name,
+        playerOutName: sub.playerOut.name,
+        position: sub.position,
+        periodLabel,
+      });
     },
-    [toast, appendSubLog]
+    [toast, appendSubLog, notifyAutoSub]
   );
+
+  // Stage an auto-sub for confirmation instead of firing it directly. Called
+  // from handleTick when a planned sub becomes due.
+  const executeSub = useCallback(
+    (sub: NetballSubEvent) => {
+      const key = getSubKey(sub);
+      if (stagedAutoSubKeysRef.current.has(key)) return;
+      stagedAutoSubKeysRef.current.add(key);
+      setPendingAutoSub(sub);
+    },
+    []
+  );
+
+  const confirmPendingAutoSub = useCallback(() => {
+    if (!pendingAutoSub) return;
+    applyAutoSub(pendingAutoSub);
+    setPendingAutoSub(null);
+  }, [pendingAutoSub, applyAutoSub]);
+
+  const cancelPendingAutoSub = useCallback(() => {
+    if (!pendingAutoSub) return;
+    // Mark as skipped so handleTick doesn't immediately re-stage it on the
+    // next tick — coach explicitly declined this rotation.
+    const skippedKey = getSubKey(pendingAutoSub);
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (getSubKey(s) === skippedKey ? { ...s, skipped: true } : s))
+    );
+    setPendingAutoSub(null);
+  }, [pendingAutoSub]);
   // Wire the forward-ref so handleTick can fire executeSub safely (audit fix N14).
   useEffect(() => {
     executeSubRef.current = executeSub;
