@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { ZoomIn } from "lucide-react";
+import { useState } from "react";
 import {
   NetballPlayer,
   NetballPosition,
@@ -25,15 +26,20 @@ interface NetballCourtAreaProps {
   /** Long-press a player to open the quick action sheet. */
   onPlayerLongPress?: (playerId: string) => void;
   onSlotClick: (position: NetballPosition) => void;
+  /** Drag-drop swap: when a token is dropped onto another player or slot,
+   *  this fires with the source + target ids (target may be a position string). */
+  onDragSwap?: (sourceId: string, targetId: string) => void;
+  /** Drag-drop sub: drop a player onto an empty position slot. */
+  onDragToSlot?: (sourceId: string, position: NetballPosition) => void;
 }
 
 /**
  * Renders the netball court SVG with the 7 fixed position slots.
  *
- * Mirrors BasketballCourtArea: full-bleed surface, pinch-to-zoom, every
- * non-selected court player becomes a swap target while a player is picked
- * up. Position validity is informational only here — the board's
- * handleSlotClick still enforces strict/warn/free modes.
+ * Drag & drop: tokens are HTML5-draggable (already on the token); this
+ * component wires the drop handlers so a coach can grab a court player and
+ * drop onto another court player (swap), or onto an empty slot (move).
+ * Cross-bench drops are wired the same way at the bench layer.
  */
 export default function NetballCourtArea({
   players,
@@ -46,6 +52,8 @@ export default function NetballCourtArea({
   onPlayerClick,
   onPlayerLongPress,
   onSlotClick,
+  onDragSwap,
+  onDragToSlot,
 }: NetballCourtAreaProps) {
   const selectedPlayer = selectedPlayerId
     ? players.find((p) => p.id === selectedPlayerId) ?? null
@@ -63,8 +71,13 @@ export default function NetballCourtArea({
 
   const isZoomed = scale > 1.01;
 
+  // Track the player currently being dragged so we can highlight valid drop
+  // zones across the court while the drag is in flight.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const draggingPlayer = draggingId ? players.find((p) => p.id === draggingId) ?? null : null;
+
   return (
-    <div className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 p-2 overflow-hidden">
+    <div className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 px-1 py-1 overflow-hidden">
       {/* Width derived from available height so the whole court is always visible.
           Aspect 5/7 mirrors basketball half-court so HUD docking is consistent. */}
       <div
@@ -84,6 +97,11 @@ export default function NetballCourtArea({
         {NETBALL_POSITIONS.map((pos) => {
           const slot = POSITION_SLOTS[pos];
           const player = findPlayerInPosition(players, pos);
+          // Drag-aware highlight: while dragging a player, every slot they
+          // could land on (and every other player) becomes a valid target.
+          const dragActiveOnPos = draggingPlayer
+            ? isPositionAllowedForPlayer(draggingPlayer, pos)
+            : true;
           // Only enforce position validity visually when subbing in from bench.
           const positionAllowed = selectedPlayer
             ? isPositionAllowedForPlayer(selectedPlayer, pos)
@@ -100,11 +118,14 @@ export default function NetballCourtArea({
                   position={pos}
                   variant="court"
                   isSelected={selectedPlayerId === player.id}
+                  isDragging={draggingId === player.id}
                   // Court tokens are swap targets in two scenarios, mirroring basketball:
                   //  1. Selected player is on bench → substitution
                   //  2. Selected player is on court → position swap
+                  // Or while a drag is in flight from any other player.
                   isSwapTarget={
-                    !!selectedPlayerId && selectedPlayerId !== player.id
+                    (!!selectedPlayerId && selectedPlayerId !== player.id) ||
+                    (!!draggingId && draggingId !== player.id)
                   }
                   isInvalidTarget={
                     !!selectedPlayer &&
@@ -118,16 +139,70 @@ export default function NetballCourtArea({
                   onLongPress={
                     onPlayerLongPress ? () => onPlayerLongPress(player.id) : undefined
                   }
+                  onDragStart={(e) => {
+                    if (readOnly) return;
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", player.id);
+                    setDraggingId(player.id);
+                  }}
+                  onDragEnd={() => setDraggingId(null)}
+                  onDragOver={(e) => {
+                    if (!draggingId || draggingId === player.id) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(e) => {
+                    if (!draggingId || draggingId === player.id) return;
+                    e.preventDefault();
+                    onDragSwap?.(draggingId, player.id);
+                    setDraggingId(null);
+                  }}
                   readOnly={readOnly}
                 />
-              ) : hideEmptySlots ? null : (
+              ) : hideEmptySlots ? (
+                // Even with no visible chrome, keep an invisible drop target so
+                // a dragged player can land on an unoccupied position.
+                draggingId ? (
+                  <div
+                    onDragOver={(e) => {
+                      if (!dragActiveOnPos) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(e) => {
+                      if (!draggingId) return;
+                      e.preventDefault();
+                      onDragToSlot?.(draggingId, pos);
+                      setDraggingId(null);
+                    }}
+                    className={cn(
+                      "w-14 h-14 rounded-full border-2 border-dashed transition",
+                      dragActiveOnPos
+                        ? "border-emerald-400 bg-emerald-400/15 animate-pulse"
+                        : "border-destructive/60 bg-destructive/10 opacity-60",
+                    )}
+                    aria-label={`Drop here to take ${pos}`}
+                  />
+                ) : null
+              ) : (
                 <button
                   type="button"
                   onClick={() => onSlotClick(pos)}
+                  onDragOver={(e) => {
+                    if (!draggingId || !dragActiveOnPos) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(e) => {
+                    if (!draggingId) return;
+                    e.preventDefault();
+                    onDragToSlot?.(draggingId, pos);
+                    setDraggingId(null);
+                  }}
                   className={cn(
                     "w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center text-[10px] font-bold transition",
-                    selectedPlayerId
-                      ? positionAllowed
+                    selectedPlayerId || draggingId
+                      ? (selectedPlayerId ? positionAllowed : dragActiveOnPos)
                         ? "border-emerald-400 bg-emerald-400/15 text-emerald-50 animate-pulse"
                         : "border-destructive/60 bg-destructive/10 text-destructive-foreground/80 opacity-70"
                       : "border-white/40 text-white/70 hover:border-white/80",
