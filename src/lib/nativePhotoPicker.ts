@@ -32,6 +32,35 @@ export async function ensureCameraPermissions(): Promise<void> {
   return;
 }
 
+/**
+ * Checks current photo-library permission and requests it if not yet granted.
+ * Throws PhotoPermissionDeniedError if the user has explicitly denied access.
+ */
+export async function ensurePhotoLibraryPermission(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+
+  try {
+    const current = await Camera.checkPermissions();
+    const photoStatus = current.photos;
+
+    if (photoStatus === "granted" || photoStatus === "limited") return;
+
+    if (photoStatus === "denied") {
+      throw new PhotoPermissionDeniedError();
+    }
+
+    // 'prompt' or 'prompt-with-rationale' — request now
+    const requested = await Camera.requestPermissions({ permissions: ["photos"] });
+    if (requested.photos !== "granted" && requested.photos !== "limited") {
+      throw new PhotoPermissionDeniedError();
+    }
+  } catch (error) {
+    if (error instanceof PhotoPermissionDeniedError) throw error;
+    // If the platform doesn't support checkPermissions, fall through and let the picker handle it
+    console.warn("[nativePhotoPicker] Permission check failed:", error);
+  }
+}
+
 export function resetPermissionCache(): void {
   return;
 }
