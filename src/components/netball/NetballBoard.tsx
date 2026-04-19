@@ -272,6 +272,33 @@ export default function NetballBoard({
   );
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // Pending quarter-break subs — surfaced in NetballQuarterBreakDialog so the
+  // coach approves rotations instead of having them apply silently.
+  const [pendingQuarterSubs, setPendingQuarterSubs] = useState<{
+    quarter: Quarter;
+    subs: NetballSubEvent[];
+  } | null>(null);
+  // Brief glow on the two tokens involved in the most recent swap.
+  const [recentlySwappedIds, setRecentlySwappedIds] = useState<string[]>([]);
+  const recentClearTimerRef = useRef<number | null>(null);
+  const flashRecentSwap = useCallback((ids: string[]) => {
+    setRecentlySwappedIds(ids);
+    if (recentClearTimerRef.current != null) {
+      window.clearTimeout(recentClearTimerRef.current);
+    }
+    recentClearTimerRef.current = window.setTimeout(() => {
+      setRecentlySwappedIds([]);
+      recentClearTimerRef.current = null;
+    }, 700);
+  }, []);
+  useEffect(
+    () => () => {
+      if (recentClearTimerRef.current != null) {
+        window.clearTimeout(recentClearTimerRef.current);
+      }
+    },
+    []
+  );
   // Auto-sub control panel state
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   const [autoSubPaused, setAutoSubPaused] = useState(
