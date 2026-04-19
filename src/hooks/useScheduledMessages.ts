@@ -13,6 +13,8 @@ export type ScheduledChatType =
 
 export type ScheduledMessageStatus = "pending" | "sent" | "failed" | "cancelled";
 
+export type ScheduledMessageRecurrence = "none" | "daily" | "weekly" | "monthly";
+
 export interface ScheduledMessageRow {
   id: string;
   author_id: string;
@@ -29,6 +31,9 @@ export interface ScheduledMessageRow {
   sent_message_id: string | null;
   error_message: string | null;
   attempted_at: string | null;
+  recurrence: ScheduledMessageRecurrence;
+  recurrence_until: string | null;
+  recurrence_parent_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +51,8 @@ export interface CreateScheduledMessageInput extends ScheduleTarget {
   image_url?: string | null;
   reply_to_id?: string | null;
   scheduled_for: Date;
+  recurrence?: ScheduledMessageRecurrence;
+  recurrence_until?: Date | null;
 }
 
 function targetKey(t: ScheduleTarget): string {
@@ -154,6 +161,10 @@ export function useCreateScheduledMessage() {
         image_url: input.image_url ?? null,
         reply_to_id: input.reply_to_id ?? null,
         scheduled_for: input.scheduled_for.toISOString(),
+        recurrence: input.recurrence ?? "none",
+        recurrence_until: input.recurrence_until
+          ? input.recurrence_until.toISOString()
+          : null,
       };
       const { data, error } = await supabase
         .from("scheduled_messages" as any)
@@ -178,11 +189,19 @@ export function useUpdateScheduledMessage() {
       text?: string;
       image_url?: string | null;
       scheduled_for?: Date;
+      recurrence?: ScheduledMessageRecurrence;
+      recurrence_until?: Date | null;
     }) => {
       const patch: any = {};
       if (input.text !== undefined) patch.text = input.text;
       if (input.image_url !== undefined) patch.image_url = input.image_url;
       if (input.scheduled_for) patch.scheduled_for = input.scheduled_for.toISOString();
+      if (input.recurrence !== undefined) patch.recurrence = input.recurrence;
+      if (input.recurrence_until !== undefined) {
+        patch.recurrence_until = input.recurrence_until
+          ? input.recurrence_until.toISOString()
+          : null;
+      }
       const { data, error } = await supabase
         .from("scheduled_messages" as any)
         .update(patch)

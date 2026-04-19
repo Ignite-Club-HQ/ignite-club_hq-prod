@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, isToday, isTomorrow } from "date-fns";
-import { ArrowLeft, Clock, Pencil, X, AlertCircle, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Clock, Pencil, X, AlertCircle, Image as ImageIcon, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -308,8 +308,14 @@ export default function ScheduledMessagesPage() {
                               </p>
                             )}
                           </button>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {format(new Date(row.scheduled_for), "h:mm a")}
+                          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                            <span>{format(new Date(row.scheduled_for), "h:mm a")}</span>
+                            {row.recurrence && row.recurrence !== "none" && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wide text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                                <Repeat className="h-2.5 w-2.5" />
+                                {row.recurrence}
+                              </span>
+                            )}
                           </p>
                           <div className="mt-2 flex items-start gap-1.5">
                             {row.image_url && (
