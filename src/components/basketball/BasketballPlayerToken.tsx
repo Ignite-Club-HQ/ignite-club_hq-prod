@@ -184,10 +184,10 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       <div className="relative">
         <Avatar
           className={cn(
-            // Stronger shadow + crisp outer ring for depth — players feel like
-            // physical chips on the court.
-            "shadow-[0_4px_10px_rgba(0,0,0,0.45),0_1px_2px_rgba(0,0,0,0.3)] transition-shadow",
-            "ring-1 ring-black/20",
+            // Standardised, consistent shadow across every token. Outer ring +
+            // dark hairline give the chip strong separation from any court tone.
+            "shadow-[0_3px_8px_rgba(0,0,0,0.35),0_1px_2px_rgba(0,0,0,0.25)] transition-shadow",
+            "ring-2 ring-black/30",
             variant === "court" ? "h-13 w-13 border-[3px]" : "h-10 w-10 border-2",
             fouled ? "border-destructive opacity-70" : (colors?.border ?? "border-border")
           )}
