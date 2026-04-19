@@ -447,6 +447,10 @@ export default function BasketballBoard({
           selectedIsOnBench={selectedIsOnBench}
           recentlySwappedIds={board.recentlySwappedIds}
           nextSubOutId={board.nextSub?.playerOut.id ?? null}
+          overplayedOnCourtId={
+            // Plan-driven sub takes priority; fall back to the assistant hint.
+            board.nextSub?.playerOut.id ?? assistant.overplayedOnCourtId
+          }
           readOnly={readOnly}
           courtView={board.courtView}
           hideEmptySlots
@@ -463,6 +467,10 @@ export default function BasketballBoard({
         selectedIsOnCourt={selectedIsOnCourt}
         recentlySwappedIds={board.recentlySwappedIds}
         nextSubInId={board.nextSub?.playerIn.id ?? null}
+        underplayedBenchIds={
+          board.nextSub ? [] : assistant.underplayedBenchIds
+        }
+        showSubDueBadge={!board.nextSub && assistant.hasActiveSuggestion}
         readOnly={readOnly}
         onPlayerClick={board.handlePlayerClick}
         onPlayerLongPress={board.handlePlayerLongPress}
