@@ -251,9 +251,10 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       {variant === "court" ? (
         <span
           className={cn(
-            "-mt-0.5 inline-flex items-center justify-center gap-1 px-2 py-[3px] rounded-md",
-            "bg-background/95 border border-border/80 shadow-[0_2px_6px_rgba(0,0,0,0.25)] backdrop-blur-sm",
-            "text-[10.5px] leading-none min-w-[3.25rem] max-w-[80px]"
+            "-mt-0.5 inline-flex items-center justify-center gap-1.5 px-2.5 py-[3px] rounded-md",
+            // Slightly more opaque background + lighter shadow for clean contrast.
+            "bg-background/90 border border-border/70 shadow-[0_1px_3px_rgba(0,0,0,0.18)] backdrop-blur-sm",
+            "text-[10.5px] leading-none min-w-[3.25rem] max-w-[84px]"
           )}
         >
           <span className="truncate font-bold tracking-tight text-foreground">{player.name.split(" ")[0]}</span>
