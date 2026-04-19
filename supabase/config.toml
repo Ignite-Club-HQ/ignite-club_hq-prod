@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.prefetch-user-data]
 verify_jwt = false
+
+[functions.giphy-search]
+verify_jwt = false
