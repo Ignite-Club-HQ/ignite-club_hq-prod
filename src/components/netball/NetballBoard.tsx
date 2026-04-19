@@ -753,11 +753,20 @@ export default function NetballBoard({
         });
         return;
       }
-      // First tap: enter sub-mode immediately (no confirm needed yet).
-      setSelectedPlayerId(playerId);
-      hapticSelectionTick();
+      // No player armed yet:
+      //  - Sub Mode ON  → arm this player as the swap source (legacy fast flow).
+      //  - Sub Mode OFF → open the info card. The card's primary "Sub" CTA
+      //    will arm this player + flip Sub Mode on so the next tap completes
+      //    the swap (matches Pitch Board pattern).
+      if (subModeActive) {
+        setSelectedPlayerId(playerId);
+        hapticSelectionTick();
+      } else {
+        setInfoCardPlayerId(playerId);
+        hapticSelectionTick();
+      }
     },
-    [selectedPlayerId, performSwap, readOnly, players, subConfirm]
+    [selectedPlayerId, performSwap, readOnly, players, subConfirm, subModeActive],
   );
 
   const handlePlayerLongPress = useCallback(
