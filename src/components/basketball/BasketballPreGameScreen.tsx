@@ -147,23 +147,70 @@ export default function BasketballPreGameScreen({
           </span>
         </button>
         <span className="text-muted-foreground/50">·</span>
-        <button
-          type="button"
-          onClick={() => onToggleAutoSub?.(autoSubActive ? "off" : "time-based")}
-          disabled={readOnly || !onToggleAutoSub}
-          role="switch"
-          aria-checked={autoSubActive}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 transition-colors disabled:opacity-60",
-            autoSubActive
-              ? "bg-primary/15 text-primary font-semibold"
-              : "text-muted-foreground hover:text-foreground"
+        {/* Auto-sub toggle: tap "Auto-subs" to flip on/off; when on, pick a speed inline. */}
+        <div className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onToggleAutoSub?.(autoSubActive ? "off" : "time-based")}
+            disabled={readOnly || !onToggleAutoSub}
+            role="switch"
+            aria-checked={autoSubActive}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 transition-colors disabled:opacity-60",
+              autoSubActive
+                ? "bg-primary/15 text-primary font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            aria-label={autoSubActive ? "Turn auto-subs off" : "Turn auto-subs on"}
+          >
+            <Repeat className="h-3.5 w-3.5" />
+            <span className="font-medium whitespace-nowrap">
+              Auto-subs{!autoSubActive && " · Off"}
+            </span>
+          </button>
+
+          {showSpeedPicker && (
+            <div
+              role="radiogroup"
+              aria-label="Rotation speed"
+              className="inline-flex items-center rounded-full border border-border/60 bg-background/60 p-0.5"
+            >
+              {ROTATION_SPEEDS.map((opt) => {
+                const active = rotationIntervalMinutes === opt.minutes;
+                return (
+                  <button
+                    key={opt.minutes}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={readOnly || !onRotationIntervalChange}
+                    onClick={() => onRotationIntervalChange?.(opt.minutes)}
+                    className={cn(
+                      "px-1.5 h-5 rounded-full text-[10px] font-semibold tabular-nums transition-colors disabled:opacity-60",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
-          aria-label={autoSubActive ? "Turn auto-subs off" : "Turn auto-subs on"}
-        >
-          <Repeat className="h-3.5 w-3.5" />
-          <span className="font-medium whitespace-nowrap">Auto-subs · {autoSubLabel}</span>
-        </button>
+
+          {canPreview && (
+            <button
+              type="button"
+              onClick={onPreviewPlan}
+              className="inline-flex items-center gap-1 text-primary hover:underline font-medium ml-0.5"
+              aria-label="Preview auto-sub plan"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span className="whitespace-nowrap">Preview</span>
+            </button>
+          )}
+        </div>
         {hasPresets && !readOnly && (
           <>
             <span className="text-muted-foreground/50">·</span>
