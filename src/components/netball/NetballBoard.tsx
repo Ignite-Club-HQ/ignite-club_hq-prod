@@ -142,19 +142,33 @@ export default function NetballBoard({
 
   const buildInitialPlayers = (): NetballPlayer[] => {
     if (savedStateRef.current?.players?.length) return savedStateRef.current.players;
-    return members
-      .filter((m) => m.role === "player" || m.role === "parent" || m.role === "coach")
-      .slice(0, 14)
-      .map((m, idx) => ({
-        id: m.id,
-        name: m.profiles?.display_name?.trim() || `Player ${idx + 1}`,
-        position: idx < 7 ? NETBALL_POSITIONS[idx] : null,
-        minutesPlayed: 0,
-        preferredPositions: [],
-      }));
+    // ROSTER SEEDING: strictly player-role only (matches basketball board).
+    // Children assigned to the team are passed in as role:"player" too.
+    // Parents, coaches, and admins are NOT part of the squad — coaches add
+    // them via the roster dialog or via the "Add 12 mocks" shortcut.
+    const playersOnly = members.filter((m) => m.role === "player");
+    return playersOnly.slice(0, 14).map((m, idx) => ({
+      id: m.id,
+      name: m.profiles?.display_name?.trim() || `Player ${idx + 1}`,
+      position: idx < 7 ? NETBALL_POSITIONS[idx] : null,
+      minutesPlayed: 0,
+      goals: 0,
+      preferredPositions: [],
+    }));
   };
 
   const [players, setPlayers] = useState<NetballPlayer[]>(buildInitialPlayers);
+
+  // Hydrate squad once members arrive (fetch is async — on first mount
+  // `members` is often empty, and without this effect the roster dialog
+  // would stay empty forever).
+  useEffect(() => {
+    if (players.length > 0) return;
+    if (!members || members.length === 0) return;
+    if (savedStateRef.current?.players?.length) return;
+    setPlayers(buildInitialPlayers());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members]);
   const [rotationMode, setRotationMode] = useState<RotationMode>(
     savedStateRef.current?.rotationMode ?? "off"
   );
