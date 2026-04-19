@@ -131,10 +131,9 @@ export function useBasketballCoachAssistant({
     armedRef.current = false;
     lastAlertSubjectRef.current = subject;
     cueSubDue();
-    toast({
-      title: "Sub suggested",
-      description: `${suggestion.in.name} ON for ${suggestion.out.name}`,
-      duration: 4000,
+    // Compact, single-line sonner toast — never blocks gameplay UI.
+    toast(`Sub: ${suggestion.in.name} → ${suggestion.out.name}`, {
+      duration: 3000,
     });
   }, [suggestion, isRunning, isGameFinished, paused, totalElapsedSeconds, readOnly, toast, onCourt, bench]);
 
