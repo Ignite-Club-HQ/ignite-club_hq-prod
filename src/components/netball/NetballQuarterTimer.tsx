@@ -1,6 +1,13 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, SkipForward, RotateCcw } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Play, Pause, SkipForward, RotateCcw, MoreVertical, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NetballTimerState, Quarter } from "./types";
 import { formatTime } from "./netballHelpers";
@@ -19,6 +26,12 @@ interface NetballQuarterTimerProps {
    *  stats + any cached cue/sub state so a fresh game starts cleanly. */
   onReset?: () => void;
   readOnly?: boolean;
+  /** Inline rendering for the floating HUD control slot (no card wrapper). */
+  compact?: boolean;
+  /** Opens the auto-sub plan panel (preview, execute, skip). */
+  onOpenAutoSubPlan?: () => void;
+  /** Whether an auto-sub plan currently exists — controls menu label. */
+  hasAutoSubPlan?: boolean;
 }
 
 export default function NetballQuarterTimer({
@@ -28,6 +41,9 @@ export default function NetballQuarterTimer({
   onQuarterEnd,
   onReset,
   readOnly = false,
+  compact = false,
+  onOpenAutoSubPlan,
+  hasAutoSubPlan = false,
 }: NetballQuarterTimerProps) {
   const intervalRef = useRef<number | null>(null);
   const stateRef = useRef(state);
@@ -53,7 +69,6 @@ export default function NetballQuarterTimer({
       const quarterSeconds = cur.minutesPerQuarter * 60;
 
       if (newElapsed >= quarterSeconds) {
-        // Quarter ended
         const endingQuarter = cur.currentQuarter;
         const deltaToEnd = Math.max(0, quarterSeconds - cur.elapsedSeconds);
         if (deltaToEnd > 0) {
@@ -91,7 +106,6 @@ export default function NetballQuarterTimer({
     return () => {
       if (intervalRef.current) window.clearInterval(intervalRef.current);
     };
-    // We intentionally only re-subscribe when running flips or quarter changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.isRunning, state.currentQuarter, state.isGameFinished]);
 
@@ -131,7 +145,6 @@ export default function NetballQuarterTimer({
       mvpPlayerId: null,
       lastUpdateTime: Date.now(),
     });
-    // Notify the parent so it can wipe per-player stats + cued sub IDs.
     onResetRef.current?.();
   }, [state, onChange]);
 
@@ -141,57 +154,95 @@ export default function NetballQuarterTimer({
   const periods = visiblePeriods(state.periodType);
   const isFinalPeriod = periods.indexOf(state.currentQuarter) === periods.length - 1;
 
-  return (
-    <div className="flex items-center gap-2 bg-card border rounded-full px-3 py-1.5 shadow-sm">
+  const inner = (
+    <>
       <span
         className={cn(
-          "px-2 py-0.5 rounded-full text-xs font-bold",
-          "bg-primary/10 text-primary"
+          "rounded-full font-bold bg-primary/10 text-primary tabular-nums shrink-0",
+          compact ? "px-2 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]",
         )}
       >
         {periodLabel(state.currentQuarter, state.periodType)}
       </span>
-      <span
+
+      <div
         className={cn(
-          "tabular-nums font-mono font-bold text-sm min-w-[3rem] text-center",
-          lowTime && "text-destructive animate-pulse"
+          "tabular-nums font-mono font-extrabold tracking-tight leading-none shrink-0",
+          compact ? "text-base px-0.5" : "text-2xl",
+          lowTime && "text-destructive animate-pulse",
+          state.isGameFinished && "text-muted-foreground",
         )}
+        aria-live="polite"
       >
         {formatTime(remaining)}
-      </span>
+      </div>
+
       {!readOnly && (
-        <>
+        <div className={cn("flex items-center shrink-0", compact ? "gap-3 ml-1" : "gap-2")}>
           <Button
             size="icon"
-            variant="ghost"
-            className="h-7 w-7"
+            variant={state.isRunning ? "secondary" : "default"}
+            className={cn(
+              "rounded-full shadow-md",
+              compact ? "h-10 w-10 min-h-0 min-w-0" : "h-10 w-10",
+            )}
             onClick={toggle}
             disabled={state.isGameFinished}
             aria-label={state.isRunning ? "Pause" : "Start"}
           >
-            {state.isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {state.isRunning ? (
+              <Pause className="h-5 w-5" />
+            ) : (
+              <Play className="h-5 w-5 ml-0.5" />
+            )}
           </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={advanceQuarter}
-            disabled={isFinalPeriod || state.isGameFinished}
-            aria-label="Next period"
-          >
-            <SkipForward className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={reset}
-            aria-label="Reset"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-        </>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className={cn(compact ? "h-8 w-8 min-h-0 min-w-0" : "h-8 w-8")}
+                aria-label="More timer options"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[100000]">
+              {onOpenAutoSubPlan && (
+                <>
+                  <DropdownMenuItem onClick={onOpenAutoSubPlan}>
+                    <Repeat className="h-4 w-4 mr-2" />
+                    {hasAutoSubPlan ? "Auto-sub plan" : "Set up auto-subs"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem
+                onClick={advanceQuarter}
+                disabled={isFinalPeriod || state.isGameFinished}
+              >
+                <SkipForward className="h-4 w-4 mr-2" />
+                Next period
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={reset} className="text-destructive focus:text-destructive">
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset game
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       )}
+    </>
+  );
+
+  if (compact) {
+    return <div className="flex items-center gap-2 shrink-0">{inner}</div>;
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-2 px-2 py-1 bg-card">
+      {inner}
     </div>
   );
 }
