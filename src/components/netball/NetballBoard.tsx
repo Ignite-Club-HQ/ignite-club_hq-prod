@@ -78,6 +78,7 @@ const NetballLineupPresetsDialog = lazy(() => import("./NetballLineupPresetsDial
 const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
 const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
 const NetballGoalScorerSheet = lazy(() => import("./NetballGoalScorerSheet"));
+const NetballPlayerCard = lazy(() => import("./NetballPlayerCard"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 import NetballPreGameScreen from "./NetballPreGameScreen";
 import NetballQuarterBreakDialog from "./NetballQuarterBreakDialog";
