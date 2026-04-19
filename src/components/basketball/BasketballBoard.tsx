@@ -456,7 +456,15 @@ export default function BasketballBoard({
               increments={[1, 2, 3]}
               readOnly={readOnly}
               disabled={!!board.timerState.isGameFinished}
-              onScore={board.addScore}
+              onScore={(side, pts) => {
+                // Away score → straight through. Home score → ask which
+                // on-court player to credit (coach can also pick "Team only").
+                if (side === "away") {
+                  board.addScore("away", pts);
+                  return;
+                }
+                setPendingScore(pts);
+              }}
               suppressed={!!board.selectedPlayerId}
               controlSlot={
                 <BasketballQuarterTimer
