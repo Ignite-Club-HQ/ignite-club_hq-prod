@@ -1396,6 +1396,11 @@ export default function NetballBoard({
     );
   }
 
+  // Final period flag drives the "Next break" disabled state in the live action bar.
+  const _periods = visiblePeriods(timerState.periodType);
+  const isFinalPeriod =
+    _periods.indexOf(timerState.currentQuarter) === _periods.length - 1;
+
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* ── COURT — full-bleed primary surface with floating HUD overlay ── */}
@@ -1417,27 +1422,17 @@ export default function NetballBoard({
           />
         ) : (
           <>
-            {/* Floating back chip */}
-            <Button
-              size="icon"
-              onClick={onClose}
-              aria-label="Close"
-              className="absolute z-40 top-2 left-2 h-9 w-9 rounded-full bg-foreground text-background hover:bg-foreground/90 border-2 border-background shadow-xl"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-
-            {/* Floating HUD — scoreboard + compact timer over the court. */}
-            <LiveGameHUD
+            {/* ── COMPACT LIVE HUD — pinned top bar with timer + score ── */}
+            <NetballLiveHUD
               homeLabel={teamName}
               awayLabel={opponentName}
               homeScore={timerState.homeScore ?? 0}
               awayScore={timerState.awayScore ?? 0}
-              increments={[1]}
               readOnly={readOnly}
               disabled={!gameInProgress || !!timerState.isGameFinished}
-              onScore={(side, pts) => addScore(side, pts)}
               suppressed={!!selectedPlayerId}
+              onScore={(side) => addScore(side, 1)}
+              onBack={onClose}
               controlSlot={
                 <NetballQuarterTimer
                   state={timerState}
@@ -1458,11 +1453,9 @@ export default function NetballBoard({
               trailingSlot={<SyncStatusIndicator />}
             />
 
-            {/* Pre-tipoff nudge replaced by full pre-game screen branch above. */}
-
-            {/* Centre-pass chip — soft floating pill near the bottom. */}
-            <div className="absolute bottom-1.5 left-2 z-20">
-              <CentrePassIndicator
+            {/* ── COMPACT CENTRE-PASS CHIP — small overlay above court bottom ── */}
+            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20">
+              <NetballCentrePassChip
                 homeLabel={teamName}
                 awayLabel={opponentName}
                 side={timerState.centrePass ?? "home"}
@@ -1488,7 +1481,7 @@ export default function NetballBoard({
         />
       </div>
 
-      {/* ── BENCH ── */}
+      {/* ── BENCH — compressed live substitute tray ── */}
       <NetballBench
         bench={bench}
         selectedPlayerId={selectedPlayerId}
@@ -1499,42 +1492,41 @@ export default function NetballBoard({
         onPlayerLongPress={handlePlayerLongPress}
       />
 
-      {/* ── ACTION BAR — opens netball-specific panels (squad, lineups, settings) ── */}
+      {/* ── LIVE ACTION BAR — sub / auto-subs / next break, with setup actions in overflow ── */}
       {!readOnly && (
-        <NetballActionBar
+        <NetballLiveActionBar
+          onStartSub={() => {
+            // Select the next-sub-out target if there is one; otherwise just
+            // arm sub mode by selecting the most-overplayed on-court player.
+            const target = nextSub?.playerOut.id ?? null;
+            if (target) setSelectedPlayerId(target);
+            else {
+              const onCourt = players.filter((p) => p.position !== null);
+              if (onCourt.length === 0) return;
+              const longest = onCourt.reduce((hi, p) =>
+                (p.minutesPlayed ?? 0) > (hi.minutesPlayed ?? 0) ? p : hi,
+              );
+              setSelectedPlayerId(longest.id);
+            }
+          }}
+          onNextBreak={applyNextLineupNow}
+          onOpenAutoSubs={() => setAutoSubPanelOpen(true)}
+          onUndo={
+            (timerState.scoreLog?.length ?? 0) > 0 ? undoScore : undoLastSub
+          }
+          canUndo={canUndoSub || (timerState.scoreLog?.length ?? 0) > 0}
+          onOpenSummary={() => setSummaryOpen(true)}
           onOpenSquad={() => setRosterOpen(true)}
           onOpenLineups={() => setLineupPlannerOpen(true)}
           onOpenPresets={() => setPresetsOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
-          onApplyLineup={applyNextLineupNow}
           currentQuarter={timerState.currentQuarter}
           rotationMode={rotationMode}
           rotationIntervalMinutes={rotationIntervalMinutes}
+          autoSubPaused={autoSubPaused}
+          onToggleAutoSubPause={toggleAutoSubPaused}
+          isFinalPeriod={isFinalPeriod}
         />
-      )}
-
-      {!readOnly && (canUndoSub || (timerState.scoreLog?.length ?? 0) > 0) && (
-        <div className="flex items-center justify-between gap-2 px-2 py-1 border-t bg-muted/10">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
-            onClick={(timerState.scoreLog?.length ?? 0) > 0 ? undoScore : undoLastSub}
-            disabled={!canUndoSub && (timerState.scoreLog?.length ?? 0) === 0}
-          >
-            <Undo2 className="h-3 w-3 mr-1" />
-            Undo
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-[11px]"
-            onClick={() => setSummaryOpen(true)}
-          >
-            <Trophy className="h-3 w-3 mr-1" />
-            Game summary
-          </Button>
-        </div>
       )}
 
       <Suspense fallback={<DialogLoader />}>
