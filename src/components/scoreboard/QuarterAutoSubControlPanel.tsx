@@ -30,6 +30,8 @@ export interface OnCourtPlayerLike {
   name: string;
   number?: number;
   position: string | null;
+  /** Total seconds on court so far (UI displays as "Xm Ys"). */
+  secondsPlayed?: number;
 }
 
 interface QuarterAutoSubControlPanelProps<S extends QuarterSubLike> {
