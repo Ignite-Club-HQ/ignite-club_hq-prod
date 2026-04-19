@@ -382,6 +382,7 @@ export default function BasketballBoard({
               onCancelPlan={board.cancelAutoSubPlan}
               onRegeneratePlan={board.regenerateAutoSubPlan}
               onToggleLockPlayer={board.toggleLockPlayer}
+              previewMode
             />
           )}
         </Suspense>
