@@ -31,23 +31,24 @@ export const BASKETBALL_POSITION_LABELS: Record<BasketballPosition, string> = {
  *   C  = under the basket
  */
 export const POSITION_SLOTS: Record<BasketballPosition, { x: number; y: number }> = {
-  PG: { x: 50, y: 75 },
-  SG: { x: 78, y: 55 },
-  SF: { x: 22, y: 55 },
-  PF: { x: 70, y: 28 },
-  C:  { x: 50, y: 18 },
+  PG: { x: 50, y: 78 },
+  SG: { x: 80, y: 58 },
+  SF: { x: 20, y: 58 },
+  PF: { x: 72, y: 38 },
+  C:  { x: 50, y: 30 },
 };
 
 /**
  * Full-court slot positions (100x100 viewBox). Players are clustered in the
  * top half (offensive end) so the bottom half stays visually clear.
+ * Top row pushed down so tokens never sit behind the floating HUD.
  */
 export const POSITION_SLOTS_FULL: Record<BasketballPosition, { x: number; y: number }> = {
-  PG: { x: 50, y: 42 },
-  SG: { x: 75, y: 32 },
-  SF: { x: 25, y: 32 },
-  PF: { x: 65, y: 18 },
-  C:  { x: 50, y: 12 },
+  PG: { x: 50, y: 46 },
+  SG: { x: 76, y: 36 },
+  SF: { x: 24, y: 36 },
+  PF: { x: 66, y: 26 },
+  C:  { x: 50, y: 22 },
 };
 
 // Solid, high-contrast fills so on-court tokens dominate the court background.
