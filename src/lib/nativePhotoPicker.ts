@@ -63,20 +63,26 @@ const getNativePhotoLoadError = (error: unknown) => {
 
 /**
  * Picks a photo using the Capacitor Camera plugin on iOS.
- * Uses Base64 result type only because URI fallback re-opens the picker and
- * tends to fail the same way for iCloud-optimized assets.
+ *
+ * IMPORTANT iOS GESTURE RULE:
+ * Camera.getPhoto MUST be invoked synchronously from the user's tap. Any
+ * `await` before it (even on a no-op promise) yields a microtask which
+ * iOS WKWebView treats as outside the gesture, causing the photo picker
+ * to silently fail to open. We therefore call `Camera.getPhoto(...)`
+ * immediately and only `await` the returned promise.
  */
 export async function pickNativePhoto(options?: NativePhotoPickOptions): Promise<NativePhotoResult> {
-  await ensureCameraPermissions();
-
   const baseOptions = buildBaseOptions(options);
+
+  // Synchronously kick off the picker — preserves the user-gesture chain on iOS.
+  const photoPromise = Camera.getPhoto({
+    ...baseOptions,
+    resultType: CameraResultType.Base64,
+  });
 
   try {
     console.log("[nativePhotoPicker] Trying Camera plugin with Base64 result type");
-    const photo = await Camera.getPhoto({
-      ...baseOptions,
-      resultType: CameraResultType.Base64,
-    });
+    const photo = await photoPromise;
 
     if (!hasCameraPhotoSource(photo)) {
       console.warn("[nativePhotoPicker] Base64 photo has no source:", describeCameraPhotoSource(photo));
