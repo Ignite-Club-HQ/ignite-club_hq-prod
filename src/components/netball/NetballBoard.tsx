@@ -78,6 +78,7 @@ const NetballLineupPresetsDialog = lazy(() => import("./NetballLineupPresetsDial
 const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
 const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
 const NetballGoalScorerSheet = lazy(() => import("./NetballGoalScorerSheet"));
+const NetballPlayerCard = lazy(() => import("./NetballPlayerCard"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 import NetballPreGameScreen from "./NetballPreGameScreen";
 import NetballQuarterBreakDialog from "./NetballQuarterBreakDialog";
@@ -300,7 +301,16 @@ export default function NetballBoard({
     [timerState.currentQuarter, toast]
   );
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
+  // Player info card — shown on a single tap when Sub Mode is OFF. Surfaces
+  // name, time played, and sub status with a primary "Sub" CTA.
+  const [infoCardPlayerId, setInfoCardPlayerId] = useState<string | null>(null);
+  // Persistent Sub Mode toggle — when ON, tap-to-arm + tap-to-swap behaviour
+  // (the historical fast flow). When OFF, tap opens the info card instead.
+  const [subModeActive, setSubModeActive] = useState(false);
   const [goalScorerOpen, setGoalScorerOpen] = useState(false);
+  // Tracks which side a long-pressed score belongs to (home or away). Drives
+  // the scorer attribution sheet for the correct team.
+  const [scorerSide, setScorerSide] = useState<"home" | "away">("home");
   const [summaryOpen, setSummaryOpen] = useState(false);
   // Pending quarter-break subs — surfaced in NetballQuarterBreakDialog so the
   // coach approves rotations instead of having them apply silently.
@@ -744,11 +754,20 @@ export default function NetballBoard({
         });
         return;
       }
-      // First tap: enter sub-mode immediately (no confirm needed yet).
-      setSelectedPlayerId(playerId);
-      hapticSelectionTick();
+      // No player armed yet:
+      //  - Sub Mode ON  → arm this player as the swap source (legacy fast flow).
+      //  - Sub Mode OFF → open the info card. The card's primary "Sub" CTA
+      //    will arm this player + flip Sub Mode on so the next tap completes
+      //    the swap (matches Pitch Board pattern).
+      if (subModeActive) {
+        setSelectedPlayerId(playerId);
+        hapticSelectionTick();
+      } else {
+        setInfoCardPlayerId(playerId);
+        hapticSelectionTick();
+      }
     },
-    [selectedPlayerId, performSwap, readOnly, players, subConfirm]
+    [selectedPlayerId, performSwap, readOnly, players, subConfirm, subModeActive],
   );
 
   const handlePlayerLongPress = useCallback(
@@ -1335,6 +1354,11 @@ export default function NetballBoard({
     [players, quickActionPlayerId]
   );
 
+  const infoCardPlayer = useMemo(
+    () => players.find((p) => p.id === infoCardPlayerId) ?? null,
+    [players, infoCardPlayerId],
+  );
+
   // Sport-agnostic player rows for the summary dialog.
   const summaryPlayers = useMemo(
     () =>
@@ -1601,12 +1625,20 @@ export default function NetballBoard({
               disabled={!gameInProgress || !!timerState.isGameFinished}
               suppressed={!!selectedPlayerId}
               onScore={(side) => {
+                // Tap = +1 instantly. Home goals open scorer sheet for
+                // attribution; away goals fire raw +1 (no roster to attribute).
                 if (side === "home") {
-                  // Open the scorer picker so coaches can attribute the goal to GS/GA.
+                  setScorerSide("home");
                   setGoalScorerOpen(true);
                 } else {
                   addScore(side, 1);
                 }
+              }}
+              onScoreLongPress={(side) => {
+                // Long-press = always open the scorer sheet for that side so
+                // the coach can attribute / undo / pick a different scorer.
+                setScorerSide(side);
+                setGoalScorerOpen(true);
               }}
               onBack={onClose}
               controlSlot={
@@ -1696,20 +1728,17 @@ export default function NetballBoard({
       {/* ── LIVE ACTION BAR — sub / auto-subs / next break, with setup actions in overflow ── */}
       {!readOnly && (
         <NetballLiveActionBar
-          onStartSub={() => {
-            // Select the next-sub-out target if there is one; otherwise just
-            // arm sub mode by selecting the most-overplayed on-court player.
-            const target = nextSub?.playerOut.id ?? null;
-            if (target) setSelectedPlayerId(target);
-            else {
-              const onCourt = players.filter((p) => p.position !== null);
-              if (onCourt.length === 0) return;
-              const longest = onCourt.reduce((hi, p) =>
-                (p.minutesPlayed ?? 0) > (hi.minutesPlayed ?? 0) ? p : hi,
-              );
-              setSelectedPlayerId(longest.id);
-            }
+          onToggleSubMode={() => {
+            // Toggle persistent Sub Mode. When turning OFF, also clear any
+            // armed selection so the board returns to its calm default.
+            setSubModeActive((prev) => {
+              const next = !prev;
+              if (!next) setSelectedPlayerId(null);
+              hapticSelectionTick();
+              return next;
+            });
           }}
+          subModeActive={subModeActive}
           onNextBreak={applyNextLineupNow}
           onOpenAutoSubs={() => setAutoSubPanelOpen(true)}
           onUndo={
@@ -1814,11 +1843,32 @@ export default function NetballBoard({
           <NetballGoalScorerSheet
             open={goalScorerOpen}
             onOpenChange={setGoalScorerOpen}
-            candidates={players.filter(
-              (p) => p.position === "GS" || p.position === "GA"
-            )}
-            onAttribute={(playerId) => addScore("home", 1, playerId)}
-            onSkip={() => addScore("home", 1)}
+            candidates={
+              scorerSide === "home"
+                ? players.filter((p) => p.position === "GS" || p.position === "GA")
+                : []
+            }
+            onAttribute={(playerId) => addScore(scorerSide, 1, playerId)}
+            onSkip={() => addScore(scorerSide, 1)}
+          />
+        )}
+        {infoCardPlayerId && infoCardPlayer && (
+          <NetballPlayerCard
+            open={!!infoCardPlayerId}
+            onOpenChange={(o) => !o && setInfoCardPlayerId(null)}
+            player={infoCardPlayer}
+            onStartSub={() => {
+              // Arm this player + flip Sub Mode on. Coach's next tap completes the swap.
+              setSelectedPlayerId(infoCardPlayer.id);
+              setSubModeActive(true);
+            }}
+            onSubOff={() => subOff(infoCardPlayer.id)}
+            onToggleInjured={() => toggleInjured(infoCardPlayer.id)}
+            onScore={
+              infoCardPlayer.position === "GS" || infoCardPlayer.position === "GA"
+                ? () => addScore("home", 1, infoCardPlayer.id)
+                : undefined
+            }
           />
         )}
         {summaryOpen && (

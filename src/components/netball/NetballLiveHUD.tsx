@@ -15,6 +15,8 @@ interface NetballLiveHUDProps {
   /** Dim everything (selection mode). */
   suppressed?: boolean;
   onScore: (side: "home" | "away") => void;
+  /** Long-press a score → open scorer attribution sheet. */
+  onScoreLongPress?: (side: "home" | "away") => void;
   onBack: () => void;
   /** Period · clock · play/pause · timer overflow — supplied by board. */
   controlSlot: ReactNode;
@@ -49,6 +51,7 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
   disabled = false,
   suppressed = false,
   onScore,
+  onScoreLongPress,
   onBack,
   controlSlot,
   trailingSlot,
@@ -56,12 +59,18 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
   position = "top",
   onTogglePosition,
 }: NetballLiveHUDProps) {
-  const interactive = !readOnly && !disabled && !suppressed;
+  const interactive = !readOnly && !disabled;
+  // Per request: scoreboard stays fully bright in sub-mode (suppressed only
+  // gates interaction, not visibility). Game-finished still hard-disables.
 
   const handleScore = (side: "home" | "away") => {
     if (!interactive) return;
     hapticSelectionTick();
     onScore(side);
+  };
+  const handleScoreLongPress = (side: "home" | "away") => {
+    if (!interactive) return;
+    onScoreLongPress?.(side);
   };
 
   const isBottom = position === "bottom";
@@ -74,7 +83,8 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
         "rounded-xl border border-border bg-card",
         "shadow-[0_4px_14px_-6px_hsl(var(--foreground)/0.25)]",
         "transition-[opacity,filter,transform] duration-200 ease-out",
-        suppressed && "opacity-40 blur-[1px] pointer-events-none scale-[0.99]",
+        // Suppressed mode (sub-mode) keeps the HUD readable — only the timer
+        // controls dim slightly so the score remains crystal-clear.
       )}
       role="group"
       aria-label="Live game HUD"
@@ -91,7 +101,12 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        <div className="flex-1 min-w-0 flex items-center justify-center gap-1.5">
+        <div
+          className={cn(
+            "flex-1 min-w-0 flex items-center justify-center gap-1.5 transition-opacity",
+            suppressed && "opacity-50",
+          )}
+        >
           {controlSlot}
         </div>
 
@@ -127,6 +142,7 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
           score={homeScore}
           interactive={interactive}
           onScore={() => handleScore("home")}
+          onLongPress={onScoreLongPress ? () => handleScoreLongPress("home") : undefined}
           side="home"
         />
 
@@ -139,6 +155,7 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
           score={awayScore}
           interactive={interactive}
           onScore={() => handleScore("away")}
+          onLongPress={onScoreLongPress ? () => handleScoreLongPress("away") : undefined}
           side="away"
         />
       </div>
@@ -151,12 +168,15 @@ interface ScoreSideProps {
   score: number;
   interactive: boolean;
   onScore: () => void;
+  onLongPress?: () => void;
   side: "home" | "away";
 }
 
-function ScoreSide({ label, score, interactive, onScore, side }: ScoreSideProps) {
+function ScoreSide({ label, score, interactive, onScore, onLongPress, side }: ScoreSideProps) {
   const [pulse, setPulse] = useState(false);
   const prev = useRef(score);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
 
   useEffect(() => {
     if (prev.current !== score) {
@@ -167,6 +187,30 @@ function ScoreSide({ label, score, interactive, onScore, side }: ScoreSideProps)
     }
   }, [score]);
 
+  const clearLongPress = () => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  const handlePointerDown = () => {
+    if (!interactive || !onLongPress) return;
+    longPressFiredRef.current = false;
+    clearLongPress();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      onLongPress();
+    }, 450);
+  };
+  const handlePointerEnd = () => clearLongPress();
+  const handleClick = () => {
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    onScore();
+  };
+
   const isHome = side === "home";
 
   return (
@@ -176,10 +220,15 @@ function ScoreSide({ label, score, interactive, onScore, side }: ScoreSideProps)
         isHome ? "justify-start" : "justify-end flex-row-reverse",
       )}
     >
-      {/* Tap-the-score = +1. Big number + tiny team name beneath. */}
+      {/* Tap-the-score = +1. Long-press = scorer sheet. */}
       <button
         type="button"
-        onClick={onScore}
+        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onPointerLeave={handlePointerEnd}
+        onContextMenu={(e) => e.preventDefault()}
         disabled={!interactive}
         aria-label={`Add 1 point for ${label}`}
         className={cn(
