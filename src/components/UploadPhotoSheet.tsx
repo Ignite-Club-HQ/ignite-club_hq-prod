@@ -332,14 +332,14 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
     enabled: !!user && !!selectedClubId && userRoles !== undefined,
   });
 
-  // Only admins, coaches, and committee members can post club-wide (no team/league selected)
+  // Admins, team admins, coaches, and committee members can post club-wide (no team/league selected)
   const canPostClubWide = useMemo(() => {
     if (isAppAdmin) return true;
     if (!selectedClubId || !userRoles) return false;
     return userRoles.some(r => {
       const inClub = r.club_id === selectedClubId || 
         (r.team_id && userTeams?.some(t => t.id === r.team_id));
-      return inClub && ['club_admin', 'coach', 'committee_member'].includes(r.role);
+      return inClub && ['club_admin', 'team_admin', 'coach', 'committee_member'].includes(r.role);
     });
   }, [isAppAdmin, selectedClubId, userRoles, userTeams]);
 
