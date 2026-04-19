@@ -236,11 +236,14 @@ export function useBasketballBoardState({
     if (!scoreEventId || !playerId) return;
 
     let awardedPoints = 0;
+    let previousPlayerId: string | undefined;
     setTimerState((s) => {
       const log = s.scoreLog ?? [];
       const target = log.find((event) => event.id === scoreEventId);
       if (!target || target.side !== "home") return s;
+      if (target.playerId === playerId) return s;
       awardedPoints = target.points;
+      previousPlayerId = target.playerId;
       return {
         ...s,
         scoreLog: log.map((event) =>
@@ -254,11 +257,12 @@ export function useBasketballBoardState({
 
     setPlayers((prev) =>
       prev.map((p) => {
-        if (p.id !== playerId) return p;
-        const next = { ...p, points: (p.points ?? 0) + awardedPoints };
-        if (awardedPoints === 1) next.pointsBy1 = (p.pointsBy1 ?? 0) + 1;
-        else if (awardedPoints === 2) next.pointsBy2 = (p.pointsBy2 ?? 0) + 1;
-        else if (awardedPoints === 3) next.pointsBy3 = (p.pointsBy3 ?? 0) + 1;
+        if (p.id !== playerId && p.id !== previousPlayerId) return p;
+        const delta = p.id === playerId ? awardedPoints : -awardedPoints;
+        const next = { ...p, points: Math.max(0, (p.points ?? 0) + delta) };
+        if (awardedPoints === 1) next.pointsBy1 = Math.max(0, (p.pointsBy1 ?? 0) + (p.id === playerId ? 1 : -1));
+        else if (awardedPoints === 2) next.pointsBy2 = Math.max(0, (p.pointsBy2 ?? 0) + (p.id === playerId ? 1 : -1));
+        else if (awardedPoints === 3) next.pointsBy3 = Math.max(0, (p.pointsBy3 ?? 0) + (p.id === playerId ? 1 : -1));
         return next;
       })
     );
