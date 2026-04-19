@@ -19,6 +19,8 @@ interface BasketballPlayerTokenProps {
   isDragging?: boolean;
   isNextSub?: boolean;
   isLowestMinutes?: boolean;
+  /** Subtle "should rest" hint from the coach assistant (faint amber outline). */
+  isOverplayed?: boolean;
   onClick?: () => void;
   /** Long-press (~500ms) opens the quick action sheet (score, foul, injury…). */
   onLongPress?: () => void;
@@ -41,6 +43,7 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
   isDragging = false,
   isNextSub = false,
   isLowestMinutes = false,
+  isOverplayed = false,
   onClick,
   onLongPress,
   onDragStart,
@@ -136,6 +139,10 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         isRecentlySwapped && "drop-shadow-[0_0_16px_hsl(var(--primary)/0.85)] animate-fade-in",
         isNextSub && !isSelected && "animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary)/0.45)]",
         isLowestMinutes && variant === "bench" && !isSelected && "ring-2 ring-emerald-500 ring-offset-1 ring-offset-background rounded-full",
+        // Coach-assistant "should rest" hint — very faint amber outline,
+        // never competes with selection / swap-target rings.
+        isOverplayed && variant === "court" && !isSelected && !isSwapTarget &&
+          "ring-1 ring-amber-400/70 ring-offset-1 ring-offset-background rounded-full",
         readOnly && "pointer-events-none",
         "active:scale-95",
       )}
