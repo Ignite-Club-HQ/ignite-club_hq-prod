@@ -238,26 +238,26 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
         )}
       </div>
 
-      {/* Label — on-court players get a high-contrast pill; bench gets stacked text. */}
+      {/* Label — on-court players get a slim chip; bench gets stacked text. */}
       {variant === "court" ? (
         <span
           className={cn(
-            "mt-2 inline-flex items-center justify-center gap-1.5 px-2.5 py-[3px] rounded-md",
-            "bg-background border border-border shadow-[0_1px_3px_rgba(0,0,0,0.25)]",
-            "text-[10.5px] leading-none min-w-[3.25rem] max-w-[84px]",
+            "mt-1.5 inline-flex items-center justify-center gap-1 px-1.5 py-px rounded-md",
+            "bg-background/95 border border-border/70 shadow-[0_1px_2px_rgba(0,0,0,0.18)]",
+            "text-[10px] leading-none min-w-[2.75rem] max-w-[78px]",
           )}
         >
           <span className="truncate font-bold tracking-tight text-foreground">
             {player.name.split(" ")[0]}
           </span>
-          <span className="tabular-nums font-normal text-muted-foreground">{`${minutes}m`}</span>
+          <span className="tabular-nums font-normal text-muted-foreground/80 text-[9px]">{`${minutes}m`}</span>
         </span>
       ) : (
         <>
-          <span className="mt-2 text-[11px] font-semibold text-foreground leading-tight text-center max-w-full truncate">
+          <span className="mt-1 text-[10.5px] font-semibold text-foreground leading-tight text-center max-w-full truncate">
             {player.name.split(" ")[0]}
           </span>
-          <span className="mt-1 text-[9px] text-muted-foreground/70 leading-none tabular-nums font-normal">
+          <span className="mt-0.5 text-[9px] text-muted-foreground/70 leading-none tabular-nums font-normal">
             {restSeconds > 0 ? formatRest(restSeconds) : `${minutes}m`}
           </span>
         </>
