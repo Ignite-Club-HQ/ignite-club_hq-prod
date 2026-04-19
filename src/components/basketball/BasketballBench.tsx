@@ -12,6 +12,10 @@ interface BasketballBenchProps {
   selectedIsOnCourt?: boolean;
   /** Bench player queued to come on next (from auto-sub plan). */
   nextSubInId?: string | null;
+  /** Coach-assistant: top under-played bench ids (sorted, lowest minutes first). Highlights up to 2. */
+  underplayedBenchIds?: string[];
+  /** When true, render a small "Sub due" badge next to the bench label. */
+  showSubDueBadge?: boolean;
   recentlySwappedIds?: string[];
   readOnly?: boolean;
   onPlayerClick: (playerId: string) => void;
@@ -23,21 +27,25 @@ export default function BasketballBench({
   selectedPlayerId,
   selectedIsOnCourt = false,
   nextSubInId = null,
+  underplayedBenchIds = [],
+  showSubDueBadge = false,
   recentlySwappedIds = [],
   readOnly = false,
   onPlayerClick,
   onPlayerLongPress,
 }: BasketballBenchProps) {
-  // Auto-sub takes priority. Otherwise highlight the lowest-minutes
-  // bench player so the coach sees who's "owed" the most game time.
+  // Auto-sub plan / coach-assistant takes priority over the local fallback.
+  // We keep `lowestMinutesId` for legacy single-highlight behaviour when
+  // neither upstream signal is provided.
   const lowestMinutesId = useMemo(() => {
     if (nextSubInId) return null;
+    if (underplayedBenchIds.length > 0) return null;
     const eligible = bench.filter((p) => !p.isInjured);
     if (eligible.length === 0) return null;
     return eligible.reduce((lo, p) =>
       (p.minutesPlayed ?? 0) < (lo.minutesPlayed ?? 0) ? p : lo
     ).id;
-  }, [bench, nextSubInId]);
+  }, [bench, nextSubInId, underplayedBenchIds]);
 
   const isEmpty = bench.length === 0;
 
@@ -50,13 +58,18 @@ export default function BasketballBench({
       >
         <h2 className="text-[11px] font-bold flex items-center gap-1 text-muted-foreground">
           <Users className="h-3 w-3" /> Bench ({bench.length})
+          {showSubDueBadge && !selectedPlayerId && (
+            <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-primary/15 text-primary px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide">
+              Sub due
+            </span>
+          )}
         </h2>
         {!isEmpty && selectedPlayerId ? (
           <span className="text-[10px] text-primary font-medium flex items-center gap-1">
             <ArrowLeftRight className="h-3 w-3" />
             {selectedIsOnCourt ? "Tap a bench player" : "Tap to deselect"}
           </span>
-        ) : !isEmpty && (nextSubInId || lowestMinutesId) ? (
+        ) : !isEmpty && (nextSubInId || underplayedBenchIds.length > 0 || lowestMinutesId) ? (
           <span className="text-[10px] text-primary font-medium flex items-center gap-1">
             <ArrowUpCircle className="h-3 w-3" /> Next up
           </span>
@@ -68,6 +81,7 @@ export default function BasketballBench({
             {bench.map((p) => {
               const isSelected = selectedPlayerId === p.id;
               const isSwapTarget = !!selectedPlayerId && selectedIsOnCourt && !isSelected;
+              const isUnderplayed = underplayedBenchIds.includes(p.id);
               return (
                 <BasketballPlayerToken
                   key={p.id}
@@ -77,7 +91,8 @@ export default function BasketballBench({
                   isSwapTarget={isSwapTarget}
                   isRecentlySwapped={recentlySwappedIds.includes(p.id)}
                   isNextSub={nextSubInId === p.id}
-                  isLowestMinutes={lowestMinutesId === p.id}
+                  // Either upstream "next up" highlight OR the legacy fallback.
+                  isLowestMinutes={isUnderplayed || lowestMinutesId === p.id}
                   onClick={() => onPlayerClick(p.id)}
                   onLongPress={onPlayerLongPress ? () => onPlayerLongPress(p.id) : undefined}
                   readOnly={readOnly}

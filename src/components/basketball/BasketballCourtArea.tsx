@@ -18,6 +18,8 @@ interface BasketballCourtAreaProps {
   /** True when the selected player is on the bench — court tokens become swap targets. */
   selectedIsOnBench?: boolean;
   nextSubOutId?: string | null;
+  /** Coach-assistant: most over-played on-court player (subtle "should rest" outline). */
+  overplayedOnCourtId?: string | null;
   recentlySwappedIds?: string[];
   readOnly?: boolean;
   courtView?: BasketballCourtView;
@@ -41,6 +43,7 @@ export default function BasketballCourtArea({
   selectedPlayerId,
   selectedIsOnBench = false,
   nextSubOutId,
+  overplayedOnCourtId = null,
   recentlySwappedIds = [],
   readOnly = false,
   courtView = "half",
@@ -90,6 +93,7 @@ export default function BasketballCourtArea({
                   isDimmed={false}
                   isRecentlySwapped={recentlySwappedIds.includes(player.id)}
                   isNextSub={nextSubOutId === player.id}
+                  isOverplayed={overplayedOnCourtId === player.id}
                   onClick={() => onPlayerClick(player.id)}
                   onLongPress={onPlayerLongPress ? () => onPlayerLongPress(player.id) : undefined}
                   readOnly={readOnly}

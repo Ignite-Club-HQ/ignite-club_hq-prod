@@ -14,6 +14,7 @@ import BasketballPreGameScreen from "./BasketballPreGameScreen";
 import LiveGameHUD from "./LiveGameHUD";
 import SubModeBanner from "./SubModeBanner";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
+import { useBasketballCoachAssistant } from "@/hooks/useBasketballCoachAssistant";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
@@ -243,6 +244,18 @@ export default function BasketballBoard({
     board.timerState.periodType
   );
 
+  // Background coach assistant — silently observes playing time and surfaces
+  // subtle hints (over-played outline, under-played glow, "Sub due" badge) +
+  // fires a throttled toast/cue when fairness drifts. NEVER mutates state.
+  const assistant = useBasketballCoachAssistant({
+    players: board.players,
+    isRunning: !!board.timerState.isRunning,
+    isGameFinished: !!board.timerState.isGameFinished,
+    paused: board.autoSubPaused,
+    totalElapsedSeconds: totalElapsed,
+    readOnly,
+  });
+
   const isLive = !!board.timerState.isRunning && !board.timerState.isGameFinished;
   const onCourtCount = board.players.filter((p) => p.position !== null).length;
   const lineupSet = onCourtCount >= 5;
@@ -434,6 +447,10 @@ export default function BasketballBoard({
           selectedIsOnBench={selectedIsOnBench}
           recentlySwappedIds={board.recentlySwappedIds}
           nextSubOutId={board.nextSub?.playerOut.id ?? null}
+          overplayedOnCourtId={
+            // Plan-driven sub takes priority; fall back to the assistant hint.
+            board.nextSub?.playerOut.id ?? assistant.overplayedOnCourtId
+          }
           readOnly={readOnly}
           courtView={board.courtView}
           hideEmptySlots
@@ -450,6 +467,10 @@ export default function BasketballBoard({
         selectedIsOnCourt={selectedIsOnCourt}
         recentlySwappedIds={board.recentlySwappedIds}
         nextSubInId={board.nextSub?.playerIn.id ?? null}
+        underplayedBenchIds={
+          board.nextSub ? [] : assistant.underplayedBenchIds
+        }
+        showSubDueBadge={!board.nextSub && assistant.hasActiveSuggestion}
         readOnly={readOnly}
         onPlayerClick={board.handlePlayerClick}
         onPlayerLongPress={board.handlePlayerLongPress}
