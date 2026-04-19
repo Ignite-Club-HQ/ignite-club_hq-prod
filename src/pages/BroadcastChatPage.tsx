@@ -1070,6 +1070,7 @@ export default function BroadcastChatPage() {
               disabled={sendMutation.isPending}
             />
           )}
+          <ScheduledMessagesBanner target={scheduleTarget} />
           <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
             <ChatImageInput
               imageUrl={imageUrl}
@@ -1090,6 +1091,10 @@ export default function BroadcastChatPage() {
               onKeyPress={handleKeyPress}
               disabled={sendMutation.isPending}
             />
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMutation.isPending}
+            />
             <button
               onClick={() => {
                 stopTyping();
@@ -1105,6 +1110,18 @@ export default function BroadcastChatPage() {
               )}
             </button>
           </div>
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            initialImageUrl={imageUrl}
+            onScheduled={() => {
+              setMessage("");
+              setImageUrl(null);
+              clearDraft?.();
+            }}
+          />
           <CreatePollDialog
             open={pollDialogOpen}
             onOpenChange={setPollDialogOpen}

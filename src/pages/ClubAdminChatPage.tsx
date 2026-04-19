@@ -713,6 +713,7 @@ export default function ClubAdminChatPage() {
             disabled={sendMessageMutation.isPending}
           />
         )}
+        {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
           <button
             type="button"
@@ -732,6 +733,12 @@ export default function ClubAdminChatPage() {
             placeholder="Type a message..."
             disabled={sendMessageMutation.isPending}
           />
+          {scheduleTarget && (
+            <ScheduleMessageButton
+              onClick={() => setScheduleDialogOpen(true)}
+              disabled={sendMessageMutation.isPending}
+            />
+          )}
           <button
             onClick={handleSend}
             disabled={(!message.trim() && !pendingPollId) || sendMessageMutation.isPending}
@@ -744,6 +751,18 @@ export default function ClubAdminChatPage() {
             )}
           </button>
         </div>
+        {scheduleTarget && (
+          <ScheduleMessageDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            target={scheduleTarget}
+            initialText={message}
+            onScheduled={() => {
+              setMessage("");
+              clearDraft?.();
+            }}
+          />
+        )}
         {conversationId && (
           <CreatePollDialog
             open={pollDialogOpen}
