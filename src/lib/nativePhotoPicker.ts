@@ -89,6 +89,21 @@ const isIOSPhotoLoadFailure = (error: unknown) => {
   );
 };
 
+export const isPhotoPermissionError = (error: unknown): boolean => {
+  if (error instanceof PhotoPermissionDeniedError) return true;
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes("permission") ||
+    message.includes("not authorized") ||
+    message.includes("unauthorized") ||
+    message.includes("denied access") ||
+    message.includes("photo library") ||
+    message.includes("nsphotolibrary") ||
+    message.includes("read_external_storage") ||
+    message.includes("media images")
+  );
+};
+
 const getNativePhotoLoadError = (error: unknown) => {
   if (isIOSPhotoLoadFailure(error)) {
     return "That photo isn't fully available on this iPhone yet. Open it once in Photos or choose another image and try again.";
@@ -129,6 +144,9 @@ export async function pickNativePhoto(options?: NativePhotoPickOptions): Promise
     console.log("[nativePhotoPicker] Base64 strategy → blob OK, size:", result.blob.size, "mime:", result.mimeType);
     return result;
   } catch (error: unknown) {
+    if (isPhotoPermissionError(error)) {
+      throw new PhotoPermissionDeniedError(getErrorMessage(error));
+    }
     if (isCancelledSelectionError(error)) {
       throw new Error("Picker was cancelled");
     }
