@@ -123,9 +123,9 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
     >
       <div className="fixed inset-0 bg-black/40" />
       <div
-        className="relative z-[9999] w-full max-w-lg bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl border border-border overflow-y-auto overscroll-contain"
+        className="relative z-[9999] w-full max-w-lg bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl border border-border overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "calc(100dvh - 1rem)", WebkitOverflowScrolling: "touch" }}
+        style={{ maxHeight: "calc(100dvh - 1rem - env(safe-area-inset-bottom))", WebkitOverflowScrolling: "touch" }}
       >
         {/* Swipe-down handle (mobile) */}
         <div
