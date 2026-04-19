@@ -5505,6 +5505,9 @@ export type Database = {
           group_id: string | null
           id: string
           image_url: string | null
+          recurrence: Database["public"]["Enums"]["scheduled_message_recurrence"]
+          recurrence_parent_id: string | null
+          recurrence_until: string | null
           reply_to_id: string | null
           scheduled_for: string
           sent_message_id: string | null
@@ -5524,6 +5527,9 @@ export type Database = {
           group_id?: string | null
           id?: string
           image_url?: string | null
+          recurrence?: Database["public"]["Enums"]["scheduled_message_recurrence"]
+          recurrence_parent_id?: string | null
+          recurrence_until?: string | null
           reply_to_id?: string | null
           scheduled_for: string
           sent_message_id?: string | null
@@ -5543,6 +5549,9 @@ export type Database = {
           group_id?: string | null
           id?: string
           image_url?: string | null
+          recurrence?: Database["public"]["Enums"]["scheduled_message_recurrence"]
+          recurrence_parent_id?: string | null
+          recurrence_until?: string | null
           reply_to_id?: string | null
           scheduled_for?: string
           sent_message_id?: string | null
@@ -5571,6 +5580,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_messages"
             referencedColumns: ["id"]
           },
           {
@@ -7923,6 +7939,7 @@ export type Database = {
         | "direct"
         | "club_admin"
         | "broadcast"
+      scheduled_message_recurrence: "none" | "daily" | "weekly" | "monthly"
       scheduled_message_status: "pending" | "sent" | "failed" | "cancelled"
       season_status: "draft" | "active" | "closed" | "archived"
       sponsor_tier: "platinum" | "gold" | "silver" | "bronze"
@@ -8093,6 +8110,7 @@ export const Constants = {
         "club_admin",
         "broadcast",
       ],
+      scheduled_message_recurrence: ["none", "daily", "weekly", "monthly"],
       scheduled_message_status: ["pending", "sent", "failed", "cancelled"],
       season_status: ["draft", "active", "closed", "archived"],
       sponsor_tier: ["platinum", "gold", "silver", "bronze"],
