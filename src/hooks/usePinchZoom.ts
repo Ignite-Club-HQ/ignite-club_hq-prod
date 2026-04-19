@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, TouchEvent } from "react";
+import { useRef, useState, useCallback, TouchEvent, WheelEvent, MouseEvent } from "react";
 
 interface PinchZoomState {
   scale: number;
@@ -13,6 +13,11 @@ interface UsePinchZoomReturn {
   onTouchStart: (e: TouchEvent) => void;
   onTouchMove: (e: TouchEvent) => void;
   onTouchEnd: () => void;
+  onWheel: (e: WheelEvent) => void;
+  onMouseDown: (e: MouseEvent) => void;
+  onMouseMove: (e: MouseEvent) => void;
+  onMouseUp: () => void;
+  onDoubleClick: (e: MouseEvent) => void;
   resetZoom: () => void;
   isPanningOrPinching: () => boolean;
 }
@@ -36,6 +41,10 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
   // Single-finger pan state
   const panStart = useRef<{ x: number; y: number } | null>(null);
   const isPanning = useRef(false);
+
+  // Mouse drag-to-pan state (desktop)
+  const mousePanStart = useRef<{ x: number; y: number } | null>(null);
+  const isMousePanning = useRef(false);
 
   const getDistance = (touch1: React.Touch, touch2: React.Touch): number => {
     const dx = touch1.clientX - touch2.clientX;
@@ -123,12 +132,72 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     }
   }, []);
 
+  // Mouse wheel zoom (desktop). Hold no modifier — wheel = zoom in/out.
+  const onWheel = useCallback((e: WheelEvent) => {
+    // Only intercept zoom-style wheel events (ctrl/cmd held = pinch trackpad).
+    // For coaches on desktop, plain wheel = zoom feels natural inside the court.
+    e.preventDefault();
+    const delta = -e.deltaY * 0.002;
+    const current = stateRef.current.scale;
+    let next = current * (1 + delta);
+    next = Math.min(Math.max(next, minScale), maxScale);
+    if (next === current) return;
+    if (next <= 1.001) {
+      setState({ scale: 1, translateX: 0, translateY: 0 });
+    } else {
+      setState({
+        scale: next,
+        translateX: stateRef.current.translateX,
+        translateY: stateRef.current.translateY,
+      });
+    }
+  }, [minScale, maxScale]);
+
+  // Mouse drag to pan when zoomed (desktop).
+  const onMouseDown = useCallback((e: MouseEvent) => {
+    if (stateRef.current.scale <= 1) return;
+    if (e.button !== 0) return;
+    mousePanStart.current = { x: e.clientX, y: e.clientY };
+    lastTranslate.current = { x: stateRef.current.translateX, y: stateRef.current.translateY };
+    isMousePanning.current = true;
+  }, []);
+
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (!isMousePanning.current || !mousePanStart.current) return;
+    const dx = e.clientX - mousePanStart.current.x;
+    const dy = e.clientY - mousePanStart.current.y;
+    setState({
+      scale: stateRef.current.scale,
+      translateX: lastTranslate.current.x + dx,
+      translateY: lastTranslate.current.y + dy,
+    });
+  }, []);
+
+  const onMouseUp = useCallback(() => {
+    mousePanStart.current = null;
+    isMousePanning.current = false;
+  }, []);
+
+  // Double-click toggles between 1× and 2.2× — fast desktop "zoom in here".
+  const onDoubleClick = useCallback((_e: MouseEvent) => {
+    if (stateRef.current.scale > 1) {
+      setState({ scale: 1, translateX: 0, translateY: 0 });
+    } else {
+      setState({ scale: 2.2, translateX: 0, translateY: 0 });
+    }
+  }, []);
+
   const resetZoom = useCallback(() => {
     setState({ scale: 1, translateX: 0, translateY: 0 });
   }, []);
 
   const isPanningOrPinching = useCallback(() => {
-    return isPinching.current || isPanning.current || stateRef.current.scale > 1;
+    return (
+      isPinching.current ||
+      isPanning.current ||
+      isMousePanning.current ||
+      stateRef.current.scale > 1
+    );
   }, []);
 
   return {
@@ -138,6 +207,11 @@ export function usePinchZoom(minScale = 1, maxScale = 4): UsePinchZoomReturn {
     onTouchStart,
     onTouchMove,
     onTouchEnd,
+    onWheel,
+    onMouseDown,
+    onMouseMove,
+    onMouseUp,
+    onDoubleClick,
     resetZoom,
     isPanningOrPinching,
   };
