@@ -163,8 +163,26 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         align="start"
         sideOffset={8}
         onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        onFocusOutside={(e) => {
+          // Don't let focus moving to the search input (or anywhere inside the GIF tab) close the popover
+          const target = e.target as HTMLElement | null;
+          if (target?.closest('[data-gif-picker]')) {
+            e.preventDefault();
+          }
+        }}
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement | null;
+          if (target?.closest('[data-gif-picker]')) {
+            e.preventDefault();
+          }
+        }}
         onPointerDownOutside={(e) => {
           const target = e.target as HTMLElement;
+          if (target.closest('[data-gif-picker]')) {
+            e.preventDefault();
+            return;
+          }
           if (!target.closest('[data-emoji-button]')) {
             setOpen(false);
           }
