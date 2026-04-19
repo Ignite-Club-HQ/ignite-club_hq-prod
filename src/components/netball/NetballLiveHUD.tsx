@@ -15,6 +15,8 @@ interface NetballLiveHUDProps {
   /** Dim everything (selection mode). */
   suppressed?: boolean;
   onScore: (side: "home" | "away") => void;
+  /** Long-press a score → open scorer attribution sheet. */
+  onScoreLongPress?: (side: "home" | "away") => void;
   onBack: () => void;
   /** Period · clock · play/pause · timer overflow — supplied by board. */
   controlSlot: ReactNode;
@@ -49,6 +51,7 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
   disabled = false,
   suppressed = false,
   onScore,
+  onScoreLongPress,
   onBack,
   controlSlot,
   trailingSlot,
@@ -56,12 +59,18 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
   position = "top",
   onTogglePosition,
 }: NetballLiveHUDProps) {
-  const interactive = !readOnly && !disabled && !suppressed;
+  const interactive = !readOnly && !disabled;
+  // Per request: scoreboard stays fully bright in sub-mode (suppressed only
+  // gates interaction, not visibility). Game-finished still hard-disables.
 
   const handleScore = (side: "home" | "away") => {
     if (!interactive) return;
     hapticSelectionTick();
     onScore(side);
+  };
+  const handleScoreLongPress = (side: "home" | "away") => {
+    if (!interactive) return;
+    onScoreLongPress?.(side);
   };
 
   const isBottom = position === "bottom";
