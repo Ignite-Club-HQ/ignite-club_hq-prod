@@ -376,7 +376,14 @@ export function useBasketballBoardState({
     []
   );
 
-  const executeSub = useCallback(
+  // Push notify all team admins/coaches when an auto-sub fires.
+  const notifyAutoSub = useAutoSubNotify(teamId, teamName);
+  // Pending mid-quarter auto-sub awaiting coach confirmation. Quarter-break
+  // batches still flow through pendingQuarterSubs (separate dialog).
+  const [pendingAutoSub, setPendingAutoSub] = useState<BasketballSubEvent | null>(null);
+  const stagedAutoSubKeysRef = useRef<Set<string>>(new Set());
+
+  const applyAutoSub = useCallback(
     (sub: BasketballSubEvent) => {
       setPlayers((prev) => {
         const out = prev.find((p) => p.id === sub.playerOut.id);
@@ -407,9 +414,41 @@ export function useBasketballBoardState({
         title: "Auto-sub",
         description: `${sub.playerIn.name} ON for ${sub.playerOut.name} at ${sub.position}`,
       });
+      const periodType = timerStateRef.current.periodType;
+      const q = timerStateRef.current.currentQuarter;
+      const lbl = periodLabel(q, periodType);
+      void notifyAutoSub({
+        playerInName: sub.playerIn.name,
+        playerOutName: sub.playerOut.name,
+        position: sub.position,
+        periodLabel: lbl,
+      });
     },
-    [toast, appendSubLog]
+    [toast, appendSubLog, notifyAutoSub]
   );
+
+  // Stage instead of mutating immediately so a confirm dialog can surface.
+  const executeSub = useCallback((sub: BasketballSubEvent) => {
+    const key = getSubKey(sub);
+    if (stagedAutoSubKeysRef.current.has(key)) return;
+    stagedAutoSubKeysRef.current.add(key);
+    setPendingAutoSub(sub);
+  }, []);
+
+  const confirmPendingAutoSub = useCallback(() => {
+    if (!pendingAutoSub) return;
+    applyAutoSub(pendingAutoSub);
+    setPendingAutoSub(null);
+  }, [pendingAutoSub, applyAutoSub]);
+
+  const cancelPendingAutoSub = useCallback(() => {
+    if (!pendingAutoSub) return;
+    const skippedKey = getSubKey(pendingAutoSub);
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (getSubKey(s) === skippedKey ? { ...s, skipped: true } : s))
+    );
+    setPendingAutoSub(null);
+  }, [pendingAutoSub]);
 
   // ---------- Time tracking ----------
   // `delta` is the number of real seconds elapsed since the last tick — using
