@@ -22,9 +22,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import NetballPreGameLineup from "./NetballPreGameLineup";
+import NetballRotationPreview from "./NetballRotationPreview";
 import {
   NetballPlayer,
   NetballPosition,
+  NetballSubEvent,
   NETBALL_POSITIONS,
   PeriodType,
   RotationMode,
