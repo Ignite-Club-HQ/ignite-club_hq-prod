@@ -28,7 +28,13 @@ const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPrese
 const FreeThrowDialog = lazy(() => import("./FreeThrowDialog"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 const QuarterAutoSubControlPanel = lazy(() => import("@/components/scoreboard/QuarterAutoSubControlPanel"));
-const BasketballScorerPickerSheet = lazy(() => import("./BasketballScorerPickerSheet"));
+// IMPORTANT: ScorerPickerSheet must NOT be lazy. It is the immediate response
+// to a +1/+2/+3 tap and any Suspense fallback / lazy chunk fetch on the first
+// score tap was preventing the sheet from ever appearing (audit fix: the
+// Sheet would be queued behind the fallback while React batched the
+// addScore + setPendingScore updates, then the body's pointer-events lock
+// from a sibling Radix dialog left it stuck closed).
+import BasketballScorerPickerSheet from "./BasketballScorerPickerSheet";
 
 
 interface BasketballBoardProps {
@@ -459,21 +465,29 @@ export default function BasketballBoard({
               // in progress (clock has started, not yet finished).
               disabled={!gameInProgress || !!board.timerState.isGameFinished}
               onScore={(side, pts) => {
-                // Away score → straight through. Home score → ask which
-                // on-court player to credit (coach can also pick "Team only").
+                // Away score → straight through. Home score → record the
+                // basket immediately (team total updates without waiting for
+                // attribution) then prompt for the scorer.
                 if (side === "away") {
                   board.addScore("away", pts);
                   return;
                 }
                 const scoreEventId = crypto.randomUUID();
                 board.addScore("home", pts, undefined, scoreEventId);
-                // No on-court players to attribute → team-only directly so
-                // the tap isn't silently swallowed by an empty picker.
                 const onCourt = board.players.filter((p) => p.position !== null);
                 if (onCourt.length === 0) {
+                  // No one on court → team-only, no picker needed.
                   return;
                 }
-                setPendingScore({ points: pts, eventId: scoreEventId });
+                // Defer to a microtask so the scorer prompt opens AFTER
+                // React has committed the addScore state. Without this, the
+                // open-state change can be dropped when batched alongside a
+                // sibling Radix Dialog's close transition, leaving the
+                // sheet permanently invisible (audit B-fix: scorer dialog
+                // never opens).
+                Promise.resolve().then(() =>
+                  setPendingScore({ points: pts, eventId: scoreEventId })
+                );
               }}
               suppressed={!!board.selectedPlayerId}
               controlSlot={
@@ -712,19 +726,25 @@ export default function BasketballBoard({
             onToggleLockPlayer={board.toggleLockPlayer}
           />
         )}
-        <BasketballScorerPickerSheet
-          open={pendingScore != null}
-          onOpenChange={(o) => !o && setPendingScore(null)}
-          points={pendingScore?.points ?? null}
-          onCourt={board.players.filter((p) => p.position !== null)}
-          onPick={(playerId) => {
-            if (playerId && pendingScore) {
-              board.attributeScore(pendingScore.eventId, playerId);
-            }
-            setPendingScore(null);
-          }}
-        />
       </Suspense>
+
+      {/* Scorer picker sits OUTSIDE Suspense so its open transition is never
+          blocked by a sibling lazy dialog's fallback, and it's eagerly
+          imported so the very first +1/+2/+3 tap shows the sheet. */}
+      <BasketballScorerPickerSheet
+        open={pendingScore != null}
+        onOpenChange={(o) => {
+          if (!o) setPendingScore(null);
+        }}
+        points={pendingScore?.points ?? null}
+        onCourt={board.players.filter((p) => p.position !== null)}
+        onPick={(playerId) => {
+          if (playerId && pendingScore) {
+            board.attributeScore(pendingScore.eventId, playerId);
+          }
+          setPendingScore(null);
+        }}
+      />
     </div>
   );
 }
