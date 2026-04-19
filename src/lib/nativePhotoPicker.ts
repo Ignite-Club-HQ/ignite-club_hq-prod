@@ -10,6 +10,13 @@ export interface NativePhotoResult {
   previewUrl: string;
 }
 
+export class PhotoPermissionDeniedError extends Error {
+  constructor(message = "Photo library access is not granted") {
+    super(message);
+    this.name = "PhotoPermissionDeniedError";
+  }
+}
+
 const isNativeIOS = () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
