@@ -136,10 +136,14 @@ export default function NetballLiveActionBar({
         className="h-8 px-2 text-[11px] font-semibold whitespace-nowrap"
         onClick={onNextBreak}
         disabled={isFinalPeriod}
-        title="Apply planned lineup for the next period"
+        title={
+          isFinalPeriod
+            ? "Final period — no next break"
+            : `Apply planned lineup for Q${currentQuarter + 1}`
+        }
       >
         <SkipForward className="h-3.5 w-3.5 mr-1" />
-        Q{currentQuarter}→
+        Q{isFinalPeriod ? currentQuarter : currentQuarter + 1}
       </Button>
 
       {/* Overflow — setup actions live here in game mode */}

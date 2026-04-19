@@ -1242,14 +1242,24 @@ export default function NetballBoard({
   const canUndoSub = (timerState.subLog?.length ?? 0) > 0;
 
   const applyNextLineupNow = () => {
-    const nextQ = timerState.currentQuarter;
+    // The button is labelled "Q{next}→" so it should plan/apply the NEXT
+    // quarter, not re-apply the current one.
+    const periods = visiblePeriods(timerState.periodType);
+    const idx = periods.indexOf(timerState.currentQuarter);
+    const nextQ = (periods[idx + 1] ?? null) as Quarter | null;
+    if (!nextQ) {
+      toast({ title: "No more quarters", description: "You're already in the final period." });
+      return;
+    }
     const label = periodLabel(nextQ, timerState.periodType);
     const lineup = quarterLineups.find((l) => l.quarter === nextQ);
     if (!lineup || Object.keys(lineup.assignments).length === 0) {
+      // No plan yet — open the planner so the coach can build one
+      // instead of dropping a toast they have to chase.
+      setLineupPlannerOpen(true);
       toast({
-        title: "No lineup planned",
-        description: `Open the Lineup Planner to set up ${label}.`,
-        variant: "destructive",
+        title: `No ${label} lineup yet`,
+        description: "Plan it now and we'll apply it at the break.",
       });
       return;
     }
