@@ -263,6 +263,7 @@ export function MentionInput({
   clubId,
   groupId,
   showEmojiPicker = true,
+  onGifSelect,
 }: MentionInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
