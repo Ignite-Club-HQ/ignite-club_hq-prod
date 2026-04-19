@@ -1802,6 +1802,13 @@ export default function NetballBoard({
         onConfirm={confirmPendingQuarterSubs}
         onSkip={skipPendingQuarterSubs}
       />
+
+      <SubConfirmDialog
+        payload={subConfirm.pending?.payload ?? null}
+        onConfirm={subConfirm.confirm}
+        onCancel={subConfirm.cancel}
+      />
+
     </div>
   );
 }
