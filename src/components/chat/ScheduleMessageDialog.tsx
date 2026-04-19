@@ -291,7 +291,7 @@ export function ScheduleMessageDialog({
                   <Calendar
                     mode="single"
                     selected={date}
-                    onSelect={(d) => d && setDate(d)}
+                    onSelect={(d) => { if (d) { setDate(d); setActivePreset(null); } }}
                     disabled={(d) => {
                       const today = new Date();
                       today.setHours(0, 0, 0, 0);
@@ -312,7 +312,7 @@ export function ScheduleMessageDialog({
                   id="schedule-time"
                   type="time"
                   value={timeStr}
-                  onChange={(e) => setTimeStr(e.target.value)}
+                  onChange={(e) => { setTimeStr(e.target.value); setActivePreset(null); }}
                   className="pl-9"
                 />
               </div>
