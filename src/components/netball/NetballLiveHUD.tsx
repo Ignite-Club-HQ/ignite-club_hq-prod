@@ -1,6 +1,6 @@
 import { ReactNode, memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MoreHorizontal, Plus } from "lucide-react";
+import { ArrowLeft, ArrowDownToLine, ArrowUpToLine, MoreHorizontal, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hapticSelectionTick } from "@/lib/haptics";
 
@@ -22,6 +22,10 @@ interface NetballLiveHUDProps {
   trailingSlot?: ReactNode;
   /** Extra actions (auto-subs status, etc.) injected into the overflow menu. */
   overflowSlot?: ReactNode;
+  /** Whether the HUD is pinned to the top or bottom of the court. */
+  position?: "top" | "bottom";
+  /** Toggle the HUD between top and bottom. */
+  onTogglePosition?: () => void;
 }
 
 /**
@@ -49,6 +53,8 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
   controlSlot,
   trailingSlot,
   overflowSlot,
+  position = "top",
+  onTogglePosition,
 }: NetballLiveHUDProps) {
   const interactive = !readOnly && !disabled && !suppressed;
 
@@ -58,10 +64,13 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
     onScore(side);
   };
 
+  const isBottom = position === "bottom";
+
   return (
     <div
       className={cn(
-        "absolute top-2 left-2 right-2 z-30 mx-auto max-w-md",
+        "absolute left-2 right-2 z-30 mx-auto max-w-md",
+        isBottom ? "bottom-2" : "top-2",
         "rounded-xl border border-border bg-card",
         "shadow-[0_4px_14px_-6px_hsl(var(--foreground)/0.25)]",
         "transition-[opacity,filter,transform] duration-200 ease-out",
@@ -88,6 +97,23 @@ const NetballLiveHUD = memo(function NetballLiveHUD({
 
         {trailingSlot && (
           <div className="shrink-0 flex items-center">{trailingSlot}</div>
+        )}
+
+        {onTogglePosition && (
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onTogglePosition}
+            aria-label={isBottom ? "Move HUD to top" : "Move HUD to bottom"}
+            title={isBottom ? "Move to top" : "Move to bottom"}
+            className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+          >
+            {isBottom ? (
+              <ArrowUpToLine className="h-4 w-4" />
+            ) : (
+              <ArrowDownToLine className="h-4 w-4" />
+            )}
+          </Button>
         )}
 
         {overflowSlot && <div className="shrink-0">{overflowSlot}</div>}
