@@ -1189,6 +1189,23 @@ export default function DirectMessagePage() {
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
               {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
                 <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
+                {dmImageUrl && (
+                  <div className="relative shrink-0 self-end">
+                    <img
+                      src={dmImageUrl}
+                      alt="Attachment preview"
+                      className="h-10 w-10 object-cover rounded"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setDmImageUrl(null)}
+                      className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                )}
                 <MentionInput
                   value={message}
                   onChange={(val) => {
@@ -1198,6 +1215,7 @@ export default function DirectMessagePage() {
                   onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
                   placeholder="Type a message..."
                   disabled={sendMessageMutation.isPending}
+                  onGifSelect={setDmImageUrl}
                 />
                 {scheduleTarget && (
                   <ScheduleMessageButton
@@ -1207,7 +1225,7 @@ export default function DirectMessagePage() {
                 )}
                 <button 
                   onClick={handleSend} 
-                  disabled={!message.trim() || sendMessageMutation.isPending}
+                  disabled={(!message.trim() && !dmImageUrl) || sendMessageMutation.isPending}
                   className="flex items-center justify-center h-[44px] w-[44px] shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
                 >
                   {sendMessageMutation.isPending ? (
