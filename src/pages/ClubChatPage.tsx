@@ -1377,7 +1377,7 @@ export default function ClubChatPage() {
             />
           )}
           {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-          <div className="flex w-full max-w-full min-w-0 items-end gap-1.5 overflow-visible">
+          <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible">
             <ChatImageInput
               imageUrl={imageUrl}
               onImageUploaded={setImageUrl}
