@@ -41,7 +41,6 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [gifPickerOpen, setGifPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hadAttachmentRef = useRef(false);
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
