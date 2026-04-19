@@ -51,7 +51,10 @@ export default function BasketballCourtArea({
 }: BasketballCourtAreaProps) {
   const slots = courtView === "full" ? POSITION_SLOTS_FULL : POSITION_SLOTS;
   const aspect = courtView === "full" ? "aspect-square" : "aspect-[5/7]";
-  const courtSelectionActive = !!selectedPlayerId && !selectedIsOnBench;
+  // Court → court selection: a court player is picked → the OTHER court players
+  // become position-swap targets (emerald pulse). This is the "tap who's moving,
+  // tap where they go" flow for positional re-shuffles.
+  const courtSwapMode = !!selectedPlayerId && !selectedIsOnBench;
 
   return (
     <div className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 p-2">
