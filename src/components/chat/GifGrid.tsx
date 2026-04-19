@@ -81,7 +81,7 @@ export function GifGrid({
   }, [query, active]);
 
   return (
-    <div className={cn("flex flex-col min-h-0", className)}>
+    <div data-gif-picker className={cn("flex flex-col min-h-0", className)}>
       <div className="shrink-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
