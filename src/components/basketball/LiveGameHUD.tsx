@@ -162,11 +162,11 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
         <ScoreNumber score={score} label={label} pulse={pulse} />
       </div>
 
-      {/* Scoring buttons — own row, larger tap targets */}
+      {/* Scoring buttons — own row, lighter visual weight so players dominate */}
       {interactive && (
         <div
           className={cn(
-            "flex items-center gap-1 mt-1.5",
+            "flex items-center gap-1 mt-1",
             side === "home" ? "justify-end" : "justify-start",
           )}
         >
@@ -174,10 +174,10 @@ function TeamSide({ label, score, increments, interactive, onScore, side }: Team
             <Button
               key={pts}
               size="sm"
-              variant="secondary"
+              variant="ghost"
               className={cn(
-                "h-8 min-h-0 min-w-9 px-2 text-xs font-bold rounded-md leading-none",
-                "bg-secondary/80 hover:bg-secondary transition-all duration-100",
+                "h-7 min-h-0 min-w-8 px-1.5 text-[11px] font-bold rounded-md leading-none",
+                "bg-secondary/40 hover:bg-secondary/70 text-foreground/80 transition-all duration-100",
                 "active:scale-90 active:bg-primary/30",
               )}
               onClick={() => onScore(pts)}
