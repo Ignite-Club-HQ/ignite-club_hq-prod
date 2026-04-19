@@ -1583,7 +1583,10 @@ export default function NetballBoard({
           {autoSubPanelOpen && (
             <QuarterAutoSubControlPanel
               open={autoSubPanelOpen}
-              onClose={() => setAutoSubPanelOpen(false)}
+              onClose={() => {
+                setAutoSubPanelOpen(false);
+                setAutoSubPanelPreview(false);
+              }}
               autoSubPlan={autoSubPlan}
               onPlayers={onCourtForPanel}
               currentQuarter={timerState.currentQuarter}
@@ -1598,6 +1601,8 @@ export default function NetballBoard({
               onCancelPlan={cancelAutoSubPlan}
               onRegeneratePlan={regenerateAutoSubPlan}
               onToggleLockPlayer={toggleLockPlayer}
+              onEditPlan={() => setLineupPlannerOpen(true)}
+              previewMode={autoSubPanelPreview}
             />
           )}
         </Suspense>
