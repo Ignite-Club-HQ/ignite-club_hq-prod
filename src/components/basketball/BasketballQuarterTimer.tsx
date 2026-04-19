@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Play, Pause, SkipForward, RotateCcw, MoreVertical } from "lucide-react";
+import { Play, Pause, SkipForward, RotateCcw, MoreVertical, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BasketballTimerState, Quarter } from "./types";
 import { formatTime } from "./basketballHelpers";
@@ -30,6 +30,10 @@ interface BasketballQuarterTimerProps {
   /** When true, render inline controls only (no card wrapper / padding) so the
    *  timer can sit alongside the scoreboard in a single header strip. */
   compact?: boolean;
+  /** Opens the auto-sub plan panel (preview, execute, skip, minutes per player). */
+  onOpenAutoSubPlan?: () => void;
+  /** Whether an auto-sub plan currently exists — controls menu label. */
+  hasAutoSubPlan?: boolean;
 }
 
 export default function BasketballQuarterTimer({
@@ -40,6 +44,8 @@ export default function BasketballQuarterTimer({
   onReset,
   readOnly = false,
   compact = false,
+  onOpenAutoSubPlan,
+  hasAutoSubPlan = false,
 }: BasketballQuarterTimerProps) {
   const intervalRef = useRef<number | null>(null);
   const stateRef = useRef(state);
@@ -208,6 +214,15 @@ export default function BasketballQuarterTimer({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="z-[100000]">
+              {onOpenAutoSubPlan && (
+                <>
+                  <DropdownMenuItem onClick={onOpenAutoSubPlan}>
+                    <Repeat className="h-4 w-4 mr-2" />
+                    {hasAutoSubPlan ? "Auto-sub plan" : "Set up auto-subs"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem
                 onClick={advanceQuarter}
                 disabled={isFinalPeriod || state.isGameFinished}

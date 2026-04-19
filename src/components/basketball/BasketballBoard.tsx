@@ -369,7 +369,12 @@ export default function BasketballBoard({
               open={autoSubPanelOpen}
               onClose={() => setAutoSubPanelOpen(false)}
               autoSubPlan={board.autoSubPlan}
-              onPlayers={board.players.filter((p) => p.position !== null) as any}
+              onPlayers={board.players.map((p) => ({
+                id: p.id,
+                name: p.name,
+                position: p.position,
+                secondsPlayed: p.minutesPlayed ?? 0,
+              })) as any}
               currentQuarter={board.timerState.currentQuarter}
               currentElapsedSeconds={board.timerState.elapsedSeconds}
               minutesPerQuarter={board.timerState.minutesPerQuarter}
@@ -459,6 +464,12 @@ export default function BasketballBoard({
                   onReset={board.resetPlayerStats}
                   readOnly={readOnly}
                   compact
+                  onOpenAutoSubPlan={
+                    !readOnly && board.rotationMode !== "off"
+                      ? () => setAutoSubPanelOpen(true)
+                      : undefined
+                  }
+                  hasAutoSubPlan={board.autoSubPlan.length > 0}
                 />
               }
               position={hudPosition}
@@ -623,7 +634,12 @@ export default function BasketballBoard({
             open={autoSubPanelOpen}
             onClose={() => setAutoSubPanelOpen(false)}
             autoSubPlan={board.autoSubPlan}
-            onPlayers={board.players.filter((p) => p.position !== null) as any}
+            onPlayers={board.players.map((p) => ({
+              id: p.id,
+              name: p.name,
+              position: p.position,
+              secondsPlayed: p.minutesPlayed ?? 0,
+            })) as any}
             currentQuarter={board.timerState.currentQuarter}
             currentElapsedSeconds={board.timerState.elapsedSeconds}
             minutesPerQuarter={board.timerState.minutesPerQuarter}
