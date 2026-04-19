@@ -6,7 +6,6 @@ import { LinkPreview } from "./LinkPreview";
 import { EmojiPicker } from "./EmojiPicker";
 import { EventLinkCard } from "./EventLinkCard";
 import { Capacitor } from "@capacitor/core";
-import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 
 interface MentionInputProps {
   value: string;
