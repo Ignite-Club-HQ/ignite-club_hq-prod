@@ -1606,6 +1606,29 @@ export default function NetballBoard({
             />
           )}
         </Suspense>
+
+        <NetballKickoffConfirm
+          open={kickoffConfirmOpen}
+          onOpenChange={setKickoffConfirmOpen}
+          rotationIntervalMinutes={rotationIntervalMinutes}
+          plannedSubsCount={
+            autoSubPlan.filter((s) => !s.executed && !s.skipped).length
+          }
+          onPreview={() => {
+            setHasReviewedAutoSubs(true);
+            setAutoSubPanelPreview(true);
+            setAutoSubPanelOpen(true);
+          }}
+          onConfirm={() => {
+            setKickoffConfirmOpen(false);
+            setHasReviewedAutoSubs(true);
+            setTimerState((s) => ({
+              ...s,
+              isRunning: true,
+              lastUpdateTime: Date.now(),
+            }));
+          }}
+        />
       </>
     );
   }
