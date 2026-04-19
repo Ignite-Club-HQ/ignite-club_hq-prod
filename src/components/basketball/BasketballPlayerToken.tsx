@@ -130,7 +130,9 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       className={cn(
         // Tight gap so token + label read as a single physical "piece" on the court.
         "relative flex flex-col items-center gap-0 touch-manipulation select-none",
-        "transition-all duration-200 ease-out will-change-transform",
+        // Smoother movement when slots reposition + a subtle press feel.
+        "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
+        "active:scale-[0.92] active:duration-75",
         // Court tokens are noticeably larger than bench chips so they dominate
         // the court visually (req: ~10–15% bigger).
         variant === "court" ? "w-16" : "w-12",
@@ -150,7 +152,6 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         isOverplayed && variant === "court" && !isSelected && !isSwapTarget && !isNextSub &&
           "ring-1 ring-amber-400/70 ring-offset-1 ring-offset-background rounded-full",
         readOnly && "pointer-events-none",
-        "active:scale-95",
       )}
     >
       {/* Foul-out (red Ban) takes priority over injury (yellow triangle) */}
@@ -225,7 +226,8 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         {pos && (
           <span
             className={cn(
-              "absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold rounded px-1 border shadow-sm",
+              // Side-attached badge so it doesn't crowd the centered name pill below.
+              "absolute -right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold rounded px-1 py-px border shadow-sm leading-none",
               colors?.bg,
               colors?.text,
               colors?.border
@@ -249,9 +251,10 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       {variant === "court" ? (
         <span
           className={cn(
-            "-mt-0.5 inline-flex items-center justify-center gap-1 px-2 py-[3px] rounded-md",
-            "bg-background/95 border border-border/80 shadow-[0_2px_6px_rgba(0,0,0,0.25)] backdrop-blur-sm",
-            "text-[10.5px] leading-none min-w-[3.25rem] max-w-[80px]"
+            "-mt-0.5 inline-flex items-center justify-center gap-1.5 px-2.5 py-[3px] rounded-md",
+            // Slightly more opaque background + lighter shadow for clean contrast.
+            "bg-background/90 border border-border/70 shadow-[0_1px_3px_rgba(0,0,0,0.18)] backdrop-blur-sm",
+            "text-[10.5px] leading-none min-w-[3.25rem] max-w-[84px]"
           )}
         >
           <span className="truncate font-bold tracking-tight text-foreground">{player.name.split(" ")[0]}</span>
