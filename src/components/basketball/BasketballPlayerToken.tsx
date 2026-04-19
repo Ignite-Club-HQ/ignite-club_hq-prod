@@ -184,16 +184,27 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       <div className="relative">
         <Avatar
           className={cn(
-            // Thicker borders + stronger shadow so tokens "pop" off the court.
-            "shadow-lg transition-shadow",
-            "drop-shadow-[0_3px_6px_rgba(0,0,0,0.45)]",
+            // Stronger shadow + crisp outer ring for depth — players feel like
+            // physical chips on the court.
+            "shadow-[0_4px_10px_rgba(0,0,0,0.45),0_1px_2px_rgba(0,0,0,0.3)] transition-shadow",
+            "ring-1 ring-black/20",
             variant === "court" ? "h-13 w-13 border-[3px]" : "h-10 w-10 border-2",
             fouled ? "border-destructive opacity-70" : (colors?.border ?? "border-border")
           )}
           style={variant === "court" ? { height: "3.25rem", width: "3.25rem" } : undefined}
         >
-          <AvatarFallback className={cn("font-extrabold", variant === "court" ? "text-sm" : "text-xs", colors?.bg, colors?.text)}>
-            {initials}
+          <AvatarFallback
+            className={cn(
+              "font-extrabold relative",
+              variant === "court" ? "text-sm" : "text-xs",
+              colors?.bg,
+              colors?.text,
+              // Subtle inner top highlight gives the chip a 3D, glossy feel.
+              "before:absolute before:inset-0 before:rounded-full before:pointer-events-none",
+              "before:bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0)_55%)]"
+            )}
+          >
+            <span className="relative z-10">{initials}</span>
           </AvatarFallback>
         </Avatar>
         {pos && (
