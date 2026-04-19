@@ -9,6 +9,9 @@ import { supabase } from "@/integrations/supabase/client";
 
 import NetballQuarterTimer from "./NetballQuarterTimer";
 import LiveGameHUD from "@/components/basketball/LiveGameHUD";
+import NetballLiveHUD from "./NetballLiveHUD";
+import NetballCentrePassChip from "./NetballCentrePassChip";
+import NetballLiveActionBar from "./NetballLiveActionBar";
 import NetballActionBar from "./NetballActionBar";
 import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
