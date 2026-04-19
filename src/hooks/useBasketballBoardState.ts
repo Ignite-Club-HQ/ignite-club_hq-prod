@@ -940,14 +940,22 @@ export function useBasketballBoardState({
       toast({ title: "No subs queued this period" });
       return;
     }
+    // Mark the batch as skipped AND drop other pending entries so the
+    // regen below rebuilds a fresh plan from current minutes (the history
+    // filter keeps executed/skipped entries; remaining pending ones would
+    // otherwise be carried over verbatim and block re-balancing).
     setAutoSubPlan((prev) =>
-      prev.map((s) =>
-        !s.executed && !s.skipped && s.quarter === target.quarter && s.time === target.time
-          ? { ...s, skipped: true }
-          : s
-      )
+      prev
+        .map((s) =>
+          !s.executed && !s.skipped && s.quarter === target.quarter && s.time === target.time
+            ? { ...s, skipped: true }
+            : s
+        )
+        .filter((s) => s.executed || s.skipped)
     );
-    toast({ title: "Sub skipped" });
+    // Defer regen so it sees the updated plan state.
+    setTimeout(() => regenerateAutoSubPlanRef.current?.(), 0);
+    toast({ title: "Sub skipped", description: "Plan regenerated from current minutes." });
   }, [autoSubPlan, timerState.currentQuarter, toast]);
 
   /** Drop the entire pending plan (rotation mode stays on; user can regenerate). */
