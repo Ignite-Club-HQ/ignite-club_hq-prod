@@ -77,14 +77,14 @@ const LiveGameHUD = memo(function LiveGameHUD({
           <Button
             size="icon"
             variant="ghost"
-            className="absolute left-1 top-0 h-5 w-5 min-h-0 min-w-0 rounded-full text-muted-foreground/60 hover:text-foreground transition-colors"
+            className="absolute right-1 top-0.5 h-6 w-6 min-h-0 min-w-0 rounded-full bg-background/70 border border-border/60 text-foreground/80 hover:text-foreground hover:bg-background shadow-sm"
             onClick={onTogglePosition}
             aria-label={position === "top" ? "Move HUD to bottom" : "Move HUD to top"}
           >
             {position === "top" ? (
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="h-3.5 w-3.5" />
             ) : (
-              <ChevronUp className="h-3 w-3" />
+              <ChevronUp className="h-3.5 w-3.5" />
             )}
           </Button>
         )}
