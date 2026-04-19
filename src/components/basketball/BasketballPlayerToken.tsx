@@ -229,17 +229,18 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         )}
       </div>
       {/* Backed name+minutes label. On-court players get a high-contrast pill
-          that slightly overlaps the token so the two read as a single piece. */}
+          centered under the token so the two read as a single piece. The pill
+          slightly overlaps the avatar (-mt-0.5) for a unified silhouette. */}
       {variant === "court" ? (
         <span
           className={cn(
-            "-mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md",
-            "bg-background/95 border border-border shadow-md backdrop-blur-sm",
-            "text-[10.5px] leading-none max-w-[76px]"
+            "-mt-0.5 inline-flex items-center justify-center gap-1 px-2 py-[3px] rounded-md",
+            "bg-background/95 border border-border/80 shadow-[0_2px_6px_rgba(0,0,0,0.25)] backdrop-blur-sm",
+            "text-[10.5px] leading-none min-w-[3.25rem] max-w-[80px]"
           )}
         >
-          <span className="truncate font-bold text-foreground">{player.name.split(" ")[0]}</span>
-          <span className="tabular-nums font-medium text-muted-foreground">
+          <span className="truncate font-bold tracking-tight text-foreground">{player.name.split(" ")[0]}</span>
+          <span className="tabular-nums font-normal text-muted-foreground/90">
             {`${minutes}m`}
           </span>
           {fouls > 0 && (
