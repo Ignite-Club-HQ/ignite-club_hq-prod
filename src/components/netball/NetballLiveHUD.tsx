@@ -259,22 +259,6 @@ function ScoreSide({ label, score, interactive, onScore, onLongPress, side }: Sc
         </span>
       </button>
 
-      {/* Inline +1 chip — the small explicit affordance next to the score. */}
-      {interactive && (
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={onScore}
-          aria-label={`Add 1 point for ${label}`}
-          className={cn(
-            "h-6 w-6 min-h-0 min-w-0 rounded-full text-[11px] font-bold",
-            "bg-secondary/40 hover:bg-secondary/70 text-foreground/80",
-            "active:scale-90 active:bg-primary/30 transition-all duration-100",
-          )}
-        >
-          <Plus className="h-3 w-3" strokeWidth={3} />
-        </Button>
-      )}
     </div>
   );
 }
