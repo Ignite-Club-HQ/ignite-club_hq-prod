@@ -269,7 +269,57 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
             </div>
           )}
 
-          {/* Pause / Skip — live-game only */}
+          {/* Minutes per player — live-game only, helps coach see fairness at a glance. */}
+          {!previewMode && onPlayers.some((p) => (p.secondsPlayed ?? 0) > 0 || p.position !== null) && (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="px-3 py-2 bg-muted/40 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Minutes on court
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {onPlayers.filter((p) => p.position !== null).length} playing
+                </span>
+              </div>
+              <div className="divide-y divide-border max-h-48 overflow-y-auto">
+                {[...onPlayers]
+                  .sort((a, b) => (b.secondsPlayed ?? 0) - (a.secondsPlayed ?? 0))
+                  .map((p) => {
+                    const secs = Math.max(0, Math.floor(p.secondsPlayed ?? 0));
+                    const m = Math.floor(secs / 60);
+                    const s = secs % 60;
+                    const isOnCourt = p.position !== null;
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between px-3 py-1.5 text-sm"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full shrink-0",
+                              isOnCourt ? "bg-primary" : "bg-muted-foreground/40"
+                            )}
+                            aria-hidden
+                          />
+                          <span className="truncate font-medium">
+                            {p.number ? `#${p.number} ` : ""}
+                            {p.name}
+                          </span>
+                          {isOnCourt && p.position && (
+                            <Badge variant="secondary" className="h-4 px-1.5 text-[9px] font-bold">
+                              {p.position}
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="font-mono tabular-nums text-xs text-muted-foreground shrink-0">
+                          {m}m {s.toString().padStart(2, "0")}s
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
           {!previewMode && remainingSubs.length > 0 && (
             <div className="grid grid-cols-2 gap-2">
               <Button
