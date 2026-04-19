@@ -51,6 +51,12 @@ interface QuarterAutoSubControlPanelProps<S extends QuarterSubLike> {
   onToggleLockPlayer: (playerId: string) => void;
   /** Optional editor entry-point (e.g. open the lineup planner). */
   onEditPlan?: () => void;
+  /**
+   * Pre-game preview mode: hides every live-game action (Tap to execute,
+   * Pause, Skip, Lock, Regenerate, Cancel Plan) and shows the timeline only.
+   * Coaches use it to review the planned rotation before tip-off.
+   */
+  previewMode?: boolean;
 }
 
 const formatTime = (seconds: number) => {
