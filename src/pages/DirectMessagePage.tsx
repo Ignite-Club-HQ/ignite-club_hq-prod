@@ -183,6 +183,7 @@ export default function DirectMessagePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [dmImageUrl, setDmImageUrl] = useState<string | null>(null);
 
   const profileRef = useRef(profile);
   profileRef.current = profile;
