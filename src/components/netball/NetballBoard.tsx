@@ -341,6 +341,12 @@ export default function NetballBoard({
   );
   // Auto-sub control panel state
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
+  // True when the panel was opened from the pre-game screen — drives previewMode.
+  const [autoSubPanelPreview, setAutoSubPanelPreview] = useState(false);
+  // Tracks whether coach has previewed the plan this session — if not, the
+  // kickoff reminder fires when they tap "Ready to start" with auto-subs on.
+  const [hasReviewedAutoSubs, setHasReviewedAutoSubs] = useState(false);
+  const [kickoffConfirmOpen, setKickoffConfirmOpen] = useState(false);
   const [autoSubPaused, setAutoSubPaused] = useState(
     savedStateRef.current?.autoSubPaused ?? false
   );
