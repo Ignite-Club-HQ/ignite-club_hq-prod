@@ -218,9 +218,14 @@ export function useBasketballBoardState({
       });
       if (side === "home" && playerId) {
         setPlayers((prev) =>
-          prev.map((p) =>
-            p.id === playerId ? { ...p, points: (p.points ?? 0) + points } : p
-          )
+          prev.map((p) => {
+            if (p.id !== playerId) return p;
+            const next = { ...p, points: (p.points ?? 0) + points };
+            if (points === 1) next.pointsBy1 = (p.pointsBy1 ?? 0) + 1;
+            else if (points === 2) next.pointsBy2 = (p.pointsBy2 ?? 0) + 1;
+            else if (points === 3) next.pointsBy3 = (p.pointsBy3 ?? 0) + 1;
+            return next;
+          })
         );
       }
     },
