@@ -10,6 +10,13 @@ export interface NativePhotoResult {
   previewUrl: string;
 }
 
+export class PhotoPermissionDeniedError extends Error {
+  constructor(message = "Photo library access is not granted") {
+    super(message);
+    this.name = "PhotoPermissionDeniedError";
+  }
+}
+
 const isNativeIOS = () => Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -23,6 +30,35 @@ const getErrorMessage = (error: unknown): string => {
 export async function ensureCameraPermissions(): Promise<void> {
   if (!isNativeIOS()) return;
   return;
+}
+
+/**
+ * Checks current photo-library permission and requests it if not yet granted.
+ * Throws PhotoPermissionDeniedError if the user has explicitly denied access.
+ */
+export async function ensurePhotoLibraryPermission(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+
+  try {
+    const current = await Camera.checkPermissions();
+    const photoStatus = current.photos;
+
+    if (photoStatus === "granted" || photoStatus === "limited") return;
+
+    if (photoStatus === "denied") {
+      throw new PhotoPermissionDeniedError();
+    }
+
+    // 'prompt' or 'prompt-with-rationale' — request now
+    const requested = await Camera.requestPermissions({ permissions: ["photos"] });
+    if (requested.photos !== "granted" && requested.photos !== "limited") {
+      throw new PhotoPermissionDeniedError();
+    }
+  } catch (error) {
+    if (error instanceof PhotoPermissionDeniedError) throw error;
+    // If the platform doesn't support checkPermissions, fall through and let the picker handle it
+    console.warn("[nativePhotoPicker] Permission check failed:", error);
+  }
 }
 
 export function resetPermissionCache(): void {
@@ -50,6 +86,21 @@ const isIOSPhotoLoadFailure = (error: unknown) => {
     message.includes("error loading image") ||
     message.includes("loading image") ||
     message.includes("selected photo data is unavailable")
+  );
+};
+
+export const isPhotoPermissionError = (error: unknown): boolean => {
+  if (error instanceof PhotoPermissionDeniedError) return true;
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes("permission") ||
+    message.includes("not authorized") ||
+    message.includes("unauthorized") ||
+    message.includes("denied access") ||
+    message.includes("photo library") ||
+    message.includes("nsphotolibrary") ||
+    message.includes("read_external_storage") ||
+    message.includes("media images")
   );
 };
 
@@ -93,6 +144,9 @@ export async function pickNativePhoto(options?: NativePhotoPickOptions): Promise
     console.log("[nativePhotoPicker] Base64 strategy → blob OK, size:", result.blob.size, "mime:", result.mimeType);
     return result;
   } catch (error: unknown) {
+    if (isPhotoPermissionError(error)) {
+      throw new PhotoPermissionDeniedError(getErrorMessage(error));
+    }
     if (isCancelledSelectionError(error)) {
       throw new Error("Picker was cancelled");
     }
