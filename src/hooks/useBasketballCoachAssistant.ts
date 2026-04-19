@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cueSubDue } from "@/lib/gameCues";
 import type { BasketballPlayer } from "@/components/basketball/types";
 
