@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LinkedEventHeader } from "@/components/pitch/LinkedEventHeader";
 import { SyncStatusIndicator } from "@/components/pitch/SyncStatusIndicator";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 import NetballQuarterTimer from "./NetballQuarterTimer";
 import LiveGameHUD from "@/components/basketball/LiveGameHUD";
