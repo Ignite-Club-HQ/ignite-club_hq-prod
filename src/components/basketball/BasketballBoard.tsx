@@ -712,20 +712,18 @@ export default function BasketballBoard({
             onToggleLockPlayer={board.toggleLockPlayer}
           />
         )}
-        {pendingScore != null && (
-          <BasketballScorerPickerSheet
-            open={pendingScore != null}
-            onOpenChange={(o) => !o && setPendingScore(null)}
-            points={pendingScore.points}
-            onCourt={board.players.filter((p) => p.position !== null)}
-            onPick={(playerId) => {
-              if (playerId) {
-                board.attributeScore(pendingScore.eventId, playerId);
-              }
-              setPendingScore(null);
-            }}
-          />
-        )}
+        <BasketballScorerPickerSheet
+          open={pendingScore != null}
+          onOpenChange={(o) => !o && setPendingScore(null)}
+          points={pendingScore?.points ?? null}
+          onCourt={board.players.filter((p) => p.position !== null)}
+          onPick={(playerId) => {
+            if (playerId && pendingScore) {
+              board.attributeScore(pendingScore.eventId, playerId);
+            }
+            setPendingScore(null);
+          }}
+        />
       </Suspense>
     </div>
   );
