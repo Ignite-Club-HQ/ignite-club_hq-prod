@@ -489,43 +489,53 @@ export default function BasketballBoard({
 
             {/* Auto-sub status — soft, secondary pill near bench so it never
                 competes visually with player tokens. */}
-            {!readOnly && gameInProgress && board.rotationMode !== "off" && (
-              <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 text-[10.5px] font-semibold gap-1.5 px-2 shadow-sm rounded-full bg-card/80 hover:bg-card border border-border/60 text-foreground/80 backdrop-blur"
-                  onClick={() => setAutoSubPanelOpen(true)}
-                >
-                  <Repeat className="h-3 w-3 text-muted-foreground" />
-                  {board.autoSubPlan.length === 0 ? (
-                    <span>Auto-subs</span>
-                  ) : board.autoSubPaused ? (
-                    <span>Paused</span>
-                  ) : board.nextSub ? (
-                    <>
-                      <span className="opacity-70">Next</span>
-                      <span className="font-mono tabular-nums">
-                        {(() => {
-                          const remaining = Math.max(
-                            0,
-                            board.nextSub.time - board.timerState.elapsedSeconds
-                          );
-                          const m = Math.floor(remaining / 60);
-                          const s = remaining % 60;
-                          return `${m}:${s.toString().padStart(2, "0")}`;
-                        })()}
+            {!readOnly && gameInProgress && board.rotationMode !== "off" && (() => {
+              // "Sub due" highlight when next planned sub is within 15s.
+              const remaining = board.nextSub
+                ? Math.max(0, board.nextSub.time - board.timerState.elapsedSeconds)
+                : null;
+              const subDue = remaining !== null && remaining <= 15 && !board.autoSubPaused;
+              return (
+                <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={cn(
+                      "h-6 text-[10.5px] font-semibold gap-1.5 px-2 shadow-sm rounded-full backdrop-blur transition-colors",
+                      subDue
+                        ? "bg-primary text-primary-foreground border border-primary hover:bg-primary/90 animate-pulse"
+                        : "bg-card/70 hover:bg-card border border-border/50 text-foreground/75",
+                    )}
+                    onClick={() => setAutoSubPanelOpen(true)}
+                  >
+                    <Repeat className={cn("h-3 w-3", subDue ? "text-primary-foreground" : "text-muted-foreground")} />
+                    {board.autoSubPlan.length === 0 ? (
+                      <span>Auto-subs</span>
+                    ) : board.autoSubPaused ? (
+                      <span>Paused</span>
+                    ) : subDue ? (
+                      <span className="uppercase tracking-wide">Sub due</span>
+                    ) : board.nextSub ? (
+                      <>
+                        <span className="opacity-70">Next</span>
+                        <span className="font-mono tabular-nums">
+                          {(() => {
+                            const m = Math.floor(remaining! / 60);
+                            const s = remaining! % 60;
+                            return `${m}:${s.toString().padStart(2, "0")}`;
+                          })()}
+                        </span>
+                      </>
+                    ) : (
+                      <span>
+                        Subs {board.autoSubPlan.filter((s) => s.executed).length}/
+                        {board.autoSubPlan.length}
                       </span>
-                    </>
-                  ) : (
-                    <span>
-                      Subs {board.autoSubPlan.filter((s) => s.executed).length}/
-                      {board.autoSubPlan.length}
-                    </span>
-                  )}
-                </Button>
-              </div>
-            )}
+                    )}
+                  </Button>
+                </div>
+              );
+            })()}
           </>
         )}
 
