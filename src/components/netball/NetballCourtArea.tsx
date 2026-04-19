@@ -75,7 +75,7 @@ export default function NetballCourtArea({
                   }
                   isNextSub={nextSubOutId === player.id}
                   onClick={() => onPlayerClick(player.id)}
-                  onLongPress={() => onPlayerLongPress(player.id)}
+                  onLongPress={onPlayerLongPress ? () => onPlayerLongPress(player.id) : undefined}
                   readOnly={readOnly}
                 />
               ) : (
