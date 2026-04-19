@@ -746,6 +746,114 @@ export default function NetballBoard({
     );
   }, []);
 
+  /**
+   * Direct drag-and-drop assignment used by the pre-game lineup picker.
+   * Mirrors basketball's assignToPosition semantics with netball validation.
+   */
+  const assignToPosition = useCallback(
+    (playerId: string, position: NetballPosition | null) => {
+      if (readOnly) return;
+      // Validate up-front (avoid toasts inside setPlayers — audit fix N9).
+      if (position) {
+        const incoming = players.find((p) => p.id === playerId);
+        if (incoming && validationMode !== "free") {
+          const allowed = isPositionAllowedForPlayer(incoming, position);
+          if (!allowed) {
+            if (validationMode === "strict") {
+              toast({
+                title: "Move blocked",
+                description: `${incoming.name} can't play ${position} in strict mode.`,
+                variant: "destructive",
+              });
+              return;
+            }
+            toast({
+              title: "Position warning",
+              description: `${incoming.name} isn't a preferred ${position}.`,
+            });
+          }
+        }
+      }
+      let logEntry: Omit<NetballSubLogEntry, "id" | "at" | "quarter" | "time"> | null = null;
+      setPlayers((prev) => {
+        const incoming = prev.find((p) => p.id === playerId);
+        if (!incoming) return prev;
+        if (incoming.position === position) return prev;
+        if (position === null) {
+          return prev.map((p) =>
+            p.id === incoming.id ? transitionPosition(p, null) : p
+          );
+        }
+        const displaced = prev.find((p) => p.position === position && p.id !== incoming.id);
+        if (incoming.position === null && displaced) {
+          logEntry = {
+            playerOutId: displaced.id,
+            playerOutName: displaced.name,
+            playerInId: incoming.id,
+            playerInName: incoming.name,
+            position,
+            source: "manual",
+          };
+        }
+        return prev.map((p) => {
+          if (p.id === incoming.id) return transitionPosition(p, position);
+          if (p.position === position && p.id !== incoming.id) {
+            return transitionPosition(p, incoming.position);
+          }
+          return p;
+        });
+      });
+      if (logEntry) appendSubLog(logEntry);
+    },
+    [readOnly, players, validationMode, toast, appendSubLog]
+  );
+
+  // ---------- Pending quarter-break dialog handlers ----------
+  const confirmPendingQuarterSubs = useCallback(() => {
+    if (!pendingQuarterSubs) return;
+    const subs = pendingQuarterSubs.subs;
+    const subKeys = new Set(subs.map(getSubKey));
+    setPlayers((prev) => {
+      let next = prev;
+      for (const sub of subs) {
+        const out = next.find((p) => p.id === sub.playerOut.id);
+        const inP = next.find((p) => p.id === sub.playerIn.id);
+        if (!out?.position || !inP || inP.position !== null) continue;
+        next = next.map((p) => {
+          if (p.id === out.id) return transitionPosition(p, null);
+          if (p.id === inP.id) return transitionPosition(p, sub.position);
+          return p;
+        });
+      }
+      return next;
+    });
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (subKeys.has(getSubKey(s)) ? { ...s, executed: true } : s))
+    );
+    subs.forEach((sub) =>
+      appendSubLog({
+        playerOutId: sub.playerOut.id,
+        playerOutName: sub.playerOut.name,
+        playerInId: sub.playerIn.id,
+        playerInName: sub.playerIn.name,
+        position: sub.position,
+        source: "auto",
+      })
+    );
+    setPendingQuarterSubs(null);
+  }, [pendingQuarterSubs, appendSubLog]);
+
+  const skipPendingQuarterSubs = useCallback(() => {
+    if (!pendingQuarterSubs) return;
+    const skippedKeys = new Set(pendingQuarterSubs.subs.map(getSubKey));
+    setAutoSubPlan((prev) =>
+      prev.map((s) => (skippedKeys.has(getSubKey(s)) ? { ...s, skipped: true } : s))
+    );
+    setPendingQuarterSubs(null);
+    toast({ title: "Subs skipped", description: `Q${pendingQuarterSubs.quarter} rotation cleared.` });
+  }, [pendingQuarterSubs, toast]);
+
+
   // ---------- Undo last sub ----------
   const undoLastSub = useCallback(() => {
     const log = timerState.subLog ?? [];
