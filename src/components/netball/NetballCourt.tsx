@@ -1,12 +1,14 @@
 import { memo } from "react";
 
 /**
- * SVG netball court rendered as a background.
- * Uses semantic tokens via CSS-vars where possible; specific court colors
- * live here because they're domain-specific (white lines on green/blue).
+ * Netball court SVG (portrait, full court).
  *
- * Coordinate space is 100x200 (portrait) so child positions can use
- * percentages directly.
+ * Restyled to mirror the basketball board's understated aesthetic:
+ * a single muted court colour, soft white lines, no loud zone labels —
+ * so player tokens dominate the visual hierarchy.
+ *
+ * Coordinate space is 100x140 (portrait) to match the basketball aspect
+ * ratio so the floating HUD docks consistently across both sports.
  */
 interface NetballCourtProps {
   className?: string;
@@ -15,64 +17,57 @@ interface NetballCourtProps {
 const NetballCourt = memo(function NetballCourt({ className }: NetballCourtProps) {
   return (
     <svg
-      viewBox="0 0 100 200"
+      viewBox="0 0 100 140"
       preserveAspectRatio="none"
       className={className}
       aria-hidden="true"
     >
-      {/* Court surface */}
-      <rect x="0" y="0" width="100" height="200" fill="hsl(var(--pitch-green, 142 60% 25%))" />
+      {/* Court surface — muted blue/teal so tokens dominate. */}
+      <rect x="0" y="0" width="100" height="140" fill="hsl(190 32% 38%)" />
+      {/* Subtle grain overlay for depth. */}
+      <rect x="0" y="0" width="100" height="140" fill="hsl(190 30% 20% / 0.08)" />
 
-      {/* Outer boundary */}
+      {/* Outer boundary — soft so it doesn't compete with tokens. */}
       <rect
         x="2"
         y="2"
         width="96"
-        height="196"
+        height="136"
         fill="none"
         stroke="white"
-        strokeWidth="0.6"
+        strokeOpacity="0.55"
+        strokeWidth="0.5"
       />
 
-      {/* Third lines (horizontal) */}
-      <line x1="2" y1="68" x2="98" y2="68" stroke="white" strokeWidth="0.5" />
-      <line x1="2" y1="132" x2="98" y2="132" stroke="white" strokeWidth="0.5" />
+      {/* Third lines (horizontal) — court split into ATTACK / CENTRE / DEFENCE. */}
+      <line x1="2" y1="48" x2="98" y2="48" stroke="white" strokeOpacity="0.5" strokeWidth="0.4" />
+      <line x1="2" y1="92" x2="98" y2="92" stroke="white" strokeOpacity="0.5" strokeWidth="0.4" />
 
       {/* Centre circle */}
-      <circle cx="50" cy="100" r="6" fill="none" stroke="white" strokeWidth="0.5" />
+      <circle cx="50" cy="70" r="5" fill="none" stroke="white" strokeOpacity="0.55" strokeWidth="0.4" />
+      <circle cx="50" cy="70" r="0.6" fill="white" fillOpacity="0.6" />
 
       {/* Top shooting circle (semi) */}
       <path
-        d="M 30 2 A 22 22 0 0 0 70 2"
+        d="M 32 2 A 18 18 0 0 0 68 2"
         fill="none"
         stroke="white"
-        strokeWidth="0.5"
+        strokeOpacity="0.55"
+        strokeWidth="0.4"
       />
-      {/* Top goal box */}
-      <rect x="40" y="2" width="20" height="3" fill="none" stroke="white" strokeWidth="0.5" />
-      <circle cx="50" cy="2" r="1" fill="white" />
+      {/* Top goal post */}
+      <circle cx="50" cy="2" r="1" fill="white" fillOpacity="0.8" />
 
       {/* Bottom shooting circle (semi) */}
       <path
-        d="M 30 198 A 22 22 0 0 1 70 198"
+        d="M 32 138 A 18 18 0 0 1 68 138"
         fill="none"
         stroke="white"
-        strokeWidth="0.5"
+        strokeOpacity="0.55"
+        strokeWidth="0.4"
       />
-      {/* Bottom goal box */}
-      <rect x="40" y="195" width="20" height="3" fill="none" stroke="white" strokeWidth="0.5" />
-      <circle cx="50" cy="198" r="1" fill="white" />
-
-      {/* Third labels */}
-      <text x="4" y="36" fontSize="3" fill="white" opacity="0.4" fontFamily="sans-serif">
-        ATTACK
-      </text>
-      <text x="4" y="100" fontSize="3" fill="white" opacity="0.4" fontFamily="sans-serif">
-        CENTRE
-      </text>
-      <text x="4" y="166" fontSize="3" fill="white" opacity="0.4" fontFamily="sans-serif">
-        DEFENCE
-      </text>
+      {/* Bottom goal post */}
+      <circle cx="50" cy="138" r="1" fill="white" fillOpacity="0.8" />
     </svg>
   );
 });
