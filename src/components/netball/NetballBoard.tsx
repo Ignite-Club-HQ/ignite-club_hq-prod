@@ -986,8 +986,21 @@ export default function NetballBoard({
         source: "auto",
       })
     );
+    // Notify admins/coaches for every sub in the batch.
+    const periodType = timerStateRef.current.periodType;
+    const q = pendingQuarterSubs.quarter;
+    const periodLabel =
+      periodType === "halves" ? `H${q <= 2 ? 1 : 2}` : `Q${q}`;
+    subs.forEach((sub) =>
+      void notifyAutoSub({
+        playerInName: sub.playerIn.name,
+        playerOutName: sub.playerOut.name,
+        position: sub.position,
+        periodLabel,
+      })
+    );
     setPendingQuarterSubs(null);
-  }, [pendingQuarterSubs, appendSubLog]);
+  }, [pendingQuarterSubs, appendSubLog, notifyAutoSub]);
 
   const skipPendingQuarterSubs = useCallback(() => {
     if (!pendingQuarterSubs) return;
@@ -1860,6 +1873,23 @@ export default function NetballBoard({
         payload={subConfirm.pending?.payload ?? null}
         onConfirm={subConfirm.confirm}
         onCancel={subConfirm.cancel}
+      />
+
+      {/* Auto-sub confirmation — fires when the engine queues a planned
+          mid-quarter sub. Quarter-break batches use NetballQuarterBreakDialog. */}
+      <SubConfirmDialog
+        payload={
+          pendingAutoSub
+            ? {
+                kind: "sub-on",
+                primaryName: pendingAutoSub.playerIn.name,
+                secondaryName: pendingAutoSub.playerOut.name,
+                position: pendingAutoSub.position,
+              }
+            : null
+        }
+        onConfirm={confirmPendingAutoSub}
+        onCancel={cancelPendingAutoSub}
       />
 
     </div>
