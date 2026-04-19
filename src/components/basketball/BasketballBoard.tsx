@@ -322,6 +322,16 @@ export default function BasketballBoard({
                 }));
                 persistDefaults({ court_minutes_per_quarter: n });
               }}
+              rotationMode={board.rotationMode}
+              onRotationModeChange={(m) => {
+                board.setRotationMode(m);
+                persistDefaults({ court_rotation_mode: m });
+              }}
+              rotationIntervalMinutes={board.rotationIntervalMinutes}
+              onRotationIntervalChange={(n) => {
+                board.setRotationIntervalMinutes(n);
+                persistDefaults({ court_rotation_interval_minutes: n });
+              }}
             />
           )}
           {rosterOpen && (
