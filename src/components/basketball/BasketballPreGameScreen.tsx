@@ -15,10 +15,12 @@ interface BasketballPreGameScreenProps {
   minutesPerQuarter: number;
   periodType: PeriodType;
 
-  /** Auto-sub plan summary — shown as a small pill in the controls row so the
-   *  coach can confirm/edit rotation before tip-off without leaving pre-game. */
+  /** Auto-sub plan toggle — coaches flip rotation on/off directly from the
+   *  pre-game controls row. When ON we use a sensible default (time-based @ 4m)
+   *  unless the coach previously chose another mode/interval. */
   rotationMode?: RotationMode;
   rotationIntervalMinutes?: number;
+  onToggleAutoSub?: (next: RotationMode) => void;
 
   onOpenSettings: () => void;
   onOpenSquad: () => void;
