@@ -89,6 +89,8 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
   // In preview (pre-game) mode the timeline is the whole point — open it by default.
   const [showTimeline, setShowTimeline] = useState(previewMode);
   const [showLockPanel, setShowLockPanel] = useState(false);
+  // Two-tap confirmation for the destructive "Cancel Plan" action.
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const swipeRef = useRef<{ startY: number } | null>(null);
 
   const remainingSubs = useMemo(
@@ -581,14 +583,27 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
           {!previewMode && (
             <Button
               variant="ghost"
-              className="w-full h-11 text-destructive hover:text-destructive hover:bg-destructive/10"
+              className={cn(
+                "w-full h-11 hover:bg-destructive/10",
+                confirmCancel
+                  ? "bg-destructive/15 text-destructive font-bold"
+                  : "text-destructive hover:text-destructive"
+              )}
+              disabled={remainingSubs.length === 0}
               onClick={() => {
+                if (!confirmCancel) {
+                  setConfirmCancel(true);
+                  // Auto-revert after 4s if the coach changes their mind.
+                  setTimeout(() => setConfirmCancel(false), 4000);
+                  return;
+                }
                 onCancelPlan();
+                setConfirmCancel(false);
                 onClose();
               }}
             >
               <X className="h-4 w-4 mr-1.5" />
-              Cancel Plan
+              {confirmCancel ? "Tap again to confirm" : "Cancel Plan"}
             </Button>
           )}
         </div>
