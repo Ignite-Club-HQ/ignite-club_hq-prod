@@ -128,20 +128,21 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       style={style}
       aria-label={`${player.name}${pos ? ` at ${pos}` : " on bench"}${points > 0 ? `, ${points} points` : ""}`}
       className={cn(
-        "relative flex flex-col items-center gap-1 touch-manipulation select-none",
+        // Tight gap so token + label read as a single physical "piece" on the court.
+        "relative flex flex-col items-center gap-0 touch-manipulation select-none",
         "transition-all duration-200 ease-out will-change-transform",
         // Court tokens are noticeably larger than bench chips so they dominate
         // the court visually (req: ~10–15% bigger).
         variant === "court" ? "w-16" : "w-12",
         isDragging && "opacity-40 scale-90",
-        isSelected && "scale-110 z-20 drop-shadow-[0_0_14px_hsl(var(--primary)/0.7)] ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
+        isSelected && "scale-110 z-20 drop-shadow-[0_0_16px_hsl(var(--primary)/0.75)] ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
         isSwapTarget && !isInvalidTarget && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background rounded-full animate-pulse",
         isInvalidTarget && "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full opacity-60",
         isDimmed && !isSelected && !isSwapTarget && "opacity-40",
         isRecentlySwapped && "drop-shadow-[0_0_16px_hsl(var(--primary)/0.85)] animate-fade-in",
-        // "Suggested sub off" — clear amber ring on the on-court candidate.
+        // "Suggested sub off" — clear amber/orange ring on the on-court candidate.
         isNextSub && !isSelected && variant === "court" &&
-          "ring-2 ring-amber-400 ring-offset-2 ring-offset-background rounded-full animate-pulse drop-shadow-[0_0_10px_rgba(251,191,36,0.6)]",
+          "ring-2 ring-orange-400 ring-offset-2 ring-offset-background rounded-full animate-pulse drop-shadow-[0_0_12px_rgba(251,146,60,0.7)]",
         isNextSub && !isSelected && variant === "bench" &&
           "animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary)/0.45)]",
         // "Suggested sub on" — bench player with lowest minutes glows green.
@@ -183,16 +184,27 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       <div className="relative">
         <Avatar
           className={cn(
-            // Thicker borders + stronger shadow so tokens "pop" off the court.
-            "shadow-lg transition-shadow",
-            "drop-shadow-[0_3px_6px_rgba(0,0,0,0.45)]",
+            // Stronger shadow + crisp outer ring for depth — players feel like
+            // physical chips on the court.
+            "shadow-[0_4px_10px_rgba(0,0,0,0.45),0_1px_2px_rgba(0,0,0,0.3)] transition-shadow",
+            "ring-1 ring-black/20",
             variant === "court" ? "h-13 w-13 border-[3px]" : "h-10 w-10 border-2",
             fouled ? "border-destructive opacity-70" : (colors?.border ?? "border-border")
           )}
           style={variant === "court" ? { height: "3.25rem", width: "3.25rem" } : undefined}
         >
-          <AvatarFallback className={cn("font-extrabold", variant === "court" ? "text-sm" : "text-xs", colors?.bg, colors?.text)}>
-            {initials}
+          <AvatarFallback
+            className={cn(
+              "font-extrabold relative",
+              variant === "court" ? "text-sm" : "text-xs",
+              colors?.bg,
+              colors?.text,
+              // Subtle inner top highlight gives the chip a 3D, glossy feel.
+              "before:absolute before:inset-0 before:rounded-full before:pointer-events-none",
+              "before:bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0)_55%)]"
+            )}
+          >
+            <span className="relative z-10">{initials}</span>
           </AvatarFallback>
         </Avatar>
         {pos && (
@@ -217,24 +229,22 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         )}
       </div>
       {/* Backed name+minutes label. On-court players get a high-contrast pill
-          so text never sits directly on the court. Bench keeps the lighter
-          treatment so the court visually dominates. */}
+          that slightly overlaps the token so the two read as a single piece. */}
       {variant === "court" ? (
         <span
           className={cn(
-            "mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md",
-            "bg-background/95 border border-border shadow-sm backdrop-blur-sm",
-            "text-[10px] font-semibold text-foreground leading-none max-w-[72px]"
+            "-mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md",
+            "bg-background/95 border border-border shadow-md backdrop-blur-sm",
+            "text-[10.5px] leading-none max-w-[76px]"
           )}
         >
-          <span className="truncate">{player.name.split(" ")[0]}</span>
-          <span className="text-muted-foreground font-medium">·</span>
-          <span className="tabular-nums text-foreground/80">
+          <span className="truncate font-bold text-foreground">{player.name.split(" ")[0]}</span>
+          <span className="tabular-nums font-medium text-muted-foreground">
             {`${minutes}m`}
           </span>
           {fouls > 0 && (
-            <span className={cn("tabular-nums", fouled ? "text-destructive font-bold" : "text-muted-foreground")}>
-              · {fouls}F
+            <span className={cn("tabular-nums font-medium", fouled ? "text-destructive font-bold" : "text-muted-foreground")}>
+              {fouls}F
             </span>
           )}
         </span>
