@@ -1625,12 +1625,20 @@ export default function NetballBoard({
               disabled={!gameInProgress || !!timerState.isGameFinished}
               suppressed={!!selectedPlayerId}
               onScore={(side) => {
+                // Tap = +1 instantly. Home goals open scorer sheet for
+                // attribution; away goals fire raw +1 (no roster to attribute).
                 if (side === "home") {
-                  // Open the scorer picker so coaches can attribute the goal to GS/GA.
+                  setScorerSide("home");
                   setGoalScorerOpen(true);
                 } else {
                   addScore(side, 1);
                 }
+              }}
+              onScoreLongPress={(side) => {
+                // Long-press = always open the scorer sheet for that side so
+                // the coach can attribute / undo / pick a different scorer.
+                setScorerSide(side);
+                setGoalScorerOpen(true);
               }}
               onBack={onClose}
               controlSlot={
@@ -1720,20 +1728,17 @@ export default function NetballBoard({
       {/* ── LIVE ACTION BAR — sub / auto-subs / next break, with setup actions in overflow ── */}
       {!readOnly && (
         <NetballLiveActionBar
-          onStartSub={() => {
-            // Select the next-sub-out target if there is one; otherwise just
-            // arm sub mode by selecting the most-overplayed on-court player.
-            const target = nextSub?.playerOut.id ?? null;
-            if (target) setSelectedPlayerId(target);
-            else {
-              const onCourt = players.filter((p) => p.position !== null);
-              if (onCourt.length === 0) return;
-              const longest = onCourt.reduce((hi, p) =>
-                (p.minutesPlayed ?? 0) > (hi.minutesPlayed ?? 0) ? p : hi,
-              );
-              setSelectedPlayerId(longest.id);
-            }
+          onToggleSubMode={() => {
+            // Toggle persistent Sub Mode. When turning OFF, also clear any
+            // armed selection so the board returns to its calm default.
+            setSubModeActive((prev) => {
+              const next = !prev;
+              if (!next) setSelectedPlayerId(null);
+              hapticSelectionTick();
+              return next;
+            });
           }}
+          subModeActive={subModeActive}
           onNextBreak={applyNextLineupNow}
           onOpenAutoSubs={() => setAutoSubPanelOpen(true)}
           onUndo={
@@ -1838,11 +1843,32 @@ export default function NetballBoard({
           <NetballGoalScorerSheet
             open={goalScorerOpen}
             onOpenChange={setGoalScorerOpen}
-            candidates={players.filter(
-              (p) => p.position === "GS" || p.position === "GA"
-            )}
-            onAttribute={(playerId) => addScore("home", 1, playerId)}
-            onSkip={() => addScore("home", 1)}
+            candidates={
+              scorerSide === "home"
+                ? players.filter((p) => p.position === "GS" || p.position === "GA")
+                : []
+            }
+            onAttribute={(playerId) => addScore(scorerSide, 1, playerId)}
+            onSkip={() => addScore(scorerSide, 1)}
+          />
+        )}
+        {infoCardPlayerId && infoCardPlayer && (
+          <NetballPlayerCard
+            open={!!infoCardPlayerId}
+            onOpenChange={(o) => !o && setInfoCardPlayerId(null)}
+            player={infoCardPlayer}
+            onStartSub={() => {
+              // Arm this player + flip Sub Mode on. Coach's next tap completes the swap.
+              setSelectedPlayerId(infoCardPlayer.id);
+              setSubModeActive(true);
+            }}
+            onSubOff={() => subOff(infoCardPlayer.id)}
+            onToggleInjured={() => toggleInjured(infoCardPlayer.id)}
+            onScore={
+              infoCardPlayer.position === "GS" || infoCardPlayer.position === "GA"
+                ? () => addScore("home", 1, infoCardPlayer.id)
+                : undefined
+            }
           />
         )}
         {summaryOpen && (
