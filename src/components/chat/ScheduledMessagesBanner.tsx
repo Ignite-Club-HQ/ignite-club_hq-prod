@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
-import { Clock, ChevronDown, ChevronUp, Pencil, X, Image as ImageIcon } from "lucide-react";
+import {
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  X,
+  Image as ImageIcon,
+  Repeat,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -19,7 +27,16 @@ import {
   useCancelScheduledMessage,
   useThreadScheduledMessages,
 } from "@/hooks/useScheduledMessages";
-import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
+import {
+  ScheduleMessageDialog,
+  localTimezoneLabel,
+} from "./ScheduleMessageDialog";
+
+const RECURRENCE_LABELS: Record<string, string> = {
+  daily: "daily",
+  weekly: "weekly",
+  monthly: "monthly",
+};
 
 interface ScheduledMessagesBannerProps {
   target: ScheduleTarget;
