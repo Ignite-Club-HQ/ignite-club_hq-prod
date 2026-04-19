@@ -231,6 +231,12 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   const handleImageButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (shouldUseNativePicker()) {
+      // CRITICAL iOS GESTURE RULE:
+      // Camera.getPhoto must be invoked synchronously from the user's click —
+      // any `await` or async hop before it breaks the gesture chain in WKWebView
+      // and the picker silently fails to open. Do NOT add awaits or state
+      // updates before this call. handleNativePhotoPick starts the async work
+      // immediately on its first line so the gesture is preserved.
       void handleNativePhotoPick();
     } else {
       (e.currentTarget as HTMLElement)?.blur();
@@ -398,12 +404,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             className="w-60 p-2"
           >
             <div className="flex flex-col gap-1">
-              {/* Mirror of the dedicated image icon — discoverability fallback. */}
+              {/* Mirror of the dedicated image icon — discoverability fallback.
+                  iOS gesture-chain rule: invoke the picker FIRST, then close
+                  the popover. Closing first triggers a re-render that defers
+                  Camera.getPhoto past the user gesture and iOS rejects it. */}
               <button
                 type="button"
                 onClick={(e) => {
-                  setMenuOpen(false);
                   handleImageButtonClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
+                  // Defer popover close to next tick so the picker call stays
+                  // inside the synchronous gesture handler.
+                  setTimeout(() => setMenuOpen(false), 0);
                 }}
                 disabled={disabled || uploading}
                 className="flex items-center gap-3 w-full px-3 py-3 rounded-md hover:bg-accent text-foreground transition-colors disabled:opacity-50 min-h-[52px]"
