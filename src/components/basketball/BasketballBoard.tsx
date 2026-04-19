@@ -435,13 +435,12 @@ export default function BasketballBoard({
           <>
             {/* Floating back chip — always on the left */}
             <Button
-              variant="secondary"
               size="icon"
               onClick={onClose}
               aria-label="Close"
-              className="absolute z-40 top-2 left-2 h-8 w-8 rounded-full bg-card/85 backdrop-blur-md border border-border/40 shadow-md"
+              className="absolute z-40 top-2 left-2 h-9 w-9 rounded-full bg-foreground text-background hover:bg-foreground/90 border-2 border-background shadow-xl"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-5 w-5" />
             </Button>
 
             {/* Floating HUD — scoreboard + timer over the court */}
