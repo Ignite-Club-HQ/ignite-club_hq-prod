@@ -32,16 +32,9 @@ serve(async (req) => {
   }
 
   try {
-    const rawKey = Deno.env.get("GIPHY_API_KEY") ?? "";
-    const apiKey = rawKey.trim();
-    console.log("[giphy-search] key diagnostics:", {
-      present: rawKey.length > 0,
-      rawLength: rawKey.length,
-      trimmedLength: apiKey.length,
-      hasWhitespace: rawKey.length !== apiKey.length,
-    });
+    const apiKey = (Deno.env.get("GIPHY_API_KEY") ?? "").trim();
     if (!apiKey) {
-      console.error("[giphy-search] GIPHY_API_KEY not configured (empty after trim)");
+      console.error("[giphy-search] GIPHY_API_KEY not configured");
       return new Response(JSON.stringify({ error: "GIF service not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
