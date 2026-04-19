@@ -130,7 +130,9 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       className={cn(
         // Tight gap so token + label read as a single physical "piece" on the court.
         "relative flex flex-col items-center gap-0 touch-manipulation select-none",
-        "transition-all duration-200 ease-out will-change-transform",
+        // Smoother movement when slots reposition + a subtle press feel.
+        "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
+        "active:scale-[0.92] active:duration-75",
         // Court tokens are noticeably larger than bench chips so they dominate
         // the court visually (req: ~10–15% bigger).
         variant === "court" ? "w-16" : "w-12",
@@ -150,7 +152,6 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         isOverplayed && variant === "court" && !isSelected && !isSwapTarget && !isNextSub &&
           "ring-1 ring-amber-400/70 ring-offset-1 ring-offset-background rounded-full",
         readOnly && "pointer-events-none",
-        "active:scale-95",
       )}
     >
       {/* Foul-out (red Ban) takes priority over injury (yellow triangle) */}
