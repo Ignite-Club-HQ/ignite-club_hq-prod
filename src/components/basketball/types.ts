@@ -76,6 +76,12 @@ export interface BasketballPlayer {
   isFouledOut?: boolean;
   /** Total points scored by this player across the game. */
   points?: number;
+  /** Made 1-pointers (free throws made via FT dialog or +1 attribution). */
+  pointsBy1?: number;
+  /** Made 2-pointers attributed via the +2 button. */
+  pointsBy2?: number;
+  /** Made 3-pointers attributed via the +3 button. */
+  pointsBy3?: number;
   /** Free-throw makes this game (each make = 1 point, already added to `points`). */
   ftMade?: number;
   /** Free-throw attempts this game (used to display FT%). */

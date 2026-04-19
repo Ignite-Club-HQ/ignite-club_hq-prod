@@ -28,6 +28,7 @@ const BasketballLineupPresetsDialog = lazy(() => import("./BasketballLineupPrese
 const FreeThrowDialog = lazy(() => import("./FreeThrowDialog"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 const QuarterAutoSubControlPanel = lazy(() => import("@/components/scoreboard/QuarterAutoSubControlPanel"));
+const BasketballScorerPickerSheet = lazy(() => import("./BasketballScorerPickerSheet"));
 
 
 interface BasketballBoardProps {
@@ -103,6 +104,9 @@ export default function BasketballBoard({
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
+  // Holds the points value (1/2/3) when the home team has just scored and we
+  // need to ask the coach which on-court player to attribute it to.
+  const [pendingScore, setPendingScore] = useState<number | null>(null);
   // HUD dock position (top/bottom of court) — persists across sessions.
   const [hudPosition, setHudPosition] = useState<"top" | "bottom">(() => {
     if (typeof window === "undefined") return "top";
@@ -452,7 +456,15 @@ export default function BasketballBoard({
               increments={[1, 2, 3]}
               readOnly={readOnly}
               disabled={!!board.timerState.isGameFinished}
-              onScore={board.addScore}
+              onScore={(side, pts) => {
+                // Away score → straight through. Home score → ask which
+                // on-court player to credit (coach can also pick "Team only").
+                if (side === "away") {
+                  board.addScore("away", pts);
+                  return;
+                }
+                setPendingScore(pts);
+              }}
               suppressed={!!board.selectedPlayerId}
               controlSlot={
                 <BasketballQuarterTimer
@@ -674,6 +686,18 @@ export default function BasketballBoard({
             onCancelPlan={board.cancelAutoSubPlan}
             onRegeneratePlan={board.regenerateAutoSubPlan}
             onToggleLockPlayer={board.toggleLockPlayer}
+          />
+        )}
+        {pendingScore != null && (
+          <BasketballScorerPickerSheet
+            open={pendingScore != null}
+            onOpenChange={(o) => !o && setPendingScore(null)}
+            points={pendingScore}
+            onCourt={board.players.filter((p) => p.position !== null)}
+            onPick={(playerId) => {
+              board.addScore("home", pendingScore, playerId ?? undefined);
+              setPendingScore(null);
+            }}
           />
         )}
       </Suspense>
