@@ -1,6 +1,6 @@
 import { ReactNode, memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, MoreHorizontal, Plus } from "lucide-react";
+import { ArrowLeft, ArrowDownToLine, ArrowUpToLine, MoreHorizontal, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hapticSelectionTick } from "@/lib/haptics";
 
@@ -22,6 +22,10 @@ interface NetballLiveHUDProps {
   trailingSlot?: ReactNode;
   /** Extra actions (auto-subs status, etc.) injected into the overflow menu. */
   overflowSlot?: ReactNode;
+  /** Whether the HUD is pinned to the top or bottom of the court. */
+  position?: "top" | "bottom";
+  /** Toggle the HUD between top and bottom. */
+  onTogglePosition?: () => void;
 }
 
 /**
