@@ -487,24 +487,24 @@ export default function BasketballBoard({
               onTogglePosition={toggleHudPosition}
             />
 
-            {/* Auto-sub status — compact pill near bench so it stays secondary
-                to player tokens. */}
+            {/* Auto-sub status — soft, secondary pill near bench so it never
+                competes visually with player tokens. */}
             {!readOnly && gameInProgress && board.rotationMode !== "off" && (
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20">
+              <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20">
                 <Button
                   size="sm"
-                  variant={board.autoSubPaused ? "outline" : "default"}
-                  className="h-7 text-[11px] font-semibold gap-1.5 px-2.5 shadow-md rounded-full bg-primary/90 text-primary-foreground hover:bg-primary"
+                  variant="ghost"
+                  className="h-6 text-[10.5px] font-semibold gap-1.5 px-2 shadow-sm rounded-full bg-card/80 hover:bg-card border border-border/60 text-foreground/80 backdrop-blur"
                   onClick={() => setAutoSubPanelOpen(true)}
                 >
-                  <Repeat className="h-3 w-3" />
+                  <Repeat className="h-3 w-3 text-muted-foreground" />
                   {board.autoSubPlan.length === 0 ? (
                     <span>Auto-subs</span>
                   ) : board.autoSubPaused ? (
                     <span>Paused</span>
                   ) : board.nextSub ? (
                     <>
-                      <span className="opacity-80">Next</span>
+                      <span className="opacity-70">Next</span>
                       <span className="font-mono tabular-nums">
                         {(() => {
                           const remaining = Math.max(
