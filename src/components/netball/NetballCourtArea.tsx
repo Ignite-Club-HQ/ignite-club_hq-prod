@@ -66,6 +66,11 @@ export default function NetballCourtArea({
     onTouchStart,
     onTouchMove,
     onTouchEnd,
+    onWheel,
+    onMouseDown,
+    onMouseMove,
+    onMouseUp,
+    onDoubleClick,
     resetZoom,
   } = usePinchZoom(1, 4);
 
@@ -77,7 +82,10 @@ export default function NetballCourtArea({
   const draggingPlayer = draggingId ? players.find((p) => p.id === draggingId) ?? null : null;
 
   return (
-    <div className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 px-1 py-1 overflow-hidden">
+    <div
+      className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 px-1 py-1 overflow-hidden"
+      onWheel={onWheel}
+    >
       {/* Width derived from available height so the whole court is always visible.
           Aspect 5/7 mirrors basketball half-court so HUD docking is consistent. */}
       <div
@@ -87,10 +95,16 @@ export default function NetballCourtArea({
           transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`,
           transformOrigin: "center center",
           transition: isZoomed ? "none" : "transform 0.2s ease-out",
+          cursor: isZoomed ? (scale > 1 ? "grab" : "default") : "default",
         }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+        onDoubleClick={onDoubleClick}
       >
         <NetballCourt className="absolute inset-0 w-full h-full rounded-lg" />
 
