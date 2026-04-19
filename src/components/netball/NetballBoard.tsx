@@ -1475,10 +1475,19 @@ export default function NetballBoard({
                 />
               }
               trailingSlot={<SyncStatusIndicator />}
+              position={hudPosition}
+              onTogglePosition={toggleHudPosition}
             />
 
-            {/* ── COMPACT CENTRE-PASS CHIP — small overlay above court bottom ── */}
-            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20">
+            {/* ── COMPACT CENTRE-PASS CHIP — small overlay above court bottom.
+                Shifts up when the HUD is pinned to the bottom so it doesn't
+                collide with the timer/score bar. ── */}
+            <div
+              className={cn(
+                "absolute left-1/2 -translate-x-1/2 z-20",
+                hudPosition === "bottom" ? "bottom-[5.25rem]" : "bottom-1.5",
+              )}
+            >
               <NetballCentrePassChip
                 homeLabel={teamName}
                 awayLabel={opponentName}
