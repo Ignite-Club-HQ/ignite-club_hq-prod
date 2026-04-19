@@ -11,6 +11,7 @@ import NetballQuarterTimer from "./NetballQuarterTimer";
 import NetballActionBar from "./NetballActionBar";
 import NetballCourtArea from "./NetballCourtArea";
 import NetballBench from "./NetballBench";
+import SubModeBanner from "./SubModeBanner";
 import GameScoreboard from "@/components/scoreboard/GameScoreboard";
 import QuarterScoreStrip from "@/components/scoreboard/QuarterScoreStrip";
 import CentrePassIndicator from "@/components/scoreboard/CentrePassIndicator";
@@ -1302,12 +1303,22 @@ export default function NetballBoard({
         </div>
       )}
 
+      {/* Sub-mode banner: persistent affordance so coaches always know who
+          they've picked up and how to back out. Soccer-pitch-board parity. */}
+      {!readOnly && selectedPlayer && (
+        <SubModeBanner
+          selectedPlayer={selectedPlayer}
+          onCancel={() => setSelectedPlayerId(null)}
+        />
+      )}
+
       <NetballCourtArea
         players={players}
         selectedPlayerId={selectedPlayerId}
         nextSubOutId={nextSub?.playerOut.id ?? null}
         readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
+        onPlayerLongPress={handlePlayerLongPress}
         onSlotClick={handleSlotClick}
       />
 
@@ -1315,8 +1326,10 @@ export default function NetballBoard({
         bench={bench}
         selectedPlayerId={selectedPlayerId}
         nextSubInId={nextSub?.playerIn.id ?? null}
+        selectedIsOnCourt={selectedPlayer?.position != null}
         readOnly={readOnly}
         onPlayerClick={handlePlayerClick}
+        onPlayerLongPress={handlePlayerLongPress}
       />
 
       {!readOnly && (canUndoSub || (timerState.scoreLog?.length ?? 0) > 0) && (
