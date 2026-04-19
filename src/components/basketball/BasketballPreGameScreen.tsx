@@ -106,8 +106,8 @@ export default function BasketballPreGameScreen({
         </span>
       </div>
 
-      {/* Compact subtle controls row */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-card/40 text-[11px]">
+      {/* Compact subtle controls row — wraps so the Auto-subs pill always fits */}
+      <div className="flex items-center flex-wrap gap-x-2 gap-y-1 px-3 py-1.5 border-b bg-card/40 text-[11px]">
         <button
           type="button"
           onClick={readOnly ? undefined : onOpenSquad}
@@ -128,6 +128,22 @@ export default function BasketballPreGameScreen({
           <span className="font-medium tabular-nums">
             {periodCount} × {minutesPerQuarter}m {periodLabel}s
           </span>
+        </button>
+        <span className="text-muted-foreground/50">·</span>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          disabled={readOnly}
+          className={cn(
+            "inline-flex items-center gap-1 transition-colors disabled:opacity-60",
+            autoSubActive
+              ? "text-primary hover:underline font-medium"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          aria-label="Configure auto-sub plan"
+        >
+          <Repeat className="h-3.5 w-3.5" />
+          <span className="font-medium">Auto-subs · {autoSubLabel}</span>
         </button>
         {hasPresets && !readOnly && (
           <>
