@@ -1342,6 +1342,10 @@ export function useBasketballBoardState({
     pendingQuarterSubs,
     confirmPendingQuarterSubs,
     skipPendingQuarterSubs,
+    // mid-quarter auto-sub confirm
+    pendingAutoSub,
+    confirmPendingAutoSub,
+    cancelPendingAutoSub,
     // derived
     bench,
     nextSub,
