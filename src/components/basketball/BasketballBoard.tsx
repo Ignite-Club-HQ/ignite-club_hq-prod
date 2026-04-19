@@ -476,13 +476,13 @@ export default function BasketballBoard({
               onTogglePosition={toggleHudPosition}
             />
 
-            {/* Auto-sub status — prominent chip below HUD, always visible when rotation is on */}
+            {/* Auto-sub status — prominent chip docked at bottom-left of court, always visible when rotation is on */}
             {!readOnly && gameInProgress && board.rotationMode !== "off" && (
-              <div className="absolute top-[104px] right-2 z-20">
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20">
                 <Button
                   size="sm"
                   variant={board.autoSubPaused ? "outline" : "default"}
-                  className="h-9 text-xs font-semibold gap-1.5 px-3 shadow-lg rounded-full"
+                  className="h-10 text-sm font-semibold gap-2 px-4 shadow-xl rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={() => setAutoSubPanelOpen(true)}
                 >
                   <Repeat className="h-3.5 w-3.5" />
