@@ -89,6 +89,8 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
   // In preview (pre-game) mode the timeline is the whole point — open it by default.
   const [showTimeline, setShowTimeline] = useState(previewMode);
   const [showLockPanel, setShowLockPanel] = useState(false);
+  // Two-tap confirmation for the destructive "Cancel Plan" action.
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const swipeRef = useRef<{ startY: number } | null>(null);
 
   const remainingSubs = useMemo(
