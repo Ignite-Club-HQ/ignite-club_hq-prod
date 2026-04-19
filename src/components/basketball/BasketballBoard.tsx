@@ -104,6 +104,9 @@ export default function BasketballBoard({
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
+  // Holds the points value (1/2/3) when the home team has just scored and we
+  // need to ask the coach which on-court player to attribute it to.
+  const [pendingScore, setPendingScore] = useState<number | null>(null);
   // HUD dock position (top/bottom of court) — persists across sessions.
   const [hudPosition, setHudPosition] = useState<"top" | "bottom">(() => {
     if (typeof window === "undefined") return "top";
