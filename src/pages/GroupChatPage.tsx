@@ -182,6 +182,10 @@ export default function GroupChatPage() {
   const authReady = !!user && initialized;
   const [message, setMessage, clearDraft] = useChatDraft(groupId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = groupId
+    ? { chat_type: "group", group_id: groupId }
+    : null;
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
