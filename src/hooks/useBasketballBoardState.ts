@@ -997,6 +997,12 @@ export function useBasketballBoardState({
     toast({ title: "Plan regenerated" });
   }, [rotationMode, players, rotationIntervalMinutes, timerState.minutesPerQuarter, timerState.periodType, autoSubPlan, toast]);
 
+  // Ref so earlier callbacks (e.g. skipNextSub) can invoke the latest regen.
+  const regenerateAutoSubPlanRef = useRef(regenerateAutoSubPlan);
+  useEffect(() => {
+    regenerateAutoSubPlanRef.current = regenerateAutoSubPlan;
+  }, [regenerateAutoSubPlan]);
+
 
   // ---------- Derived ----------
   const bench = useMemo(() => getBench(players), [players]);
