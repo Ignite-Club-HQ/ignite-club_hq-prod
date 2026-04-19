@@ -700,6 +700,7 @@ export default function BasketballBoard({
             }}
           />
         )}
+      </Suspense>
     </div>
   );
 }
