@@ -638,9 +638,9 @@ export default function BasketballBoard({
           readOnly={readOnly}
           courtView={board.courtView}
           hideEmptySlots
-          onPlayerClick={board.handlePlayerClick}
+          onPlayerClick={handlePlayerClickGuarded}
           onPlayerLongPress={board.handlePlayerLongPress}
-          onSlotClick={board.handleSlotClick}
+          onSlotClick={handleSlotClickGuarded}
         />
       </div>
 
@@ -656,7 +656,7 @@ export default function BasketballBoard({
         }
         showSubDueBadge={!board.nextSub && assistant.hasActiveSuggestion}
         readOnly={readOnly}
-        onPlayerClick={board.handlePlayerClick}
+        onPlayerClick={handlePlayerClickGuarded}
         onPlayerLongPress={board.handlePlayerLongPress}
       />
 
@@ -699,7 +699,16 @@ export default function BasketballBoard({
             onOpenChange={(o) => !o && board.setQuickActionPlayerId(null)}
             player={board.quickActionPlayer}
             onStartSwap={() => board.setSelectedPlayerId(board.quickActionPlayer!.id)}
-            onSubOff={() => board.subOff(board.quickActionPlayer!.id)}
+            onSubOff={() =>
+              subConfirm.request(
+                {
+                  kind: "sub-off",
+                  primaryName: board.quickActionPlayer!.name,
+                  position: board.quickActionPlayer!.position ?? undefined,
+                },
+                () => board.subOff(board.quickActionPlayer!.id),
+              )
+            }
             onSubOn={() => board.setSelectedPlayerId(board.quickActionPlayer!.id)}
             onToggleInjured={() => board.toggleInjured(board.quickActionPlayer!.id)}
             onAddFoul={() => board.addFoul(board.quickActionPlayer!.id)}
