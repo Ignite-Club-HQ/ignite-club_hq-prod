@@ -30,6 +30,8 @@ import QuarterAutoSubControlPanel from "@/components/scoreboard/QuarterAutoSubCo
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
+import { useSubConfirm } from "@/hooks/useSubConfirm";
+import SubConfirmDialog from "@/components/scoreboard/SubConfirmDialog";
 import { cueQuarterEnd, cueSubDue } from "@/lib/gameCues";
 import { hapticImpactLight, hapticImpactMedium, hapticSelectionTick } from "@/lib/haptics";
 
