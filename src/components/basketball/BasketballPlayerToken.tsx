@@ -112,7 +112,13 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
     <button
       type="button"
       draggable={!readOnly}
-      onClick={onClick}
+      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onContextMenu={(e) => e.preventDefault()}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onTouchStart={onTouchStart}
@@ -123,11 +129,13 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
         "transition-all duration-200 ease-out will-change-transform",
         variant === "court" ? "w-14" : "w-12",
         isDragging && "opacity-40 scale-90",
-        isSelected && "scale-110 z-20 drop-shadow-[0_0_12px_hsl(var(--primary)/0.6)]",
-        isSwapTarget && "ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full animate-pulse",
-        isInvalidTarget && "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full",
-        isNextSub && "animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary)/0.45)]",
-        isLowestMinutes && variant === "bench" && "ring-2 ring-emerald-500 ring-offset-1 ring-offset-background rounded-full",
+        isSelected && "scale-110 z-20 drop-shadow-[0_0_14px_hsl(var(--primary)/0.7)] ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
+        isSwapTarget && !isInvalidTarget && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background rounded-full animate-pulse",
+        isInvalidTarget && "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full opacity-60",
+        isDimmed && !isSelected && !isSwapTarget && "opacity-40",
+        isRecentlySwapped && "drop-shadow-[0_0_16px_hsl(var(--primary)/0.85)] animate-fade-in",
+        isNextSub && !isSelected && "animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary)/0.45)]",
+        isLowestMinutes && variant === "bench" && !isSelected && "ring-2 ring-emerald-500 ring-offset-1 ring-offset-background rounded-full",
         readOnly && "pointer-events-none",
         "active:scale-95",
       )}
