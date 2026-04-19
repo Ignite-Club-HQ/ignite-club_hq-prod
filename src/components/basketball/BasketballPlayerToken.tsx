@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BasketballPlayer, BasketballPosition, POSITION_COLORS } from "./types";
@@ -12,10 +12,16 @@ interface BasketballPlayerTokenProps {
   isSelected?: boolean;
   isSwapTarget?: boolean;
   isInvalidTarget?: boolean;
+  /** When true, dims this player so the user's eye is drawn to swap targets. */
+  isDimmed?: boolean;
+  /** Briefly glows the token after a recent swap (incoming/outgoing). */
+  isRecentlySwapped?: boolean;
   isDragging?: boolean;
   isNextSub?: boolean;
   isLowestMinutes?: boolean;
   onClick?: () => void;
+  /** Long-press (~500ms) opens the quick action sheet (score, foul, injury…). */
+  onLongPress?: () => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
   onTouchStart?: (e: React.TouchEvent) => void;
@@ -30,16 +36,56 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
   isSelected = false,
   isSwapTarget = false,
   isInvalidTarget = false,
+  isDimmed = false,
+  isRecentlySwapped = false,
   isDragging = false,
   isNextSub = false,
   isLowestMinutes = false,
   onClick,
+  onLongPress,
   onDragStart,
   onDragEnd,
   onTouchStart,
   readOnly = false,
   style,
 }: BasketballPlayerTokenProps) {
+  // Long-press detection — 500ms hold opens the quick action sheet without
+  // hijacking the tap-to-swap flow. We bail if pointer moves >8px (drag) or
+  // lifts before timer fires.
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const clearLongPress = () => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (readOnly || !onLongPress) return;
+    longPressFiredRef.current = false;
+    pressStartRef.current = { x: e.clientX, y: e.clientY };
+    clearLongPress();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressFiredRef.current = true;
+      onLongPress();
+    }, 500);
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!pressStartRef.current) return;
+    const dx = e.clientX - pressStartRef.current.x;
+    const dy = e.clientY - pressStartRef.current.y;
+    if (dx * dx + dy * dy > 64) clearLongPress();
+  };
+  const handlePointerUp = () => clearLongPress();
+  const handleClick = () => {
+    // Suppress synthetic click after long-press release.
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    onClick?.();
+  };
   const initials = player.name
     .split(" ")
     .map(n => n[0])
