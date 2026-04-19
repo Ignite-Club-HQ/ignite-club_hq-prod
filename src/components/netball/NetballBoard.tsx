@@ -602,10 +602,14 @@ export default function NetballBoard({
     [players, validationMode, toast, appendSubLog]
   );
 
+  // TAP = start a sub directly. Long-press opens the quick action sheet.
+  // This mirrors the soccer pitch board: one tap to "pick up" a player, a
+  // second tap on a target completes the swap. Avoids the previous extra
+  // sheet step that confused new users.
   const handlePlayerClick = useCallback(
     (playerId: string) => {
       if (readOnly) return;
-      // Swap-mode active → second tap completes the swap.
+      // Sub-mode active → second tap completes the swap.
       if (selectedPlayerId) {
         if (selectedPlayerId === playerId) {
           setSelectedPlayerId(null);
@@ -615,9 +619,22 @@ export default function NetballBoard({
         setSelectedPlayerId(null);
         return;
       }
-      setQuickActionPlayerId(playerId);
+      // First tap: enter sub-mode immediately.
+      setSelectedPlayerId(playerId);
+      hapticSelectionTick();
     },
     [selectedPlayerId, performSwap, readOnly]
+  );
+
+  const handlePlayerLongPress = useCallback(
+    (playerId: string) => {
+      if (readOnly) return;
+      // Long-press always opens the action sheet (score, mark injured, etc.)
+      // — clear any in-progress swap first so the user isn't fighting state.
+      setSelectedPlayerId(null);
+      setQuickActionPlayerId(playerId);
+    },
+    [readOnly]
   );
 
   const handleSlotClick = useCallback(
