@@ -36,6 +36,10 @@ import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
+import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
+import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
+import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 import { jumpToMessageInChat } from "@/lib/jumpToMessage";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
