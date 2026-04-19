@@ -22,49 +22,39 @@ interface NetballCentrePassChipProps {
  */
 const NetballCentrePassChip = memo(function NetballCentrePassChip({
   homeLabel,
-  awayLabel,
+  awayLabel: _awayLabel,
   side,
   readOnly = false,
   onSwap,
 }: NetballCentrePassChipProps) {
-  const setSide = (target: "home" | "away") => {
-    if (readOnly) return;
-    if (target !== side) onSwap();
-  };
 
+  const isOurs = side === "home";
   return (
     <div
-      className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-card/95 backdrop-blur-sm shadow-md px-1 py-0.5"
+      className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card/95 backdrop-blur-sm shadow-md px-2 py-1"
       role="group"
       aria-label="Centre pass"
     >
-      <span className="text-[8.5px] uppercase tracking-wider text-muted-foreground/80 font-semibold pl-1.5 pr-0.5 leading-none">
+      <span className="text-[8.5px] uppercase tracking-wider text-muted-foreground/80 font-semibold leading-none">
         CP
       </span>
-      <div
-        role="radiogroup"
-        aria-label="Centre pass side"
-        className="inline-flex items-center rounded-full bg-muted/60 p-0.5"
+      <span
+        className={cn(
+          "px-2 h-5 rounded-full text-[10px] font-semibold leading-none uppercase tracking-tight max-w-[8rem] truncate inline-flex items-center",
+          isOurs
+            ? "bg-primary text-primary-foreground shadow-sm"
+            : "bg-muted/60 text-muted-foreground",
+        )}
+        title={isOurs ? homeLabel : "Opponent"}
       >
-        <SideButton
-          label={homeLabel}
-          active={side === "home"}
-          onClick={() => setSide("home")}
-          disabled={readOnly}
-        />
-        <SideButton
-          label={awayLabel}
-          active={side === "away"}
-          onClick={() => setSide("away")}
-          disabled={readOnly}
-        />
-      </div>
+        {isOurs ? homeLabel : "Opponent"}
+      </span>
       {!readOnly && (
         <button
           type="button"
           onClick={onSwap}
           aria-label="Swap centre pass"
-          className="h-5 w-5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 inline-flex items-center justify-center transition-colors mr-0.5"
+          className="h-5 w-5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 inline-flex items-center justify-center transition-colors"
         >
           <ArrowLeftRight className="h-3 w-3" />
         </button>
@@ -73,36 +63,5 @@ const NetballCentrePassChip = memo(function NetballCentrePassChip({
   );
 });
 
-function SideButton({
-  label,
-  active,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      className={cn(
-        "px-2 h-5 rounded-full text-[10px] font-semibold leading-none uppercase tracking-tight max-w-[5.5rem] truncate transition-colors",
-        active
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
-        disabled && "opacity-60 cursor-not-allowed",
-      )}
-    >
-      {label}
-    </button>
-  );
-}
 
 export default NetballCentrePassChip;
