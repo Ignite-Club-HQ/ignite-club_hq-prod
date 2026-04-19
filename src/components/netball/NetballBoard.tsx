@@ -1663,6 +1663,14 @@ export default function NetballBoard({
         onToggleLockPlayer={toggleLockPlayer}
         onEditPlan={() => setLineupPlannerOpen(true)}
       />
+
+      <NetballQuarterBreakDialog
+        open={!!pendingQuarterSubs}
+        quarter={pendingQuarterSubs?.quarter ?? null}
+        subs={pendingQuarterSubs?.subs ?? []}
+        onConfirm={confirmPendingQuarterSubs}
+        onSkip={skipPendingQuarterSubs}
+      />
     </div>
   );
 }
