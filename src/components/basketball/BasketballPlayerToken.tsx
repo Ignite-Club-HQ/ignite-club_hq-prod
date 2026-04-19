@@ -128,20 +128,21 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
       style={style}
       aria-label={`${player.name}${pos ? ` at ${pos}` : " on bench"}${points > 0 ? `, ${points} points` : ""}`}
       className={cn(
-        "relative flex flex-col items-center gap-1 touch-manipulation select-none",
+        // Tight gap so token + label read as a single physical "piece" on the court.
+        "relative flex flex-col items-center gap-0 touch-manipulation select-none",
         "transition-all duration-200 ease-out will-change-transform",
         // Court tokens are noticeably larger than bench chips so they dominate
         // the court visually (req: ~10–15% bigger).
         variant === "court" ? "w-16" : "w-12",
         isDragging && "opacity-40 scale-90",
-        isSelected && "scale-110 z-20 drop-shadow-[0_0_14px_hsl(var(--primary)/0.7)] ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
+        isSelected && "scale-110 z-20 drop-shadow-[0_0_16px_hsl(var(--primary)/0.75)] ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
         isSwapTarget && !isInvalidTarget && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background rounded-full animate-pulse",
         isInvalidTarget && "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full opacity-60",
         isDimmed && !isSelected && !isSwapTarget && "opacity-40",
         isRecentlySwapped && "drop-shadow-[0_0_16px_hsl(var(--primary)/0.85)] animate-fade-in",
-        // "Suggested sub off" — clear amber ring on the on-court candidate.
+        // "Suggested sub off" — clear amber/orange ring on the on-court candidate.
         isNextSub && !isSelected && variant === "court" &&
-          "ring-2 ring-amber-400 ring-offset-2 ring-offset-background rounded-full animate-pulse drop-shadow-[0_0_10px_rgba(251,191,36,0.6)]",
+          "ring-2 ring-orange-400 ring-offset-2 ring-offset-background rounded-full animate-pulse drop-shadow-[0_0_12px_rgba(251,146,60,0.7)]",
         isNextSub && !isSelected && variant === "bench" &&
           "animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary)/0.45)]",
         // "Suggested sub on" — bench player with lowest minutes glows green.
