@@ -1,6 +1,6 @@
 import { ReactNode, memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowDownToLine, ArrowUpToLine, MoreHorizontal, Plus } from "lucide-react";
+import { ArrowLeft, ArrowDownToLine, ArrowUpToLine, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hapticSelectionTick } from "@/lib/haptics";
 
@@ -220,7 +220,8 @@ function ScoreSide({ label, score, interactive, onScore, onLongPress, side }: Sc
         isHome ? "justify-start" : "justify-end flex-row-reverse",
       )}
     >
-      {/* Tap-the-score = +1. Long-press = scorer sheet. */}
+      {/* Tap = +1 (away) or open scorer sheet (home).
+          Long-press = always open scorer sheet for that side. */}
       <button
         type="button"
         onClick={handleClick}
@@ -232,17 +233,18 @@ function ScoreSide({ label, score, interactive, onScore, onLongPress, side }: Sc
         disabled={!interactive}
         aria-label={`Add 1 point for ${label}`}
         className={cn(
-          "flex flex-col leading-none px-1 py-0.5 rounded-md transition-all",
+          "flex flex-col leading-none px-3 py-1.5 rounded-lg transition-all min-w-[5rem] touch-manipulation select-none",
           "active:scale-95",
           interactive
-            ? "hover:bg-secondary/40 cursor-pointer"
+            ? "hover:bg-secondary/50 active:bg-primary/15 cursor-pointer"
             : "cursor-default opacity-90",
           isHome ? "items-start" : "items-end",
         )}
+        style={{ WebkitTapHighlightColor: "transparent" }}
       >
         <span
           className={cn(
-            "text-2xl font-black tabular-nums leading-none text-foreground transition-transform duration-150 ease-out",
+            "text-3xl font-black tabular-nums leading-none text-foreground transition-transform duration-150 ease-out",
             pulse && "scale-[1.18] text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.4)]",
           )}
           aria-live="polite"
@@ -251,30 +253,14 @@ function ScoreSide({ label, score, interactive, onScore, onLongPress, side }: Sc
         </span>
         <span
           className={cn(
-            "text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/65 leading-none mt-0.5 max-w-[8.5rem] truncate",
+            "text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/70 leading-none mt-1 max-w-[8.5rem] truncate",
           )}
           title={label}
         >
-          {label}
+          {label} · tap +1
         </span>
       </button>
 
-      {/* Inline +1 chip — the small explicit affordance next to the score. */}
-      {interactive && (
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={onScore}
-          aria-label={`Add 1 point for ${label}`}
-          className={cn(
-            "h-6 w-6 min-h-0 min-w-0 rounded-full text-[11px] font-bold",
-            "bg-secondary/40 hover:bg-secondary/70 text-foreground/80",
-            "active:scale-90 active:bg-primary/30 transition-all duration-100",
-          )}
-        >
-          <Plus className="h-3 w-3" strokeWidth={3} />
-        </Button>
-      )}
     </div>
   );
 }
