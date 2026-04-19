@@ -603,6 +603,11 @@ export default function NetballBoard({
     [players, validationMode, toast, appendSubLog]
   );
 
+  const selectedPlayer = useMemo(
+    () => (selectedPlayerId ? players.find((p) => p.id === selectedPlayerId) ?? null : null),
+    [selectedPlayerId, players]
+  );
+
   // TAP = start a sub directly. Long-press opens the quick action sheet.
   // This mirrors the soccer pitch board: one tap to "pick up" a player, a
   // second tap on a target completes the swap. Avoids the previous extra
