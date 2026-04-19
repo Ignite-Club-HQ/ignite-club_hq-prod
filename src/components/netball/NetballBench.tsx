@@ -56,13 +56,13 @@ export default function NetballBench({
       className={cn(
         "relative flex-shrink-0",
         "bg-muted/40 border-t border-border/60",
-        "pb-[max(0.5rem,env(safe-area-inset-bottom))]",
-        "before:content-[''] before:absolute before:inset-x-0 before:-top-3 before:h-3 before:bg-gradient-to-b before:from-transparent before:to-muted/40 before:pointer-events-none",
+        "pb-[max(0.25rem,env(safe-area-inset-bottom))]",
+        "before:content-[''] before:absolute before:inset-x-0 before:-top-2 before:h-2 before:bg-gradient-to-b before:from-transparent before:to-muted/40 before:pointer-events-none",
       )}
     >
-      <div className="flex items-center justify-between px-3 pt-1.5 pb-1">
-        <h2 className="text-[11px] font-bold flex items-center gap-1.5 text-muted-foreground">
-          <Users className="h-3 w-3" /> Bench ({bench.length})
+      <div className="flex items-center justify-between px-2.5 pt-1 pb-0.5">
+        <h2 className="text-[10px] font-bold flex items-center gap-1 text-muted-foreground uppercase tracking-wider">
+          <Users className="h-2.5 w-2.5" /> Bench · {bench.length}
           {showSubDueBadge && !selectedPlayerId && (
             <span
               className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.7)] animate-pulse"
@@ -79,7 +79,7 @@ export default function NetballBench({
       </div>
       {!isEmpty && (
         <ScrollArea className="w-full">
-          <div className="flex gap-2.5 px-2.5 pt-2 pb-3">
+          <div className="flex gap-1.5 px-2 pt-1 pb-1.5">
             {bench.map((p) => {
               const isSelected = selectedPlayerId === p.id;
               const isSwapTarget = !!selectedPlayerId && selectedIsOnCourt && !isSelected;
