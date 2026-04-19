@@ -27,7 +27,7 @@ export function ScheduleMessageButton({
       aria-label="Schedule message"
       title="Schedule message"
       className={cn(
-        "min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground hover:text-primary",
+        "h-10 w-10 min-h-0 min-w-0 shrink-0 text-muted-foreground hover:text-primary",
         className,
       )}
     >
