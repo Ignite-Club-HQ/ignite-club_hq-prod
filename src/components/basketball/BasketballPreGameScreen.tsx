@@ -1,8 +1,15 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Bookmark, Play, Repeat, Settings, Users } from "lucide-react";
+import { ArrowLeft, Bookmark, Eye, Play, Repeat, Settings, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import BasketballPreGameLineup from "./BasketballPreGameLineup";
 import { BasketballPlayer, BasketballPosition, PeriodType, RotationMode } from "./types";
+
+/** Speed options shown in the inline rotation selector. Mirrors soccer's coach UX. */
+const ROTATION_SPEEDS: { minutes: number; label: string }[] = [
+  { minutes: 3, label: "3m" },
+  { minutes: 4, label: "4m" },
+  { minutes: 5, label: "5m" },
+];
 
 interface BasketballPreGameScreenProps {
   teamName: string;
@@ -21,6 +28,12 @@ interface BasketballPreGameScreenProps {
   rotationMode?: RotationMode;
   rotationIntervalMinutes?: number;
   onToggleAutoSub?: (next: RotationMode) => void;
+  /** Direct-set the rotation interval (used by the inline 3m/4m/5m selector). */
+  onRotationIntervalChange?: (n: number) => void;
+  /** Open the auto-sub plan preview sheet. Hidden when no plan exists. */
+  onPreviewPlan?: () => void;
+  /** True when the auto-sub plan has at least one upcoming sub. */
+  hasAutoSubPlan?: boolean;
 
   onOpenSettings: () => void;
   onOpenSquad: () => void;
@@ -50,6 +63,9 @@ export default function BasketballPreGameScreen({
   rotationMode = "off",
   rotationIntervalMinutes = 4,
   onToggleAutoSub,
+  onRotationIntervalChange,
+  onPreviewPlan,
+  hasAutoSubPlan = false,
   onOpenSettings,
   onOpenSquad,
   onOpenPresets,
@@ -64,11 +80,10 @@ export default function BasketballPreGameScreen({
   const periodCount = periodType === "halves" ? 2 : 4;
   const squadEmpty = players.length === 0;
   const autoSubActive = rotationMode !== "off";
-  const autoSubLabel = autoSubActive
-    ? rotationMode === "time-based"
-      ? `${rotationIntervalMinutes}m`
-      : "Per period"
-    : "Off";
+  // Time-based is the speed-driven mode. Quarter-break stays available via
+  // Settings → here we only expose the inline quick-speed picker.
+  const showSpeedPicker = autoSubActive && rotationMode === "time-based";
+  const canPreview = autoSubActive && hasAutoSubPlan && lineupReady && !!onPreviewPlan;
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
