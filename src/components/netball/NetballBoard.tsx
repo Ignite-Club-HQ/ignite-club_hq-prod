@@ -300,7 +300,16 @@ export default function NetballBoard({
     [timerState.currentQuarter, toast]
   );
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
+  // Player info card — shown on a single tap when Sub Mode is OFF. Surfaces
+  // name, time played, and sub status with a primary "Sub" CTA.
+  const [infoCardPlayerId, setInfoCardPlayerId] = useState<string | null>(null);
+  // Persistent Sub Mode toggle — when ON, tap-to-arm + tap-to-swap behaviour
+  // (the historical fast flow). When OFF, tap opens the info card instead.
+  const [subModeActive, setSubModeActive] = useState(false);
   const [goalScorerOpen, setGoalScorerOpen] = useState(false);
+  // Tracks which side a long-pressed score belongs to (home or away). Drives
+  // the scorer attribution sheet for the correct team.
+  const [scorerSide, setScorerSide] = useState<"home" | "away">("home");
   const [summaryOpen, setSummaryOpen] = useState(false);
   // Pending quarter-break subs — surfaced in NetballQuarterBreakDialog so the
   // coach approves rotations instead of having them apply silently.
