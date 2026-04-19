@@ -569,7 +569,10 @@ export function UploadPhotoSheet({ open, onOpenChange, onUploadingCountChange }:
       await addPhotosToSelection([file]);
       restoreNativeLayout();
     } catch (error) {
-      if (isCancelledSelectionError(error)) {
+      if (error instanceof PhotoPermissionDeniedError || isPhotoPermissionError(error)) {
+        console.warn("[UploadPhotoSheet] Photo permission denied");
+        showPhotoPermissionDeniedToast();
+      } else if (isCancelledSelectionError(error)) {
         console.log("[UploadPhotoSheet] user cancelled");
       } else {
         const errMsg = getReadableUploadError(error);
