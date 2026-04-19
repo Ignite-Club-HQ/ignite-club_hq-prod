@@ -476,18 +476,41 @@ export default function BasketballBoard({
               onTogglePosition={toggleHudPosition}
             />
 
-            {/* Auto-sub status — small floating chip below HUD */}
-            {!readOnly && gameInProgress && board.rotationMode !== "off" && board.autoSubPlan.length > 0 && (
-              <div className="absolute top-[100px] right-2 z-20">
+            {/* Auto-sub status — prominent chip below HUD, always visible when rotation is on */}
+            {!readOnly && gameInProgress && board.rotationMode !== "off" && (
+              <div className="absolute top-[104px] right-2 z-20">
                 <Button
                   size="sm"
-                  variant="secondary"
-                  className="h-6 text-[10px] gap-1 bg-card/85 backdrop-blur-md border border-border/40 shadow-sm px-2"
+                  variant={board.autoSubPaused ? "outline" : "default"}
+                  className="h-9 text-xs font-semibold gap-1.5 px-3 shadow-lg rounded-full"
                   onClick={() => setAutoSubPanelOpen(true)}
                 >
-                  <Repeat className="h-3 w-3" />
-                  {board.autoSubPlan.filter((s) => s.executed).length}/{board.autoSubPlan.length}
-                  {board.autoSubPaused && <span className="ml-1 text-amber-600">·P</span>}
+                  <Repeat className="h-3.5 w-3.5" />
+                  {board.autoSubPlan.length === 0 ? (
+                    <span>Auto-subs</span>
+                  ) : board.autoSubPaused ? (
+                    <span>Paused</span>
+                  ) : board.nextSub ? (
+                    <>
+                      <span className="opacity-80">Next sub</span>
+                      <span className="font-mono tabular-nums">
+                        {(() => {
+                          const remaining = Math.max(
+                            0,
+                            board.nextSub.time - board.timerState.elapsedSeconds
+                          );
+                          const m = Math.floor(remaining / 60);
+                          const s = remaining % 60;
+                          return `${m}:${s.toString().padStart(2, "0")}`;
+                        })()}
+                      </span>
+                    </>
+                  ) : (
+                    <span>
+                      Subs {board.autoSubPlan.filter((s) => s.executed).length}/
+                      {board.autoSubPlan.length}
+                    </span>
+                  )}
                 </Button>
               </div>
             )}
