@@ -106,7 +106,7 @@ export default function BasketballBoard({
   const [autoSubPanelOpen, setAutoSubPanelOpen] = useState(false);
   // Holds the points value (1/2/3) when the home team has just scored and we
   // need to ask the coach which on-court player to attribute it to.
-  const [pendingScore, setPendingScore] = useState<number | null>(null);
+  const [pendingScore, setPendingScore] = useState<{ points: number; eventId: string } | null>(null);
   // HUD dock position (top/bottom of court) — persists across sessions.
   const [hudPosition, setHudPosition] = useState<"top" | "bottom">(() => {
     if (typeof window === "undefined") return "top";
@@ -465,14 +465,15 @@ export default function BasketballBoard({
                   board.addScore("away", pts);
                   return;
                 }
+                const scoreEventId = crypto.randomUUID();
+                board.addScore("home", pts, undefined, scoreEventId);
                 // No on-court players to attribute → team-only directly so
                 // the tap isn't silently swallowed by an empty picker.
                 const onCourt = board.players.filter((p) => p.position !== null);
                 if (onCourt.length === 0) {
-                  board.addScore("home", pts);
                   return;
                 }
-                setPendingScore(pts);
+                setPendingScore({ points: pts, eventId: scoreEventId });
               }}
               suppressed={!!board.selectedPlayerId}
               controlSlot={
@@ -715,10 +716,12 @@ export default function BasketballBoard({
           <BasketballScorerPickerSheet
             open={pendingScore != null}
             onOpenChange={(o) => !o && setPendingScore(null)}
-            points={pendingScore}
+            points={pendingScore.points}
             onCourt={board.players.filter((p) => p.position !== null)}
             onPick={(playerId) => {
-              board.addScore("home", pendingScore, playerId ?? undefined);
+              if (playerId) {
+                board.attributeScore(pendingScore.eventId, playerId);
+              }
               setPendingScore(null);
             }}
           />
