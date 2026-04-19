@@ -15,31 +15,43 @@ import { findPlayerInPosition } from "./basketballHelpers";
 interface BasketballCourtAreaProps {
   players: BasketballPlayer[];
   selectedPlayerId: string | null;
+  /** True when the selected player is on the bench — court tokens become swap targets. */
+  selectedIsOnBench?: boolean;
   nextSubOutId?: string | null;
+  recentlySwappedIds?: string[];
   readOnly?: boolean;
   courtView?: BasketballCourtView;
   /** When true, empty position slots render nothing (used in live mode after tip-off). */
   hideEmptySlots?: boolean;
   onPlayerClick: (playerId: string) => void;
+  onPlayerLongPress?: (playerId: string) => void;
   onSlotClick: (position: BasketballPosition) => void;
 }
 
 /**
- * Renders the court SVG (half by default, full optionally) with 5 soft
- * position slots. Slots are visual hints only — any player can occupy any slot.
+ * Renders the court SVG with 5 soft position slots. Slots are visual hints
+ * only — any player can occupy any slot.
+ *
+ * When `selectedIsOnBench` is true, court players that aren't the selected
+ * one are presented as swap targets. When the selected player is on court,
+ * the other court tokens are dimmed so the coach's eye is drawn to the bench.
  */
 export default function BasketballCourtArea({
   players,
   selectedPlayerId,
+  selectedIsOnBench = false,
   nextSubOutId,
+  recentlySwappedIds = [],
   readOnly = false,
   courtView = "half",
   hideEmptySlots = false,
   onPlayerClick,
+  onPlayerLongPress,
   onSlotClick,
 }: BasketballCourtAreaProps) {
   const slots = courtView === "full" ? POSITION_SLOTS_FULL : POSITION_SLOTS;
   const aspect = courtView === "full" ? "aspect-square" : "aspect-[5/7]";
+  const courtSelectionActive = !!selectedPlayerId && !selectedIsOnBench;
 
   return (
     <div className="relative flex-1 min-h-0 flex items-center justify-center bg-muted/40 p-2">
@@ -67,9 +79,20 @@ export default function BasketballCourtArea({
                   position={pos}
                   variant="court"
                   isSelected={selectedPlayerId === player.id}
-                  isSwapTarget={!!selectedPlayerId && selectedPlayerId !== player.id}
+                  // Court players are swap targets only when the selected
+                  // player is on the bench (i.e. coming ON).
+                  isSwapTarget={
+                    !!selectedPlayerId &&
+                    selectedIsOnBench &&
+                    selectedPlayerId !== player.id
+                  }
+                  // Dim other court players when the selection started on court
+                  // — the next tap should land on the bench.
+                  isDimmed={courtSelectionActive && selectedPlayerId !== player.id}
+                  isRecentlySwapped={recentlySwappedIds.includes(player.id)}
                   isNextSub={nextSubOutId === player.id}
                   onClick={() => onPlayerClick(player.id)}
+                  onLongPress={onPlayerLongPress ? () => onPlayerLongPress(player.id) : undefined}
                   readOnly={readOnly}
                 />
               ) : hideEmptySlots ? null : (
@@ -78,7 +101,7 @@ export default function BasketballCourtArea({
                   onClick={() => onSlotClick(pos)}
                   className={cn(
                     "w-12 h-12 rounded-full border-2 border-dashed border-white/40 flex items-center justify-center text-[10px] font-bold text-white/70 hover:border-white/80 transition",
-                    selectedPlayerId && "border-primary text-primary animate-pulse"
+                    selectedPlayerId && "border-emerald-400 bg-emerald-400/15 text-emerald-50 animate-pulse"
                   )}
                   aria-label={`Empty ${pos} slot`}
                 >

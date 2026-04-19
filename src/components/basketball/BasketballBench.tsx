@@ -8,18 +8,25 @@ import { cn } from "@/lib/utils";
 interface BasketballBenchProps {
   bench: BasketballPlayer[];
   selectedPlayerId: string | null;
+  /** True when the selected player is currently on the court — bench tokens become swap targets. */
+  selectedIsOnCourt?: boolean;
   /** Bench player queued to come on next (from auto-sub plan). */
   nextSubInId?: string | null;
+  recentlySwappedIds?: string[];
   readOnly?: boolean;
   onPlayerClick: (playerId: string) => void;
+  onPlayerLongPress?: (playerId: string) => void;
 }
 
 export default function BasketballBench({
   bench,
   selectedPlayerId,
+  selectedIsOnCourt = false,
   nextSubInId = null,
+  recentlySwappedIds = [],
   readOnly = false,
   onPlayerClick,
+  onPlayerLongPress,
 }: BasketballBenchProps) {
   // Auto-sub takes priority. Otherwise highlight the lowest-minutes
   // bench player so the coach sees who's "owed" the most game time.
@@ -46,7 +53,8 @@ export default function BasketballBench({
         </h2>
         {!isEmpty && selectedPlayerId ? (
           <span className="text-[10px] text-primary font-medium flex items-center gap-1">
-            <ArrowLeftRight className="h-3 w-3" /> Tap a player or empty slot
+            <ArrowLeftRight className="h-3 w-3" />
+            {selectedIsOnCourt ? "Tap a bench player" : "Tap to deselect"}
           </span>
         ) : !isEmpty && (nextSubInId || lowestMinutesId) ? (
           <span className="text-[10px] text-primary font-medium flex items-center gap-1">
@@ -57,19 +65,25 @@ export default function BasketballBench({
       {!isEmpty && (
         <ScrollArea className="w-full">
           <div className="flex gap-1.5 px-2 pb-1.5">
-            {bench.map((p) => (
-              <BasketballPlayerToken
-                key={p.id}
-                player={p}
-                variant="bench"
-                isSelected={selectedPlayerId === p.id}
-                isSwapTarget={!!selectedPlayerId && selectedPlayerId !== p.id}
-                isNextSub={nextSubInId === p.id}
-                isLowestMinutes={lowestMinutesId === p.id}
-                onClick={() => onPlayerClick(p.id)}
-                readOnly={readOnly}
-              />
-            ))}
+            {bench.map((p) => {
+              const isSelected = selectedPlayerId === p.id;
+              const isSwapTarget = !!selectedPlayerId && selectedIsOnCourt && !isSelected;
+              return (
+                <BasketballPlayerToken
+                  key={p.id}
+                  player={p}
+                  variant="bench"
+                  isSelected={isSelected}
+                  isSwapTarget={isSwapTarget}
+                  isRecentlySwapped={recentlySwappedIds.includes(p.id)}
+                  isNextSub={nextSubInId === p.id}
+                  isLowestMinutes={lowestMinutesId === p.id}
+                  onClick={() => onPlayerClick(p.id)}
+                  onLongPress={onPlayerLongPress ? () => onPlayerLongPress(p.id) : undefined}
+                  readOnly={readOnly}
+                />
+              );
+            })}
           </div>
         </ScrollArea>
       )}
