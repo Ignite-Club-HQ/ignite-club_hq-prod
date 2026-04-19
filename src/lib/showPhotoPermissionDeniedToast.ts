@@ -46,9 +46,8 @@ async function openAppSettings() {
 
   try {
     // Fallback: NativeSettings community plugin if installed
-    const mod: any = await import(/* @vite-ignore */ "capacitor-native-settings");
+    const mod: any = await import(/* @vite-ignore */ ("capacitor-native-settings" as string));
     if (mod?.NativeSettings?.open) {
-      const platform = Capacitor.getPlatform();
       await mod.NativeSettings.open({
         optionAndroid: "application_details",
         optionIOS: "app",
