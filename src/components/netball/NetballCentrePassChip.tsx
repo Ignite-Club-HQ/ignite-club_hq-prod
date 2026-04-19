@@ -22,15 +22,11 @@ interface NetballCentrePassChipProps {
  */
 const NetballCentrePassChip = memo(function NetballCentrePassChip({
   homeLabel,
-  awayLabel,
+  awayLabel: _awayLabel,
   side,
   readOnly = false,
   onSwap,
 }: NetballCentrePassChipProps) {
-  const setSide = (target: "home" | "away") => {
-    if (readOnly) return;
-    if (target !== side) onSwap();
-  };
 
   const isOurs = side === "home";
   return (
