@@ -15,6 +15,11 @@ interface BasketballPreGameScreenProps {
   minutesPerQuarter: number;
   periodType: PeriodType;
 
+  /** Auto-sub plan summary — shown as a small pill in the controls row so the
+   *  coach can confirm/edit rotation before tip-off without leaving pre-game. */
+  rotationMode?: RotationMode;
+  rotationIntervalMinutes?: number;
+
   onOpenSettings: () => void;
   onOpenSquad: () => void;
   onOpenPresets: () => void;
