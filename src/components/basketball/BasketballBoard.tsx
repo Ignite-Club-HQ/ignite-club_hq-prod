@@ -14,6 +14,7 @@ import BasketballPreGameScreen from "./BasketballPreGameScreen";
 import LiveGameHUD from "./LiveGameHUD";
 import SubModeBanner from "./SubModeBanner";
 import { useBasketballBoardState } from "@/hooks/useBasketballBoardState";
+import { useBasketballCoachAssistant } from "@/hooks/useBasketballCoachAssistant";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
 import { useCourtBoardDefaults } from "@/hooks/useCourtBoardDefaults";
