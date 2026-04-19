@@ -144,6 +144,10 @@ export default function TeamChatPage() {
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleTarget: ScheduleTarget | null = teamId
+    ? { chat_type: "team", team_id: teamId }
+    : null;
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
