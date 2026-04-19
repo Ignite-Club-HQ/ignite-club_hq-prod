@@ -1658,6 +1658,16 @@ export default function MessagesPage() {
               )}
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/scheduled-messages")}
+            className="h-10 w-10"
+            aria-label="Scheduled messages"
+            title="Scheduled messages"
+          >
+            <Clock className="h-5 w-5" />
+          </Button>
           <NewMessageMenu 
             onNewDM={() => setShowDMDialog(true)}
             onNewGroup={() => setShowGroupDialog(true)}
