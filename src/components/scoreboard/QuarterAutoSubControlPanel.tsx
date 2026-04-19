@@ -82,8 +82,10 @@ export default function QuarterAutoSubControlPanel<S extends QuarterSubLike>({
   onRegeneratePlan,
   onToggleLockPlayer,
   onEditPlan,
+  previewMode = false,
 }: QuarterAutoSubControlPanelProps<S>) {
-  const [showTimeline, setShowTimeline] = useState(false);
+  // In preview (pre-game) mode the timeline is the whole point — open it by default.
+  const [showTimeline, setShowTimeline] = useState(previewMode);
   const [showLockPanel, setShowLockPanel] = useState(false);
   const swipeRef = useRef<{ startY: number } | null>(null);
 
