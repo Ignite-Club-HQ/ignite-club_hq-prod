@@ -96,11 +96,20 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
     onClick?.();
   };
 
+  const showOffBadge = isSelected && variant === "court";
+  const showOnBadge = isSwapTarget && !isInvalidTarget;
+
   return (
     <button
       type="button"
       draggable={!readOnly}
-      onClick={onClick}
+      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onContextMenu={(e) => e.preventDefault()}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onTouchStart={onTouchStart}
@@ -110,13 +119,23 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
         "relative flex flex-col items-center gap-1 transition-all touch-manipulation select-none",
         variant === "court" ? "w-14" : "w-12",
         isDragging && "opacity-40 scale-90",
-        isSelected && "scale-110 z-20",
-        isSwapTarget && "ring-2 ring-primary ring-offset-2 ring-offset-background rounded-full",
-        isInvalidTarget && "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full",
-        isNextSub && "animate-pulse",
+        isSelected && "scale-110 z-20 drop-shadow-[0_0_8px_hsl(var(--primary)/0.6)]",
+        isSwapTarget && !isInvalidTarget && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background rounded-full animate-pulse",
+        isInvalidTarget && "opacity-50",
+        isNextSub && !isSelected && !isSwapTarget && "animate-pulse",
         readOnly && "pointer-events-none"
       )}
     >
+      {showOffBadge && (
+        <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 bg-primary text-primary-foreground text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-md">
+          OFF
+        </span>
+      )}
+      {showOnBadge && (
+        <span className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 bg-emerald-500 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded shadow-md animate-pulse">
+          ON
+        </span>
+      )}
       {player.isInjured && (
         <span className="absolute -top-1 -right-1 z-10 bg-destructive text-destructive-foreground rounded-full p-0.5">
           <AlertTriangle className="h-3 w-3" />
