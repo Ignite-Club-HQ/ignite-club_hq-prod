@@ -1713,7 +1713,16 @@ export default function NetballBoard({
             onOpenChange={(o) => !o && setQuickActionPlayerId(null)}
             player={quickActionPlayer}
             onStartSwap={() => setSelectedPlayerId(quickActionPlayer.id)}
-            onSubOff={() => subOff(quickActionPlayer.id)}
+            onSubOff={() =>
+              subConfirm.request(
+                {
+                  kind: "sub-off",
+                  primaryName: quickActionPlayer.name,
+                  position: quickActionPlayer.position ?? undefined,
+                },
+                () => subOff(quickActionPlayer.id),
+              )
+            }
             onSubOn={() => setSelectedPlayerId(quickActionPlayer.id)}
             onToggleInjured={() => toggleInjured(quickActionPlayer.id)}
             onScore={() => addScore("home", 1, quickActionPlayer.id)}
