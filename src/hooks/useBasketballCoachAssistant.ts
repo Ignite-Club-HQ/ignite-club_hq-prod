@@ -135,7 +135,7 @@ export function useBasketballCoachAssistant({
     toast(`Sub: ${suggestion.in.name} → ${suggestion.out.name}`, {
       duration: 3000,
     });
-  }, [suggestion, isRunning, isGameFinished, paused, totalElapsedSeconds, readOnly, toast, onCourt, bench]);
+  }, [suggestion, isRunning, isGameFinished, paused, totalElapsedSeconds, readOnly, onCourt, bench]);
 
   return {
     overplayedOnCourtId,
