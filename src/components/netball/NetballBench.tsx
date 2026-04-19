@@ -133,6 +133,7 @@ export default function NetballBench({
               );
             })}
           </div>
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
       )}
     </div>
