@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Users, ArrowLeftRight } from "lucide-react";
 import NetballPlayerToken from "./NetballPlayerToken";
 import { NetballPlayer } from "./types";
@@ -87,8 +87,8 @@ export default function NetballBench({
         ) : null}
       </div>
       {!isEmpty && (
-        <ScrollArea className="w-full">
-          <div className="flex gap-1.5 px-2 pt-1 pb-1.5">
+        <ScrollArea className="w-full whitespace-nowrap">
+          <div className="flex gap-1.5 px-2 pt-1 pb-1.5 w-max">
             {bench.map((p) => {
               const isSelected = selectedPlayerId === p.id;
               const isSwapTarget = !!selectedPlayerId && selectedIsOnCourt && !isSelected;
