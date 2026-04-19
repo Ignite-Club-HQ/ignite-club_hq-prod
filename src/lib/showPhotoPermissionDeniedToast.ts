@@ -44,19 +44,8 @@ async function openAppSettings() {
     // ignore
   }
 
-  try {
-    // Fallback: NativeSettings community plugin if installed
-    const mod: any = await import(/* @vite-ignore */ ("capacitor-native-settings" as string));
-    if (mod?.NativeSettings?.open) {
-      await mod.NativeSettings.open({
-        optionAndroid: "application_details",
-        optionIOS: "app",
-      });
-      return;
-    }
-  } catch {
-    // ignore
-  }
+  // Fallback if App.openSettings is not available on this platform/version
+
 
   // Last resort
   toast.message("Open your device Settings → Ignite to enable photo access.");
