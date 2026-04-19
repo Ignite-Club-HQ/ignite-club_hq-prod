@@ -248,8 +248,19 @@ export default function NetballPreGameScreen({
           <TabsTrigger value="lineup" className="text-[11px] font-semibold">
             Lineup
           </TabsTrigger>
-          <TabsTrigger value="rotation" className="text-[11px] font-semibold">
+          <TabsTrigger
+            value="rotation"
+            className="text-[11px] font-semibold gap-1"
+          >
             Rotation
+            {autoSubActive && hasAutoSubPlan && (
+              <span
+                className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-bold tabular-nums"
+                aria-label={`${autoSubPlan.length} swaps planned`}
+              >
+                {autoSubPlan.length}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="stats" className="text-[11px] font-semibold">
             Stats
