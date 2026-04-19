@@ -16,7 +16,7 @@ interface NetballCourtAreaProps {
   readOnly?: boolean;
   onPlayerClick: (playerId: string) => void;
   /** Long-press a player to open the quick action sheet (score, mark injured…). */
-  onPlayerLongPress: (playerId: string) => void;
+  onPlayerLongPress?: (playerId: string) => void;
   onSlotClick: (position: NetballPosition) => void;
 }
 
