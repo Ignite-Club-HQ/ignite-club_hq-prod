@@ -74,6 +74,7 @@ const QuarterLineupPlanner = lazy(() => import("./QuarterLineupPlanner"));
 const NetballLineupPresetsDialog = lazy(() => import("./NetballLineupPresetsDialog"));
 const NetballRosterDialog = lazy(() => import("./NetballRosterDialog"));
 const NetballQuickActionSheet = lazy(() => import("./NetballQuickActionSheet"));
+const NetballGoalScorerSheet = lazy(() => import("./NetballGoalScorerSheet"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 import NetballPreGameScreen from "./NetballPreGameScreen";
 import NetballQuarterBreakDialog from "./NetballQuarterBreakDialog";
@@ -296,6 +297,7 @@ export default function NetballBoard({
     [timerState.currentQuarter, toast]
   );
   const [quickActionPlayerId, setQuickActionPlayerId] = useState<string | null>(null);
+  const [goalScorerOpen, setGoalScorerOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   // Pending quarter-break subs — surfaced in NetballQuarterBreakDialog so the
   // coach approves rotations instead of having them apply silently.
@@ -1456,7 +1458,14 @@ export default function NetballBoard({
               readOnly={readOnly}
               disabled={!gameInProgress || !!timerState.isGameFinished}
               suppressed={!!selectedPlayerId}
-              onScore={(side) => addScore(side, 1)}
+              onScore={(side) => {
+                if (side === "home") {
+                  // Open the scorer picker so coaches can attribute the goal to GS/GA.
+                  setGoalScorerOpen(true);
+                } else {
+                  addScore(side, 1);
+                }
+              }}
               onBack={onClose}
               controlSlot={
                 <NetballQuarterTimer
@@ -1632,6 +1641,17 @@ export default function NetballBoard({
             onSubOn={() => setSelectedPlayerId(quickActionPlayer.id)}
             onToggleInjured={() => toggleInjured(quickActionPlayer.id)}
             onScore={() => addScore("home", 1, quickActionPlayer.id)}
+          />
+        )}
+        {goalScorerOpen && (
+          <NetballGoalScorerSheet
+            open={goalScorerOpen}
+            onOpenChange={setGoalScorerOpen}
+            candidates={players.filter(
+              (p) => p.position === "GS" || p.position === "GA"
+            )}
+            onAttribute={(playerId) => addScore("home", 1, playerId)}
+            onSkip={() => addScore("home", 1)}
           />
         )}
         {summaryOpen && (
