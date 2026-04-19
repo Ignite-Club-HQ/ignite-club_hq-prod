@@ -188,13 +188,15 @@ export default function NetballPreGameScreen({
           </p>
         </div>
 
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8 flex-shrink-0"
               aria-label="More options"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
             >
               <MoreHorizontal className="h-5 w-5" />
             </Button>
