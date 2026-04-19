@@ -72,6 +72,7 @@ export default function BasketballBoard({
 }: BasketballBoardProps) {
   const board = useBasketballBoardState({
     teamId,
+    teamName,
     members,
     readOnly,
     initialMinutesPerQuarter,
