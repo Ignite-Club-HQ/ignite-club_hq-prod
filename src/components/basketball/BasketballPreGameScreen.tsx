@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Bookmark, Play, Settings, Users } from "lucide-react";
+import { ArrowLeft, Bookmark, Play, Repeat, Settings, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import BasketballPreGameLineup from "./BasketballPreGameLineup";
-import { BasketballPlayer, BasketballPosition, PeriodType } from "./types";
+import { BasketballPlayer, BasketballPosition, PeriodType, RotationMode } from "./types";
 
 interface BasketballPreGameScreenProps {
   teamName: string;
