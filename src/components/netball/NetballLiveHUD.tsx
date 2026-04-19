@@ -1,6 +1,6 @@
 import { ReactNode, memo, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowDownToLine, ArrowUpToLine, MoreHorizontal, Plus } from "lucide-react";
+import { ArrowLeft, ArrowDownToLine, ArrowUpToLine, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hapticSelectionTick } from "@/lib/haptics";
 
