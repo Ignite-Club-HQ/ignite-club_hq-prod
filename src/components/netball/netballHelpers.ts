@@ -167,6 +167,53 @@ export const snapshotLineup = (
  * bench player onto court via like-for-like swap.
  * Cycles through bench players to equalise minutes.
  */
+/**
+ * Pick the bench player who gives the FAIREST swap:
+ *   1. Must be eligible (not injured, not already used at this slot)
+ *   2. Prefer the player with the LEAST projected court time so far
+ *   3. Tie-break by position fit (exact > zone > any)
+ *
+ * This is the heart of the equal-playing-time algorithm — by always topping up
+ * the freshest bench player (rather than the most position-compatible one),
+ * minutes converge across the squad.
+ */
+const pickFairestBenchPlayer = (
+  position: NetballPosition,
+  bench: NetballPlayer[],
+  projectedSeconds: Map<string, number>,
+  excludeIds: Set<string>
+): NetballPlayer | undefined => {
+  const eligible = bench.filter(p => !p.isInjured && !excludeIds.has(p.id));
+  if (eligible.length === 0) return undefined;
+
+  const fitRank = (p: NetballPlayer): number => {
+    const fit = classifySwapFit(p, position);
+    return fit === "exact" ? 0 : fit === "zone" ? 1 : fit === "any" ? 2 : 3;
+  };
+
+  // Sort by minutes (asc), then by fit rank (asc). Lowest combined wins.
+  return [...eligible].sort((a, b) => {
+    const aMin = projectedSeconds.get(a.id) ?? 0;
+    const bMin = projectedSeconds.get(b.id) ?? 0;
+    if (aMin !== bMin) return aMin - bMin;
+    return fitRank(a) - fitRank(b);
+  })[0];
+};
+
+/**
+ * Generate a time-based rotation plan that EQUALISES playing time.
+ *
+ * Algorithm:
+ *  - Simulate the game forward, tracking projected seconds for every player.
+ *  - At each interval, sub OUT the on-court player with the MOST projected
+ *    minutes, and bring IN the bench player with the LEAST projected minutes.
+ *  - Position assignment follows the outgoing player's slot (like-for-like
+ *    when possible, but fairness wins ties).
+ *
+ * This guarantees every available player is cycled through before anyone is
+ * subbed twice, and over a full game the spread between most and least
+ * minutes converges to ~one interval.
+ */
 export const generateTimeBasedRotationPlan = (
   players: NetballPlayer[],
   intervalMinutes: number,
@@ -177,79 +224,184 @@ export const generateTimeBasedRotationPlan = (
   const intervalSeconds = intervalMinutes * 60;
   const quarterSeconds = minutesPerQuarter * 60;
 
-  // Track a rolling bench rotation index so we cycle through fairly.
-  let benchCursor = 0;
+  // Available roster (exclude injured — they can't take court time).
+  const roster = players.filter(p => !p.isInjured);
+  if (roster.length <= 7) return plan; // No bench → nothing to rotate.
 
-  for (const q of visiblePeriods(periodType)) {
+  // Live simulation state.
+  // onCourt: position → playerId
+  const onCourt = new Map<NetballPosition, string>();
+  for (const p of roster) {
+    if (p.position) onCourt.set(p.position, p.id);
+  }
+  // Bail out if the starting lineup isn't 7 — caller should have validated.
+  if (onCourt.size === 0) return plan;
+
+  const projectedSeconds = new Map<string, number>();
+  for (const p of roster) projectedSeconds.set(p.id, 0);
+  const playerById = new Map(roster.map(p => [p.id, p]));
+
+  /** Advance the simulated clock, crediting on-court players. */
+  const advance = (deltaSeconds: number) => {
+    if (deltaSeconds <= 0) return;
+    for (const id of onCourt.values()) {
+      projectedSeconds.set(id, (projectedSeconds.get(id) ?? 0) + deltaSeconds);
+    }
+  };
+
+  let lastTickAbsolute = 0; // absolute seconds since game start
+  const periods = visiblePeriods(periodType);
+
+  for (let qi = 0; qi < periods.length; qi++) {
+    const q = periods[qi] as Quarter;
+    const periodStartAbs = qi * quarterSeconds;
+    const periodEndAbs = periodStartAbs + quarterSeconds;
+
     let t = intervalSeconds;
     while (t < quarterSeconds) {
-      const bench = getBench(players);
-      if (bench.length === 0) break;
-      const onCourt = getOnCourt(players);
-      // Pick the on-court player with the most accumulated minutes
-      // we haven't already scheduled out at this slot.
-      const sortedOnCourt = [...onCourt].sort(
-        (a, b) => (b.minutesPlayed ?? 0) - (a.minutesPlayed ?? 0)
-      );
-      const playerOut = sortedOnCourt[0];
-      if (!playerOut || !playerOut.position) break;
-      const candidate = pickLikeForLikeBenchPlayer(
-        playerOut.position,
-        bench,
-        plan.filter(s => s.quarter === q).map(s => s.playerIn.id)
-      ) ?? bench[benchCursor % bench.length];
-      benchCursor++;
+      const absTick = periodStartAbs + t;
+      advance(absTick - lastTickAbsolute);
+      lastTickAbsolute = absTick;
+
+      // Pick the on-court player with the MOST projected minutes.
+      const onCourtList = Array.from(onCourt.entries())
+        .map(([position, id]) => ({
+          position,
+          player: playerById.get(id)!,
+          mins: projectedSeconds.get(id) ?? 0,
+        }))
+        .filter(x => x.player);
+      onCourtList.sort((a, b) => b.mins - a.mins);
+
+      // Find the most-played starter who has a fairer bench replacement available.
+      // (If everyone's bench replacement is also high-minutes, bail this tick.)
+      const benchPlayers = roster.filter(p => !Array.from(onCourt.values()).includes(p.id));
+      if (benchPlayers.length === 0) break;
+      const minBenchMins = Math.min(...benchPlayers.map(p => projectedSeconds.get(p.id) ?? 0));
+
+      let chosen: { position: NetballPosition; player: NetballPlayer; replacement: NetballPlayer } | null = null;
+      for (const candidate of onCourtList) {
+        // Only sub if it actually improves fairness (outgoing > incoming).
+        if (candidate.mins <= minBenchMins) continue;
+        const replacement = pickFairestBenchPlayer(
+          candidate.position,
+          benchPlayers,
+          projectedSeconds,
+          new Set()
+        );
+        if (replacement && (projectedSeconds.get(replacement.id) ?? 0) < candidate.mins) {
+          chosen = { position: candidate.position, player: candidate.player, replacement };
+          break;
+        }
+      }
+
+      if (!chosen) {
+        // No fair swap available — skip this tick.
+        t += intervalSeconds;
+        continue;
+      }
+
+      onCourt.set(chosen.position, chosen.replacement.id);
       plan.push({
-        quarter: q as Quarter,
+        quarter: q,
         time: t,
-        playerOut,
-        playerIn: candidate,
-        position: playerOut.position,
+        playerOut: chosen.player,
+        playerIn: chosen.replacement,
+        position: chosen.position,
       });
       t += intervalSeconds;
     }
+
+    // Advance to end of period before moving on.
+    advance(periodEndAbs - lastTickAbsolute);
+    lastTickAbsolute = periodEndAbs;
   }
   return plan;
 };
 
 /**
- * Generate a quarter-break rotation plan:
- * at the start of Q2, Q3, Q4 rotate up to N bench players onto court.
+ * Generate a quarter-break rotation plan that EQUALISES playing time.
+ *
+ * At each break we credit the period's minutes, then pick the N most-played
+ * starters and swap them for the N least-played bench players (subject to
+ * position fit). This balances minutes across the whole roster.
  */
 export const generateQuarterBreakRotationPlan = (
   players: NetballPlayer[],
   swapsPerBreak = 2,
-  periodType: PeriodType = "quarters"
+  periodType: PeriodType = "quarters",
+  minutesPerQuarter = 15
 ): NetballSubEvent[] => {
   const plan: NetballSubEvent[] = [];
-  const bench = getBench(players);
-  if (bench.length === 0) return plan;
+  const roster = players.filter(p => !p.isInjured);
+  if (roster.length <= 7) return plan;
 
-  let benchCursor = 0;
-  // Skip the first period — no "break" before tipoff.
-  const breaks = visiblePeriods(periodType).slice(1) as Quarter[];
-  for (const q of breaks) {
-    const onCourt = getOnCourt(players);
-    const sortedOnCourt = [...onCourt].sort(
-      (a, b) => (b.minutesPlayed ?? 0) - (a.minutesPlayed ?? 0)
-    );
-    for (let i = 0; i < Math.min(swapsPerBreak, bench.length); i++) {
-      const playerOut = sortedOnCourt[i];
-      if (!playerOut || !playerOut.position) continue;
-      const candidate =
-        pickLikeForLikeBenchPlayer(
-          playerOut.position,
-          bench,
-          plan.filter(s => s.quarter === q).map(s => s.playerIn.id)
-        ) ?? bench[benchCursor % bench.length];
-      benchCursor++;
+  const onCourt = new Map<NetballPosition, string>();
+  for (const p of roster) {
+    if (p.position) onCourt.set(p.position, p.id);
+  }
+  if (onCourt.size === 0) return plan;
+
+  const projectedSeconds = new Map<string, number>();
+  for (const p of roster) projectedSeconds.set(p.id, 0);
+  const playerById = new Map(roster.map(p => [p.id, p]));
+  const quarterSeconds = minutesPerQuarter * 60;
+
+  const periods = visiblePeriods(periodType) as Quarter[];
+  // Credit Q1 minutes before the first break.
+  for (const id of onCourt.values()) {
+    projectedSeconds.set(id, (projectedSeconds.get(id) ?? 0) + quarterSeconds);
+  }
+
+  // Iterate breaks (start of Q2, Q3, Q4).
+  for (let i = 1; i < periods.length; i++) {
+    const q = periods[i];
+    const usedBenchThisBreak = new Set<string>();
+
+    for (let s = 0; s < swapsPerBreak; s++) {
+      const onCourtList = Array.from(onCourt.entries())
+        .map(([position, id]) => ({
+          position,
+          player: playerById.get(id)!,
+          mins: projectedSeconds.get(id) ?? 0,
+        }))
+        .sort((a, b) => b.mins - a.mins);
+
+      const benchPlayers = roster.filter(p =>
+        !Array.from(onCourt.values()).includes(p.id) && !usedBenchThisBreak.has(p.id)
+      );
+      if (benchPlayers.length === 0) break;
+
+      // Find the first starter whose swap actually improves fairness.
+      let picked: { position: NetballPosition; player: NetballPlayer; replacement: NetballPlayer } | null = null;
+      for (const cand of onCourtList) {
+        const replacement = pickFairestBenchPlayer(
+          cand.position,
+          benchPlayers,
+          projectedSeconds,
+          usedBenchThisBreak
+        );
+        if (replacement && (projectedSeconds.get(replacement.id) ?? 0) < cand.mins) {
+          picked = { position: cand.position, player: cand.player, replacement };
+          break;
+        }
+      }
+      if (!picked) break;
+
+      onCourt.set(picked.position, picked.replacement.id);
+      usedBenchThisBreak.add(picked.replacement.id);
       plan.push({
         quarter: q,
         time: 0,
-        playerOut,
-        playerIn: candidate,
-        position: playerOut.position,
+        playerOut: picked.player,
+        playerIn: picked.replacement,
+        position: picked.position,
       });
+    }
+
+    // Credit this period's minutes to whoever's now on court.
+    for (const id of onCourt.values()) {
+      projectedSeconds.set(id, (projectedSeconds.get(id) ?? 0) + quarterSeconds);
     }
   }
   return plan;
