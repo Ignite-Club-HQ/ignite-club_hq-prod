@@ -1354,6 +1354,11 @@ export default function NetballBoard({
     [players, quickActionPlayerId]
   );
 
+  const infoCardPlayer = useMemo(
+    () => players.find((p) => p.id === infoCardPlayerId) ?? null,
+    [players, infoCardPlayerId],
+  );
+
   // Sport-agnostic player rows for the summary dialog.
   const summaryPlayers = useMemo(
     () =>
