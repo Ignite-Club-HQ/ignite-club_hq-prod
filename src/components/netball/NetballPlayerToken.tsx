@@ -9,12 +9,9 @@ import { useNowTick, formatRest } from "@/hooks/useNowTick";
  * Netball player token — restyled to mirror BasketballPlayerToken.
  *
  * Solid, high-contrast position colours; glossy avatar with strong shadow;
- * bottom-attached position pill; on-court tokens get a name+minutes "label
- * pill" so the chip + label read as a single physical piece on the court.
- *
- * Position colours are intentionally redefined here (not from types.ts) so
- * the court tokens stop using the soft translucent fills that bled into
- * the netball court background.
+ * bottom-attached position pill; on-court tokens get a compact name chip
+ * (minutes only surfaced once they've actually played time, so the default
+ * board reads as a clean coaching surface — no "0m" noise).
  */
 
 const POSITION_TOKEN_COLORS: Record<NetballPosition, { bg: string; text: string; border: string }> = {
@@ -44,12 +41,24 @@ interface NetballPlayerTokenProps {
   onClick?: () => void;
   /** Long-press (~500ms) opens the quick action sheet. Tap = direct sub-mode. */
   onLongPress?: () => void;
-  onDragStart?: () => void;
-  onDragEnd?: () => void;
+  /** Native HTML5 drag — used by the live court for swaps. */
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
   onTouchStart?: (e: React.TouchEvent) => void;
   readOnly?: boolean;
   style?: React.CSSProperties;
+  /** Hides the minutes/rest label entirely (used while live game just started). */
+  hideStats?: boolean;
 }
+
+/**
+ * Strip developer noise like "Mock " or "Mock Player" prefixes from the
+ * displayed name so the live board never shows scaffolding text.
+ */
+const cleanName = (raw: string): string =>
+  raw.replace(/^mock\s+/i, "").replace(/^mock player\s*/i, "Player ").trim() || raw;
 
 const NetballPlayerToken = memo(function NetballPlayerToken({
   player,
@@ -67,9 +76,12 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
   onLongPress,
   onDragStart,
   onDragEnd,
+  onDragOver,
+  onDrop,
   onTouchStart,
   readOnly = false,
   style,
+  hideStats = false,
 }: NetballPlayerTokenProps) {
   // Long-press detection — 500ms hold opens the quick action sheet.
   const longPressTimerRef = useRef<number | null>(null);
@@ -106,7 +118,8 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
     onClick?.();
   };
 
-  const initials = player.name
+  const displayName = cleanName(player.name);
+  const initials = displayName
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -122,6 +135,10 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
     variant === "bench" && player.lastBenchedAt
       ? Math.max(0, Math.floor((now - player.lastBenchedAt) / 1000))
       : 0;
+  // Default-hide "0m" so a fresh game reads cleanly. Only show stats once
+  // the player has actually played time or accumulated rest seconds.
+  const showStats =
+    !hideStats && (minutes > 0 || restSeconds > 0 || (player.minutesPlayed ?? 0) > 0);
 
   return (
     <button
@@ -136,9 +153,12 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
       onContextMenu={(e) => e.preventDefault()}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       onTouchStart={onTouchStart}
+      data-player-id={player.id}
       style={style}
-      aria-label={`${player.name}${pos ? ` at ${pos}` : " on bench"}${goals > 0 ? `, ${goals} goals` : ""}`}
+      aria-label={`${displayName}${pos ? ` at ${pos}` : " on bench"}${goals > 0 ? `, ${goals} goals` : ""}`}
       className={cn(
         "relative flex flex-col items-center gap-0 touch-manipulation select-none",
         "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
@@ -150,7 +170,7 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
         isSwapTarget && !isInvalidTarget &&
           "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background rounded-full animate-pulse",
         isInvalidTarget &&
-          "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full opacity-60",
+          "ring-2 ring-destructive ring-offset-2 ring-offset-background rounded-full opacity-70 animate-shake-x",
         isDimmed && !isSelected && !isSwapTarget && "opacity-40",
         isRecentlySwapped && "drop-shadow-[0_0_16px_hsl(var(--primary)/0.85)] animate-fade-in",
         isNextSub && !isSelected && variant === "court" &&
@@ -213,7 +233,9 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
               "before:bg-[linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0)_55%)]",
             )}
           >
-            <span className="relative z-10">{initials}</span>
+            <span className="relative z-10">
+              {player.number !== undefined ? player.number : initials}
+            </span>
           </AvatarFallback>
         </Avatar>
         {pos && (
@@ -238,7 +260,9 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
         )}
       </div>
 
-      {/* Label — on-court players get a slim chip; bench gets stacked text. */}
+      {/* Label — on-court players get a slim chip; bench gets stacked text.
+          Minutes are suppressed by default (e.g. fresh game) so the board
+          isn't cluttered with "0m" everywhere. */}
       {variant === "court" ? (
         <span
           className={cn(
@@ -248,18 +272,22 @@ const NetballPlayerToken = memo(function NetballPlayerToken({
           )}
         >
           <span className="truncate font-bold tracking-tight text-foreground">
-            {player.name.split(" ")[0]}
+            {displayName.split(" ")[0]}
           </span>
-          <span className="tabular-nums font-normal text-muted-foreground/80 text-[9px]">{`${minutes}m`}</span>
+          {showStats && (
+            <span className="tabular-nums font-normal text-muted-foreground/80 text-[9px]">{`${minutes}m`}</span>
+          )}
         </span>
       ) : (
         <>
           <span className="mt-1 text-[10.5px] font-semibold text-foreground leading-tight text-center max-w-full truncate">
-            {player.name.split(" ")[0]}
+            {displayName.split(" ")[0]}
           </span>
-          <span className="mt-0.5 text-[9px] text-muted-foreground/70 leading-none tabular-nums font-normal">
-            {restSeconds > 0 ? formatRest(restSeconds) : `${minutes}m`}
-          </span>
+          {showStats && (
+            <span className="mt-0.5 text-[9px] text-muted-foreground/70 leading-none tabular-nums font-normal">
+              {restSeconds > 0 ? formatRest(restSeconds) : `${minutes}m`}
+            </span>
+          )}
         </>
       )}
     </button>

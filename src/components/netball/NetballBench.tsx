@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Users, ArrowLeftRight } from "lucide-react";
 import NetballPlayerToken from "./NetballPlayerToken";
@@ -20,12 +20,18 @@ interface NetballBenchProps {
   readOnly?: boolean;
   onPlayerClick: (playerId: string) => void;
   onPlayerLongPress?: (playerId: string) => void;
+  /** Drag-drop swap (bench token onto bench token, or court onto bench). */
+  onDragSwap?: (sourceId: string, targetId: string) => void;
 }
 
 /**
  * Restyled to mirror BasketballBench: subtle muted bench tray, dot
  * indicators instead of loud text labels, comfortable padding so chip ·
  * name · time read with breathing room.
+ *
+ * Drag & drop: bench tokens are HTML5-draggable (handled by the token).
+ * Dropping a court player onto a bench token swaps them. Dropping onto an
+ * empty bench area is a no-op — coaches use the court for placements.
  */
 export default function NetballBench({
   bench,
@@ -38,6 +44,7 @@ export default function NetballBench({
   readOnly = false,
   onPlayerClick,
   onPlayerLongPress,
+  onDragSwap,
 }: NetballBenchProps) {
   const lowestMinutesId = useMemo(() => {
     if (nextSubInId) return null;
@@ -50,6 +57,8 @@ export default function NetballBench({
   }, [bench, nextSubInId, underplayedBenchIds]);
 
   const isEmpty = bench.length === 0;
+
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   return (
     <div
@@ -91,6 +100,7 @@ export default function NetballBench({
                   variant="bench"
                   isSelected={isSelected}
                   isSwapTarget={isSwapTarget}
+                  isDragging={draggingId === p.id}
                   isRecentlySwapped={recentlySwappedIds.includes(p.id)}
                   isNextSub={nextSubInId === p.id}
                   isLowestMinutes={isUnderplayed || lowestMinutesId === p.id}
@@ -98,6 +108,26 @@ export default function NetballBench({
                   onLongPress={
                     onPlayerLongPress ? () => onPlayerLongPress(p.id) : undefined
                   }
+                  onDragStart={(e) => {
+                    if (readOnly) return;
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", p.id);
+                    setDraggingId(p.id);
+                  }}
+                  onDragEnd={() => setDraggingId(null)}
+                  onDragOver={(e) => {
+                    const src = e.dataTransfer.getData("text/plain");
+                    if (!src || src === p.id) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(e) => {
+                    const src = e.dataTransfer.getData("text/plain");
+                    if (!src || src === p.id) return;
+                    e.preventDefault();
+                    onDragSwap?.(src, p.id);
+                    setDraggingId(null);
+                  }}
                   readOnly={readOnly}
                 />
               );

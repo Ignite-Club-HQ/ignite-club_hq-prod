@@ -27,6 +27,11 @@ const NetballCourt = memo(function NetballCourt({ className }: NetballCourtProps
       {/* Subtle grain overlay for depth. */}
       <rect x="0" y="0" width="100" height="140" fill="hsl(190 30% 20% / 0.08)" />
 
+      {/* Very low-opacity thirds shading — gives coaches a quick visual cue
+          for attack / centre / defence zones without competing with tokens. */}
+      <rect x="0" y="0" width="100" height="48" fill="hsl(20 70% 50% / 0.06)" />
+      <rect x="0" y="92" width="100" height="48" fill="hsl(250 70% 55% / 0.06)" />
+
       {/* Outer boundary — soft so it doesn't compete with tokens. */}
       <rect
         x="2"
