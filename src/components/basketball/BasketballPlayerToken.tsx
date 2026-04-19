@@ -230,9 +230,7 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
           <span className="truncate">{player.name.split(" ")[0]}</span>
           <span className="text-muted-foreground font-medium">·</span>
           <span className="tabular-nums text-foreground/80">
-            {variant === "bench" && restSeconds > 0
-              ? formatRest(restSeconds)
-              : `${minutes}m`}
+            {`${minutes}m`}
           </span>
           {fouls > 0 && (
             <span className={cn("tabular-nums", fouled ? "text-destructive font-bold" : "text-muted-foreground")}>
