@@ -194,14 +194,14 @@ export function useBasketballBoardState({
   // For HOME baskets, an optional playerId attributes the points to that
   // player so the coach gets a per-player score breakdown.
   const addScore = useCallback(
-    (side: "home" | "away", points: number, playerId?: string) => {
+    (side: "home" | "away", points: number, playerId?: string, scoreEventId?: string) => {
       // Tactile confirmation — coaches scoring on a noisy sideline can confirm
       // by feel without looking down. Light for 1pt, medium for 2-3.
       if (points >= 2) hapticImpactMedium();
       else hapticImpactLight();
       setTimerState((s) => {
         const event = {
-          id: crypto.randomUUID(),
+          id: scoreEventId ?? crypto.randomUUID(),
           side,
           points,
           quarter: s.currentQuarter,
@@ -231,6 +231,38 @@ export function useBasketballBoardState({
     },
     []
   );
+
+  const attributeScore = useCallback((scoreEventId: string, playerId?: string) => {
+    if (!scoreEventId || !playerId) return;
+
+    let awardedPoints = 0;
+    setTimerState((s) => {
+      const log = s.scoreLog ?? [];
+      const target = log.find((event) => event.id === scoreEventId);
+      if (!target || target.side !== "home") return s;
+      awardedPoints = target.points;
+      return {
+        ...s,
+        scoreLog: log.map((event) =>
+          event.id === scoreEventId ? { ...event, playerId } : event
+        ),
+        lastUpdateTime: Date.now(),
+      };
+    });
+
+    if (awardedPoints <= 0) return;
+
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (p.id !== playerId) return p;
+        const next = { ...p, points: (p.points ?? 0) + awardedPoints };
+        if (awardedPoints === 1) next.pointsBy1 = (p.pointsBy1 ?? 0) + 1;
+        else if (awardedPoints === 2) next.pointsBy2 = (p.pointsBy2 ?? 0) + 1;
+        else if (awardedPoints === 3) next.pointsBy3 = (p.pointsBy3 ?? 0) + 1;
+        return next;
+      })
+    );
+  }, []);
 
   const undoScore = useCallback(() => {
     // Capture the attributed-points rollback target BEFORE entering the
@@ -1280,6 +1312,7 @@ export function useBasketballBoardState({
     toggleCourtView,
     // scoring
     addScore,
+    attributeScore,
     undoScore,
     setOpponentName,
     // post-game
