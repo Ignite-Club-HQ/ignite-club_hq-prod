@@ -178,6 +178,24 @@ const BasketballPlayerToken = memo(function BasketballPlayerToken({
           {player.number}
         </span>
       )}
+      {/* Explicit bench-side hint badges replace the old ambiguous rings.
+          "Next" = coach's planned next sub-in. "Fresh" = lowest minutes played. */}
+      {variant === "bench" && !isSelected && isNextSub && (
+        <span
+          className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 px-1.5 py-[1px] rounded-full bg-emerald-600 text-white text-[8.5px] font-bold uppercase tracking-wide shadow-sm border border-background"
+          aria-label="Next sub in"
+        >
+          Next
+        </span>
+      )}
+      {variant === "bench" && !isSelected && !isNextSub && isLowestMinutes && (
+        <span
+          className="absolute -top-2 left-1/2 -translate-x-1/2 z-20 px-1.5 py-[1px] rounded-full bg-muted text-foreground/80 text-[8.5px] font-semibold uppercase tracking-wide shadow-sm border border-border"
+          aria-label="Lowest minutes — most rested"
+        >
+          Fresh
+        </span>
+      )}
       <div className="relative">
         <Avatar
           className={cn(
