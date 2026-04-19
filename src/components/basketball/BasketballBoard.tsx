@@ -343,16 +343,13 @@ export default function BasketballBoard({
     <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* ── COURT — full-bleed primary surface with floating HUD overlay ── */}
       <div className="relative flex-1 min-h-0 flex flex-col">
-        {/* Floating back chip — stays visible, moves to right when HUD is at top */}
+        {/* Floating back chip — always on the left */}
         <Button
           variant="secondary"
           size="icon"
           onClick={onClose}
           aria-label="Close"
-          className={cn(
-            "absolute z-40 h-8 w-8 rounded-full bg-card/85 backdrop-blur-md border border-border/40 shadow-md transition-all duration-200",
-            hudPosition === "top" ? "top-2 right-2" : "top-2 left-2"
-          )}
+          className="absolute z-40 top-2 left-2 h-8 w-8 rounded-full bg-card/85 backdrop-blur-md border border-border/40 shadow-md"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
