@@ -162,6 +162,23 @@ export function MessageActionSheet({
     }
   }
 
+  // Pin / Unpin (only when supported by chat type) — placed after Copy, before Delete
+  if (canPin) {
+    if (isPinned && onUnpin) {
+      actions.push({
+        label: "Unpin Message",
+        icon: <PinOff className="h-5 w-5" />,
+        onClick: onUnpin,
+      });
+    } else if (!isPinned && onPin) {
+      actions.push({
+        label: pinLimitReached ? "Pin (limit reached)" : "Pin Message",
+        icon: <Pin className="h-5 w-5" />,
+        onClick: onPin,
+      });
+    }
+  }
+
   if (canDelete) {
     actions.push({
       label: "Delete",
