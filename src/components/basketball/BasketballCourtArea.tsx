@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { ZoomIn } from "lucide-react";
 import {
   BasketballPlayer,
   BasketballPosition,
@@ -11,6 +12,7 @@ import BasketballCourt from "./BasketballCourt";
 import BasketballFullCourt from "./BasketballFullCourt";
 import BasketballPlayerToken from "./BasketballPlayerToken";
 import { findPlayerInPosition } from "./basketballHelpers";
+import { usePinchZoom } from "@/hooks/usePinchZoom";
 
 interface BasketballCourtAreaProps {
   players: BasketballPlayer[];
