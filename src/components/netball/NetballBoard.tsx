@@ -82,6 +82,7 @@ const NetballPlayerCard = lazy(() => import("./NetballPlayerCard"));
 const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
 import NetballPreGameScreen from "./NetballPreGameScreen";
 import NetballQuarterBreakDialog from "./NetballQuarterBreakDialog";
+import NetballKickoffConfirm from "./NetballKickoffConfirm";
 
 interface NetballBoardProps {
   teamId: string;
