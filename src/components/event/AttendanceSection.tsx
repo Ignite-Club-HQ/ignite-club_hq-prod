@@ -77,7 +77,10 @@ export function AttendanceSection({
   trackableMembersCount,
   addressableMembers,
   onShareLink,
+  eventType,
 }: AttendanceSectionProps) {
+  const personNoun = eventType === "social" ? "member" : "player";
+  const personNounPlural = eventType === "social" ? "members" : "players";
   const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
   const [sendingForUser, setSendingForUser] = useState<string | null>(null);
