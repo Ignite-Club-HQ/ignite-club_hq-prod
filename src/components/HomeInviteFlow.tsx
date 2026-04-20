@@ -188,7 +188,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
 
-            <div className="pt-2 space-y-3">
+            <div className="pt-2 pb-6 space-y-3">
               {/* Club picker — only when no active club filter and multiple clubs */}
               {!activeClubFilter && clubs.length > 1 && (
                 <MobileCardSelect
