@@ -20,6 +20,7 @@ interface GifGridProps {
   active: boolean;
   onSelect: (gifUrl: string) => void;
   onQueryChange?: (query: string) => void;
+  onFocusChange?: (focused: boolean) => void;
   className?: string;
   /** Tailwind classes for the scrollable area max-height (e.g. "max-h-52"). */
   scrollClassName?: string;
@@ -32,6 +33,7 @@ export function GifGrid({
   active,
   onSelect,
   onQueryChange,
+  onFocusChange,
   className,
   scrollClassName = "max-h-72",
   gridClassName = "grid-cols-2",
@@ -94,6 +96,8 @@ export function GifGrid({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => onFocusChange?.(true)}
+            onBlur={() => onFocusChange?.(false)}
             placeholder="Search GIPHY"
             className="pl-9 pr-9 h-9"
           />
