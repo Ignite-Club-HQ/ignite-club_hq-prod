@@ -401,7 +401,9 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             align="end"
             side="top"
             sideOffset={8}
-            className="w-60 p-2"
+            collisionPadding={12}
+            avoidCollisions={true}
+            className="w-60 p-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             <div className="flex flex-col gap-1">
               {/* Mirror of the dedicated image icon — discoverability fallback.
