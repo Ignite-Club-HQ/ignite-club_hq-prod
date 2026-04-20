@@ -1601,11 +1601,7 @@ export default function HomePage() {
         );
       })()}
 
-      {/* Resume in-progress basketball / netball game boards.
-          Soccer is already handled by GameTimerWidget above. */}
-      <CourtBoardResumeCard />
-
-      {/* Quick Actions */}
+      {/* Quick Actions — anchored high so async widgets below can't push it down */}
       <HomeQuickActions
         onCreateTeam={() => {
           if (activeClubFilter) {
@@ -1618,6 +1614,12 @@ export default function HomePage() {
         onJoinTeam={() => setTeamDialogOpen(true)}
         hasTeams={!!userRoles?.some(r => r.team_id)}
       />
+
+      {/* Resume in-progress basketball / netball game boards.
+          Soccer is already handled by GameTimerWidget above.
+          Placed AFTER Quick Actions to avoid pushing Team Actions down when
+          the query resolves late. */}
+      <CourtBoardResumeCard />
 
       {/* Mini League Live Matches Widget */}
       <MiniLeagueGameWidgets activeClubFilter={activeClubFilter} />
