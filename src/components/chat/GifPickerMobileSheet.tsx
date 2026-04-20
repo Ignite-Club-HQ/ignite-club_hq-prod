@@ -1,24 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Capacitor } from "@capacitor/core";
 import { X } from "lucide-react";
 import { GifGrid } from "@/components/chat/GifGrid";
-import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
-import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardState";
+import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 
 /**
  * Mobile GIPHY bottom sheet — fully keyboard-aware.
  *
- * Single source of truth: the keyboard height drives BOTH the panel's bottom
- * offset and its height. The panel never relies on a fixed/initial layout
- * once the keyboard is open — every keyboard show/hide event triggers a full
- * re-measure, so the sheet always sits flush above the keyboard with the
- * search input pinned at the top and the grid scrolling within.
+ * Single source of truth: keyboard height drives both bottom offset and
+ * available height. On native Android we use the compensated keyboard inset
+ * hook so WebView viewport shrink + keyboard events never get double-counted.
  */
 const SHEET_DEFAULT_HEIGHT = 420;
 const SHEET_MIN_HEIGHT = 240;
-const TOP_GAP = 12;             // gap between sheet top and status bar / header
-const KEYBOARD_GAP = 4;         // tiny gap between sheet bottom and keyboard top
+const TOP_GAP = 12;
+const KEYBOARD_GAP = 4;
 const KEYBOARD_OPEN_THRESHOLD = 80;
+const isNative = Capacitor.isNativePlatform();
 
 interface GifPickerMobileSheetProps {
   open: boolean;
@@ -26,14 +25,8 @@ interface GifPickerMobileSheetProps {
   onSelect: (gifUrl: string) => void;
 }
 
-/**
- * Full-width mobile GIF picker that anchors to the visualViewport bottom so
- * it always sits flush above the soft keyboard. Uses a portal to escape any
- * transformed parent containers.
- */
 export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobileSheetProps) {
-  const { keyboardHeight: iosKeyboardHeight } = useNativeIOSKeyboardState();
-  const androidKeyboardHeight = useNativeAndroidKeyboardState();
+  const nativeKeyboardHeight = useNativeKeyboardHeight();
   const [layoutViewportHeight, setLayoutViewportHeight] = useState(() =>
     typeof window === "undefined" ? 0 : window.innerHeight,
   );
@@ -57,17 +50,11 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       setVisualViewportOffsetTop(window.visualViewport?.offsetTop ?? 0);
     };
 
-    // Schedule re-measures across the keyboard animation window so the panel
-    // always settles at the final correct size (iOS keyboard ~250-300ms,
-    // Android ~150-250ms). This is the "consistency guarantee" — every
-    // show/hide cycle ends in a full recalculation.
     const scheduleSettle = () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(measure);
       timeoutsRef.current.forEach((id) => window.clearTimeout(id));
-      timeoutsRef.current = [50, 150, 300, 500].map((delay) =>
-        window.setTimeout(measure, delay),
-      );
+      timeoutsRef.current = [50, 150, 300, 500].map((delay) => window.setTimeout(measure, delay));
     };
 
     measure();
@@ -94,9 +81,6 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     };
   }, [open]);
 
-  // Re-measure whenever the native keyboard hooks report a change. This is
-  // the explicit "listen for keyboard show/hide events" requirement and the
-  // guarantee that the panel re-layouts on every keyboard transition.
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
     const id = window.setTimeout(() => {
@@ -105,45 +89,38 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       setVisualViewportOffsetTop(window.visualViewport?.offsetTop ?? 0);
     }, 0);
     return () => window.clearTimeout(id);
-  }, [open, iosKeyboardHeight, androidKeyboardHeight]);
+  }, [open, nativeKeyboardHeight]);
 
   const { sheetHeight, bottomOffset, keyboardOpen } = useMemo(() => {
-    const visualKeyboard = Math.max(
+    const visualKeyboardHeight = Math.max(
       0,
       layoutViewportHeight - (visualViewportHeight + visualViewportOffsetTop),
     );
-    // Keyboard height is the SINGLE SOURCE OF TRUTH for layout.
-    const kb = Math.max(iosKeyboardHeight, androidKeyboardHeight, visualKeyboard);
-    const isKbOpen = kb > KEYBOARD_OPEN_THRESHOLD;
-
-    const offset = isKbOpen ? kb + KEYBOARD_GAP : 0;
-    const available = Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - offset - TOP_GAP);
-
-    // Deterministic height policy:
-    //   - keyboard open  → always fill available space (consistent every time)
-    //   - search active  → expand toward full screen
-    //   - otherwise      → default compact height
-    let preferred: number;
-    if (isKbOpen) {
-      preferred = available;
-    } else if (searchActive) {
-      preferred = Math.max(SHEET_DEFAULT_HEIGHT, Math.round(layoutViewportHeight * 0.84));
-    } else {
-      preferred = SHEET_DEFAULT_HEIGHT;
-    }
+    const keyboardHeight = isNative ? nativeKeyboardHeight : visualKeyboardHeight;
+    const isKeyboardOpen = keyboardHeight > KEYBOARD_OPEN_THRESHOLD;
+    const offset = isKeyboardOpen ? keyboardHeight + KEYBOARD_GAP : 0;
+    const availableHeight = Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - offset - TOP_GAP);
+    const compactHeight = Math.min(
+      SHEET_DEFAULT_HEIGHT,
+      Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - TOP_GAP - 16),
+    );
+    const preferredHeight = isKeyboardOpen
+      ? availableHeight
+      : searchActive
+        ? Math.max(compactHeight, Math.round(layoutViewportHeight * 0.84))
+        : compactHeight;
 
     return {
-      sheetHeight: Math.min(available, preferred),
+      sheetHeight: Math.min(availableHeight, preferredHeight),
       bottomOffset: offset,
-      keyboardOpen: isKbOpen,
+      keyboardOpen: isKeyboardOpen,
     };
   }, [
     layoutViewportHeight,
+    nativeKeyboardHeight,
+    searchActive,
     visualViewportHeight,
     visualViewportOffsetTop,
-    iosKeyboardHeight,
-    androidKeyboardHeight,
-    searchActive,
   ]);
 
   if (!open) return null;
