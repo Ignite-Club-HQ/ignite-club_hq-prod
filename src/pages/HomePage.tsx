@@ -1515,6 +1515,11 @@ export default function HomePage() {
   const activeClubName = userClubs?.find((c: any) => c.id === activeClubFilter)?.name || clubs?.find(c => c.id === activeClubFilter)?.name;
   const firstName = profile?.display_name?.split(' ')[0] || 'there';
 
+  // Gate first paint of the widget area on the primary memberships query so
+  // every widget mounts together and fades in as a single, cohesive surface
+  // instead of popping in piecemeal as each child query resolves.
+  const showContent = !isLoading;
+
   return (
     <div className="py-6 space-y-5">
       {/* Welcome Header */}
@@ -1527,6 +1532,18 @@ export default function HomePage() {
         </p>
       </div>
 
+      {!showContent ? (
+        // Unified initial skeleton — single visual placeholder for the whole
+        // home surface. Prevents the staggered widget pop-in that previously
+        // happened as queries resolved at different times.
+        <div className="space-y-4" aria-hidden="true">
+          <div className="h-32 rounded-xl bg-muted/60 animate-pulse" />
+          <div className="h-20 rounded-xl bg-muted/50 animate-pulse" />
+          <div className="h-24 rounded-xl bg-muted/40 animate-pulse" />
+          <div className="h-40 rounded-xl bg-muted/40 animate-pulse" />
+        </div>
+      ) : (
+        <div className="space-y-5 animate-home-fade-in">
       {/* Next Up Carousel - unified event section */}
       <NextUpCarousel events={events || []} isLoading={isLoading} />
 
