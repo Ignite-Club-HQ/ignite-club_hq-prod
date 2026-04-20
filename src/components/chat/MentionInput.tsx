@@ -565,9 +565,9 @@ export function MentionInput({
         </div>
       )}
 
-      <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-[22px] bg-muted/60 pl-1 pr-2 min-h-[40px] transition-all duration-150">
+      <div className="flex w-full min-w-0 max-w-full items-center overflow-hidden rounded-[22px] bg-muted/60 pl-1 pr-1 min-h-[40px] transition-all duration-150">
         {showEmojiPicker && (
-          <div className="flex items-center h-[40px] opacity-60 transition-all duration-200 animate-in fade-in zoom-in-95">
+          <div className="flex items-center h-[40px] transition-all duration-200 animate-in fade-in zoom-in-95">
             <EmojiPicker onEmojiSelect={handleEmojiSelect} onGifSelect={onGifSelect} disabled={disabled} />
           </div>
         )}
@@ -577,7 +577,7 @@ export function MentionInput({
             <div
               ref={highlightRef}
               aria-hidden="true"
-              className="absolute inset-0 pointer-events-none overflow-hidden px-2 pt-[13px] pb-[7px] text-base leading-[1.4] whitespace-pre-wrap break-words text-transparent"
+              className="absolute inset-0 pointer-events-none overflow-hidden px-2 py-[10px] text-base leading-[1.4] whitespace-pre-wrap break-words text-transparent"
               style={{ maxHeight: '120px', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
             >
               {highlightedSegments.map((seg) =>
@@ -606,7 +606,7 @@ export function MentionInput({
             autoComplete="off"
             autoCorrect="on"
             spellCheck
-            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 pt-[13px] pb-[7px] text-base leading-[1.4] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${hasEventToken ? "font-medium" : ""} ${className || ''}`}
+            className={`relative w-full min-w-0 max-w-full resize-none break-words border-none bg-transparent px-2 py-[10px] text-base leading-[1.4] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 ${hasEventToken ? "font-medium" : ""} ${className || ''}`}
             style={{ width: '100%', maxHeight: '120px', maxWidth: '100%', overflowX: 'hidden', overflowY: 'hidden', overflowWrap: 'anywhere', wordBreak: 'break-word', boxSizing: 'border-box', WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default', touchAction: 'auto' } as React.CSSProperties}
           />
         </div>
