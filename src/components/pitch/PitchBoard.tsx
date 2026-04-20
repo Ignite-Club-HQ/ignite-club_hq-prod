@@ -155,7 +155,8 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
         if (isLandscape) {
           await StatusBar.hide();
         } else {
-          await StatusBar.show();
+          // refreshStatusBar internally calls StatusBar.show() and re-applies
+          // the correct theme-aware style/background in the right order.
           refreshStatusBar();
         }
       } catch (e) {
@@ -165,7 +166,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     hideOrShow();
     return () => {
       if (Capacitor.isNativePlatform()) {
-        StatusBar.show().catch(() => {});
+        // Always restore the theme-aware status bar on unmount.
         refreshStatusBar();
       }
     };
