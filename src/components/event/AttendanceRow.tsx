@@ -33,12 +33,31 @@ export interface AttendanceRowProps {
 
 const roleToneClasses: Record<NonNullable<AttendanceRowProps["roleTone"]>, string> = {
   neutral:
-    "bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400",
+    "bg-blue-500/10 text-blue-700/90 dark:bg-blue-500/15 dark:text-blue-400/90",
   child:
-    "bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
+    "bg-emerald-500/10 text-emerald-700/90 dark:bg-emerald-500/15 dark:text-emerald-400/90",
   guest:
-    "bg-muted text-muted-foreground border border-border",
+    "bg-muted text-muted-foreground",
 };
+
+/** Shortened display labels for common long role names. Display-only — does not change underlying data. */
+const ROLE_LABEL_OVERRIDES: Record<string, string> = {
+  "committee member": "Committee",
+  "committee_member": "Committee",
+  "team admin": "Admin",
+  "team_admin": "Admin",
+  "club admin": "Admin",
+  "club_admin": "Admin",
+  "app admin": "Admin",
+  "app_admin": "Admin",
+  "head coach": "Coach",
+  "assistant coach": "Asst Coach",
+};
+
+function formatRoleLabel(raw: string): string {
+  const normalized = raw.trim().toLowerCase().replace(/_/g, " ");
+  return ROLE_LABEL_OVERRIDES[normalized] ?? raw.replace(/_/g, " ");
+}
 
 export function AttendanceRow({
   name,
@@ -52,6 +71,7 @@ export function AttendanceRow({
 }: AttendanceRowProps) {
   const fallback =
     avatarFallback ?? (name?.charAt(0)?.toUpperCase() || "?");
+  const displayRole = roleLabel ? formatRoleLabel(roleLabel) : null;
 
   return (
     <div
@@ -68,23 +88,24 @@ export function AttendanceRow({
         </AvatarFallback>
       </Avatar>
 
-      {/* Name + role — flexible, single line, truncates */}
+      {/* Name + role — flexible, single line. Name truncates first; role badge is width-capped. */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           <span
             className="font-semibold text-sm truncate min-w-0"
             title={name}
           >
             {name || "Unknown"}
           </span>
-          {roleLabel && (
+          {displayRole && (
             <span
+              title={displayRole}
               className={cn(
-                "shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap leading-none",
+                "shrink-0 inline-block max-w-[88px] truncate rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap leading-tight",
                 roleToneClasses[roleTone],
               )}
             >
-              {roleLabel}
+              {displayRole}
             </span>
           )}
         </div>
