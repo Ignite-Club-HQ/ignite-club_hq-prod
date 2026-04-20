@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { GifGrid } from "@/components/chat/GifGrid";
@@ -8,17 +8,17 @@ import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardS
 /**
  * Mobile GIPHY bottom sheet — fully keyboard-aware.
  *
- * Behavior:
- *  - Closed keyboard: fixed default height pinned to viewport bottom.
- *  - Open keyboard:   bottom anchored to top of keyboard, height fills the
- *                     space above (minus a small gap) so the search input is
- *                     always visible and the grid scrolls within.
- *  - Active search:   sheet expands toward full screen for focused browsing.
+ * Single source of truth: the keyboard height drives BOTH the panel's bottom
+ * offset and its height. The panel never relies on a fixed/initial layout
+ * once the keyboard is open — every keyboard show/hide event triggers a full
+ * re-measure, so the sheet always sits flush above the keyboard with the
+ * search input pinned at the top and the grid scrolling within.
  */
 const SHEET_DEFAULT_HEIGHT = 420;
 const SHEET_MIN_HEIGHT = 240;
-const TOP_GAP = 12;        // gap between sheet top and status bar / header
-const KEYBOARD_GAP = 4;    // tiny gap between sheet bottom and keyboard top
+const TOP_GAP = 12;             // gap between sheet top and status bar / header
+const KEYBOARD_GAP = 4;         // tiny gap between sheet bottom and keyboard top
+const KEYBOARD_OPEN_THRESHOLD = 80;
 
 interface GifPickerMobileSheetProps {
   open: boolean;
