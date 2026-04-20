@@ -153,10 +153,10 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       <div
         className="fixed left-0 right-0 z-[100001] flex flex-col overflow-hidden rounded-t-2xl border-x border-t bg-popover text-popover-foreground shadow-2xl animate-in slide-in-from-bottom-4 duration-200"
         style={{
-          bottom: bottomOffset,
+          top: sheetTop,
           height: sheetHeight,
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          transition: "bottom 180ms cubic-bezier(0.32, 0.72, 0, 1), height 180ms cubic-bezier(0.32, 0.72, 0, 1)",
+          transition: "top 180ms cubic-bezier(0.32, 0.72, 0, 1), height 180ms cubic-bezier(0.32, 0.72, 0, 1)",
         }}
       >
         {/* Header */}
