@@ -493,7 +493,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   <Trophy className="h-5 w-5 shrink-0 text-foreground/75" strokeWidth={2} aria-hidden="true" />
                   <div className="flex flex-col items-start leading-tight">
                     <span className="text-sm font-medium text-foreground">Share Live Board</span>
-                    <span className="text-[11px] text-muted-foreground">Soccer, netball or basketball</span>
+                    <span className="text-[11px] text-muted-foreground">{boardSubtitle}</span>
                   </div>
                 </button>
               )}
