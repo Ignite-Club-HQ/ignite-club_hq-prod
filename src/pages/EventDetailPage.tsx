@@ -1700,19 +1700,21 @@ export default function EventDetailPage() {
         recipientIds = Array.from(new Set([userId, ...guardianIds]));
       }
 
-      // Check who has already been reminded
+      // 24h cooldown — skip recipients who were reminded in the last 24 hours
+      const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
       const { data: existing } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_reminder")
         .eq("related_id", id!)
-        .in("user_id", recipientIds);
+        .in("user_id", recipientIds)
+        .gte("created_at", since);
 
       const alreadyReminded = new Set((existing || []).map((r: any) => r.user_id));
       const toRemind = recipientIds.filter((uid) => !alreadyReminded.has(uid));
 
       if (toRemind.length === 0) {
-        throw new Error(`${displayName}'s parent${recipientIds.length > 1 ? "s have" : " has"} already been reminded`);
+        throw new Error(`${displayName}${recipientIds.length > 1 ? "'s parents have" : " has"} been reminded in the last 24 hours`);
       }
 
       const { error } = await supabase.from("notifications").insert(
