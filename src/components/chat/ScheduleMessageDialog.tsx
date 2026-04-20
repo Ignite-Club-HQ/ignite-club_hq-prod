@@ -196,19 +196,19 @@ export function ScheduleMessageDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6 gap-3 sm:gap-4">
+        <DialogHeader className="space-y-1.5 text-left">
+          <DialogTitle className="text-lg sm:text-xl">
             {isEditing ? "Edit scheduled message" : "Schedule message"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             {isEditing
               ? `Times shown in your local timezone (${localTimezoneLabel()}).`
               : `Pick when to send. Times shown in your local timezone (${localTimezoneLabel()}).`}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {isEditing ? (
             <>
               <div className="space-y-2">
@@ -256,7 +256,7 @@ export function ScheduleMessageDialog({
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {QUICK_PRESETS.map((p) => {
               const isActive = activePreset === p.label;
               return (
@@ -266,7 +266,10 @@ export function ScheduleMessageDialog({
                   variant={isActive ? "default" : "outline"}
                   size="sm"
                   onClick={() => applyPreset(p.label, p.build)}
-                  className={cn(isActive && "ring-2 ring-primary ring-offset-1 ring-offset-background")}
+                  className={cn(
+                    "h-9 px-2 text-xs sm:text-sm whitespace-nowrap",
+                    isActive && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+                  )}
                 >
                   {p.label}
                 </Button>
@@ -274,7 +277,7 @@ export function ScheduleMessageDialog({
             })}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Date</Label>
               <Popover>
@@ -341,11 +344,16 @@ export function ScheduleMessageDialog({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isSaving}
+            className="w-full sm:w-auto"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!canSave}>
+          <Button onClick={handleSave} disabled={!canSave} className="w-full sm:w-auto">
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isEditing ? "Save changes" : "Schedule"}
           </Button>
