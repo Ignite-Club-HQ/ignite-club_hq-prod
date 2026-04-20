@@ -15,18 +15,26 @@ interface GifPickerMobileSheetProps {
  * transformed parent containers.
  */
 export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobileSheetProps) {
+  const [baselineHeight, setBaselineHeight] = useState(0);
   const [bottomOffset, setBottomOffset] = useState(0);
+  const [sheetHeight, setSheetHeight] = useState(420);
 
   useEffect(() => {
     if (!open) return;
     const vv = window.visualViewport;
     if (!vv) return;
 
+    const nextBaseline = vv.height + vv.offsetTop;
+    setBaselineHeight(nextBaseline);
+
     const update = () => {
-      // Distance from the bottom of the layout viewport to the bottom of the
-      // visual viewport — equals the keyboard height when it's open.
-      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      const currentVisibleHeight = vv.height + vv.offsetTop;
+      const referenceHeight = Math.max(baselineHeight || nextBaseline, currentVisibleHeight);
+      const offset = Math.max(0, referenceHeight - currentVisibleHeight);
+      const nextHeight = Math.max(220, Math.min(520, vv.height - 12));
+
       setBottomOffset(offset);
+      setSheetHeight(nextHeight);
     };
 
     update();
@@ -49,7 +57,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       window.removeEventListener("focusin", onFocus);
       window.removeEventListener("focusout", onFocus);
     };
-  }, [open]);
+  }, [open, baselineHeight]);
 
   if (!open) return null;
 
@@ -57,7 +65,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     <>
       {/* Backdrop — tap to dismiss */}
       <div
-        className="fixed inset-0 z-[100000] bg-background/60 animate-in fade-in duration-150"
+        className="fixed inset-0 z-[100000] bg-transparent"
         onPointerDown={(e) => {
           // Only close if tapping the backdrop itself
           if (e.target === e.currentTarget) onClose();
@@ -69,9 +77,9 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
         className="fixed left-0 right-0 z-[100001] flex flex-col rounded-t-2xl border-t border-x bg-popover text-popover-foreground shadow-2xl animate-in slide-in-from-bottom-4 duration-200"
         style={{
           bottom: bottomOffset,
-          height: "min(420px, 60vh)",
+          height: sheetHeight,
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          transition: "bottom 180ms cubic-bezier(0.32, 0.72, 0, 1)",
+          transition: "bottom 180ms cubic-bezier(0.32, 0.72, 0, 1), height 180ms cubic-bezier(0.32, 0.72, 0, 1)",
         }}
       >
         {/* Header */}
