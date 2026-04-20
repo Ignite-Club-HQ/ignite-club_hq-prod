@@ -49,6 +49,29 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
   const shouldStabilizeIOSLayout = isIOSEnvironment();
 
+  // Fetch club sport so the live-board action subtitle is contextual.
+  const { data: clubSport } = useQuery({
+    queryKey: ["club-sport", clubId],
+    queryFn: async () => {
+      if (!clubId) return null;
+      const { data } = await supabase.from("clubs").select("sport").eq("id", clubId).maybeSingle();
+      return (data?.sport ?? null) as string | null;
+    },
+    enabled: !!clubId && showBoardPicker,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const boardSubtitle = (() => {
+    const s = (clubSport || "").toLowerCase();
+    if (s.includes("soccer") || s.includes("football")) return "Track your soccer match live";
+    if (s.includes("netball")) return "Track your netball match live";
+    if (s.includes("basketball")) return "Track your basketball game live";
+    if (s.includes("hockey")) return "Track your hockey match live";
+    if (s.includes("rugby")) return "Track your rugby match live";
+    if (s) return `Track your ${clubSport} match live`;
+    return "Soccer, netball or basketball";
+  })();
+
   const dismissIOSKeyboardAccessory = () => {
     if (!isNativeIOS) return;
     (document.activeElement as HTMLElement | null)?.blur();
