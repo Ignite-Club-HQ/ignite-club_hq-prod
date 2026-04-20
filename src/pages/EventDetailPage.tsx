@@ -2578,73 +2578,70 @@ export default function EventDetailPage() {
 
         const notRespondedNode = (
           <div className="divide-y divide-border/50">
-            {notRespondedChildren.map((child: any) => (
-              <div key={`child-${child.id}`} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <Avatar className="h-9 w-9 shrink-0">
-                    <AvatarFallback className="text-xs bg-muted">
-                      {child.name?.charAt(0)?.toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm truncate min-w-0">{child.name || "Unknown"}</span>
-                      {!isMiniLeagueEvent && (
-                        <span className="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">Child</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {(isAdmin || isAppAdmin) && canSendReminders && !isMiniLeagueEvent && child.parent_id && (() => {
-                  const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id;
-                  const wasReminded = recentlyReminded.has(child.parent_id);
-                  return (
-                    <Button
-                      variant={wasReminded ? "secondary" : "default"}
-                      size="sm"
-                      className="h-8 px-3 shrink-0 gap-1.5"
-                      onClick={() => individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id })}
-                      disabled={isLoadingThis || wasReminded}
-                      title={wasReminded ? "Already reminded" : "Remind all parents"}
-                    >
-                      {isLoadingThis ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : wasReminded ? (
-                        <Check className="h-3.5 w-3.5" />
-                      ) : (
-                        <Bell className="h-3.5 w-3.5" />
-                      )}
-                      <span className="text-xs">{wasReminded ? "Reminded" : "Remind"}</span>
-                    </Button>
-                  );
-                })()}
-                {(isAdmin || isAppAdmin) && (
-                  <AdminRsvpChanger
-                    currentStatus={null}
-                    playerName={child.name || "Unknown"}
-                    onChangeStatus={(status) => {
-                      if (isMiniLeagueEvent) {
-                        adminRsvpMutation.mutate({
-                          playerId: child.id,
-                          playerName: child.name,
-                          childId: child.child_id,
-                          parentUserId: child.parent_user_id,
-                          status,
-                        });
-                      } else {
-                        rsvpForChildMutation.mutate({
-                          childId: child.id,
-                          childName: child.name,
-                          parentUserId: child.parent_id,
-                          status,
-                        });
-                      }
-                    }}
-                    isPending={adminRsvpMutation.isPending || rsvpForChildMutation.isPending}
-                  />
-                )}
-              </div>
-            ))}
+            {notRespondedChildren.map((child: any) => {
+              const remindBtn = (isAdmin || isAppAdmin) && canSendReminders && !isMiniLeagueEvent && child.parent_id ? (() => {
+                const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id;
+                const wasReminded = recentlyReminded.has(child.parent_id);
+                return (
+                  <Button
+                    variant={wasReminded ? "secondary" : "default"}
+                    size="sm"
+                    className="h-8 px-2.5 shrink-0 gap-1"
+                    onClick={() => individualRemindMutation.mutate({ userId: child.parent_id, displayName: child.name || "Unknown", childId: child.child_id || child.id })}
+                    disabled={isLoadingThis || wasReminded}
+                    title={wasReminded ? "Already reminded" : "Remind all parents"}
+                  >
+                    {isLoadingThis ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : wasReminded ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      <Bell className="h-3.5 w-3.5" />
+                    )}
+                    <span className="text-xs">{wasReminded ? "Reminded" : "Remind"}</span>
+                  </Button>
+                );
+              })() : null;
+              const editBtn = (isAdmin || isAppAdmin) ? (
+                <AdminRsvpChanger
+                  currentStatus={null}
+                  playerName={child.name || "Unknown"}
+                  onChangeStatus={(status) => {
+                    if (isMiniLeagueEvent) {
+                      adminRsvpMutation.mutate({
+                        playerId: child.id,
+                        playerName: child.name,
+                        childId: child.child_id,
+                        parentUserId: child.parent_user_id,
+                        status,
+                      });
+                    } else {
+                      rsvpForChildMutation.mutate({
+                        childId: child.id,
+                        childName: child.name,
+                        parentUserId: child.parent_id,
+                        status,
+                      });
+                    }
+                  }}
+                  isPending={adminRsvpMutation.isPending || rsvpForChildMutation.isPending}
+                />
+              ) : null;
+              return (
+                <AttendanceRow
+                  key={`child-${child.id}`}
+                  name={child.name || "Unknown"}
+                  roleLabel={!isMiniLeagueEvent ? "Child" : null}
+                  roleTone="child"
+                  rightSlot={
+                    <>
+                      {remindBtn}
+                      {editBtn}
+                    </>
+                  }
+                />
+              );
+            })}
             {!isMiniLeagueEvent && notResponded.map((member: any) => (
               <div key={member.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
