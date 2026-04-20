@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Capacitor } from "@capacitor/core";
 import { X } from "lucide-react";
 import { GifGrid } from "@/components/chat/GifGrid";
 import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
@@ -22,7 +21,6 @@ const SHEET_MIN_HEIGHT = 240;
 const TOP_GAP = 12;
 const KEYBOARD_GAP = 4;
 const KEYBOARD_OPEN_THRESHOLD = 80;
-const isNative = Capacitor.isNativePlatform();
 
 interface GifPickerMobileSheetProps {
   open: boolean;
@@ -43,9 +41,11 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     typeof window === "undefined" ? 0 : (window.visualViewport?.offsetTop ?? 0),
   );
   const [searchActive, setSearchActive] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
 
   const rafRef = useRef<number | null>(null);
   const timeoutsRef = useRef<number[]>([]);
+  const lastMeasuredKeyboardTopRef = useRef(0);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
@@ -97,17 +97,40 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     return () => window.clearTimeout(id);
   }, [open, iosKeyboardHeight, androidKeyboardHeight]);
 
+  useEffect(() => {
+    if (!open) {
+      setSearchActive(false);
+      setInputFocused(false);
+      lastMeasuredKeyboardTopRef.current = 0;
+      return;
+    }
+
+    if (lastMeasuredKeyboardTopRef.current <= 0) {
+      lastMeasuredKeyboardTopRef.current = layoutViewportHeight;
+    }
+  }, [layoutViewportHeight, open]);
+
   const { sheetHeight, sheetTop, keyboardOpen } = useMemo(() => {
     const nativeKeyboardHeight = Math.max(iosKeyboardHeight, androidKeyboardHeight);
     const visualViewportBottom = visualViewportOffsetTop + visualViewportHeight;
     const visualKeyboardHeight = Math.max(0, layoutViewportHeight - visualViewportBottom);
     const keyboardHeight = Math.max(nativeKeyboardHeight, visualKeyboardHeight);
     const isKeyboardOpen = keyboardHeight > KEYBOARD_OPEN_THRESHOLD;
+    const keyboardSessionActive = isKeyboardOpen || inputFocused || searchActive;
 
     const nativeKeyboardTop = layoutViewportHeight - nativeKeyboardHeight;
     const visualKeyboardTop = visualViewportBottom;
-    const keyboardTop = isKeyboardOpen
-      ? Math.min(nativeKeyboardTop, visualKeyboardTop)
+    const measuredKeyboardTop = Math.min(nativeKeyboardTop, visualKeyboardTop);
+    const hasMeasuredKeyboardTop = measuredKeyboardTop < layoutViewportHeight - KEYBOARD_GAP;
+
+    if (hasMeasuredKeyboardTop) {
+      lastMeasuredKeyboardTopRef.current = measuredKeyboardTop;
+    } else if (!keyboardSessionActive) {
+      lastMeasuredKeyboardTopRef.current = layoutViewportHeight;
+    }
+
+    const keyboardTop = keyboardSessionActive
+      ? (hasMeasuredKeyboardTop ? measuredKeyboardTop : lastMeasuredKeyboardTopRef.current || layoutViewportHeight)
       : layoutViewportHeight;
 
     const availableHeight = Math.max(SHEET_MIN_HEIGHT, keyboardTop - TOP_GAP - KEYBOARD_GAP);
@@ -115,11 +138,9 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       SHEET_DEFAULT_HEIGHT,
       Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - TOP_GAP - 16),
     );
-    const preferredHeight = isKeyboardOpen
+    const preferredHeight = keyboardSessionActive
       ? availableHeight
-      : searchActive
-        ? Math.max(compactHeight, Math.round(layoutViewportHeight * 0.84))
-        : compactHeight;
+      : compactHeight;
     const nextSheetHeight = Math.min(availableHeight, preferredHeight);
     const nextSheetTop = Math.max(TOP_GAP, keyboardTop - KEYBOARD_GAP - nextSheetHeight);
 
@@ -130,6 +151,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     };
   }, [
     androidKeyboardHeight,
+    inputFocused,
     iosKeyboardHeight,
     layoutViewportHeight,
     searchActive,
@@ -139,7 +161,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
 
   if (!open) return null;
 
-  const focused = searchActive || keyboardOpen;
+  const focused = searchActive || inputFocused || keyboardOpen;
 
   return createPortal(
     <>
@@ -179,6 +201,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
             active
             onSelect={onSelect}
             onQueryChange={(query) => setSearchActive(query.trim().length > 0)}
+            onFocusChange={setInputFocused}
             scrollClassName="flex-1 min-h-0"
             gridClassName="grid-cols-2"
             className="flex-1 min-h-0"
