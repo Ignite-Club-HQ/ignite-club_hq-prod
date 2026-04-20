@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -47,6 +48,29 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
   const shouldStabilizeIOSLayout = isIOSEnvironment();
+
+  // Fetch club sport so the live-board action subtitle is contextual.
+  const { data: clubSport } = useQuery({
+    queryKey: ["club-sport", clubId],
+    queryFn: async () => {
+      if (!clubId) return null;
+      const { data } = await supabase.from("clubs").select("sport").eq("id", clubId).maybeSingle();
+      return (data?.sport ?? null) as string | null;
+    },
+    enabled: !!clubId && showBoardPicker,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const boardSubtitle = (() => {
+    const s = (clubSport || "").toLowerCase();
+    if (s.includes("soccer") || s.includes("football")) return "Track your soccer match live";
+    if (s.includes("netball")) return "Track your netball match live";
+    if (s.includes("basketball")) return "Track your basketball game live";
+    if (s.includes("hockey")) return "Track your hockey match live";
+    if (s.includes("rugby")) return "Track your rugby match live";
+    if (s) return `Track your ${clubSport} match live`;
+    return "Soccer, netball or basketball";
+  })();
 
   const dismissIOSKeyboardAccessory = () => {
     if (!isNativeIOS) return;
@@ -469,7 +493,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   <Trophy className="h-5 w-5 shrink-0 text-foreground/75" strokeWidth={2} aria-hidden="true" />
                   <div className="flex flex-col items-start leading-tight">
                     <span className="text-sm font-medium text-foreground">Share Live Board</span>
-                    <span className="text-[11px] text-muted-foreground">Soccer, netball or basketball</span>
+                    <span className="text-[11px] text-muted-foreground">{boardSubtitle}</span>
                   </div>
                 </button>
               )}
