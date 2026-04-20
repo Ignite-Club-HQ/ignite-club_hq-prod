@@ -1644,19 +1644,21 @@ export default function EventDetailPage() {
         throw new Error("Everyone has already RSVPed!");
       }
       
-      // Check for existing notifications to avoid duplicates
+      // Check for reminders sent in the last 24 hours to avoid spamming members
+      const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
       const { data: existingNotifications } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_reminder")
         .eq("related_id", id!)
-        .in("user_id", nonRsvpMembers);
-      
+        .in("user_id", nonRsvpMembers)
+        .gte("created_at", since);
+
       const existingNotificationUserIds = existingNotifications?.map(n => n.user_id) || [];
       const membersToNotify = nonRsvpMembers.filter(memberId => !existingNotificationUserIds.includes(memberId));
-      
+
       if (membersToNotify.length === 0) {
-        throw new Error("All members have already been reminded!");
+        throw new Error("All non-responders were already reminded in the last 24 hours");
       }
       
       // Create notifications - the DB trigger (on_notification_created) handles push dispatch
