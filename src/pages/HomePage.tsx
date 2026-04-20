@@ -2493,6 +2493,8 @@ export default function HomePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </div>
+      )}
     </div>
   );
 }
