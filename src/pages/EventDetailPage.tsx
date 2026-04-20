@@ -2642,61 +2642,58 @@ export default function EventDetailPage() {
                 />
               );
             })}
-            {!isMiniLeagueEvent && notResponded.map((member: any) => (
-              <div key={member.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <Avatar className="h-9 w-9 shrink-0">
-                    <AvatarImage src={member.avatar_url || undefined} />
-                    <AvatarFallback className="text-xs bg-muted">
-                      {member.display_name?.charAt(0)?.toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm break-words min-w-0">{member.display_name || "Unknown"}</span>
-                      {member.roles?.[0] && (
-                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">{String(member.roles[0]).replace(/_/g, " ")}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {(isAdmin || isAppAdmin) && canSendReminders && (() => {
-                  const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
-                  const wasReminded = recentlyReminded.has(member.id);
-                  return (
-                    <Button
-                      variant={wasReminded ? "secondary" : "default"}
-                      size="sm"
-                      className="h-8 px-3 shrink-0 gap-1.5"
-                      onClick={() => individualRemindMutation.mutate({ userId: member.id, displayName: member.display_name || "Unknown" })}
-                      disabled={isLoadingThis || wasReminded}
-                      title={wasReminded ? "Already reminded" : "Send reminder"}
-                    >
-                      {isLoadingThis ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : wasReminded ? (
-                        <Check className="h-3.5 w-3.5" />
-                      ) : (
-                        <Bell className="h-3.5 w-3.5" />
-                      )}
-                      <span className="text-xs">{wasReminded ? "Reminded" : "Remind"}</span>
-                    </Button>
-                  );
-                })()}
-                {(isAdmin || isAppAdmin) && (
-                  <AdminRsvpChanger
-                    currentStatus={null}
-                    playerName={member.display_name || "Unknown"}
-                    onChangeStatus={(status) => rsvpForMemberMutation.mutate({
-                      memberId: member.id,
-                      memberName: member.display_name,
-                      status,
-                    })}
-                    isPending={rsvpForMemberMutation.isPending}
-                  />
-                )}
-              </div>
-            ))}
+            {!isMiniLeagueEvent && notResponded.map((member: any) => {
+              const remindBtn = (isAdmin || isAppAdmin) && canSendReminders ? (() => {
+                const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
+                const wasReminded = recentlyReminded.has(member.id);
+                return (
+                  <Button
+                    variant={wasReminded ? "secondary" : "default"}
+                    size="sm"
+                    className="h-8 px-2.5 shrink-0 gap-1"
+                    onClick={() => individualRemindMutation.mutate({ userId: member.id, displayName: member.display_name || "Unknown" })}
+                    disabled={isLoadingThis || wasReminded}
+                    title={wasReminded ? "Already reminded" : "Send reminder"}
+                  >
+                    {isLoadingThis ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : wasReminded ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      <Bell className="h-3.5 w-3.5" />
+                    )}
+                    <span className="text-xs">{wasReminded ? "Reminded" : "Remind"}</span>
+                  </Button>
+                );
+              })() : null;
+              const editBtn = (isAdmin || isAppAdmin) ? (
+                <AdminRsvpChanger
+                  currentStatus={null}
+                  playerName={member.display_name || "Unknown"}
+                  onChangeStatus={(status) => rsvpForMemberMutation.mutate({
+                    memberId: member.id,
+                    memberName: member.display_name,
+                    status,
+                  })}
+                  isPending={rsvpForMemberMutation.isPending}
+                />
+              ) : null;
+              return (
+                <AttendanceRow
+                  key={member.id}
+                  name={member.display_name || "Unknown"}
+                  avatarUrl={member.avatar_url}
+                  roleLabel={member.roles?.[0] ? String(member.roles[0]).replace(/_/g, " ") : null}
+                  roleTone="neutral"
+                  rightSlot={
+                    <>
+                      {remindBtn}
+                      {editBtn}
+                    </>
+                  }
+                />
+              );
+            })}
           </div>
         );
 
