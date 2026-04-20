@@ -3,14 +3,19 @@ import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
 import { X } from "lucide-react";
 import { GifGrid } from "@/components/chat/GifGrid";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
+import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardState";
 
 /**
  * Mobile GIPHY bottom sheet — fully keyboard-aware.
  *
- * Single source of truth: keyboard height drives both bottom offset and
- * available height. On native Android we use the compensated keyboard inset
- * hook so WebView viewport shrink + keyboard events never get double-counted.
+ * Root issue on Android native: a fixed element can remain visually pinned to
+ * the layout viewport bottom while the soft keyboard is effectively changing
+ * the visible bottom edge through native insets / visual viewport updates.
+ *
+ * Fix: compute the actual keyboard top and position the sheet with an explicit
+ * `top` value, not a `bottom` value. This makes the panel track the real
+ * visible area above the keyboard across viewport models.
  */
 const SHEET_DEFAULT_HEIGHT = 420;
 const SHEET_MIN_HEIGHT = 240;
@@ -26,7 +31,8 @@ interface GifPickerMobileSheetProps {
 }
 
 export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobileSheetProps) {
-  const nativeKeyboardHeight = useNativeKeyboardHeight();
+  const { keyboardHeight: iosKeyboardHeight } = useNativeIOSKeyboardState();
+  const androidKeyboardHeight = useNativeAndroidKeyboardState();
   const [layoutViewportHeight, setLayoutViewportHeight] = useState(() =>
     typeof window === "undefined" ? 0 : window.innerHeight,
   );
@@ -89,17 +95,22 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       setVisualViewportOffsetTop(window.visualViewport?.offsetTop ?? 0);
     }, 0);
     return () => window.clearTimeout(id);
-  }, [open, nativeKeyboardHeight]);
+  }, [open, iosKeyboardHeight, androidKeyboardHeight]);
 
-  const { sheetHeight, bottomOffset, keyboardOpen } = useMemo(() => {
-    const visualKeyboardHeight = Math.max(
-      0,
-      layoutViewportHeight - (visualViewportHeight + visualViewportOffsetTop),
-    );
-    const keyboardHeight = isNative ? nativeKeyboardHeight : visualKeyboardHeight;
+  const { sheetHeight, sheetTop, keyboardOpen } = useMemo(() => {
+    const nativeKeyboardHeight = Math.max(iosKeyboardHeight, androidKeyboardHeight);
+    const visualViewportBottom = visualViewportOffsetTop + visualViewportHeight;
+    const visualKeyboardHeight = Math.max(0, layoutViewportHeight - visualViewportBottom);
+    const keyboardHeight = Math.max(nativeKeyboardHeight, visualKeyboardHeight);
     const isKeyboardOpen = keyboardHeight > KEYBOARD_OPEN_THRESHOLD;
-    const offset = isKeyboardOpen ? keyboardHeight + KEYBOARD_GAP : 0;
-    const availableHeight = Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - offset - TOP_GAP);
+
+    const nativeKeyboardTop = layoutViewportHeight - nativeKeyboardHeight;
+    const visualKeyboardTop = visualViewportBottom;
+    const keyboardTop = isKeyboardOpen
+      ? Math.min(nativeKeyboardTop, visualKeyboardTop)
+      : layoutViewportHeight;
+
+    const availableHeight = Math.max(SHEET_MIN_HEIGHT, keyboardTop - TOP_GAP - KEYBOARD_GAP);
     const compactHeight = Math.min(
       SHEET_DEFAULT_HEIGHT,
       Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - TOP_GAP - 16),
@@ -109,15 +120,18 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
       : searchActive
         ? Math.max(compactHeight, Math.round(layoutViewportHeight * 0.84))
         : compactHeight;
+    const nextSheetHeight = Math.min(availableHeight, preferredHeight);
+    const nextSheetTop = Math.max(TOP_GAP, keyboardTop - KEYBOARD_GAP - nextSheetHeight);
 
     return {
-      sheetHeight: Math.min(availableHeight, preferredHeight),
-      bottomOffset: offset,
+      sheetHeight: nextSheetHeight,
+      sheetTop: nextSheetTop,
       keyboardOpen: isKeyboardOpen,
     };
   }, [
+    androidKeyboardHeight,
+    iosKeyboardHeight,
     layoutViewportHeight,
-    nativeKeyboardHeight,
     searchActive,
     visualViewportHeight,
     visualViewportOffsetTop,
