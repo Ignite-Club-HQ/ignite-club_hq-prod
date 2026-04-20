@@ -601,12 +601,6 @@ export default function ProfilePage() {
           <h1 className="text-2xl font-bold truncate">{profile?.display_name}</h1>
           <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
         </button>
-        <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} className="relative" aria-label="Settings">
-          <Settings className="h-5 w-5" />
-          {notificationNudge.shouldShowNudge && (
-            <span className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
-          )}
-        </Button>
       </div>
 
       {/* Quick Actions */}
