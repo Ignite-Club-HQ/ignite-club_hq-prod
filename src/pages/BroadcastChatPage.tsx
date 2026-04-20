@@ -1085,7 +1085,7 @@ export default function BroadcastChatPage() {
               hasText={!!message.trim()}
             />
             <MentionInput
-              placeholder="Send announcement..."
+              placeholder="Type a message..."
               value={message}
               onChange={(val) => {
                 setMessage(val);
