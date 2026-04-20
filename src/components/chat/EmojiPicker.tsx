@@ -162,9 +162,9 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={`p-2 ${isMobile ? "w-[calc(100vw-2rem)] max-w-sm" : "w-72"} ${showGifTab ? "h-[360px] flex flex-col" : ""}`}
+        className={`p-2 ${isMobile ? "!left-1/2 w-[calc(100vw-1rem)] max-w-sm -translate-x-1/2" : "w-72"} ${showGifTab ? "h-[360px] flex flex-col" : ""}`}
         side="top"
-        align="start"
+        align={isMobile ? "center" : "start"}
         sideOffset={8}
         avoidCollisions={false}
         onOpenAutoFocus={(e) => e.preventDefault()}
