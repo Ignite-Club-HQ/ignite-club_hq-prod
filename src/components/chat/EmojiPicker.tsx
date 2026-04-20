@@ -9,7 +9,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Capacitor } from "@capacitor/core";
 import { GifGrid } from "@/components/chat/GifGrid";
-import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+import { GifPickerMobileSheet } from "@/components/chat/GifPickerMobileSheet";
 
 const RECENT_EMOJIS_KEY = "ignite-recent-emojis";
 const MAX_RECENT_EMOJIS = 14;
@@ -80,10 +80,12 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const isMobile = useIsMobile();
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
-  const keyboardOpen = useKeyboardOpen();
   const onEmojiSelectRef = useRef(onEmojiSelect);
   const onGifSelectRef = useRef(onGifSelect);
   const showGifTab = !!onGifSelect;
+  // On mobile, GIFs render in a dedicated keyboard-aware bottom sheet instead
+  // of inside the popover so the search input + results never get covered.
+  const useGifSheet = isMobile && showGifTab;
 
   const dismissIOSKeyboardAccessory = useCallback(() => {
     if (!isNativeIOS) return;
@@ -142,6 +144,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   }, [handleEmojiClick]);
 
   return (
+    <>
     <Popover open={open} onOpenChange={(newOpen) => {
       if (newOpen) {
         dismissIOSKeyboardAccessory();
@@ -164,7 +167,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={`p-2 ${isMobile ? "!left-2 !right-2 !w-auto !max-w-none" : "w-72"} ${showGifTab ? `${keyboardOpen && tab === "gif" ? "h-[220px]" : "h-[360px]"} flex flex-col` : ""}`}
+        className={`p-2 ${isMobile ? "!left-2 !right-2 !w-auto !max-w-none" : "w-72"} ${showGifTab && !useGifSheet ? "h-[360px] flex flex-col" : ""}`}
         side="top"
         align="start"
         sideOffset={8}
@@ -211,7 +214,15 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             </button>
             <button
               type="button"
-              onClick={() => setTab("gif")}
+              onClick={() => {
+                if (useGifSheet) {
+                  // Open the dedicated mobile sheet and close the popover
+                  setTab("gif");
+                  setOpen(false);
+                } else {
+                  setTab("gif");
+                }
+              }}
               className={`flex-1 rounded text-xs font-semibold py-1.5 transition-colors ${
                 tab === "gif"
                   ? "bg-background shadow-sm text-foreground"
@@ -223,7 +234,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           </div>
         )}
 
-        {tab === "emoji" || !showGifTab ? (
+        {tab === "emoji" || !showGifTab || useGifSheet ? (
           <div className={showGifTab ? "flex-1 min-h-0 flex flex-col overflow-hidden" : ""}>
             {/* Recent emojis row */}
             {recentEmojis.length > 0 && (
@@ -305,5 +316,15 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         )}
       </PopoverContent>
     </Popover>
+
+    {/* Mobile-only keyboard-aware GIF sheet */}
+    {useGifSheet && (
+      <GifPickerMobileSheet
+        open={tab === "gif" && !open}
+        onClose={() => setTab("emoji")}
+        onSelect={handleGifPick}
+      />
+    )}
+    </>
   );
 }
