@@ -144,6 +144,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
   }, [handleEmojiClick]);
 
   return (
+    <>
     <Popover open={open} onOpenChange={(newOpen) => {
       if (newOpen) {
         dismissIOSKeyboardAccessory();
