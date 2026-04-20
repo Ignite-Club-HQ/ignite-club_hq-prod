@@ -38,7 +38,11 @@ interface NextUpCarouselProps {
   isLoading?: boolean;
 }
 
-const NEXT_UP_CARD_MIN_HEIGHT = "";
+// Reserve enough vertical space to fit the card with the Children's RSVP
+// accordion in its collapsed state. This stops the home page from jolting
+// downward when the per-event queries (myRsvp, childrenOnEvent) resolve a
+// moment after the initial paint and the accordion appears.
+const NEXT_UP_CARD_MIN_HEIGHT = "min-h-[260px]";
 
 function formatContextualDate(dateStr: string) {
   return formatEventContextualDate(dateStr);
@@ -313,7 +317,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
   const urgency = getUrgencyBadge(event.event_date);
 
-  const { data: myRsvp } = useQuery({
+  const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -332,8 +336,13 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   });
 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
-  const { data: childrenOnEvent } = useChildrenForEvent(event, user?.id);
+  const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps } = useChildRsvps(event.id, user?.id);
+
+  // Hold the card's interactive sections until per-event queries settle so the
+  // card doesn't grow (Children's RSVP accordion appears, helper text disappears)
+  // a moment after first paint and visibly push the rest of the home page down.
+  const heroDataReady = !user || (myRsvpFetched && childrenFetched);
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
@@ -522,7 +531,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               })}
             </div>
 
-            {childrenOnEvent && childrenOnEvent.length > 0 && (
+            {heroDataReady && childrenOnEvent && childrenOnEvent.length > 0 && (
               <details className="rounded-xl border border-border/50 bg-muted/20 group">
                 <summary className="flex items-center gap-1.5 text-[11px] font-medium text-foreground cursor-pointer list-none p-2.5 [&::-webkit-details-marker]:hidden">
                   <Baby className="h-3.5 w-3.5 text-primary" />
@@ -578,10 +587,17 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
               </details>
             )}
 
-            {/* Helper text when no RSVP selected */}
-            {!currentStatus && (
-              <p className="text-[10px] text-muted-foreground/60 text-center">Tap to update your attendance</p>
-            )}
+            {/* Helper text when no RSVP selected — reserved line so the card
+                height stays stable whether or not the user has already RSVPed.
+                Hidden until the RSVP query has settled to avoid a flash. */}
+            <p
+              className={`text-[10px] text-muted-foreground/60 text-center ${
+                heroDataReady && !currentStatus ? "" : "invisible"
+              }`}
+              aria-hidden={!(heroDataReady && !currentStatus)}
+            >
+              Tap to update your attendance
+            </p>
 
           </div>
         )}

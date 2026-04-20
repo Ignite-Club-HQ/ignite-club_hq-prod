@@ -55,7 +55,11 @@ export function usePhotoViewCounts(photoIds: string[]) {
  */
 export function useRecordPhotoView(userId: string | undefined) {
   const queryClient = useQueryClient();
-  const recorded = useRef<Set<string>>(new Set());
+  // Per-mount throttle: don't record the same photo more than once every 30s
+  // from the same component instance (prevents accidental double-fires from
+  // scroll observer + lightbox open in the same gesture).
+  const lastRecorded = useRef<Map<string, number>>(new Map());
+  const RECORD_THROTTLE_MS = 30 * 1000;
 
   const mutation = useMutation({
     mutationFn: async (photoId: string) => {
@@ -63,13 +67,9 @@ export function useRecordPhotoView(userId: string | undefined) {
       const { error } = await supabase
         .from("photo_views")
         .insert({ photo_id: photoId, user_id: userId });
-      // Ignore duplicate-key errors – user already viewed
-      if (error && !error.message.includes("duplicate") && error.code !== "23505") {
-        throw error;
-      }
+      if (error) throw error;
     },
     onSuccess: (_data, photoId) => {
-      queryClient.invalidateQueries({ queryKey: ["photo-view-counts"] });
       // Optimistically bump count in any cached query
       queryClient.setQueriesData<Map<string, number>>(
         { queryKey: ["photo-view-counts"] },
@@ -80,44 +80,45 @@ export function useRecordPhotoView(userId: string | undefined) {
           return next;
         }
       );
+      queryClient.invalidateQueries({ queryKey: ["photo-view-counts"] });
     },
   });
 
   const recordView = useCallback((photoId: string) => {
     if (!userId || !photoId) return;
-    if (recorded.current.has(photoId)) return;
-    recorded.current.add(photoId);
+    const last = lastRecorded.current.get(photoId) || 0;
+    if (Date.now() - last < RECORD_THROTTLE_MS) return;
+    lastRecorded.current.set(photoId, Date.now());
     mutation.mutate(photoId);
   }, [userId, mutation]);
 
   /**
    * Returns a ref callback that records a view once the element has been
-   * meaningfully visible in the viewport (>=50% for ~800ms). This catches
-   * users who scroll the feed without opening the lightbox.
+   * visible in the viewport (>=25% for ~300ms). Lenient thresholds catch
+   * quick scrollers who would otherwise go uncounted.
    */
   const observeView = useCallback((photoId: string) => {
     return (el: HTMLElement | null) => {
       if (!el || !userId || !photoId) return;
-      if (recorded.current.has(photoId)) return;
 
       let timer: ReturnType<typeof setTimeout> | null = null;
 
       const observer = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
-            if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.25) {
               if (timer) continue;
               timer = setTimeout(() => {
                 recordView(photoId);
                 observer.disconnect();
-              }, 800);
+              }, 300);
             } else if (timer) {
               clearTimeout(timer);
               timer = null;
             }
           }
         },
-        { threshold: [0, 0.5, 1] }
+        { threshold: [0, 0.25, 0.5, 1] }
       );
 
       observer.observe(el);

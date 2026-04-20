@@ -33,6 +33,7 @@ import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
@@ -103,6 +104,7 @@ export default function BroadcastChatPage() {
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1078,10 +1080,12 @@ export default function BroadcastChatPage() {
               disabled={sendMutation.isPending}
               showPollCreator={true}
               onPollCreate={() => setPollDialogOpen(true)}
+              showBoardPicker={true}
+              onBoardPick={() => setBoardPickerOpen(true)}
               hasText={!!message.trim()}
             />
             <MentionInput
-              placeholder="Send announcement..."
+              placeholder="Type a message..."
               value={message}
               onChange={(val) => {
                 setMessage(val);
@@ -1129,6 +1133,14 @@ export default function BroadcastChatPage() {
             chatType="broadcast"
             chatId={BROADCAST_CHAT_ID}
             onCreated={(pollId) => setPendingPollId(pollId)}
+          />
+          <BoardPickerSheet
+            open={boardPickerOpen}
+            onOpenChange={setBoardPickerOpen}
+            onSelectBoard={(gameId) => {
+              const token = `[board:${gameId}]`;
+              setMessage(message ? `${message} ${token}` : token);
+            }}
           />
         </div>
         </>

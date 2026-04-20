@@ -111,7 +111,16 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
 
-const queryClient = new QueryClient();
+// `offlineFirst` lets queryFn run even when the device is offline, so our
+// cache-fallback branches (chat messages, schedule events, etc.) can return
+// cached data instead of React Query pausing the query indefinitely (which
+// would leave Schedule stuck on "loading" and chat threads blank).
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { networkMode: "offlineFirst" },
+    mutations: { networkMode: "offlineFirst" },
+  },
+});
 
 // Configure React Query to refetch on reconnect/resume in native apps
 setupReactQueryNativeAdapter();

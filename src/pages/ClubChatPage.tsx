@@ -31,6 +31,7 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
@@ -124,6 +125,7 @@ export default function ClubChatPage() {
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
@@ -1387,10 +1389,12 @@ export default function ClubChatPage() {
               onEventSelect={() => setEventPickerOpen(true)}
               showPollCreator={true}
               onPollCreate={() => setPollDialogOpen(true)}
+              showBoardPicker={true}
+              onBoardPick={() => setBoardPickerOpen(true)}
               hasText={!!message.trim()}
             />
             <MentionInput
-              placeholder="Send announcement..."
+              placeholder="Type a message..."
               value={message}
               onChange={(val) => {
                 setMessage(val);
@@ -1445,6 +1449,14 @@ export default function ClubChatPage() {
               setMessage(message ? `${message} ${token}` : token);
             }}
             clubId={clubId}
+          />
+          <BoardPickerSheet
+            open={boardPickerOpen}
+            onOpenChange={setBoardPickerOpen}
+            onSelectBoard={(gameId) => {
+              const token = `[board:${gameId}]`;
+              setMessage(message ? `${message} ${token}` : token);
+            }}
           />
           {clubId && (
             <CreatePollDialog

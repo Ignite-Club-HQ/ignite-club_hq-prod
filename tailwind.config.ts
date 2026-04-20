@@ -100,6 +100,10 @@ export default {
           "60%": { transform: "translateX(-3px)" },
           "80%": { transform: "translateX(2px)" },
         },
+        "home-fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -108,6 +112,7 @@ export default {
         "slide-up": "slide-up 0.3s ease-out",
         "bell-ring": "bell-ring 0.4s ease-in-out",
         "shake-x": "shake-x 0.35s ease-in-out",
+        "home-fade-in": "home-fade-in 0.32s ease-out both",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],

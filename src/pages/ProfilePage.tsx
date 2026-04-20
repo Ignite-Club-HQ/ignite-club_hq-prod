@@ -43,7 +43,7 @@ export default function ProfilePage() {
   const [showAllDuties, setShowAllDuties] = useState(false);
   const [pointsHistoryOpen, setPointsHistoryOpen] = useState(true);
   const [clubPlansOpen, setClubPlansOpen] = useState(true);
-  const [teamPlansOpen, setTeamPlansOpen] = useState(true);
+  const [teamPlansOpen, setTeamPlansOpen] = useState(false);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("all");
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   
@@ -553,6 +553,17 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
+  // Auto-expand team plans if no club plans exist but team plans do
+  useEffect(() => {
+    if (upgradableClubs && upgradableTeams) {
+      const hasClubPlans = upgradableClubs.length > 0;
+      const hasTeamPlans = upgradableTeams.length > 0;
+      if (!hasClubPlans && hasTeamPlans) {
+        setTeamPlansOpen(true);
+      }
+    }
+  }, [upgradableClubs, upgradableTeams]);
+
   const handleSignOut = async () => {
     setSigningOut(true);
     await signOut();
@@ -590,12 +601,6 @@ export default function ProfilePage() {
           <h1 className="text-2xl font-bold truncate">{profile?.display_name}</h1>
           <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
         </button>
-        <Button variant="ghost" size="icon" onClick={() => navigate("/settings")} className="relative" aria-label="Settings">
-          <Settings className="h-5 w-5" />
-          {notificationNudge.shouldShowNudge && (
-            <span className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
-          )}
-        </Button>
       </div>
 
       {/* Quick Actions */}

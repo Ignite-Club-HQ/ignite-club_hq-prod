@@ -59,6 +59,8 @@ interface AttendanceSectionProps {
   addressableMembers?: AddressableMember[];
   /** Optional: open the native/web share sheet with a copyable RSVP link */
   onShareLink?: () => void;
+  /** Event type — controls noun used in copy ("player" vs "member") */
+  eventType?: string;
 }
 
 export function AttendanceSection({
@@ -75,7 +77,10 @@ export function AttendanceSection({
   trackableMembersCount,
   addressableMembers,
   onShareLink,
+  eventType,
 }: AttendanceSectionProps) {
+  const personNoun = eventType === "social" ? "member" : "player";
+  const personNounPlural = eventType === "social" ? "members" : "players";
   const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
   const [sendingForUser, setSendingForUser] = useState<string | null>(null);
@@ -309,7 +314,7 @@ export function AttendanceSection({
           {showReminderAction && (
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">
-                {counts.notResponded} {counts.notResponded === 1 ? "player hasn't" : "players haven't"} responded yet
+                {counts.notResponded} {counts.notResponded === 1 ? `${personNoun} hasn't` : `${personNounPlural} haven't`} responded yet
               </p>
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
