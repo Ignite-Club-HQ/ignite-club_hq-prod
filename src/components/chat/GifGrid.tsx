@@ -87,7 +87,7 @@ export function GifGrid({
   }, [query, active]);
 
   return (
-    <div data-gif-picker className={cn("flex flex-col min-h-0", className)}>
+    <div data-gif-picker className={cn("flex flex-col min-h-0 overflow-hidden", className)}>
       <div className="sticky top-0 z-10 shrink-0 bg-popover pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -101,7 +101,7 @@ export function GifGrid({
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full hover:bg-accent text-muted-foreground"
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent"
               aria-label="Clear search"
             >
               <X className="h-3.5 w-3.5" />
@@ -113,13 +113,13 @@ export function GifGrid({
         )}
       </div>
 
-      <div className={cn("mt-2 overflow-y-auto", scrollClassName)}>
+      <div className={cn("mt-2 flex-1 min-h-[132px] overflow-y-auto overscroll-contain pb-2", scrollClassName)}>
         {loading && gifs.length === 0 ? (
-          <div className="flex items-center justify-center py-10">
+          <div className="flex min-h-[132px] items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : gifs.length === 0 ? (
-          <div className="text-center py-10 text-xs text-muted-foreground">
+          <div className="flex min-h-[132px] items-center justify-center text-center text-xs text-muted-foreground">
             No GIFs found.
           </div>
         ) : (
