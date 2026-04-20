@@ -1734,6 +1734,8 @@ export default function EventDetailPage() {
         next.add(recipientKey);
         return next;
       });
+      // Refresh the 24h cooldown set so the "Reminded" state survives a page reload
+      queryClient.invalidateQueries({ queryKey: ["event-recent-reminders", id] });
       const description = isChild
         ? `${count} parent${count !== 1 ? "s" : ""} of ${displayName} ${count !== 1 ? "have" : "has"} been reminded to RSVP`
         : `${displayName} has been reminded to RSVP`;
