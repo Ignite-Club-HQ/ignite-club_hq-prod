@@ -2608,7 +2608,7 @@ export default function EventDetailPage() {
             {notRespondedChildren.map((child: any) => {
               const remindBtn = (isAdmin || isAppAdmin) && canSendReminders && !isMiniLeagueEvent && child.parent_id ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id;
-                const wasReminded = recentlyReminded.has(child.parent_id);
+                const wasReminded = recentlyReminded.has(child.parent_id) || (recentReminderUserIds?.has(child.parent_id) ?? false);
                 return (
                   <Button
                     variant={wasReminded ? "secondary" : "default"}
