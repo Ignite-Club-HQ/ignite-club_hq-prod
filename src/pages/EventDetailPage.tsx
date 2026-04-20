@@ -217,6 +217,27 @@ export default function EventDetailPage() {
   const isSharingEventRef = useRef(false);
   const [showPostRsvpNudge, setShowPostRsvpNudge] = useState(false);
   const [recentlyReminded, setRecentlyReminded] = useState<Set<string>>(new Set());
+
+  // 24-hour reminder cooldown — fetch event_reminder notifications sent in the last 24h
+  // so the "Reminded" state persists across sessions/devices and we can block re-reminding.
+  const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+  const { data: recentReminderUserIds } = useQuery({
+    queryKey: ["event-recent-reminders", id],
+    enabled: !!id,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("user_id, created_at")
+        .eq("type", "event_reminder")
+        .eq("related_id", id!)
+        .gte("created_at", since);
+      if (error) throw error;
+      return new Set((data || []).map((n: any) => n.user_id));
+    },
+  });
   const notificationNudge = useNotificationNudge(user?.id, "event");
 
   // Track when user views this event
@@ -1623,19 +1644,21 @@ export default function EventDetailPage() {
         throw new Error("Everyone has already RSVPed!");
       }
       
-      // Check for existing notifications to avoid duplicates
+      // Check for reminders sent in the last 24 hours to avoid spamming members
+      const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
       const { data: existingNotifications } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_reminder")
         .eq("related_id", id!)
-        .in("user_id", nonRsvpMembers);
-      
+        .in("user_id", nonRsvpMembers)
+        .gte("created_at", since);
+
       const existingNotificationUserIds = existingNotifications?.map(n => n.user_id) || [];
       const membersToNotify = nonRsvpMembers.filter(memberId => !existingNotificationUserIds.includes(memberId));
-      
+
       if (membersToNotify.length === 0) {
-        throw new Error("All members have already been reminded!");
+        throw new Error("All non-responders were already reminded in the last 24 hours");
       }
       
       // Create notifications - the DB trigger (on_notification_created) handles push dispatch
@@ -1677,19 +1700,21 @@ export default function EventDetailPage() {
         recipientIds = Array.from(new Set([userId, ...guardianIds]));
       }
 
-      // Check who has already been reminded
+      // 24h cooldown — skip recipients who were reminded in the last 24 hours
+      const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
       const { data: existing } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_reminder")
         .eq("related_id", id!)
-        .in("user_id", recipientIds);
+        .in("user_id", recipientIds)
+        .gte("created_at", since);
 
       const alreadyReminded = new Set((existing || []).map((r: any) => r.user_id));
       const toRemind = recipientIds.filter((uid) => !alreadyReminded.has(uid));
 
       if (toRemind.length === 0) {
-        throw new Error(`${displayName}'s parent${recipientIds.length > 1 ? "s have" : " has"} already been reminded`);
+        throw new Error(`${displayName}${recipientIds.length > 1 ? "'s parents have" : " has"} been reminded in the last 24 hours`);
       }
 
       const { error } = await supabase.from("notifications").insert(
@@ -1709,6 +1734,8 @@ export default function EventDetailPage() {
         next.add(recipientKey);
         return next;
       });
+      // Refresh the 24h cooldown set so the "Reminded" state survives a page reload
+      queryClient.invalidateQueries({ queryKey: ["event-recent-reminders", id] });
       const description = isChild
         ? `${count} parent${count !== 1 ? "s" : ""} of ${displayName} ${count !== 1 ? "have" : "has"} been reminded to RSVP`
         : `${displayName} has been reminded to RSVP`;
@@ -2581,7 +2608,7 @@ export default function EventDetailPage() {
             {notRespondedChildren.map((child: any) => {
               const remindBtn = (isAdmin || isAppAdmin) && canSendReminders && !isMiniLeagueEvent && child.parent_id ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === child.parent_id;
-                const wasReminded = recentlyReminded.has(child.parent_id);
+                const wasReminded = recentlyReminded.has(child.parent_id) || (recentReminderUserIds?.has(child.parent_id) ?? false);
                 return (
                   <Button
                     variant={wasReminded ? "secondary" : "default"}
@@ -2645,7 +2672,7 @@ export default function EventDetailPage() {
             {!isMiniLeagueEvent && notResponded.map((member: any) => {
               const remindBtn = (isAdmin || isAppAdmin) && canSendReminders ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
-                const wasReminded = recentlyReminded.has(member.id);
+                const wasReminded = recentlyReminded.has(member.id) || (recentReminderUserIds?.has(member.id) ?? false);
                 return (
                   <Button
                     variant={wasReminded ? "secondary" : "default"}
