@@ -313,7 +313,7 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   const locationDisplay = event.location_name || event.suburb || event.address?.split(',')[0];
   const urgency = getUrgencyBadge(event.event_date);
 
-  const { data: myRsvp } = useQuery({
+  const { data: myRsvp, isFetched: myRsvpFetched } = useQuery({
     queryKey: ["hero-rsvp", event.id, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -332,8 +332,13 @@ function HeroCard({ event, fullWidth }: { event: EventItem; fullWidth?: boolean 
   });
 
   const currentStatus = (myRsvp?.status as RsvpStatus) ?? null;
-  const { data: childrenOnEvent } = useChildrenForEvent(event, user?.id);
+  const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps } = useChildRsvps(event.id, user?.id);
+
+  // Hold the card's interactive sections until per-event queries settle so the
+  // card doesn't grow (Children's RSVP accordion appears, helper text disappears)
+  // a moment after first paint and visibly push the rest of the home page down.
+  const heroDataReady = !user || (myRsvpFetched && childrenFetched);
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
