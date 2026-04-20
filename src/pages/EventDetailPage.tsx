@@ -2672,7 +2672,7 @@ export default function EventDetailPage() {
             {!isMiniLeagueEvent && notResponded.map((member: any) => {
               const remindBtn = (isAdmin || isAppAdmin) && canSendReminders ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
-                const wasReminded = recentlyReminded.has(member.id);
+                const wasReminded = recentlyReminded.has(member.id) || (recentReminderUserIds?.has(member.id) ?? false);
                 return (
                   <Button
                     variant={wasReminded ? "secondary" : "default"}
