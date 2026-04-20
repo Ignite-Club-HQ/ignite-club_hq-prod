@@ -2565,18 +2565,13 @@ export default function EventDetailPage() {
               />
             ))}
             {includeGuests && eventGuests?.map((guest: any) => (
-              <div key={guest.id} className="flex items-center gap-3 py-2.5">
-                <Avatar className="h-9 w-9 shrink-0">
-                  <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                    {guest.guest_name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{guest.guest_name}</p>
-                  <p className="text-xs text-muted-foreground">Guest of {guest.added_by_name}</p>
-                </div>
-                <Badge variant="outline" className="text-xs shrink-0">Guest</Badge>
-              </div>
+              <AttendanceRow
+                key={guest.id}
+                name={guest.guest_name}
+                roleLabel="Guest"
+                roleTone="guest"
+                secondaryLine={`Guest of ${guest.added_by_name}`}
+              />
             ))}
           </div>
         );
