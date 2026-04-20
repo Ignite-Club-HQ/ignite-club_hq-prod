@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { UserPlus } from "lucide-react";
+import { Loader2, UserPlus } from "lucide-react";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
 import {
   ResponsiveDialog,
@@ -30,9 +30,12 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
   // Effective club filter: use activeClubFilter if set, otherwise the manually selected club
   const effectiveClubId = activeClubFilter || selectedClubId;
 
-  const { data: teamsAndClubs } = useQuery({
+  const { data: teamsAndClubs, isLoading: teamsLoading, isFetching: teamsFetching } = useQuery({
     queryKey: ["home-invite-teams-clubs", user?.id],
-    enabled: !!user && open,
+    // Prefetch as soon as the user is known so the dialog opens instantly on first tap.
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     queryFn: async () => {
       const { data: roles } = await supabase
         .from("user_roles")
@@ -142,10 +145,32 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
   // Show dialog when: needs club pick, or needs team pick (multiple filtered teams),
   // or club is selected but has no teams (show message)
   const clubSelectedNoTeams = !needsClubPick && selectedClubId && filteredTeams.length === 0 && !activeClubFilter;
+  // Show an instant loading dialog on first tap so the action feels responsive
+  // even when the teams/clubs query is still cold.
+  const isInitialLoading = open && !teamsAndClubs && (teamsLoading || teamsFetching);
   const showPicker = open && (needsClubPick || filteredTeams.length > 1 || clubSelectedNoTeams);
 
   return (
     <>
+      {isInitialLoading && (
+        <ResponsiveDialog open={open} onOpenChange={handleClose}>
+          <ResponsiveDialogContent className="max-w-md">
+            <ResponsiveDialogHeader>
+              <ResponsiveDialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Invite to Team
+              </ResponsiveDialogTitle>
+              <ResponsiveDialogDescription>
+                Loading your teams…
+              </ResponsiveDialogDescription>
+            </ResponsiveDialogHeader>
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          </ResponsiveDialogContent>
+        </ResponsiveDialog>
+      )}
+
       {showPicker && (
         <ResponsiveDialog open={open} onOpenChange={handleClose}>
           <ResponsiveDialogContent className="max-w-md">
