@@ -45,58 +45,86 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
   );
   const [searchActive, setSearchActive] = useState(false);
 
-  useEffect(() => {
-    const update = () => {
-      if (typeof window === "undefined") return;
+  const rafRef = useRef<number | null>(null);
+  const timeoutsRef = useRef<number[]>([]);
 
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+
+    const measure = () => {
       setLayoutViewportHeight(window.innerHeight);
       setVisualViewportHeight(window.visualViewport?.height ?? window.innerHeight);
       setVisualViewportOffsetTop(window.visualViewport?.offsetTop ?? 0);
     };
 
-    if (!open) return;
+    // Schedule re-measures across the keyboard animation window so the panel
+    // always settles at the final correct size (iOS keyboard ~250-300ms,
+    // Android ~150-250ms). This is the "consistency guarantee" — every
+    // show/hide cycle ends in a full recalculation.
+    const scheduleSettle = () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(measure);
+      timeoutsRef.current.forEach((id) => window.clearTimeout(id));
+      timeoutsRef.current = [50, 150, 300, 500].map((delay) =>
+        window.setTimeout(measure, delay),
+      );
+    };
+
+    measure();
+    scheduleSettle();
 
     const vv = window.visualViewport;
-    update();
-
-    vv?.addEventListener("resize", update);
-    vv?.addEventListener("scroll", update);
-    window.addEventListener("resize", update);
-    window.addEventListener("orientationchange", update);
-
-    const onFocus = () => {
-      update();
-      setTimeout(update, 100);
-      setTimeout(update, 300);
-    };
-
-    window.addEventListener("focusin", onFocus);
-    window.addEventListener("focusout", onFocus);
+    vv?.addEventListener("resize", scheduleSettle);
+    vv?.addEventListener("scroll", scheduleSettle);
+    window.addEventListener("resize", scheduleSettle);
+    window.addEventListener("orientationchange", scheduleSettle);
+    window.addEventListener("focusin", scheduleSettle);
+    window.addEventListener("focusout", scheduleSettle);
 
     return () => {
-      vv?.removeEventListener("resize", update);
-      vv?.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-      window.removeEventListener("orientationchange", update);
-      window.removeEventListener("focusin", onFocus);
-      window.removeEventListener("focusout", onFocus);
+      vv?.removeEventListener("resize", scheduleSettle);
+      vv?.removeEventListener("scroll", scheduleSettle);
+      window.removeEventListener("resize", scheduleSettle);
+      window.removeEventListener("orientationchange", scheduleSettle);
+      window.removeEventListener("focusin", scheduleSettle);
+      window.removeEventListener("focusout", scheduleSettle);
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      timeoutsRef.current.forEach((id) => window.clearTimeout(id));
+      timeoutsRef.current = [];
     };
   }, [open]);
+
+  // Re-measure whenever the native keyboard hooks report a change. This is
+  // the explicit "listen for keyboard show/hide events" requirement and the
+  // guarantee that the panel re-layouts on every keyboard transition.
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return;
+    const id = window.setTimeout(() => {
+      setLayoutViewportHeight(window.innerHeight);
+      setVisualViewportHeight(window.visualViewport?.height ?? window.innerHeight);
+      setVisualViewportOffsetTop(window.visualViewport?.offsetTop ?? 0);
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [open, iosKeyboardHeight, androidKeyboardHeight]);
 
   const { sheetHeight, bottomOffset, keyboardOpen } = useMemo(() => {
     const visualKeyboard = Math.max(
       0,
       layoutViewportHeight - (visualViewportHeight + visualViewportOffsetTop),
     );
+    // Keyboard height is the SINGLE SOURCE OF TRUTH for layout.
     const kb = Math.max(iosKeyboardHeight, androidKeyboardHeight, visualKeyboard);
-    const isKbOpen = kb > 80; // ignore tiny rounding deltas
+    const isKbOpen = kb > KEYBOARD_OPEN_THRESHOLD;
 
     const offset = isKbOpen ? kb + KEYBOARD_GAP : 0;
     const available = Math.max(SHEET_MIN_HEIGHT, layoutViewportHeight - offset - TOP_GAP);
 
+    // Deterministic height policy:
+    //   - keyboard open  → always fill available space (consistent every time)
+    //   - search active  → expand toward full screen
+    //   - otherwise      → default compact height
     let preferred: number;
     if (isKbOpen) {
-      // Always fill the available space — guarantees consistent layout.
       preferred = available;
     } else if (searchActive) {
       preferred = Math.max(SHEET_DEFAULT_HEIGHT, Math.round(layoutViewportHeight * 0.84));
