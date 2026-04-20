@@ -1195,14 +1195,30 @@ export default function ClubDetailPage() {
       })()}
 
       {/* Teams Section - flat filtered list */}
+      {(() => {
+        const totalTeams = activeTeams?.length ?? 0;
+        const collapsible = totalTeams > 5;
+        const isExpanded = collapsible ? (teamsExpanded ?? false) : true;
+        return (
       <section className="space-y-4">
         {/* Header with title, count, and Add Team */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => collapsible && setTeamsExpanded((v) => !(v ?? false))}
+            className={`flex items-center gap-2 min-w-0 flex-1 text-left ${collapsible ? "cursor-pointer hover:opacity-80 transition-opacity" : "cursor-default"}`}
+            aria-expanded={isExpanded}
+            disabled={!collapsible}
+          >
+            <Users className="h-5 w-5 text-primary shrink-0" />
             <h2 className="text-lg font-semibold">{club?.class_mode_enabled ? "Classes" : "Teams"}</h2>
             {activeTeams && <Badge className="font-semibold bg-primary/20 text-primary dark:text-primary-foreground dark:bg-primary">{activeTeams.length}</Badge>}
-          </div>
+            {collapsible && (
+              isExpanded
+                ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+          </button>
           <div className="flex items-center gap-2">
             {isAdmin && (
               <>
@@ -1218,6 +1234,8 @@ export default function ClubDetailPage() {
             )}
           </div>
         </div>
+
+        {isExpanded && (<>
 
         {isAdmin && <PendingTeamRequests clubId={id!} />}
 
