@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { GifGrid } from "@/components/chat/GifGrid";
+import { useNativeIOSKeyboardState } from "@/hooks/useNativeIOSKeyboardState";
+import { useNativeAndroidKeyboardState } from "@/hooks/useNativeAndroidKeyboardState";
+
+const SHEET_DEFAULT_HEIGHT = 420;
+const SHEET_MIN_HEIGHT = 248;
+const SCREEN_EDGE_GAP = 8;
 
 interface GifPickerMobileSheetProps {
   open: boolean;
@@ -15,66 +21,87 @@ interface GifPickerMobileSheetProps {
  * transformed parent containers.
  */
 export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobileSheetProps) {
-  const [baselineHeight, setBaselineHeight] = useState(0);
-  const [bottomOffset, setBottomOffset] = useState(0);
-  const [sheetHeight, setSheetHeight] = useState(420);
+  const { keyboardHeight: iosKeyboardHeight } = useNativeIOSKeyboardState();
+  const androidKeyboardHeight = useNativeAndroidKeyboardState();
+  const [layoutViewportHeight, setLayoutViewportHeight] = useState(() =>
+    typeof window === "undefined" ? 0 : window.innerHeight,
+  );
+  const [visualViewportHeight, setVisualViewportHeight] = useState(() =>
+    typeof window === "undefined" ? 0 : (window.visualViewport?.height ?? window.innerHeight),
+  );
+  const [visualViewportOffsetTop, setVisualViewportOffsetTop] = useState(() =>
+    typeof window === "undefined" ? 0 : (window.visualViewport?.offsetTop ?? 0),
+  );
+  const [searchActive, setSearchActive] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const nextBaseline = vv.height + vv.offsetTop;
-    setBaselineHeight(nextBaseline);
-
     const update = () => {
-      const currentVisibleHeight = vv.height + vv.offsetTop;
-      const referenceHeight = Math.max(baselineHeight || nextBaseline, currentVisibleHeight);
-      const offset = Math.max(0, referenceHeight - currentVisibleHeight);
-      const nextHeight = Math.max(220, Math.min(520, vv.height - 12));
+      if (typeof window === "undefined") return;
 
-      setBottomOffset(offset);
-      setSheetHeight(nextHeight);
+      setLayoutViewportHeight(window.innerHeight);
+      setVisualViewportHeight(window.visualViewport?.height ?? window.innerHeight);
+      setVisualViewportOffsetTop(window.visualViewport?.offsetTop ?? 0);
     };
 
+    if (!open) return;
+
+    const vv = window.visualViewport;
     update();
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
+
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
     window.addEventListener("resize", update);
-    // Re-measure shortly after focus events — keyboards often animate in
-    // after the focus event fires.
+    window.addEventListener("orientationchange", update);
+
     const onFocus = () => {
       update();
       setTimeout(update, 100);
       setTimeout(update, 300);
     };
+
     window.addEventListener("focusin", onFocus);
     window.addEventListener("focusout", onFocus);
+
     return () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
       window.removeEventListener("focusin", onFocus);
       window.removeEventListener("focusout", onFocus);
     };
-  }, [open, baselineHeight]);
+  }, [open]);
 
   if (!open) return null;
 
+  const visualKeyboardHeight = Math.max(
+    0,
+    layoutViewportHeight - (visualViewportHeight + visualViewportOffsetTop),
+  );
+  const keyboardHeight = Math.max(iosKeyboardHeight, androidKeyboardHeight, visualKeyboardHeight);
+  const bottomOffset = keyboardHeight > 0 ? keyboardHeight + SCREEN_EDGE_GAP : 0;
+  const maxAvailableHeight = Math.max(
+    SHEET_MIN_HEIGHT,
+    layoutViewportHeight - bottomOffset - SCREEN_EDGE_GAP,
+  );
+  const preferredHeight = keyboardHeight > 0
+    ? maxAvailableHeight
+    : searchActive
+      ? Math.max(SHEET_DEFAULT_HEIGHT, Math.round(layoutViewportHeight * 0.84))
+      : SHEET_DEFAULT_HEIGHT;
+  const sheetHeight = Math.min(maxAvailableHeight, preferredHeight);
+
   return createPortal(
     <>
-      {/* Backdrop — tap to dismiss */}
       <div
-        className="fixed inset-0 z-[100000] bg-transparent"
+        className={`fixed inset-0 z-[100000] transition-opacity duration-200 ${searchActive ? "bg-background/35" : "bg-background/15"}`}
         onPointerDown={(e) => {
-          // Only close if tapping the backdrop itself
           if (e.target === e.currentTarget) onClose();
         }}
       />
 
-      {/* Anchored sheet */}
       <div
-        className="fixed left-0 right-0 z-[100001] flex flex-col rounded-t-2xl border-t border-x bg-popover text-popover-foreground shadow-2xl animate-in slide-in-from-bottom-4 duration-200"
+        className="fixed left-0 right-0 z-[100001] flex flex-col overflow-hidden rounded-t-2xl border-x border-t bg-popover text-popover-foreground shadow-2xl animate-in slide-in-from-bottom-4 duration-200"
         style={{
           bottom: bottomOffset,
           height: sheetHeight,
@@ -101,6 +128,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
           <GifGrid
             active
             onSelect={onSelect}
+            onQueryChange={(query) => setSearchActive(query.trim().length > 0)}
             scrollClassName="flex-1 min-h-0"
             gridClassName="grid-cols-2"
             className="flex-1 min-h-0"
