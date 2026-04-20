@@ -32,9 +32,22 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     update();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+    // Re-measure shortly after focus events — keyboards often animate in
+    // after the focus event fires.
+    const onFocus = () => {
+      update();
+      setTimeout(update, 100);
+      setTimeout(update, 300);
+    };
+    window.addEventListener("focusin", onFocus);
+    window.addEventListener("focusout", onFocus);
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      window.removeEventListener("focusin", onFocus);
+      window.removeEventListener("focusout", onFocus);
     };
   }, [open]);
 
@@ -44,7 +57,7 @@ export function GifPickerMobileSheet({ open, onClose, onSelect }: GifPickerMobil
     <>
       {/* Backdrop — tap to dismiss */}
       <div
-        className="fixed inset-0 z-[100000] bg-background/40 backdrop-blur-[2px] animate-in fade-in duration-150"
+        className="fixed inset-0 z-[100000] bg-background/60 animate-in fade-in duration-150"
         onPointerDown={(e) => {
           // Only close if tapping the backdrop itself
           if (e.target === e.currentTarget) onClose();
