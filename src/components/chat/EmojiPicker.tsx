@@ -219,7 +219,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
               onClick={() => {
                 if (useGifSheet) {
                   // Open the dedicated mobile sheet and close the popover
-                  setTab("gif");
+                  setGifSheetOpen(true);
                   setOpen(false);
                 } else {
                   setTab("gif");
@@ -322,8 +322,8 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     {/* Mobile-only keyboard-aware GIF sheet */}
     {useGifSheet && (
       <GifPickerMobileSheet
-        open={tab === "gif" && !open}
-        onClose={() => setTab("emoji")}
+        open={gifSheetOpen}
+        onClose={() => setGifSheetOpen(false)}
         onSelect={handleGifPick}
       />
     )}
