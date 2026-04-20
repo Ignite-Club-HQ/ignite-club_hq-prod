@@ -376,7 +376,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
         type="button"
         onClick={handleImageButtonClick}
         disabled={disabled || uploading}
-        className="flex items-center justify-center h-9 w-9 shrink-0 text-foreground hover:text-primary transition-colors disabled:opacity-50"
+        className="flex items-center justify-center h-10 w-10 shrink-0 text-foreground hover:text-primary transition-colors disabled:opacity-50"
         aria-label="Upload photo"
       >
         {uploading ? (
@@ -391,7 +391,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             <button
               type="button"
               disabled={disabled}
-              className="flex items-center justify-center h-9 w-9 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
+              className="flex items-center justify-center h-10 w-10 shrink-0 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
               aria-label="More actions"
             >
               <Plus className="h-5 w-5" strokeWidth={2.25} />
