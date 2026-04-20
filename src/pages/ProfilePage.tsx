@@ -43,7 +43,7 @@ export default function ProfilePage() {
   const [showAllDuties, setShowAllDuties] = useState(false);
   const [pointsHistoryOpen, setPointsHistoryOpen] = useState(true);
   const [clubPlansOpen, setClubPlansOpen] = useState(true);
-  const [teamPlansOpen, setTeamPlansOpen] = useState(true);
+  const [teamPlansOpen, setTeamPlansOpen] = useState(false);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("all");
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   
