@@ -50,17 +50,6 @@ export default function ProfilePage() {
   const { activeClubFilter, activeClubTeamIds, activeThemeData } = useClubTheme();
   const { data: seasonsForRank = [] } = useClubSeasons(activeClubFilter || undefined);
 
-  // Auto-expand team plans if no club plans exist but team plans do
-  useEffect(() => {
-    if (upgradableClubs && upgradableTeams) {
-      const hasClubPlans = upgradableClubs.length > 0;
-      const hasTeamPlans = upgradableTeams.length > 0;
-      if (!hasClubPlans && hasTeamPlans) {
-        setTeamPlansOpen(true);
-      }
-    }
-  }, [upgradableClubs, upgradableTeams]);
-
   // Auto-scroll to points history when navigated from notification
   useEffect(() => {
     if (searchParams.get('section') === 'points-history') {
