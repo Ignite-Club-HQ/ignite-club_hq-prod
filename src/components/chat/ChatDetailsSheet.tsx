@@ -430,7 +430,7 @@ function DMParticipants({
         </div>
       </div>
       {/* Suppress unused warnings */}
-      <span className="hidden">{format(new Date(), "")}{user?.id}{otherUserId}</span>
+      <span className="hidden">{user?.id}{otherUserId}</span>
     </div>
   );
 }
