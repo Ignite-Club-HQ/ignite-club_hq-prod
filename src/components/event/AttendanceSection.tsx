@@ -314,7 +314,7 @@ export function AttendanceSection({
           {showReminderAction && (
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">
-                {counts.notResponded} {counts.notResponded === 1 ? "player hasn't" : "players haven't"} responded yet
+                {counts.notResponded} {counts.notResponded === 1 ? `${personNoun} hasn't` : `${personNounPlural} haven't`} responded yet
               </p>
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
