@@ -76,6 +76,7 @@ function saveRecentEmoji(emoji: string) {
 export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPickerProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"emoji" | "gif">("emoji");
+  const [gifSheetOpen, setGifSheetOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(0);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const isMobile = useIsMobile();
@@ -131,6 +132,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     onGifSelectRef.current?.(url);
     requestAnimationFrame(() => {
       setOpen(false);
+      setGifSheetOpen(false);
       dismissIOSKeyboardAccessory();
     });
   }, [dismissIOSKeyboardAccessory]);
@@ -217,7 +219,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
               onClick={() => {
                 if (useGifSheet) {
                   // Open the dedicated mobile sheet and close the popover
-                  setTab("gif");
+                  setGifSheetOpen(true);
                   setOpen(false);
                 } else {
                   setTab("gif");
@@ -320,8 +322,8 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
     {/* Mobile-only keyboard-aware GIF sheet */}
     {useGifSheet && (
       <GifPickerMobileSheet
-        open={tab === "gif" && !open}
-        onClose={() => setTab("emoji")}
+        open={gifSheetOpen}
+        onClose={() => setGifSheetOpen(false)}
         onSelect={handleGifPick}
       />
     )}
