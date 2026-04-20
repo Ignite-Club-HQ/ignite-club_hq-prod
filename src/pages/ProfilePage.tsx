@@ -553,6 +553,17 @@ export default function ProfilePage() {
     enabled: !!user,
   });
 
+  // Auto-expand team plans if no club plans exist but team plans do
+  useEffect(() => {
+    if (upgradableClubs && upgradableTeams) {
+      const hasClubPlans = upgradableClubs.length > 0;
+      const hasTeamPlans = upgradableTeams.length > 0;
+      if (!hasClubPlans && hasTeamPlans) {
+        setTeamPlansOpen(true);
+      }
+    }
+  }, [upgradableClubs, upgradableTeams]);
+
   const handleSignOut = async () => {
     setSigningOut(true);
     await signOut();
