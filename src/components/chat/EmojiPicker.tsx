@@ -162,7 +162,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={`p-2 ${isMobile ? "w-[calc(100vw-2rem)] max-w-sm" : "w-72"}`}
+        className={`p-2 ${isMobile ? "w-[calc(100vw-2rem)] max-w-sm" : "w-72"} ${showGifTab ? "h-[360px] flex flex-col" : ""}`}
         side="top"
         align="start"
         sideOffset={8}
@@ -221,10 +221,10 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
         )}
 
         {tab === "emoji" || !showGifTab ? (
-          <>
+          <div className={showGifTab ? "flex-1 min-h-0 flex flex-col overflow-hidden" : ""}>
             {/* Recent emojis row */}
             {recentEmojis.length > 0 && (
-              <div className="mb-2 pb-2 border-b">
+              <div className="mb-2 pb-2 border-b shrink-0">
                 <div className="flex items-center gap-1 mb-1">
                   <Clock className="h-3 w-3 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">Recent</span>
@@ -249,7 +249,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             )}
 
             {/* Category tabs */}
-            <div className="flex gap-1 mb-2 pb-1 border-b overflow-x-auto scrollbar-hide">
+            <div className="flex gap-1 mb-2 pb-1 border-b overflow-x-auto scrollbar-hide shrink-0">
               {EMOJI_CATEGORIES.map((cat, idx) => (
                 <button
                   type="button"
@@ -272,7 +272,7 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
             </div>
 
             {/* Emoji grid */}
-            <div className={`grid gap-1 max-h-52 overflow-y-auto ${
+            <div className={`grid gap-1 ${showGifTab ? "flex-1 min-h-0" : "max-h-52"} overflow-y-auto ${
               isMobile ? "grid-cols-7" : "grid-cols-8"
             }`}>
               {EMOJI_CATEGORIES[activeCategory].emojis.map((emoji) => (
@@ -290,13 +290,14 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
                 </button>
               ))}
             </div>
-          </>
+          </div>
         ) : (
           <GifGrid
             active={tab === "gif"}
             onSelect={handleGifPick}
-            scrollClassName="max-h-64"
+            scrollClassName="flex-1 min-h-0"
             gridClassName="grid-cols-2"
+            className="flex-1 min-h-0"
           />
         )}
       </PopoverContent>
