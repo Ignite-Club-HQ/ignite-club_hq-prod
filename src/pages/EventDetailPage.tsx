@@ -134,69 +134,58 @@ const AttendeeCard = ({
   const avatarInitial = displayName?.charAt(0)?.toUpperCase() || "?";
 
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <Avatar className="h-9 w-9 shrink-0">
-          {!isChildRsvp && !isMiniLeaguePlayerRsvp && <AvatarImage src={rsvp.profiles?.avatar_url || undefined} />}
-          <AvatarFallback className="text-xs bg-muted">
-            {avatarInitial}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm truncate min-w-0">{displayName}</span>
-            {isChildRsvp && !isMiniLeague && (
-              <span className="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">Child</span>
-            )}
-            {!isChildRsvp && !isMiniLeaguePlayerRsvp && memberRole && (
-              <span className="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">{memberRole}</span>
-            )}
-            {showPrice && hasPaid && (
-              <Badge variant="default" className="text-xs bg-primary shrink-0">
-                <Check className="h-3 w-3 mr-1" />
-                Paid
-              </Badge>
-            )}
-          </div>
-          {rsvp.notes && (
-            <p className="text-xs text-muted-foreground truncate">{rsvp.notes}</p>
+    <AttendanceRow
+      name={displayName || "Unknown"}
+      avatarUrl={!isChildRsvp && !isMiniLeaguePlayerRsvp ? rsvp.profiles?.avatar_url || null : null}
+      avatarFallback={avatarInitial}
+      roleLabel={
+        isChildRsvp && !isMiniLeague
+          ? "Child"
+          : !isChildRsvp && !isMiniLeaguePlayerRsvp && memberRole
+          ? String(memberRole).replace(/_/g, " ")
+          : null
+      }
+      roleTone={isChildRsvp && !isMiniLeague ? "child" : "neutral"}
+      secondaryLine={rsvp.notes || null}
+      rightSlot={
+        <>
+          {showPrice && hasPaid && (
+            <Badge variant="default" className="text-[10px] h-5 px-1.5 bg-primary shrink-0">
+              <Check className="h-3 w-3 mr-0.5" />
+              Paid
+            </Badge>
           )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {isAdmin && onChangeStatus && currentStatus && (
-          <AdminRsvpChanger
-            currentStatus={currentStatus}
-            playerName={displayName || "Unknown"}
-            onChangeStatus={onChangeStatus}
-            isPending={isPending}
-          />
-        )}
-        {isAdmin && showPrice && onTogglePayment && (
-          <Button
-            variant={hasPaid ? "secondary" : "outline"}
-            size="sm"
-            onClick={onTogglePayment}
-            disabled={isPending}
-            className="shrink-0"
-          >
-            {isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : hasPaid ? (
-              <>
-                <Check className="h-4 w-4 mr-1" />
-                Paid
-              </>
-            ) : (
-              <>
-                <DollarSign className="h-4 w-4 mr-1" />
-                Mark Paid
-              </>
-            )}
-          </Button>
-        )}
-      </div>
-    </div>
+          {isAdmin && onChangeStatus && currentStatus && (
+            <AdminRsvpChanger
+              currentStatus={currentStatus}
+              playerName={displayName || "Unknown"}
+              onChangeStatus={onChangeStatus}
+              isPending={isPending}
+            />
+          )}
+          {isAdmin && showPrice && onTogglePayment && (
+            <Button
+              variant={hasPaid ? "secondary" : "outline"}
+              size="sm"
+              onClick={onTogglePayment}
+              disabled={isPending}
+              className="h-8 px-2 shrink-0"
+            >
+              {isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : hasPaid ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <>
+                  <DollarSign className="h-4 w-4 mr-1" />
+                  <span className="text-xs">Mark Paid</span>
+                </>
+              )}
+            </Button>
+          )}
+        </>
+      }
+    />
   );
 };
 
