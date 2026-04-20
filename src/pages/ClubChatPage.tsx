@@ -37,7 +37,7 @@ import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
-import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
@@ -1406,26 +1406,16 @@ export default function ClubChatPage() {
               clubId={clubId}
               onGifSelect={setImageUrl}
             />
-            {scheduleTarget && (
-              <ScheduleMessageButton
-                onClick={() => setScheduleDialogOpen(true)}
-                disabled={sendMutation.isPending}
-              />
-            )}
-            <button
-              onClick={() => {
+            <ChatSendButton
+              onSend={() => {
                 stopTyping();
                 handleSend();
               }}
+              onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
               disabled={(!message.trim() && !imageUrl && !pendingPollId) || sendMutation.isPending}
-              className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
-            >
-              {sendMutation.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Send className="h-5 w-5" />
-              )}
-            </button>
+              loading={sendMutation.isPending}
+              canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+            />
           </div>
           {scheduleTarget && (
             <ScheduleMessageDialog

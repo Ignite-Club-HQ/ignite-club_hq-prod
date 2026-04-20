@@ -23,7 +23,7 @@ import { ChatDetailsSheet } from "@/components/chat/ChatDetailsSheet";
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
-import { ScheduleMessageButton } from "@/components/chat/ScheduleMessageButton";
+import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
@@ -1217,23 +1217,13 @@ export default function DirectMessagePage() {
                   disabled={sendMessageMutation.isPending}
                   onGifSelect={setDmImageUrl}
                 />
-                {scheduleTarget && (
-                  <ScheduleMessageButton
-                    onClick={() => setScheduleDialogOpen(true)}
-                    disabled={sendMessageMutation.isPending}
-                  />
-                )}
-                <button 
-                  onClick={handleSend} 
+                <ChatSendButton
+                  onSend={handleSend}
+                  onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
                   disabled={(!message.trim() && !dmImageUrl) || sendMessageMutation.isPending}
-                  className="flex items-center justify-center h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
-                >
-                  {sendMessageMutation.isPending ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Send className="h-5 w-5" />
-                  )}
-                </button>
+                  loading={sendMessageMutation.isPending}
+                  canSend={!!message.trim() || !!dmImageUrl}
+                />
               </div>
               {scheduleTarget && (
                 <ScheduleMessageDialog
