@@ -2670,10 +2670,10 @@ export default function EventDetailPage() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm truncate min-w-0">{member.display_name || "Unknown"}</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm break-words min-w-0">{member.display_name || "Unknown"}</span>
                       {member.roles?.[0] && (
-                        <span className="shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">{member.roles[0]}</span>
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">{String(member.roles[0]).replace(/_/g, " ")}</span>
                       )}
                     </div>
                   </div>
