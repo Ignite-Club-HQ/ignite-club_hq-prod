@@ -1913,7 +1913,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           )}
         </SheetTrigger>
       )}
-      <SheetContent side="bottom" enableDragToClose className="max-h-[92vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain" data-lock-keyboard-scroll="true" data-allow-scroll style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+      <SheetContent
+        side="bottom"
+        enableDragToClose
+        className="max-h-[92vh] rounded-t-2xl flex flex-col overflow-hidden overscroll-contain"
+        data-lock-keyboard-scroll="true"
+        data-allow-scroll
+        style={{
+          touchAction: 'pan-y',
+          WebkitOverflowScrolling: 'touch',
+          // On Android (Keyboard.resize: 'none'), the WebView doesn't shrink when
+          // the keyboard opens. Cap the sheet height to the visible area so the
+          // sticky footer sits just above the keyboard instead of floating high.
+          ...(nativeKbHeight > 0
+            ? { maxHeight: `calc(100dvh - ${nativeKbHeight}px)` }
+            : {}),
+        }}
+      >
         <SheetHeader className="mb-3 shrink-0">
           <SheetTitle>Invite to Team</SheetTitle>
           <SheetDescription>
@@ -3208,7 +3224,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         </div>
 
         {/* Sticky CTA footer */}
-        <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6 transition-[padding]" style={{ touchAction: 'pan-y', paddingBottom: nativeKbHeight > 0 ? `${nativeKbHeight + 16}px` : undefined }}>
+        <div data-allow-scroll className="shrink-0 border-t bg-background px-6 py-4 -mx-6 -mb-6" style={{ touchAction: 'pan-y' }}>
           {mode === "single" ? (
             selectedUser ? (
               <Button
