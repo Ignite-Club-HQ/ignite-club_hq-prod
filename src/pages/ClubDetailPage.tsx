@@ -1475,7 +1475,10 @@ export default function ClubDetailPage() {
             </div>
           );
         })()}
+        </>)}
       </section>
+        );
+      })()}
 
       {/* Archived Teams Section - admins only */}
       {isAdmin && archivedTeams.length > 0 && (
