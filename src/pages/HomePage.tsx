@@ -1536,7 +1536,7 @@ export default function HomePage() {
         // Unified initial skeleton — single visual placeholder for the whole
         // home surface. Prevents the staggered widget pop-in that previously
         // happened as queries resolved at different times.
-        <div className="space-y-4" aria-hidden="true">
+        <div className="space-y-5" aria-hidden="true">
           <div className="h-32 rounded-xl bg-muted/60 animate-pulse" />
           <div className="h-20 rounded-xl bg-muted/50 animate-pulse" />
           <div className="h-24 rounded-xl bg-muted/40 animate-pulse" />
