@@ -95,7 +95,7 @@ export function ResponsiveDialogContent({
       <DrawerContent className={fullScreen ? "h-[100dvh] max-h-[100dvh]" : className}>
         <div className={fullScreen 
           ? "flex flex-col h-full w-full overflow-hidden pt-[env(safe-area-inset-top,0px)]" 
-          : "mx-auto w-full max-w-lg px-4 pb-safe max-h-[85vh] overflow-y-auto"
+          : "mx-auto w-full max-w-lg px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] max-h-[85vh] overflow-y-auto"
         }>
           {children}
         </div>
