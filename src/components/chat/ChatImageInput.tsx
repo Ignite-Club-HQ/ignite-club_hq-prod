@@ -394,7 +394,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
             sideOffset={8}
             collisionPadding={12}
             avoidCollisions={true}
-            className="w-60 p-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
+            className="w-64 p-2 max-h-[min(70vh,420px)] overflow-y-auto overscroll-contain"
           >
             <div className="flex flex-col gap-1.5">
               {/* Quick action: Add Photo / Video — subtle emphasis, always first */}
