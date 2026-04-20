@@ -1491,7 +1491,7 @@ export default function TeamChatPage() {
           />
         )}
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-        <div className="flex w-full max-w-full min-w-0 items-end gap-1 overflow-visible pt-1 pb-2 px-2">
+        <div className="flex w-full max-w-full min-w-0 items-center gap-1.5 overflow-visible px-2 py-1.5">
           <ChatImageInput
             imageUrl={imageUrl}
             onImageUploaded={setImageUrl}

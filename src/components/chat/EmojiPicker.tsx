@@ -151,10 +151,10 @@ export function EmojiPicker({ onEmojiSelect, onGifSelect, disabled }: EmojiPicke
           type="button"
           variant="ghost"
           size="icon"
-          className="h-9 w-9 shrink-0"
+          className="h-10 w-10 shrink-0 hover:bg-transparent text-muted-foreground hover:text-foreground"
           disabled={disabled}
         >
-          <Smile className="h-5 w-5 text-muted-foreground" />
+          <Smile className="h-5 w-5" strokeWidth={2} />
         </Button>
       </PopoverTrigger>
       <PopoverContent

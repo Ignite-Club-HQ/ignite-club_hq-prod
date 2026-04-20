@@ -27,11 +27,11 @@ export function ScheduleMessageButton({
       aria-label="Schedule message"
       title="Schedule message"
       className={cn(
-        "h-10 w-10 min-h-0 min-w-0 shrink-0 text-muted-foreground hover:text-primary",
+        "h-10 w-10 min-h-0 min-w-0 shrink-0 text-muted-foreground hover:text-foreground",
         className,
       )}
     >
-      <Clock className="h-[22px] w-[22px]" strokeWidth={2.25} />
+      <Clock className="h-5 w-5" strokeWidth={2} />
     </Button>
   );
 }
